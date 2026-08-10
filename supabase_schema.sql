@@ -148,12 +148,13 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.users (id, first_name, last_name, avatar_url)
+  insert into public.users (id, first_name, last_name, avatar_url, role)
   values (
     new.id,
     coalesce(new.raw_user_meta_data ->> 'first_name', ''),
     coalesce(new.raw_user_meta_data ->> 'last_name', ''),
-    new.raw_user_meta_data ->> 'avatar_url'
+    new.raw_user_meta_data ->> 'avatar_url',
+    coalesce((new.raw_user_meta_data ->> 'role')::public.user_role, 'student')
   );
   return new;
 end;

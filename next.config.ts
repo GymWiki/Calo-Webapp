@@ -13,7 +13,11 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // @ducanh2912/next-pwa always attaches a `webpack` config, even when
+  // disabled, which Turbopack (the `next dev` default) treats as an error.
+  // Production builds opt back into webpack via `next build --webpack` so
+  // the service worker still gets generated.
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);

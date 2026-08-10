@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-export const createClient = async (request: NextRequest) => {
+export const createClient = (request: NextRequest) => {
   // Create an unmodified response
   let supabaseResponse = NextResponse.next({
     request: {
@@ -33,11 +33,9 @@ export const createClient = async (request: NextRequest) => {
     },
   );
 
-  // Do not run code between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
-  await supabase.auth.getUser()
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
-  return supabaseResponse
+  // Callers must invoke `supabase.auth.getUser()` themselves before
+  // returning a response. Do not run other code in between: a simple
+  // mistake could make it very hard to debug issues with users being
+  // randomly logged out.
+  return { supabase, response: supabaseResponse };
 };
