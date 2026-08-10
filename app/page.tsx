@@ -2,16 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Anton } from "next/font/google";
 import { Moon, Sun } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-
-const anton = Anton({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-anton",
-});
 
 type Feature = {
   tag: string;
@@ -62,7 +55,6 @@ export default function LandingPage() {
   return (
     <div
       className={cn(
-        anton.variable,
         "min-h-screen font-sans transition-colors duration-500",
         isDark ? "bg-charcoal text-paper" : "bg-paper text-ink",
       )}
