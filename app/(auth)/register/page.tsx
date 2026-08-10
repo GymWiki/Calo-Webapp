@@ -11,9 +11,9 @@ import { RegisterForm } from "./register-form";
 
 export default function RegisterPage() {
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full shadow-brand-lg">
       <CardHeader>
-        <CardTitle>Account aanmaken</CardTitle>
+        <CardTitle className="text-xl">Account aanmaken</CardTitle>
         <CardDescription>
           Maak een GymBase-account aan als student of docent.
         </CardDescription>

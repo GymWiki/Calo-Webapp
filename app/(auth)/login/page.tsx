@@ -11,9 +11,9 @@ import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full shadow-brand-lg">
       <CardHeader>
-        <CardTitle>Inloggen</CardTitle>
+        <CardTitle className="text-xl">Inloggen</CardTitle>
         <CardDescription>Log in om verder te gaan naar GymBase.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
