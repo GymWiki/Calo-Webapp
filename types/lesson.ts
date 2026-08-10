@@ -150,7 +150,53 @@ export type LessonBlock = {
   created_at: string;
 };
 
+export type LessonAuthor = {
+  first_name: string;
+  last_name: string;
+};
+
 export type LessonWithDetails = Lesson & {
   lesson_didactics: LessonDidactics | null;
   lesson_blocks: LessonBlock[];
+  author: LessonAuthor | null;
 };
+
+// Shared "4 L'en" question config for the didactische analyse — used by
+// both the /les/[id] detail view and the PDF document so the labels and
+// field mapping only live in one place.
+export type LessonDidacticsTextField =
+  | "lukt_het_zwak_see"
+  | "lukt_het_zwak_do"
+  | "loopt_het_see"
+  | "loopt_het_do"
+  | "leeft_het_see"
+  | "leeft_het_do"
+  | "lukt_het_goed_see"
+  | "lukt_het_goed_do";
+
+export const L_QUESTIONS: {
+  title: string;
+  seeKey: LessonDidacticsTextField;
+  doKey: LessonDidacticsTextField;
+}[] = [
+  {
+    title: "Lukt het? (Zwakkere beweger)",
+    seeKey: "lukt_het_zwak_see",
+    doKey: "lukt_het_zwak_do",
+  },
+  {
+    title: "Loopt het? (Organisatie & Flow)",
+    seeKey: "loopt_het_see",
+    doKey: "loopt_het_do",
+  },
+  {
+    title: "Leeft het? (Beleving & Plezier)",
+    seeKey: "leeft_het_see",
+    doKey: "leeft_het_do",
+  },
+  {
+    title: "Lukt het? (Betere beweger)",
+    seeKey: "lukt_het_goed_see",
+    doKey: "lukt_het_goed_do",
+  },
+];

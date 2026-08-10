@@ -2,7 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
 import type { UserRole } from "@/lib/types";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/student", "/docent", "/les-maken"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/student",
+  "/docent",
+  "/les-maken",
+  "/les",
+  "/zoeken",
+  "/profiel",
+];
 
 function isProtectedPath(pathname: string) {
   return PROTECTED_PREFIXES.some(

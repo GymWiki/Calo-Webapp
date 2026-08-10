@@ -2,12 +2,14 @@ import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import type {
   Lesson,
+  LessonAuthor,
   LessonBlock,
   LessonDidactics,
   LessonWithDetails,
 } from "@/types/lesson";
 
-const LESSON_WITH_DETAILS_SELECT = "*, lesson_didactics(*), lesson_blocks(*)";
+const LESSON_WITH_DETAILS_SELECT =
+  "*, lesson_didactics(*), lesson_blocks(*), author:users(first_name, last_name)";
 
 async function getServerClient() {
   const cookieStore = await cookies();
@@ -15,13 +17,15 @@ async function getServerClient() {
 }
 
 // PostgREST embeds a to-one relationship (lesson_didactics has a unique FK
-// back to lessons) as an object, but returns an array if that uniqueness
-// isn't picked up — normalize defensively instead of trusting either shape.
+// back to lessons; author:users follows the author_id FK) as an object, but
+// returns an array if that uniqueness isn't picked up — normalize
+// defensively instead of trusting either shape.
 function normalizeLesson(row: Lesson & {
   lesson_didactics: LessonDidactics | LessonDidactics[] | null;
   lesson_blocks: LessonBlock[] | null;
+  author: LessonAuthor | LessonAuthor[] | null;
 }): LessonWithDetails {
-  const { lesson_didactics, lesson_blocks, ...lesson } = row;
+  const { lesson_didactics, lesson_blocks, author, ...lesson } = row;
 
   return {
     ...lesson,
@@ -29,6 +33,7 @@ function normalizeLesson(row: Lesson & {
       ? (lesson_didactics[0] ?? null)
       : lesson_didactics,
     lesson_blocks: lesson_blocks ?? [],
+    author: Array.isArray(author) ? (author[0] ?? null) : author,
   };
 }
 

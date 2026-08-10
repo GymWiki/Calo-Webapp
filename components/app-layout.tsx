@@ -46,7 +46,7 @@ export function AppLayout({
 
   return (
     <div className="flex min-h-screen md:flex-row">
-      <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground">
+      <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
         <div className="px-6 py-5 text-lg font-semibold">GymBase</div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {navItems.map((item) => {
@@ -81,11 +81,11 @@ export function AppLayout({
         </form>
       </aside>
 
-      <div className="flex flex-1 flex-col pb-16 md:pb-0">
+      <div className="flex flex-1 flex-col pb-16 md:pb-0 print:pb-0">
         <main className="flex-1">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t bg-background md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t bg-background md:hidden print:hidden">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
