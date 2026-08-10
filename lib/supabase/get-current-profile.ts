@@ -24,6 +24,10 @@ export const getCurrentUserProfile = cache(
       .eq("id", user.id)
       .single();
 
-    return profile as UserProfile | null;
+    if (!profile) {
+      return null;
+    }
+
+    return { ...profile, email: user.email ?? null } as UserProfile;
   },
 );

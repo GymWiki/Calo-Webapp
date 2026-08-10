@@ -7,4 +7,5 @@ export type UserProfile = {
   last_name: string;
   avatar_url: string | null;
   available_for_internship: boolean;
+  email: string | null;
 };
