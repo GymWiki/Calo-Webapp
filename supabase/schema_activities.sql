@@ -1,6 +1,12 @@
 -- ============================================================================
 -- Volledige Activiteiten- & Lessendatabase
 -- ============================================================================
+-- NOTE: `lessons.author_id` below was created referencing `auth.users(id)`,
+-- which broke PostgREST embedding ("Could not find a relationship between
+-- 'lessons' and 'users'") since there was no direct FK edge to
+-- `public.users`. Fixed in fix_lessons_author_fk.sql — see that file for
+-- why repointing the FK at `public.users(id)` is safe.
+--
 -- Rebuilds lessons/lesson_didactics/lesson_blocks/lesson_tags on `lessons.id
 -- uuid` (previously `bigint` since Fase 1/3). Safe to run: at the time this
 -- migration was written every one of these tables had 0 rows.
