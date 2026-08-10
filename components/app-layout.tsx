@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen,
+  Handshake,
   LayoutDashboard,
   LogOut,
+  NotebookText,
   Search,
   SquarePen,
   User as UserIcon,
@@ -21,6 +24,9 @@ type NavItem = {
   icon: typeof LayoutDashboard;
 };
 
+// The four items every role needs at a thumb's reach — kept lean so the
+// mobile bottom nav never crowds. Role-specific extras live in
+// getSecondaryNavItems, sidebar-only on desktop.
 function getNavItems(role: UserRole): NavItem[] {
   return [
     {
@@ -34,6 +40,16 @@ function getNavItems(role: UserRole): NavItem[] {
   ];
 }
 
+function getSecondaryNavItems(role: UserRole): NavItem[] {
+  if (role === "docent") {
+    return [{ href: "/docent/bibliotheek", label: "Bibliotheek", icon: BookOpen }];
+  }
+  return [
+    { href: "/student/marktplaats", label: "Marktplaats", icon: Handshake },
+    { href: "/student/stage-logboek", label: "Stage-logboek", icon: NotebookText },
+  ];
+}
+
 export function AppLayout({
   role,
   children,
@@ -43,11 +59,23 @@ export function AppLayout({
 }) {
   const pathname = usePathname();
   const navItems = getNavItems(role);
+  const secondaryNavItems = getSecondaryNavItems(role);
+
+  function navLinkClass(isActive: boolean) {
+    return cn(
+      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ease-brand",
+      isActive
+        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+        : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+    );
+  }
 
   return (
     <div className="flex min-h-screen md:flex-row">
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
-        <div className="px-6 py-5 text-lg font-semibold">GymBase</div>
+        <div className="font-display px-6 py-5 text-lg tracking-wide">
+          GYMBASE
+        </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {navItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -56,18 +84,35 @@ export function AppLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                )}
+                className={navLinkClass(isActive)}
               >
                 <Icon className="size-4" />
                 {item.label}
               </Link>
             );
           })}
+
+          {secondaryNavItems.length > 0 && (
+            <>
+              <p className="mt-5 mb-1 px-3 font-mono text-[10px] font-semibold tracking-[0.14em] text-sidebar-foreground/40 uppercase">
+                Meer
+              </p>
+              {secondaryNavItems.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={navLinkClass(isActive)}
+                  >
+                    <Icon className="size-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
         <form action={logout} className="border-t p-3">
           <Button
@@ -85,7 +130,7 @@ export function AppLayout({
         <main className="flex-1">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t bg-background md:hidden print:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t bg-background/95 backdrop-blur-sm md:hidden print:hidden">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -94,11 +139,16 @@ export function AppLayout({
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium transition-colors",
+                "flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium transition-colors duration-150 ease-brand",
                 isActive ? "text-primary" : "text-muted-foreground",
               )}
             >
-              <Icon className="size-5" />
+              <Icon
+                className={cn(
+                  "size-5 transition-transform duration-150 ease-brand",
+                  isActive && "-translate-y-0.5",
+                )}
+              />
               {item.label}
             </Link>
           );
