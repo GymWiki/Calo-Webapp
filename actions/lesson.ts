@@ -6,6 +6,7 @@ import {
   createLessonInputSchema,
   type CreateLessonInput,
 } from "@/types/lesson";
+import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 
 type ActionResult = { error: string } | { success: true };
 
@@ -13,6 +14,7 @@ const GENERIC_ERROR = "Les opslaan is mislukt. Probeer het opnieuw.";
 
 export async function createLesson(
   input: CreateLessonInput,
+  diagram: { data: DiagramData; imageDataUrl: string } | null = null,
 ): Promise<ActionResult> {
   const parsed = createLessonInputSchema.safeParse(input);
 
@@ -50,6 +52,8 @@ export async function createLesson(
         participants_bench: values.participantsBench ?? null,
         rules: values.rules,
         goals: values.goals,
+        diagram_data: diagram?.data ?? null,
+        diagram_image_url: diagram?.imageDataUrl ?? null,
       })
       .select("id")
       .single();

@@ -124,6 +124,10 @@ export type Lesson = {
   participants_bench: number | null;
   base_materials: string[] | null;
   rule_materials: string[] | null;
+  // Loosely typed here (JSONB) — the canvas module owns the rich shape via
+  // components/canvas/gym-canvas-types.ts's DiagramData.
+  diagram_data: unknown | null;
+  diagram_image_url: string | null;
   created_at: string;
   updated_at: string;
 };

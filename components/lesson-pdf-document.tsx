@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import { formatDate } from "@/lib/format";
 import {
@@ -64,6 +64,13 @@ const styles = StyleSheet.create({
   },
   gridCell: { width: "48%", marginBottom: 8 },
   listItem: { fontSize: 9, marginBottom: 2 },
+  diagramImage: {
+    width: "100%",
+    maxWidth: 380,
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    borderRadius: 4,
+  },
 });
 
 function HeaderField({ label, value }: { label: string; value: string }) {
@@ -169,6 +176,14 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
             </View>
           ))}
         </View>
+
+        {lesson.diagram_image_url && (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Tekening van het arrangement</Text>
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop */}
+            <Image style={styles.diagramImage} src={lesson.diagram_image_url} />
+          </View>
+        )}
       </Page>
     </Document>
   );

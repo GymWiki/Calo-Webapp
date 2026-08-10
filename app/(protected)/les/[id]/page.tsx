@@ -209,6 +209,27 @@ export default async function LesDetailPage({
           ))}
         </CardContent>
       </Card>
+
+      {/* Tekening van het arrangement */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tekening van het arrangement</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {lesson.diagram_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={lesson.diagram_image_url}
+              alt="Plattegrond van het arrangement"
+              className="w-full max-w-xl rounded-lg border"
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Geen tekening toegevoegd.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }

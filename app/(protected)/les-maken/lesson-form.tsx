@@ -34,7 +34,8 @@ import {
   type CreateLessonInput,
 } from "@/types/lesson";
 import type { UserRole } from "@/lib/types";
-import { DrawingUploadPlaceholder } from "./drawing-upload-placeholder";
+import type { DiagramData } from "@/components/canvas/gym-canvas-types";
+import { DiagramEditorCard } from "./diagram-editor-card";
 import { DynamicTextList } from "./dynamic-text-list";
 
 const TAB_ORDER = ["context", "organisatie", "didactiek", "voorbereiding"] as const;
@@ -89,6 +90,10 @@ export function LessonForm({
   const [baseMaterials, setBaseMaterials] = useState<string[]>([]);
   const [ruleMaterials, setRuleMaterials] = useState<string[]>([]);
   const [rules, setRules] = useState<string[]>([]);
+  const [diagram, setDiagram] = useState<{
+    data: DiagramData;
+    imageDataUrl: string;
+  } | null>(null);
 
   const form = useForm<CreateLessonFormInput, unknown, CreateLessonInput>({
     resolver: zodResolver(createLessonInputSchema),
@@ -109,7 +114,7 @@ export function LessonForm({
       rules,
     };
 
-    const result = await createLesson(payload);
+    const result = await createLesson(payload, diagram);
 
     if ("error" in result) {
       toast.error(result.error);
@@ -481,7 +486,9 @@ export function LessonForm({
               </Card>
             </div>
             <div className="mt-4">
-              <DrawingUploadPlaceholder />
+              <DiagramEditorCard
+                onExport={(data, imageDataUrl) => setDiagram({ data, imageDataUrl })}
+              />
             </div>
             <div className="mt-4 flex justify-between">
               <Button type="button" variant="outline" onClick={() => goRelative(-1)}>

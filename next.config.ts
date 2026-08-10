@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
   // Production builds opt back into webpack via `next build --webpack` so
   // the service worker still gets generated.
   turbopack: {},
+  experimental: {
+    serverActions: {
+      // createLesson's payload can include a base64 PNG of the exported
+      // gym-floor diagram; the 1 MB default is too tight for that.
+      bodySizeLimit: "4mb",
+    },
+  },
 };
 
 export default withPWA(nextConfig);
