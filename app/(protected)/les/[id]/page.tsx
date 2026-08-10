@@ -111,9 +111,12 @@ export default async function LesDetailPage({
       </div>
 
       {/* Header */}
-      <Card>
+      <Card className="animate-fade-up">
         <CardHeader>
-          <CardTitle className="text-2xl">{lesson.title}</CardTitle>
+          <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
+            Lesvoorbereiding
+          </p>
+          <CardTitle className="mt-1 text-2xl">{lesson.title}</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -128,7 +131,7 @@ export default async function LesDetailPage({
       </Card>
 
       {/* Sectie 1: Organisatie */}
-      <Card>
+      <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
         <CardHeader>
           <CardTitle>Organisatie</CardTitle>
         </CardHeader>
@@ -156,7 +159,7 @@ export default async function LesDetailPage({
       </Card>
 
       {/* Sectie 2: Didactische analyse (de 4 L'en) */}
-      <Card>
+      <Card className="animate-fade-up" style={{ animationDelay: "80ms" }}>
         <CardHeader>
           <CardTitle>Didactische analyse</CardTitle>
         </CardHeader>
@@ -167,7 +170,7 @@ export default async function LesDetailPage({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {L_QUESTIONS.map((question) => (
-              <Card key={question.title}>
+              <Card key={question.title} className="bg-muted/40">
                 <CardHeader>
                   <CardTitle className="text-base">{question.title}</CardTitle>
                 </CardHeader>
@@ -188,13 +191,13 @@ export default async function LesDetailPage({
       </Card>
 
       {/* Sectie 3: Kernblokken */}
-      <Card>
+      <Card className="animate-fade-up" style={{ animationDelay: "120ms" }}>
         <CardHeader>
           <CardTitle>Kernblokken</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           {LESSON_BLOCK_TYPES.map((type) => (
-            <Card key={type}>
+            <Card key={type} className="bg-muted/40">
               <CardHeader>
                 <CardTitle className="text-base">
                   {LESSON_BLOCK_LABELS[type]}
@@ -211,7 +214,7 @@ export default async function LesDetailPage({
       </Card>
 
       {/* Tekening van het arrangement */}
-      <Card>
+      <Card className="animate-fade-up" style={{ animationDelay: "160ms" }}>
         <CardHeader>
           <CardTitle>Tekening van het arrangement</CardTitle>
         </CardHeader>
