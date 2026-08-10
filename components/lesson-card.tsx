@@ -17,7 +17,7 @@ export function LessonCard({ lesson }: { lesson: Lesson }) {
   const date = formatDate(lesson.lesson_date);
 
   return (
-    <Card>
+    <Card className="transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md">
       <CardHeader>
         <CardTitle>{lesson.title}</CardTitle>
         {date && <p className="text-sm text-muted-foreground">{date}</p>}
