@@ -107,7 +107,7 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
 // ----------------------------------------------------------------------------
 
 export type Lesson = {
-  id: number;
+  id: string;
   author_id: string;
   title: string;
   description: string | null;
@@ -125,11 +125,12 @@ export type Lesson = {
   base_materials: string[] | null;
   rule_materials: string[] | null;
   created_at: string;
+  updated_at: string;
 };
 
 export type LessonDidactics = {
-  id: number;
-  lesson_id: number;
+  id: string;
+  lesson_id: string;
   instructions_text: string | null;
   lukt_het_zwak_see: string | null;
   lukt_het_zwak_do: string | null;
@@ -142,9 +143,14 @@ export type LessonDidactics = {
 };
 
 export type LessonBlock = {
-  id: number;
-  lesson_id: number;
+  id: string;
+  lesson_id: string;
   block_type: LessonBlockType;
   content: string;
   created_at: string;
+};
+
+export type LessonWithDetails = Lesson & {
+  lesson_didactics: LessonDidactics | null;
+  lesson_blocks: LessonBlock[];
 };
