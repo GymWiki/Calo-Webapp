@@ -34,12 +34,47 @@ import {
   type CreateLessonInput,
 } from "@/types/lesson";
 import type { UserRole } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import { DiagramEditorCard } from "./diagram-editor-card";
 import { DynamicTextList } from "./dynamic-text-list";
 
 const TAB_ORDER = ["context", "organisatie", "didactiek", "voorbereiding"] as const;
 type TabValue = (typeof TAB_ORDER)[number];
+
+const TAB_LABELS: Record<TabValue, string> = {
+  context: "Context & Thema",
+  organisatie: "Organisatie",
+  didactiek: "Didactiek",
+  voorbereiding: "Voorbereiding",
+};
+
+function StepProgress({ activeTab }: { activeTab: TabValue }) {
+  const activeIndex = TAB_ORDER.indexOf(activeTab);
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+          Stap {activeIndex + 1} van {TAB_ORDER.length}
+        </p>
+        <p className="text-xs font-medium text-primary">
+          {TAB_LABELS[activeTab]}
+        </p>
+      </div>
+      <div className="mt-2 flex gap-1.5">
+        {TAB_ORDER.map((tab, index) => (
+          <div
+            key={tab}
+            className={cn(
+              "h-1.5 flex-1 rounded-full transition-colors duration-300 ease-brand",
+              index <= activeIndex ? "bg-primary" : "bg-muted",
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 type LFieldName =
   | "luktHetZwakSee"
@@ -129,6 +164,7 @@ export function LessonForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <StepProgress activeTab={activeTab} />
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
           <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
             <TabsTrigger value="context">Context & Thema</TabsTrigger>
@@ -138,7 +174,7 @@ export function LessonForm({
           </TabsList>
 
           {/* Tab 1 — Context & Thema */}
-          <TabsContent value="context">
+          <TabsContent value="context" className="animate-fade-up">
             <Card>
               <CardHeader>
                 <CardTitle>Context & Thema</CardTitle>
@@ -241,7 +277,7 @@ export function LessonForm({
           </TabsContent>
 
           {/* Tab 2 — Organisatie & Materialen */}
-          <TabsContent value="organisatie">
+          <TabsContent value="organisatie" className="animate-fade-up">
             <Card>
               <CardHeader>
                 <CardTitle>Organisatie & Materialen</CardTitle>
@@ -319,7 +355,7 @@ export function LessonForm({
           </TabsContent>
 
           {/* Tab 3 — Didactische analyse (de 4 L'en) */}
-          <TabsContent value="didactiek">
+          <TabsContent value="didactiek" className="animate-fade-up">
             <Card>
               <CardHeader>
                 <CardTitle>Didactische analyse</CardTitle>
@@ -392,7 +428,7 @@ export function LessonForm({
           </TabsContent>
 
           {/* Tab 4 — Activiteitsvoorbereiding (de 4 kernelementen) */}
-          <TabsContent value="voorbereiding">
+          <TabsContent value="voorbereiding" className="animate-fade-up">
             <div className="grid gap-4 sm:grid-cols-2">
               <Card>
                 <CardHeader>
