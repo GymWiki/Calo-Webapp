@@ -165,6 +165,35 @@ export const BASISDOCUMENT_BEWEGINGSPROBLEMEN: Record<BasisdocumentLeerlijn, str
 
 export const ANDERS_OPTION = "Anders, namelijk...";
 
+// ----------------------------------------------------------------------------
+// Game-Based Pedagogy — Koekoek, Dokman & Walinga
+// ----------------------------------------------------------------------------
+
+export const GAME_CATEGORIES = [
+  "Invasion Games",
+  "Net/Wall Games",
+  "Striking/Fielding Games",
+  "Target Games",
+  "Overig",
+] as const;
+export const gameCategorySchema = z.enum(GAME_CATEGORIES);
+export type GameCategory = z.infer<typeof gameCategorySchema>;
+
+export const gameDimensionsSchema = z.object({
+  space: z.string().trim(),
+  equipment: z.string().trim(),
+  people: z.string().trim(),
+  rules: z.string().trim(),
+});
+export type GameDimensions = z.infer<typeof gameDimensionsSchema>;
+
+export const EMPTY_GAME_DIMENSIONS: GameDimensions = {
+  space: "",
+  equipment: "",
+  people: "",
+  rules: "",
+};
+
 /**
  * Full lesvoorbereiding form: validated identically on the client
  * (react-hook-form + zodResolver) and on the server (createLesson action).
@@ -185,9 +214,13 @@ export const createLessonInputSchema = z.object({
   participantsBench: optionalCount,
   rules: textList,
 
-  // Tab 3 — Didactische analyse (de 3 L'en, Walinga & Koekoek 2021)
+  // Tab 3 — Didactische analyse (de 3 L'en, Walinga & Koekoek 2021) +
+  // Game-Based Pedagogy (Koekoek, Dokman & Walinga)
   goals: requiredText("Doelen zijn verplicht."),
   didacticItems: z.array(didacticItemSchema),
+  gameCategory: z.string().trim(),
+  gameDimensions: gameDimensionsSchema,
+  tacticalQuestions: textList,
 
   // Tab 4 — Activiteitsvoorbereiding (de 4 kernelementen)
   arrangement: requiredText("Arrangement is verplicht."),
@@ -218,6 +251,9 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   rules: [],
   goals: "",
   didacticItems: [],
+  gameCategory: "",
+  gameDimensions: EMPTY_GAME_DIMENSIONS,
+  tacticalQuestions: [],
   arrangement: "",
   deelnemersRegels: "",
   plaatjePraatje: "",
@@ -250,6 +286,9 @@ export type Lesson = {
   // components/canvas/gym-canvas-types.ts's DiagramData.
   diagram_data: unknown | null;
   diagram_image_url: string | null;
+  game_category: string | null;
+  game_dimensions: GameDimensions | null;
+  tactical_questions: string[] | null;
   created_at: string;
   updated_at: string;
 };

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { AiGeneratorDialog } from "@/components/AiGeneratorDialog";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -14,6 +15,7 @@ export default function ZoekenPage() {
         title="Ontdek activiteiten"
         description="Doorzoek de activiteiten-bibliotheek op trefwoord, leerlijn, doelgroep of materiaal."
       />
+      <AiGeneratorDialog />
       <Suspense fallback={<Skeleton className="h-11 w-full rounded-md" />}>
         <ZoekenContent />
       </Suspense>

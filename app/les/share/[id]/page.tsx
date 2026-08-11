@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { EyeOff, Sparkles } from "lucide-react";
 
+import { AiLescoachButton } from "@/components/AiLescoachSheet";
 import { EmptyState } from "@/components/empty-state";
+import { GameBasedPedagogyMatrix } from "@/components/GameBasedPedagogyMatrix";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +92,17 @@ export default async function SharedLessonPage({
   const blocksByType = new Map(
     lesson.lesson_blocks.map((block) => [block.block_type, block.content]),
   );
+  const analyzePayload = {
+    title: lesson.title,
+    learningLine: lesson.learning_line ?? undefined,
+    movementProblem: lesson.movement_problem ?? undefined,
+    movementTheme: lesson.movement_theme ?? undefined,
+    goals: lesson.goals ?? undefined,
+    didacticItems: lesson.lesson_didactics?.items ?? [],
+    gameCategory: lesson.game_category ?? undefined,
+    gameDimensions: lesson.game_dimensions ?? undefined,
+    tacticalQuestions: lesson.tactical_questions ?? undefined,
+  };
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -172,6 +185,18 @@ export default async function SharedLessonPage({
             <DidacticsMatrix items={lesson.lesson_didactics?.items ?? []} />
           </CardContent>
         </Card>
+
+        <GameBasedPedagogyMatrix
+          category={lesson.game_category}
+          dimensions={lesson.game_dimensions}
+          tacticalQuestions={lesson.tactical_questions}
+        />
+
+        {profile && (
+          <div className="animate-fade-up flex justify-end" style={{ animationDelay: "100ms" }}>
+            <AiLescoachButton payload={analyzePayload} />
+          </div>
+        )}
 
         <Card className="animate-fade-up" style={{ animationDelay: "120ms" }}>
           <CardHeader>

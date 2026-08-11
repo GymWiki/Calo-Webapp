@@ -120,6 +120,13 @@ function TextList({ items }: { items: string[] | null }) {
   );
 }
 
+const GAME_DIMENSION_LABELS: [key: "space" | "equipment" | "people" | "rules", label: string][] = [
+  ["space", "Ruimte (Space)"],
+  ["equipment", "Materiaal (Equipment)"],
+  ["people", "Aantallen (People)"],
+  ["rules", "Regels (Rules)"],
+];
+
 export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
   const authorName = lesson.author
     ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
@@ -130,6 +137,11 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
   const groupedDidactics = groupDidacticItemsByCategory(
     lesson.lesson_didactics?.items ?? [],
   );
+  const hasGamePedagogy =
+    lesson.game_category ||
+    (lesson.game_dimensions &&
+      Object.values(lesson.game_dimensions).some((value) => value?.trim())) ||
+    (lesson.tactical_questions && lesson.tactical_questions.length > 0);
 
   return (
     <Document title={`Lesvoorbereiding - ${lesson.title}`}>
@@ -207,6 +219,34 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
             })}
           </View>
         </View>
+
+        {hasGamePedagogy && (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Game-Based Pedagogy</Text>
+            {lesson.game_category && (
+              <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
+                <Text style={styles.boxLabel}>Spelcategorie</Text>
+                <Text style={styles.boxText}>{lesson.game_category}</Text>
+              </View>
+            )}
+            <View style={styles.grid2}>
+              {GAME_DIMENSION_LABELS.map(([key, label]) => (
+                <View key={key} style={[styles.gridCell, styles.box]} wrap={false}>
+                  <Text style={styles.boxLabel}>{label}</Text>
+                  <Text style={styles.boxText}>
+                    {lesson.game_dimensions?.[key] || "-"}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            {lesson.tactical_questions && lesson.tactical_questions.length > 0 && (
+              <View style={styles.box} wrap={false}>
+                <Text style={styles.boxLabel}>Tactische reflectievragen</Text>
+                <TextList items={lesson.tactical_questions} />
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Kernblokken</Text>

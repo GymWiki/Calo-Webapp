@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import { createLesson } from "@/actions/lesson";
+import { AiLescoachSheet } from "@/components/AiLescoachSheet";
 import { DidacticsForm } from "@/components/DidacticsForm";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,9 +30,15 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AI_GENERATED_LESSON_STORAGE_KEY,
+  type GeneratedLessonWithIds,
+} from "@/types/ai";
+import {
   ANDERS_OPTION,
   BASISDOCUMENT_BEWEGINGSPROBLEMEN,
   BASISDOCUMENT_LEERLIJNEN,
+  EMPTY_GAME_DIMENSIONS,
+  GAME_CATEGORIES,
   createLessonDefaultValues,
   createLessonInputSchema,
   type BasisdocumentLeerlijn,
@@ -168,16 +175,40 @@ export function LessonForm({
   initialTab?: TabValue;
 }) {
   const router = useRouter();
+
+  // Picks up a lesson stashed by the AI Activiteiten Generator (written to
+  // sessionStorage by AiGeneratorDialog before navigating here). Read once,
+  // synchronously, as part of the initial render via lazy useState
+  // initializers below — not in an effect — so there's no post-mount
+  // setState cascade; a fresh /les-maken visit is the only time this
+  // matters, and every initializer here runs once per mount regardless.
+  const [stashedGenerated] = useState<GeneratedLessonWithIds | null>(() => {
+    if (typeof window === "undefined") return null;
+    const raw = sessionStorage.getItem(AI_GENERATED_LESSON_STORAGE_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(AI_GENERATED_LESSON_STORAGE_KEY);
+    try {
+      return JSON.parse(raw) as GeneratedLessonWithIds;
+    } catch {
+      return null;
+    }
+  });
+
   const [activeTab, setActiveTab] = useState<TabValue>(initialTab ?? "context");
   const [baseMaterials, setBaseMaterials] = useState<string[]>(
-    initialValues?.baseMaterials ?? [],
+    stashedGenerated?.baseMaterials ?? initialValues?.baseMaterials ?? [],
   );
   const [ruleMaterials, setRuleMaterials] = useState<string[]>(
-    initialValues?.ruleMaterials ?? [],
+    stashedGenerated?.ruleMaterials ?? initialValues?.ruleMaterials ?? [],
   );
-  const [rules, setRules] = useState<string[]>(initialValues?.rules ?? []);
+  const [rules, setRules] = useState<string[]>(
+    stashedGenerated?.rules ?? initialValues?.rules ?? [],
+  );
   const [didacticItems, setDidacticItems] = useState<DidacticItem[]>(
-    initialValues?.didacticItems ?? [],
+    stashedGenerated?.didacticItems ?? initialValues?.didacticItems ?? [],
+  );
+  const [tacticalQuestions, setTacticalQuestions] = useState<string[]>(
+    stashedGenerated?.tacticalQuestions ?? initialValues?.tacticalQuestions ?? [],
   );
   const [diagram, setDiagram] = useState<{
     data: DiagramData;
@@ -186,12 +217,43 @@ export function LessonForm({
 
   const form = useForm<CreateLessonFormInput, unknown, CreateLessonInput>({
     resolver: zodResolver(createLessonInputSchema),
-    defaultValues: { ...createLessonDefaultValues, ...initialValues },
+    defaultValues: {
+      ...createLessonDefaultValues,
+      ...initialValues,
+      ...(stashedGenerated
+        ? {
+            title: stashedGenerated.title,
+            learningLine: stashedGenerated.learningLine,
+            movementProblem: stashedGenerated.movementProblem,
+            movementTheme: stashedGenerated.movementTheme,
+            groupName: stashedGenerated.groupName || "",
+            goals: stashedGenerated.goals,
+            gameCategory: stashedGenerated.gameCategory || "",
+            gameDimensions: {
+              ...EMPTY_GAME_DIMENSIONS,
+              ...stashedGenerated.gameDimensions,
+            },
+            arrangement: stashedGenerated.arrangement || "",
+            deelnemersRegels: stashedGenerated.deelnemersRegels || "",
+            plaatjePraatje: stashedGenerated.plaatjePraatje || "",
+            aandachtspunten: stashedGenerated.aandachtspunten || "",
+          }
+        : {}),
+    },
   });
   const selectedLearningLine = useWatch({
     control: form.control,
     name: "learningLine",
   }) as BasisdocumentLeerlijn;
+
+  // Side-effect only (no setState) — safe in an effect. Fires once if a
+  // generated lesson was picked up above.
+  useEffect(() => {
+    if (stashedGenerated) {
+      toast.success("AI-gegenereerde lesvoorbereiding geladen — controleer en vul aan.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function goRelative(offset: 1 | -1) {
     const index = TAB_ORDER.indexOf(activeTab);
@@ -206,6 +268,7 @@ export function LessonForm({
       ruleMaterials,
       rules,
       didacticItems,
+      tacticalQuestions,
     };
 
     const result = await createLesson(payload, diagram);
@@ -223,6 +286,22 @@ export function LessonForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="flex justify-end">
+          <AiLescoachSheet
+            getPayload={() => ({
+              title: form.getValues("title"),
+              learningLine: form.getValues("learningLine"),
+              movementProblem: form.getValues("movementProblem"),
+              movementTheme: form.getValues("movementTheme"),
+              goals: form.getValues("goals"),
+              didacticItems,
+              gameCategory: form.getValues("gameCategory"),
+              gameDimensions: form.getValues("gameDimensions"),
+              tacticalQuestions,
+            })}
+            onApplyImprovement={(item) => setDidacticItems((prev) => [...prev, item])}
+          />
+        </div>
         <StepProgress activeTab={activeTab} />
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
           <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
@@ -460,6 +539,117 @@ export function LessonForm({
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Game-Based Pedagogy</CardTitle>
+                <CardDescription>
+                  Koekoek, Dokman & Walinga — spelcategorie, speldimensies en
+                  tactische reflectievragen.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="gameCategory"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Spelcategorie</FormLabel>
+                      <FormControl>
+                        <select
+                          value={field.value}
+                          onChange={(event) => field.onChange(event.target.value)}
+                          className={SELECT_CLASS}
+                        >
+                          <option value="">Kies een spelcategorie</option>
+                          {GAME_CATEGORIES.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div>
+                  <Label className="mb-2 block">
+                    Speldimensies (Game Dimensions)
+                  </Label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="gameDimensions.space"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-normal text-muted-foreground">
+                            Ruimte (Space)
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="Bijv. Half veld, drie zones" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="gameDimensions.equipment"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-normal text-muted-foreground">
+                            Materiaal (Equipment)
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="Bijv. Grote, zachte bal" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="gameDimensions.people"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-normal text-muted-foreground">
+                            Aantallen (People)
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="Bijv. 3 tegen 2" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="gameDimensions.rules"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-normal text-muted-foreground">
+                            Regels (Rules)
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="Bijv. Alleen onderhands passen" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <DynamicTextList
+                  label="Tactische reflectievragen (2-3 vragen)"
+                  placeholder="Bijv. Wanneer kies je voor een korte in plaats van lange pass?"
+                  items={tacticalQuestions}
+                  onChange={setTacticalQuestions}
                 />
               </CardContent>
             </Card>

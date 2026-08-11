@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 
+import { AiLescoachButton } from "@/components/AiLescoachSheet";
+import { GameBasedPedagogyMatrix } from "@/components/GameBasedPedagogyMatrix";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { Badge } from "@/components/ui/badge";
@@ -86,6 +88,17 @@ export default async function LesDetailPage({
   const blocksByType = new Map(
     lesson.lesson_blocks.map((block) => [block.block_type, block.content]),
   );
+  const analyzePayload = {
+    title: lesson.title,
+    learningLine: lesson.learning_line ?? undefined,
+    movementProblem: lesson.movement_problem ?? undefined,
+    movementTheme: lesson.movement_theme ?? undefined,
+    goals: lesson.goals ?? undefined,
+    didacticItems: lesson.lesson_didactics?.items ?? [],
+    gameCategory: lesson.game_category ?? undefined,
+    gameDimensions: lesson.game_dimensions ?? undefined,
+    tacticalQuestions: lesson.tactical_questions ?? undefined,
+  };
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 sm:p-8 md:pb-8 print:max-w-none print:p-0">
@@ -103,6 +116,7 @@ export default async function LesDetailPage({
               Bewerken
             </Button>
           )}
+          <AiLescoachButton payload={analyzePayload} />
           <LessonPdfButton lesson={lesson} />
         </div>
       </div>
@@ -169,6 +183,12 @@ export default async function LesDetailPage({
         </CardContent>
       </Card>
 
+      <GameBasedPedagogyMatrix
+        category={lesson.game_category}
+        dimensions={lesson.game_dimensions}
+        tacticalQuestions={lesson.tactical_questions}
+      />
+
       {/* Sectie 3: Kernblokken */}
       <Card className="animate-fade-up" style={{ animationDelay: "120ms" }}>
         <CardHeader>
@@ -226,6 +246,7 @@ export default async function LesDetailPage({
             Bewerken
           </Button>
         )}
+        <AiLescoachButton payload={analyzePayload} className="flex-1" />
         <LessonPdfButton lesson={lesson} className="flex-1" />
       </div>
     </main>

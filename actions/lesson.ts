@@ -54,6 +54,9 @@ export async function createLesson(
         goals: values.goals,
         diagram_data: diagram?.data ?? null,
         diagram_image_url: diagram?.imageDataUrl ?? null,
+        game_category: values.gameCategory || null,
+        game_dimensions: values.gameDimensions,
+        tactical_questions: values.tacticalQuestions,
       })
       .select("id")
       .single();
