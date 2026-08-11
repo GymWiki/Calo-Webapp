@@ -10,6 +10,7 @@ import {
   NotebookText,
   Search,
   SquarePen,
+  Trophy,
   User as UserIcon,
 } from "lucide-react";
 
@@ -36,6 +37,7 @@ function getNavItems(role: UserRole): NavItem[] {
     },
     { href: "/zoeken", label: "Activiteiten", icon: Search },
     { href: "/les-maken", label: "Les maken", icon: SquarePen },
+    { href: "/toernooi", label: "Toernooi", icon: Trophy },
     { href: "/profiel", label: "Profiel", icon: UserIcon },
   ];
 }

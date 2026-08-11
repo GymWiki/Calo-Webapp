@@ -11,6 +11,7 @@ const PROTECTED_PREFIXES = [
   "/activiteit",
   "/zoeken",
   "/profiel",
+  "/toernooi",
 ];
 
 function isProtectedPath(pathname: string) {

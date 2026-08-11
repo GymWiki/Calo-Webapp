@@ -1,7 +1,14 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, CalendarDays, NotebookPen, SquarePen, Trophy } from "lucide-react";
+import {
+  BookOpen,
+  CalendarDays,
+  NotebookPen,
+  SquarePen,
+  Swords,
+  Trophy,
+} from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { LessonCard } from "@/components/lesson-card";
@@ -84,25 +91,47 @@ async function DashboardContent({ userId }: { userId: string }) {
         />
       </div>
 
-      <Link
-        href="/docent/bibliotheek"
-        className="group flex items-center justify-between rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md"
-      >
-        <div className="flex items-center gap-4">
-          <div className="flex size-10 items-center justify-center rounded-full bg-line-blue/10 text-line-blue">
-            <BookOpen className="size-5" aria-hidden="true" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Link
+          href="/docent/bibliotheek"
+          className="group flex items-center justify-between rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex size-10 items-center justify-center rounded-full bg-line-blue/10 text-line-blue">
+              <BookOpen className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Bibliotheek</p>
+              <p className="text-sm text-muted-foreground">
+                Blader door openbare lesvoorbereidingen van andere docenten.
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold">Bibliotheek</p>
-            <p className="text-sm text-muted-foreground">
-              Blader door openbare lesvoorbereidingen van andere docenten.
-            </p>
+          <span className="hidden text-sm font-medium text-line-blue sm:inline group-hover:underline">
+            Bekijken →
+          </span>
+        </Link>
+
+        <Link
+          href="/toernooi"
+          className="group flex items-center justify-between rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex size-10 items-center justify-center rounded-full bg-line-blue/10 text-line-blue">
+              <Swords className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Toernooi Generator</p>
+              <p className="text-sm text-muted-foreground">
+                Genereer binnen een minuut een eerlijk wedstrijdschema.
+              </p>
+            </div>
           </div>
-        </div>
-        <span className="hidden text-sm font-medium text-line-blue sm:inline group-hover:underline">
-          Bekijken →
-        </span>
-      </Link>
+          <span className="hidden text-sm font-medium text-line-blue sm:inline group-hover:underline">
+            Starten →
+          </span>
+        </Link>
+      </div>
 
       <div>
         <h2 className="text-lg font-semibold">Jouw lessen</h2>
