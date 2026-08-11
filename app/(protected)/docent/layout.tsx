@@ -8,6 +8,10 @@ export default async function DocentLayout({
 }) {
   const profile = await getCurrentUserProfile();
 
+  if (profile?.role === "admin") {
+    redirect("/admin/kennisbank");
+  }
+
   if (profile?.role !== "docent") {
     redirect("/student/dashboard");
   }

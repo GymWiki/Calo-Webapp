@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Database,
   Handshake,
   LayoutDashboard,
   LogOut,
@@ -28,6 +29,13 @@ type NavItem = {
 // mobile bottom nav never crowds. Role-specific extras live in
 // getSecondaryNavItems, sidebar-only on desktop.
 function getNavItems(role: UserRole): NavItem[] {
+  if (role === "admin") {
+    return [
+      { href: "/admin/kennisbank", label: "Kennisbank", icon: Database },
+      { href: "/profiel", label: "Profiel", icon: UserIcon },
+    ];
+  }
+
   return [
     {
       href: role === "docent" ? "/docent/dashboard" : "/student/dashboard",
@@ -41,6 +49,9 @@ function getNavItems(role: UserRole): NavItem[] {
 }
 
 function getSecondaryNavItems(role: UserRole): NavItem[] {
+  if (role === "admin") {
+    return [];
+  }
   if (role === "docent") {
     return [{ href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen }];
   }

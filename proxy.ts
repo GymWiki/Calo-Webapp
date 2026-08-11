@@ -13,6 +13,7 @@ const PROTECTED_PREFIXES = [
   "/profiel",
   "/toernooi",
   "/bibliotheek",
+  "/admin",
 ];
 
 // Publicly reachable even though they start with a protected prefix above
@@ -65,8 +66,28 @@ export async function proxy(request: NextRequest) {
 
     const role = (profile?.role as UserRole | undefined) ?? "student";
     const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = role === "docent" ? "/docent/dashboard" : "/student/dashboard";
+    dashboardUrl.pathname =
+      role === "admin"
+        ? "/admin/kennisbank"
+        : role === "docent"
+          ? "/docent/dashboard"
+          : "/student/dashboard";
     return withCookiesFrom(NextResponse.redirect(dashboardUrl), response);
+  }
+
+  if ((pathname === "/admin" || pathname.startsWith("/admin/")) && user) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const role = (profile?.role as UserRole | undefined) ?? "student";
+    if (role !== "admin") {
+      const dashboardUrl = request.nextUrl.clone();
+      dashboardUrl.pathname = "/dashboard";
+      return withCookiesFrom(NextResponse.redirect(dashboardUrl), response);
+    }
   }
 
   return response;
