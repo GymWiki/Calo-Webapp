@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { createLesson } from "@/actions/lesson";
@@ -34,18 +34,15 @@ import {
   type GeneratedLessonWithIds,
 } from "@/types/ai";
 import {
-  ANDERS_OPTION,
-  BASISDOCUMENT_BEWEGINGSPROBLEMEN,
-  BASISDOCUMENT_LEERLIJNEN,
   EMPTY_GAME_DIMENSIONS,
   GAME_CATEGORIES,
   createLessonDefaultValues,
   createLessonInputSchema,
-  type BasisdocumentLeerlijn,
   type CreateLessonFormInput,
   type CreateLessonInput,
   type DidacticItem,
 } from "@/types/lesson";
+import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import type { UserRole } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
@@ -91,77 +88,6 @@ function StepProgress({ activeTab }: { activeTab: TabValue }) {
 
 const SELECT_CLASS =
   "border-input flex h-11 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
-
-// Backs both the Leerlijn and Bewegingsprobleem fields: a dropdown of
-// Basisdocument-standardized options, with an "Anders, namelijk..." escape
-// hatch into free text for cases the curated list doesn't cover.
-function BasisdocumentField({
-  value,
-  onChange,
-  options,
-  placeholder,
-  disabled,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: readonly string[];
-  placeholder: string;
-  disabled?: boolean;
-}) {
-  const [mode, setMode] = useState<"select" | "custom">(
-    value && !options.includes(value) ? "custom" : "select",
-  );
-
-  if (mode === "custom") {
-    return (
-      <div className="flex gap-2">
-        <Input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          disabled={disabled}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setMode("select");
-            onChange("");
-          }}
-          disabled={disabled}
-        >
-          Kies uit lijst
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <select
-      value={options.includes(value) ? value : ""}
-      onChange={(event) => {
-        if (event.target.value === ANDERS_OPTION) {
-          setMode("custom");
-          onChange("");
-        } else {
-          onChange(event.target.value);
-        }
-      }}
-      disabled={disabled}
-      className={SELECT_CLASS}
-    >
-      <option value="" disabled>
-        Kies een optie
-      </option>
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-      <option value={ANDERS_OPTION}>{ANDERS_OPTION}</option>
-    </select>
-  );
-}
 
 export function LessonForm({
   role,
@@ -241,10 +167,6 @@ export function LessonForm({
         : {}),
     },
   });
-  const selectedLearningLine = useWatch({
-    control: form.control,
-    name: "learningLine",
-  }) as BasisdocumentLeerlijn;
 
   // Side-effect only (no setState) — safe in an effect. Fires once if a
   // generated lesson was picked up above.
@@ -371,17 +293,26 @@ export function LessonForm({
                   name="learningLine"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Leerlijn (Basisdocument Bewegingsonderwijs)</FormLabel>
+                      <FormLabel>Leerlijn</FormLabel>
                       <FormControl>
-                        <BasisdocumentField
+                        <select
                           value={field.value}
-                          onChange={(value) => {
-                            field.onChange(value);
-                            form.setValue("movementProblem", "");
-                          }}
-                          options={BASISDOCUMENT_LEERLIJNEN}
-                          placeholder="Bijv. Doelspelen"
-                        />
+                          onChange={(event) => field.onChange(event.target.value)}
+                          className={SELECT_CLASS}
+                        >
+                          <option value="" disabled>
+                            Kies een leerlijn
+                          </option>
+                          {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
+                            <optgroup key={category} label={category}>
+                              {lines.map((line) => (
+                                <option key={line} value={line}>
+                                  {line}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -390,31 +321,15 @@ export function LessonForm({
                 <FormField
                   control={form.control}
                   name="movementProblem"
-                  render={({ field }) => {
-                    const options =
-                      BASISDOCUMENT_BEWEGINGSPROBLEMEN[selectedLearningLine] ?? [];
-                    return (
-                      <FormItem>
-                        <FormLabel>Bewegingsprobleem</FormLabel>
-                        <FormControl>
-                          <BasisdocumentField
-                            key={selectedLearningLine}
-                            value={field.value}
-                            onChange={field.onChange}
-                            options={options}
-                            placeholder="Bijv. Keeper verdedigen"
-                            disabled={options.length === 0}
-                          />
-                        </FormControl>
-                        {options.length === 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            Kies eerst een leerlijn voor gestandaardiseerde opties.
-                          </p>
-                        )}
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bewegingsprobleem</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Bijv. Keeper verdedigen" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
                 <FormField
                   control={form.control}

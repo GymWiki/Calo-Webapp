@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/lescoach";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
+import { isGameDomain } from "@/lib/constants/learningLines";
 import {
   generateActivityInputSchema,
   generatedLessonSchema,
@@ -14,7 +15,17 @@ const SYSTEM_PROMPT_BASE =
   "Je bent een ervaren ontwerper van lesvoorbereidingen bewegingsonderwijs, gespecialiseerd " +
   "in Game-Based Pedagogy (Koekoek, Dokman & Walinga) en het Basisdocument Bewegingsonderwijs. " +
   "Genereer een kant-en-klare, direct bruikbare lesvoorbereiding op basis van de gevraagde " +
-  "leerlijn, doelgroep en spelcategorie, gebaseerd op de meegeleverde vakliteratuur-fragmenten.";
+  "leerlijn en doelgroep, gebaseerd op de meegeleverde vakliteratuur-fragmenten.";
+
+const GAME_DOMAIN_INSTRUCTION =
+  "Deze leerlijn valt onder het domein 'Spel': baseer de Game-Based Pedagogy-dimensies " +
+  "(gameDimensions: Space, Equipment, People, Rules) en de tactische reflectievragen " +
+  "expliciet op de meegeleverde Game-Based Pedagogy-richtlijnen uit de Kennisbank.";
+
+const NON_GAME_DOMAIN_INSTRUCTION =
+  "Deze leerlijn valt niet onder het spel-domein: Game-Based Pedagogy is hier niet van " +
+  "toepassing. Laat gameCategory, gameDimensions en tacticalQuestions leeg (lege " +
+  "strings/lege array) in plaats van iets te verzinnen.";
 
 const JSON_FORMAT_INSTRUCTION =
   "Antwoord uitsluitend met geldige JSON in dit exacte formaat, zonder extra tekst of " +
@@ -85,9 +96,15 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
-  const query = [input.learningLine, input.targetGroup, input.gameCategory]
-    .filter(Boolean)
-    .join(". ");
+  const isGame = isGameDomain(input.learningLine);
+
+  const queryParts = [input.learningLine, input.targetGroup];
+  if (isGame) {
+    queryParts.push(
+      "Game-Based Pedagogy speldimensies Space Equipment People Rules tactische reflectievragen",
+    );
+  }
+  const query = queryParts.join(". ");
 
   let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
   try {
@@ -97,11 +114,11 @@ export async function POST(request: Request) {
     // knowledge, per buildKnowledgePromptSection's empty case.
   }
 
-  const systemPrompt = `${SYSTEM_PROMPT_BASE}\n\n${buildKnowledgePromptSection(matches)}\n\n${JSON_FORMAT_INSTRUCTION}`;
-  const userPrompt =
-    `Leerlijn: ${input.learningLine}\n` +
-    `Doelgroep: ${input.targetGroup}\n` +
-    `Spelcategorie: ${input.gameCategory ?? "vrij te kiezen, passend bij de leerlijn"}`;
+  const domainInstruction = isGame ? GAME_DOMAIN_INSTRUCTION : NON_GAME_DOMAIN_INSTRUCTION;
+  const systemPrompt =
+    `${SYSTEM_PROMPT_BASE}\n\n${domainInstruction}\n\n` +
+    `${buildKnowledgePromptSection(matches)}\n\n${JSON_FORMAT_INSTRUCTION}`;
+  const userPrompt = `Leerlijn: ${input.learningLine}\nDoelgroep: ${input.targetGroup}`;
 
   try {
     const client = getOpenAIClient();

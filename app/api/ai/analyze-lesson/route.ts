@@ -3,14 +3,23 @@ import { createClient } from "@/utils/supabase/server";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/lescoach";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
+import { isGameDomain } from "@/lib/constants/learningLines";
 import { analyzeLessonInputSchema, lescoachFeedbackSchema } from "@/types/ai";
 
 const SYSTEM_PROMPT =
   "Je bent een strenge maar opbouwende ALO/CALO Stagebegeleider. Analyseer onderstaande " +
   "lesvoorbereiding uitsluitend aan de hand van de meegeleverde vakliteratuur-fragmenten. " +
-  "Controleer of het bewegingsprobleem aansluit bij de leerlijn, of de 3 L'en concrete " +
-  "'Wat zie je?' / 'Wat doe je?' acties bevatten, en of er sprake is van een rijke " +
-  "leeromgeving (Game-Based Pedagogy).";
+  "Controleer of het bewegingsprobleem aansluit bij de leerlijn en of de 3 L'en concrete " +
+  "'Wat zie je?' / 'Wat doe je?' acties bevatten.";
+
+const GAME_DOMAIN_ANALYSIS_INSTRUCTION =
+  "Deze leerlijn valt onder het domein 'Spel': controleer expliciet of er sprake is van " +
+  "een rijke leeromgeving volgens Game-Based Pedagogy — zijn de speldimensies (Space, " +
+  "Equipment, People, Rules) en de tactische reflectievragen concreet en aanwezig?";
+
+const NON_GAME_DOMAIN_ANALYSIS_INSTRUCTION =
+  "Deze leerlijn valt niet onder het spel-domein: Game-Based Pedagogy is hier niet van " +
+  "toepassing, dus beoordeel daar niet op.";
 
 const JSON_FORMAT_INSTRUCTION =
   "Antwoord uitsluitend met geldige JSON in dit exacte formaat, zonder extra tekst of " +
@@ -68,17 +77,22 @@ export async function POST(request: Request) {
   }
 
   const lesson = parsed.data;
-  const query =
-    [
-      lesson.title,
-      lesson.learningLine,
-      lesson.movementProblem,
-      lesson.movementTheme,
-      lesson.goals,
-      ...(lesson.didacticItems ?? []).flatMap((item) => [item.observation, item.action]),
-    ]
-      .filter(Boolean)
-      .join(". ") || "lesvoorbereiding bewegingsonderwijs";
+  const isGame = isGameDomain(lesson.learningLine ?? "");
+
+  const queryParts = [
+    lesson.title,
+    lesson.learningLine,
+    lesson.movementProblem,
+    lesson.movementTheme,
+    lesson.goals,
+    ...(lesson.didacticItems ?? []).flatMap((item) => [item.observation, item.action]),
+  ].filter(Boolean);
+  if (isGame) {
+    queryParts.push(
+      "Game-Based Pedagogy speldimensies Space Equipment People Rules tactische reflectievragen",
+    );
+  }
+  const query = queryParts.join(". ") || "lesvoorbereiding bewegingsonderwijs";
 
   let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
   try {
@@ -88,7 +102,12 @@ export async function POST(request: Request) {
     // to general knowledge, per buildKnowledgePromptSection's empty case.
   }
 
-  const systemPrompt = `${SYSTEM_PROMPT}\n\n${buildKnowledgePromptSection(matches)}\n\n${JSON_FORMAT_INSTRUCTION}`;
+  const domainInstruction = isGame
+    ? GAME_DOMAIN_ANALYSIS_INSTRUCTION
+    : NON_GAME_DOMAIN_ANALYSIS_INSTRUCTION;
+  const systemPrompt =
+    `${SYSTEM_PROMPT}\n\n${domainInstruction}\n\n` +
+    `${buildKnowledgePromptSection(matches)}\n\n${JSON_FORMAT_INSTRUCTION}`;
   const userPrompt = `Lesvoorbereiding (JSON):\n${JSON.stringify(lesson, null, 2)}`;
 
   try {

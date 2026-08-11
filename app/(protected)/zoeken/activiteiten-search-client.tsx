@@ -15,6 +15,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 
@@ -134,15 +135,11 @@ export function ActiviteitenSearchClient({
 
   const savedIdSet = useMemo(() => new Set(savedIds), [savedIds]);
 
-  const leerlijnen = useMemo(
-    () =>
-      Array.from(new Set(activities.map((a) => a.leerlijn).filter(Boolean))).sort() as string[],
-    [activities],
-  );
+  // Canonical taxonomy (not derived from `activities`) so every category and
+  // leerlijn is always filterable, even ones with zero activities right now.
   const categorieen = useMemo(
-    () =>
-      Array.from(new Set(activities.map((a) => a.categorie).filter(Boolean))).sort() as string[],
-    [activities],
+    () => LEARNING_LINE_CATEGORIES.map((c) => c.category),
+    [],
   );
 
   const activeCount = countActive(filters);
@@ -151,9 +148,9 @@ export function ActiviteitenSearchClient({
     setVisibleCount(PAGE_SIZE);
   }
 
-  // Quick-row (leerlijn) toggles the committed filters directly — no drawer needed.
-  function toggleQuickLeerlijn(leerlijn: string) {
-    setFilters((prev) => ({ ...prev, leerlijn: toggle(prev.leerlijn, leerlijn) }));
+  // Quick-row (categorie) toggles the committed filters directly — no drawer needed.
+  function toggleQuickCategorie(categorie: string) {
+    setFilters((prev) => ({ ...prev, categorie: toggle(prev.categorie, categorie) }));
     resetPaging();
   }
 
@@ -246,19 +243,17 @@ export function ActiviteitenSearchClient({
         </Button>
       </div>
 
-      {leerlijnen.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {leerlijnen.map((leerlijn) => (
-            <FilterChip
-              key={leerlijn}
-              active={filters.leerlijn.has(leerlijn)}
-              onClick={() => toggleQuickLeerlijn(leerlijn)}
-            >
-              {leerlijn}
-            </FilterChip>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {categorieen.map((categorie) => (
+          <FilterChip
+            key={categorie}
+            active={filters.categorie.has(categorie)}
+            onClick={() => toggleQuickCategorie(categorie)}
+          >
+            {categorie}
+          </FilterChip>
+        ))}
+      </div>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -321,42 +316,41 @@ export function ActiviteitenSearchClient({
           </SheetHeader>
 
           <div className="space-y-6 overflow-y-auto px-4">
-            <div className="space-y-3">
+            <div className="space-y-4">
               <h3 className="text-sm font-semibold text-foreground">
-                Leerlijnen & Thema&apos;s
+                Categorie & Leerlijn
               </h3>
-              <div className="flex flex-wrap gap-2">
-                {leerlijnen.map((leerlijn) => (
+              {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
+                <div key={category} className="space-y-2">
                   <FilterChip
-                    key={leerlijn}
-                    active={draft.leerlijn.has(leerlijn)}
+                    active={draft.categorie.has(category)}
                     onClick={() =>
                       setDraft((prev) => ({
                         ...prev,
-                        leerlijn: toggle(prev.leerlijn, leerlijn),
+                        categorie: toggle(prev.categorie, category),
                       }))
                     }
                   >
-                    {leerlijn}
+                    {category}
                   </FilterChip>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {categorieen.map((categorie) => (
-                  <FilterChip
-                    key={categorie}
-                    active={draft.categorie.has(categorie)}
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        categorie: toggle(prev.categorie, categorie),
-                      }))
-                    }
-                  >
-                    {categorie}
-                  </FilterChip>
-                ))}
-              </div>
+                  <div className="flex flex-wrap gap-1.5 pl-1">
+                    {lines.map((line) => (
+                      <FilterChip
+                        key={line}
+                        active={draft.leerlijn.has(line)}
+                        onClick={() =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            leerlijn: toggle(prev.leerlijn, line),
+                          }))
+                        }
+                      >
+                        {line}
+                      </FilterChip>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="space-y-3">

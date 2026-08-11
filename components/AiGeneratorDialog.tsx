@@ -17,9 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
 import { AI_GENERATED_LESSON_STORAGE_KEY } from "@/types/ai";
-import { BASISDOCUMENT_LEERLIJNEN, GAME_CATEGORIES } from "@/types/lesson";
 
 const SELECT_CLASS =
   "border-input mt-1.5 flex h-11 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
@@ -30,7 +30,6 @@ export function AiGeneratorDialog() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [learningLine, setLearningLine] = useState("");
   const [targetGroup, setTargetGroup] = useState("");
-  const [gameCategory, setGameCategory] = useState("");
 
   async function handleGenerate() {
     setIsGenerating(true);
@@ -39,11 +38,7 @@ export function AiGeneratorDialog() {
       const response = await fetch("/api/ai/generate-activity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          learningLine,
-          targetGroup,
-          gameCategory: gameCategory || undefined,
-        }),
+        body: JSON.stringify({ learningLine, targetGroup }),
       });
       const data = await response.json();
 
@@ -111,11 +106,17 @@ export function AiGeneratorDialog() {
               value={learningLine}
               onChange={(event) => setLearningLine(event.target.value)}
             >
-              <option value="">Kies een leerlijn</option>
-              {BASISDOCUMENT_LEERLIJNEN.map((line) => (
-                <option key={line} value={line}>
-                  {line}
-                </option>
+              <option value="" disabled>
+                Kies een leerlijn
+              </option>
+              {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
+                <optgroup key={category} label={category}>
+                  {lines.map((line) => (
+                    <option key={line} value={line}>
+                      {line}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -129,25 +130,6 @@ export function AiGeneratorDialog() {
               onChange={(event) => setTargetGroup(event.target.value)}
               placeholder="Bijv. Groep 7/8"
             />
-          </div>
-
-          <div>
-            <Label htmlFor="ai-gen-game-category">
-              Spelcategorie (optioneel)
-            </Label>
-            <select
-              id="ai-gen-game-category"
-              className={SELECT_CLASS}
-              value={gameCategory}
-              onChange={(event) => setGameCategory(event.target.value)}
-            >
-              <option value="">Laat de AI kiezen</option>
-              {GAME_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 

@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import {
   didacticItemSchema,
-  gameCategorySchema,
   gameDimensionsSchema,
   type DidacticItem,
 } from "@/types/lesson";
@@ -57,10 +56,11 @@ export function matchDidacticCategory(
 // AI Activiteiten Generator — POST /api/ai/generate-activity
 // ----------------------------------------------------------------------------
 
+// No user-facing spelcategorie field — the server derives whether
+// Game-Based Pedagogy applies from `learningLine` via isGameDomain().
 export const generateActivityInputSchema = z.object({
   learningLine: z.string().trim().min(1, "Kies een leerlijn."),
   targetGroup: z.string().trim().min(1, "Vul een doelgroep in."),
-  gameCategory: gameCategorySchema.optional(),
 });
 export type GenerateActivityInput = z.infer<typeof generateActivityInputSchema>;
 
