@@ -116,15 +116,21 @@ const L_QUESTIONS: {
 export function LessonForm({
   role,
   authorName,
+  initialValues,
 }: {
   role: UserRole;
   authorName: string;
+  initialValues?: Partial<CreateLessonFormInput>;
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabValue>("context");
-  const [baseMaterials, setBaseMaterials] = useState<string[]>([]);
-  const [ruleMaterials, setRuleMaterials] = useState<string[]>([]);
-  const [rules, setRules] = useState<string[]>([]);
+  const [baseMaterials, setBaseMaterials] = useState<string[]>(
+    initialValues?.baseMaterials ?? [],
+  );
+  const [ruleMaterials, setRuleMaterials] = useState<string[]>(
+    initialValues?.ruleMaterials ?? [],
+  );
+  const [rules, setRules] = useState<string[]>(initialValues?.rules ?? []);
   const [diagram, setDiagram] = useState<{
     data: DiagramData;
     imageDataUrl: string;
@@ -132,7 +138,7 @@ export function LessonForm({
 
   const form = useForm<CreateLessonFormInput, unknown, CreateLessonInput>({
     resolver: zodResolver(createLessonInputSchema),
-    defaultValues: createLessonDefaultValues,
+    defaultValues: { ...createLessonDefaultValues, ...initialValues },
   });
 
   function goRelative(offset: 1 | -1) {

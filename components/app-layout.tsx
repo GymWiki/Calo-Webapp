@@ -34,7 +34,7 @@ function getNavItems(role: UserRole): NavItem[] {
       label: "Dashboard",
       icon: LayoutDashboard,
     },
-    { href: "/zoeken", label: "Zoeken", icon: Search },
+    { href: "/zoeken", label: "Activiteiten", icon: Search },
     { href: "/les-maken", label: "Les maken", icon: SquarePen },
     { href: "/profiel", label: "Profiel", icon: UserIcon },
   ];
