@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = [
   "/docent",
   "/les-maken",
   "/les",
+  "/activiteit",
   "/zoeken",
   "/profiel",
 ];

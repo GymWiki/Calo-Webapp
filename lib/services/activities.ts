@@ -43,6 +43,26 @@ export async function getActivityById(
   return data;
 }
 
+export async function isActivitySaved(
+  userId: string,
+  activityId: string,
+): Promise<boolean> {
+  const supabase = await getServerClient();
+
+  const { data, error } = await supabase
+    .from("opgeslagen_activiteiten")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("activiteit_id", activityId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Kon opgeslagen status niet ophalen: ${error.message}`);
+  }
+
+  return data !== null;
+}
+
 export async function getSavedActivityIds(
   userId: string,
 ): Promise<Set<string>> {
