@@ -72,6 +72,8 @@ export type MatchScore = {
 
 export type TournamentScores = Record<string, MatchScore>;
 
+export type MatchStatus = "upcoming" | "live" | "done";
+
 export type TeamStanding = {
   teamId: string;
   teamName: string;

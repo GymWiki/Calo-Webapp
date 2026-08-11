@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowLeft, Minus, Plus, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, ClipboardCopy, Minus, Plus, Save, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveTournament } from "@/actions/tournament";
@@ -22,9 +22,12 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  buildWhiteboardText,
   computeStandings,
   generateSchedule,
+  getMatchStatus,
   resolveTeamRef,
   validateTournamentSettings,
 } from "@/lib/utils/tournamentGenerator";
@@ -34,6 +37,7 @@ import {
   TOURNAMENT_FORMAT_DESCRIPTIONS,
   TOURNAMENT_FORMAT_LABELS,
   type Match,
+  type MatchStatus,
   type ScheduleSlot,
   type TeamStanding,
   type TournamentFormat,
@@ -300,13 +304,25 @@ function SettingsForm({
   );
 }
 
+function MatchStatusBadge({ status }: { status: MatchStatus }) {
+  if (status === "done") {
+    return <Badge variant="success">Afgerond</Badge>;
+  }
+  if (status === "live") {
+    return <Badge className="animate-pulse">Bezig</Badge>;
+  }
+  return <Badge variant="outline">Aankomend</Badge>;
+}
+
 function MatchRow({
+  slot,
   match,
   schedule,
   scores,
   refereeId,
   onScoreChange,
 }: {
+  slot: ScheduleSlot;
   match: Match;
   schedule: TournamentSchedule;
   scores: TournamentScores;
@@ -323,19 +339,23 @@ function MatchRow({
     : null;
   const score = scores[match.id];
   const canScore = home.decided && away.decided;
+  const status = getMatchStatus(slot, match, scores);
 
   return (
     <div className="rounded-lg border p-3">
-      <p className="mb-2 text-xs font-medium text-muted-foreground">
-        {fieldName}
-        {refereeName ? ` · Scheidsrechter: ${refereeName}` : ""}
-      </p>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          {fieldName}
+          {refereeName ? ` · Scheidsrechter: ${refereeName}` : ""}
+        </p>
+        <MatchStatusBadge status={status} />
+      </div>
       <div className="flex items-center justify-between gap-2 text-sm font-medium">
         <span className="min-w-0 flex-1 truncate">{home.name}</span>
         <span className="shrink-0 text-xs font-normal text-muted-foreground">vs</span>
         <span className="min-w-0 flex-1 truncate text-right">{away.name}</span>
       </div>
-      <div className="mt-2 flex items-center justify-center gap-2">
+      <div className="mt-3 flex items-center justify-center gap-3">
         <Input
           type="number"
           inputMode="numeric"
@@ -344,7 +364,7 @@ function MatchRow({
           onChange={(event) => onScoreChange(match.id, "home", event.target.value)}
           disabled={!canScore}
           placeholder="0"
-          className="w-14 text-center"
+          className="h-14 w-16 text-center text-lg font-semibold"
         />
         <span className="text-muted-foreground">-</span>
         <Input
@@ -355,7 +375,7 @@ function MatchRow({
           onChange={(event) => onScoreChange(match.id, "away", event.target.value)}
           disabled={!canScore}
           placeholder="0"
-          className="w-14 text-center"
+          className="h-14 w-16 text-center text-lg font-semibold"
         />
       </div>
     </div>
@@ -394,6 +414,7 @@ function RoundCard({
         {slot.matches.map((match) => (
           <MatchRow
             key={match.id}
+            slot={slot}
             match={match}
             schedule={schedule}
             scores={scores}
@@ -403,6 +424,52 @@ function RoundCard({
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function WhiteboardRoundBlock({
+  slot,
+  schedule,
+  scores,
+}: {
+  slot: ScheduleSlot;
+  schedule: TournamentSchedule;
+  scores: TournamentScores;
+}) {
+  const restingNames = slot.restingTeamIds
+    .map((id) => schedule.teams.find((team) => team.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
+
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">Ronde {slot.round}</p>
+        <Badge variant="secondary">
+          {slot.startTime} - {slot.endTime}
+        </Badge>
+      </div>
+      <div className="space-y-1.5 font-mono text-sm break-words">
+        {slot.matches.map((match) => {
+          const home = resolveTeamRef(match.home, schedule, scores);
+          const away = resolveTeamRef(match.away, schedule, scores);
+          const fieldName =
+            schedule.fields.find((field) => field.index === match.fieldIndex)
+              ?.name ?? `Veld ${match.fieldIndex + 1}`;
+
+          return (
+            <p key={match.id}>
+              <span className="text-muted-foreground">[{fieldName}]:</span>{" "}
+              {home.name} vs {away.name}
+            </p>
+          );
+        })}
+        {restingNames.length > 0 && (
+          <p className="text-muted-foreground">
+            [Rust / Scheidsrechter]: {restingNames.join(", ")}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -501,6 +568,18 @@ export function TournamentClient() {
     });
   }
 
+  async function handleCopyText() {
+    if (!schedule) return;
+
+    const text = buildWhiteboardText(schedule, scores, title || "Toernooi");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Schema gekopieerd naar klembord.");
+    } catch {
+      toast.error("Kopiëren is mislukt. Probeer het opnieuw.");
+    }
+  }
+
   if (!schedule) {
     return (
       <SettingsForm
@@ -545,19 +624,51 @@ export function TournamentClient() {
         />
       </div>
 
-      <div className="space-y-4">
-        {schedule.slots.map((slot) => (
-          <RoundCard
-            key={slot.round}
-            slot={slot}
-            schedule={schedule}
-            scores={scores}
-            onScoreChange={handleScoreChange}
-          />
-        ))}
-      </div>
+      <Tabs defaultValue="whiteboard" className="gap-4">
+        <TabsList className="sticky top-0 z-30 h-auto w-full gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
+          <TabsTrigger value="whiteboard" className="min-h-11 flex-1 text-sm">
+            📋 Whiteboard View
+          </TabsTrigger>
+          <TabsTrigger value="scoring" className="min-h-11 flex-1 text-sm">
+            🏆 Live Scoring
+          </TabsTrigger>
+        </TabsList>
 
-      {standings && <StandingsTable standings={standings} />}
+        <TabsContent value="whiteboard" className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={handleCopyText}>
+              <ClipboardCopy className="size-4" />
+              Kopieer als tekst
+            </Button>
+            <TournamentPdfButton
+              schedule={schedule}
+              scores={scores}
+              title={title || "Toernooi"}
+            />
+          </div>
+          {schedule.slots.map((slot) => (
+            <WhiteboardRoundBlock
+              key={slot.round}
+              slot={slot}
+              schedule={schedule}
+              scores={scores}
+            />
+          ))}
+        </TabsContent>
+
+        <TabsContent value="scoring" className="space-y-4">
+          {schedule.slots.map((slot) => (
+            <RoundCard
+              key={slot.round}
+              slot={slot}
+              schedule={schedule}
+              scores={scores}
+              onScoreChange={handleScoreChange}
+            />
+          ))}
+          {standings && <StandingsTable standings={standings} />}
+        </TabsContent>
+      </Tabs>
 
       <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-4 shadow-brand-lg md:hidden">
         <TournamentPdfButton

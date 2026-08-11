@@ -1,5 +1,6 @@
 import type {
   Match,
+  MatchStatus,
   ScheduleSlot,
   TeamRef,
   TeamStanding,
@@ -72,55 +73,116 @@ function assignReferees(
   }
 }
 
+type GreedyRound = { matches: [string, string][]; resting: string[] };
+
+/**
+ * Greedy field-maximizing scheduler: each round takes up to
+ * `maxMatchesPerRound` (= min(fields, floor(teams/2))) matches from the
+ * remaining pool, always preferring matches involving the team(s) that have
+ * been resting longest so nobody sits out two rounds in a row unless the
+ * remaining fixtures leave no alternative. Field occupancy only drops below
+ * the maximum once too few non-conflicting matches remain — i.e. in the
+ * closing rounds of the tournament.
+ */
+function buildGreedyRounds(
+  teamIds: string[],
+  matchPairs: [string, string][],
+  maxMatchesPerRound: number,
+): GreedyRound[] {
+  const remaining = [...matchPairs];
+  const consecutiveRest = new Map(teamIds.map((id) => [id, 0]));
+  const rounds: GreedyRound[] = [];
+
+  while (remaining.length > 0) {
+    const usedThisRound = new Set<string>();
+    const roundMatches: [string, string][] = [];
+
+    const byRestPriority = [...remaining].sort((a, b) => {
+      const restA = Math.max(
+        consecutiveRest.get(a[0]) ?? 0,
+        consecutiveRest.get(a[1]) ?? 0,
+      );
+      const restB = Math.max(
+        consecutiveRest.get(b[0]) ?? 0,
+        consecutiveRest.get(b[1]) ?? 0,
+      );
+      return restB - restA;
+    });
+
+    for (const pair of byRestPriority) {
+      if (roundMatches.length >= maxMatchesPerRound) break;
+      const [a, b] = pair;
+      if (usedThisRound.has(a) || usedThisRound.has(b)) continue;
+      roundMatches.push(pair);
+      usedThisRound.add(a);
+      usedThisRound.add(b);
+    }
+
+    for (const match of roundMatches) {
+      const index = remaining.indexOf(match);
+      if (index !== -1) remaining.splice(index, 1);
+    }
+
+    for (const id of teamIds) {
+      if (usedThisRound.has(id)) {
+        consecutiveRest.set(id, 0);
+      } else {
+        consecutiveRest.set(id, (consecutiveRest.get(id) ?? 0) + 1);
+      }
+    }
+
+    rounds.push({
+      matches: roundMatches,
+      resting: teamIds.filter((id) => !usedThisRound.has(id)),
+    });
+  }
+
+  return rounds;
+}
+
 function buildRoundRobinSlots(
   settings: TournamentSettings,
   teams: { id: string; name: string }[],
   fields: { index: number; name: string }[],
 ): ScheduleSlot[] {
   const teamIds = teams.map((t) => t.id);
-  const singleRounds = circleMethodRounds(teamIds);
-  const logicalRounds =
+  const basePairs = circleMethodRounds(teamIds).flat();
+  const matchPairs =
     settings.format === "dubbele_competitie"
-      ? [...singleRounds, ...singleRounds.map((r) => r.map(([a, b]) => [b, a] as [string, string]))]
-      : singleRounds;
+      ? [...basePairs, ...basePairs.map(([a, b]) => [b, a] as [string, string])]
+      : basePairs;
 
-  const slots: ScheduleSlot[] = [];
+  const maxMatchesPerRound = Math.min(
+    fields.length,
+    Math.floor(teamIds.length / 2),
+  );
+  const greedyRounds = buildGreedyRounds(teamIds, matchPairs, maxMatchesPerRound);
+
   const startMinutes = parseTimeToMinutes(settings.startTime);
   const slotLength = settings.matchDurationMinutes + settings.breakDurationMinutes;
-  let matchCounter = 0;
-  let slotIndex = 0;
 
-  for (const logicalRound of logicalRounds) {
-    const chunks = chunk(logicalRound, fields.length);
-    for (const group of chunks) {
-      const matches: Match[] = group.map((pair, i) => ({
-        id: `m${matchCounter++}`,
-        round: slotIndex + 1,
-        fieldIndex: fields[i].index,
-        home: { type: "team", teamId: pair[0] } satisfies TeamRef,
-        away: { type: "team", teamId: pair[1] } satisfies TeamRef,
-      }));
+  return greedyRounds.map((round, roundIndex) => {
+    const matches: Match[] = round.matches.map((pair, i) => ({
+      id: `m${roundIndex}_${i}`,
+      round: roundIndex + 1,
+      fieldIndex: fields[i].index,
+      home: { type: "team", teamId: pair[0] } satisfies TeamRef,
+      away: { type: "team", teamId: pair[1] } satisfies TeamRef,
+    }));
 
-      const playingIds = new Set(group.flat());
-      const restingTeamIds = teamIds.filter((id) => !playingIds.has(id));
-      const start = startMinutes + slotIndex * slotLength;
+    const start = startMinutes + roundIndex * slotLength;
+    const slot: ScheduleSlot = {
+      round: roundIndex + 1,
+      startTime: formatMinutesToTime(start),
+      endTime: formatMinutesToTime(start + settings.matchDurationMinutes),
+      matches,
+      restingTeamIds: round.resting,
+      refereeAssignments: {},
+    };
+    assignReferees(slot, round.resting, settings.autoAssignReferees);
 
-      const slot: ScheduleSlot = {
-        round: slotIndex + 1,
-        startTime: formatMinutesToTime(start),
-        endTime: formatMinutesToTime(start + settings.matchDurationMinutes),
-        matches,
-        restingTeamIds,
-        refereeAssignments: {},
-      };
-      assignReferees(slot, restingTeamIds, settings.autoAssignReferees);
-
-      slots.push(slot);
-      slotIndex++;
-    }
-  }
-
-  return slots;
+    return slot;
+  });
 }
 
 function nextPowerOfTwo(n: number): number {
@@ -341,4 +403,51 @@ export function computeStandings(
         b.scored - a.scored ||
         a.teamName.localeCompare(b.teamName),
     );
+}
+
+export function getMatchStatus(
+  slot: ScheduleSlot,
+  match: Match,
+  scores: TournamentScores,
+): MatchStatus {
+  if (scores[match.id]) return "done";
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const startMinutes = parseTimeToMinutes(slot.startTime);
+
+  return nowMinutes < startMinutes ? "upcoming" : "live";
+}
+
+/** Plain-text schedule for the whiteboard "kopieer als tekst" export. */
+export function buildWhiteboardText(
+  schedule: TournamentSchedule,
+  scores: TournamentScores,
+  title: string,
+): string {
+  const lines: string[] = [`Toernooischema — ${title}`, ""];
+
+  for (const slot of schedule.slots) {
+    lines.push(`Ronde ${slot.round} (${slot.startTime} - ${slot.endTime})`);
+
+    for (const match of slot.matches) {
+      const home = resolveTeamRef(match.home, schedule, scores);
+      const away = resolveTeamRef(match.away, schedule, scores);
+      const fieldName =
+        schedule.fields.find((f) => f.index === match.fieldIndex)?.name ??
+        `Veld ${match.fieldIndex + 1}`;
+      lines.push(`  ${fieldName}: ${home.name} vs ${away.name}`);
+    }
+
+    const restingNames = slot.restingTeamIds
+      .map((id) => schedule.teams.find((t) => t.id === id)?.name)
+      .filter((name): name is string => Boolean(name));
+    if (restingNames.length > 0) {
+      lines.push(`  Rust/Scheidsrechter: ${restingNames.join(", ")}`);
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
 }
