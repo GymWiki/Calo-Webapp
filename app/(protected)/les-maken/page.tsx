@@ -36,10 +36,18 @@ function mapActivityToLessonInput(
   };
 }
 
+const TAB_VALUES = ["context", "organisatie", "didactiek", "voorbereiding"] as const;
+
+function parseInitialTab(value: string | undefined) {
+  return (TAB_VALUES as readonly string[]).includes(value ?? "")
+    ? (value as (typeof TAB_VALUES)[number])
+    : undefined;
+}
+
 export default async function LesMakenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vanuit?: string }>;
+  searchParams: Promise<{ vanuit?: string; tab?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
 
@@ -47,7 +55,7 @@ export default async function LesMakenPage({
     redirect("/login");
   }
 
-  const { vanuit } = await searchParams;
+  const { vanuit, tab } = await searchParams;
   const activity = vanuit ? await getActivityById(vanuit) : null;
 
   return (
@@ -65,6 +73,7 @@ export default async function LesMakenPage({
         role={profile.role}
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
         initialValues={activity ? mapActivityToLessonInput(activity) : undefined}
+        initialTab={parseInitialTab(tab)}
       />
     </main>
   );

@@ -12,9 +12,22 @@ const PROTECTED_PREFIXES = [
   "/zoeken",
   "/profiel",
   "/toernooi",
+  "/bibliotheek",
 ];
 
+// Publicly reachable even though they start with a protected prefix above
+// ("/les") — shared-link visitors are frequently not logged in at all.
+const PUBLIC_EXCEPTIONS = ["/les/share"];
+
 function isProtectedPath(pathname: string) {
+  if (
+    PUBLIC_EXCEPTIONS.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    )
+  ) {
+    return false;
+  }
+
   return PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );

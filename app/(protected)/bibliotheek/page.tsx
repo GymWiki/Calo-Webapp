@@ -6,6 +6,7 @@ import { LessonCard } from "@/components/lesson-card";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPublicLessons } from "@/lib/services/lessons";
+import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
 export default function BibliotheekPage() {
   return (
@@ -13,7 +14,7 @@ export default function BibliotheekPage() {
       <PageHeader
         eyebrow="Bibliotheek"
         title="Openbare lesvoorbereidingen"
-        description="Lessen die andere docenten publiekelijk hebben gedeeld, in één overzicht."
+        description="Lessen die medestudenten en docenten publiekelijk hebben gedeeld, in één overzicht."
       />
 
       <Suspense fallback={<BibliotheekSkeleton />}>
@@ -24,14 +25,17 @@ export default function BibliotheekPage() {
 }
 
 async function BibliotheekContent() {
-  const lessons = await getPublicLessons();
+  const [lessons, profile] = await Promise.all([
+    getPublicLessons(),
+    getCurrentUserProfile(),
+  ]);
 
   if (lessons.length === 0) {
     return (
       <EmptyState
         icon={BookOpen}
         title="Nog geen openbare lessen"
-        description="Zodra docenten een lesvoorbereiding openbaar delen, verschijnt die hier voor het hele team."
+        description="Zodra iemand een lesvoorbereiding openbaar deelt, verschijnt die hier voor de hele community."
       />
     );
   }
@@ -44,7 +48,7 @@ async function BibliotheekContent() {
           className="animate-fade-up"
           style={{ animationDelay: `${Math.min(index, 6) * 50}ms` }}
         >
-          <LessonCard lesson={lesson} />
+          <LessonCard lesson={lesson} currentUserId={profile?.id} />
         </div>
       ))}
     </div>

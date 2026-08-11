@@ -10,7 +10,6 @@ import {
   NotebookText,
   Search,
   SquarePen,
-  Trophy,
   User as UserIcon,
 } from "lucide-react";
 
@@ -37,16 +36,16 @@ function getNavItems(role: UserRole): NavItem[] {
     },
     { href: "/zoeken", label: "Activiteiten", icon: Search },
     { href: "/les-maken", label: "Les maken", icon: SquarePen },
-    { href: "/toernooi", label: "Toernooi", icon: Trophy },
     { href: "/profiel", label: "Profiel", icon: UserIcon },
   ];
 }
 
 function getSecondaryNavItems(role: UserRole): NavItem[] {
   if (role === "docent") {
-    return [{ href: "/docent/bibliotheek", label: "Bibliotheek", icon: BookOpen }];
+    return [{ href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen }];
   }
   return [
+    { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
     { href: "/student/marktplaats", label: "Marktplaats", icon: Handshake },
     { href: "/student/stage-logboek", label: "Stage-logboek", icon: NotebookText },
   ];

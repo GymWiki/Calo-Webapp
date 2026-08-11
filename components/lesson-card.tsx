@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Eye } from "lucide-react";
 
+import { ShareLessonButton } from "@/components/ShareLessonButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +14,13 @@ import {
 import { formatDate } from "@/lib/format";
 import type { Lesson } from "@/types/lesson";
 
-export function LessonCard({ lesson }: { lesson: Lesson }) {
+export function LessonCard({
+  lesson,
+  currentUserId,
+}: {
+  lesson: Lesson;
+  currentUserId?: string;
+}) {
   const date = formatDate(lesson.lesson_date);
 
   return (
@@ -46,13 +53,20 @@ export function LessonCard({ lesson }: { lesson: Lesson }) {
           )}
         </dl>
       </CardContent>
-      <CardFooter>
-        <Button asChild variant="outline" className="w-full">
+      <CardFooter className="flex gap-2">
+        <Button asChild variant="outline" className="flex-1">
           <Link href={`/les/${lesson.id}`}>
             <Eye className="size-4" />
             Bekijken / PDF
           </Link>
         </Button>
+        <ShareLessonButton
+          lessonId={lesson.id}
+          lessonTitle={lesson.title}
+          isOwner={lesson.author_id === currentUserId}
+          initialIsPublic={lesson.is_public}
+          className="flex-1"
+        />
       </CardFooter>
     </Card>
   );

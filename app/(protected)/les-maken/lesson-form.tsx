@@ -117,13 +117,15 @@ export function LessonForm({
   role,
   authorName,
   initialValues,
+  initialTab,
 }: {
   role: UserRole;
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
+  initialTab?: TabValue;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabValue>("context");
+  const [activeTab, setActiveTab] = useState<TabValue>(initialTab ?? "context");
   const [baseMaterials, setBaseMaterials] = useState<string[]>(
     initialValues?.baseMaterials ?? [],
   );

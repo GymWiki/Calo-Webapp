@@ -107,3 +107,38 @@ export async function createLesson(
     return { error: GENERIC_ERROR };
   }
 }
+
+export async function setLessonPublic(
+  lessonId: string,
+  isPublic: boolean,
+): Promise<ActionResult> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Je bent niet ingelogd." };
+  }
+
+  // RLS ("Eigenaren kunnen eigen lessen beheren") is the actual
+  // enforcement — a lesson the caller doesn't own simply won't match and
+  // nothing is updated.
+  const { error } = await supabase
+    .from("lessons")
+    .update({ is_public: isPublic })
+    .eq("id", lessonId)
+    .eq("author_id", user.id);
+
+  if (error) {
+    return {
+      error: isPublic
+        ? "Les openbaar maken is mislukt. Probeer het opnieuw."
+        : "Les privé maken is mislukt. Probeer het opnieuw.",
+    };
+  }
+
+  return { success: true };
+}
