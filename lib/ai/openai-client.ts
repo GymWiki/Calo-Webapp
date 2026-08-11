@@ -1,8 +1,17 @@
 import OpenAI from "openai";
 
-export const EMBEDDING_MODEL = "text-embedding-3-small";
+// Configurable via env so the model can be changed (e.g. for cost, or a
+// newer model) without a code change or redeploy of application logic.
+export const EMBEDDING_MODEL =
+  process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
+export const CHAT_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
+
+// Tied to the fallback embedding model above (text-embedding-3-small) and
+// to the `vector(1536)` column width in schema_kennisbank.sql — if
+// OPENAI_EMBEDDING_MODEL is set to a model with a different output
+// dimension (e.g. text-embedding-3-large), that column needs a matching
+// migration too.
 export const EMBEDDING_DIMENSIONS = 1536;
-export const CHAT_MODEL = "gpt-4o-mini";
 
 let client: OpenAI | null = null;
 
