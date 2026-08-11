@@ -71,7 +71,7 @@ export function AppLayout({
   }
 
   return (
-    <div className="flex min-h-screen md:flex-row">
+    <div className="flex min-h-screen w-full overflow-x-hidden md:flex-row">
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
         <div className="font-display px-6 py-5 text-lg tracking-wide">
           GYMBASE
@@ -126,8 +126,8 @@ export function AppLayout({
         </form>
       </aside>
 
-      <div className="flex flex-1 flex-col pb-16 md:pb-0 print:pb-0">
-        <main className="flex-1">{children}</main>
+      <div className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0 print:pb-0">
+        <main className="min-w-0 flex-1">{children}</main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t bg-background/95 backdrop-blur-sm md:hidden print:hidden">

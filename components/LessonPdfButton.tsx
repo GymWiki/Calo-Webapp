@@ -21,7 +21,13 @@ function slugify(value: string, fallback: string) {
   return slug || fallback;
 }
 
-export function LessonPdfButton({ lesson }: { lesson: LessonWithDetails }) {
+export function LessonPdfButton({
+  lesson,
+  className,
+}: {
+  lesson: LessonWithDetails;
+  className?: string;
+}) {
   const [isGenerating, setIsGenerating] = useState(false);
 
   async function handleDownload() {
@@ -50,7 +56,12 @@ export function LessonPdfButton({ lesson }: { lesson: LessonWithDetails }) {
   }
 
   return (
-    <Button type="button" onClick={handleDownload} disabled={isGenerating}>
+    <Button
+      type="button"
+      onClick={handleDownload}
+      disabled={isGenerating}
+      className={className}
+    >
       <Download className="size-4" />
       {isGenerating ? "PDF genereren..." : "Download als PDF"}
     </Button>

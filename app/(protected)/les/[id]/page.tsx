@@ -91,7 +91,7 @@ export default async function LesDetailPage({
   );
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-6 p-4 sm:p-8 print:max-w-none print:p-0">
+    <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 sm:p-8 md:pb-8 print:max-w-none print:p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Button asChild variant="outline">
           <Link href={dashboardHref}>
@@ -99,7 +99,7 @@ export default async function LesDetailPage({
             Terug naar Dashboard
           </Link>
         </Button>
-        <div className="flex flex-wrap gap-2">
+        <div className="hidden gap-2 md:flex">
           {isOwner && (
             <Button type="button" variant="outline" disabled title="Binnenkort beschikbaar">
               <Pencil className="size-4" />
@@ -233,6 +233,22 @@ export default async function LesDetailPage({
           )}
         </CardContent>
       </Card>
+
+      <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-4 shadow-brand-lg md:hidden print:hidden">
+        {isOwner && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled
+            title="Binnenkort beschikbaar"
+            className="flex-1"
+          >
+            <Pencil className="size-4" />
+            Bewerken
+          </Button>
+        )}
+        <LessonPdfButton lesson={lesson} className="flex-1" />
+      </div>
     </main>
   );
 }
