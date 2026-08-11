@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import { createLesson } from "@/actions/lesson";
+import { DidacticsForm } from "@/components/DidacticsForm";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,10 +29,15 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ANDERS_OPTION,
+  BASISDOCUMENT_BEWEGINGSPROBLEMEN,
+  BASISDOCUMENT_LEERLIJNEN,
   createLessonDefaultValues,
   createLessonInputSchema,
+  type BasisdocumentLeerlijn,
   type CreateLessonFormInput,
   type CreateLessonInput,
+  type DidacticItem,
 } from "@/types/lesson";
 import type { UserRole } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -76,42 +82,79 @@ function StepProgress({ activeTab }: { activeTab: TabValue }) {
   );
 }
 
-type LFieldName =
-  | "luktHetZwakSee"
-  | "luktHetZwakDo"
-  | "looptHetSee"
-  | "looptHetDo"
-  | "leeftHetSee"
-  | "leeftHetDo"
-  | "luktHetGoedSee"
-  | "luktHetGoedDo";
+const SELECT_CLASS =
+  "border-input flex h-11 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
 
-const L_QUESTIONS: {
-  title: string;
-  seeField: LFieldName;
-  doField: LFieldName;
-}[] = [
-  {
-    title: "Lukt het? (Zwakkere beweger)",
-    seeField: "luktHetZwakSee",
-    doField: "luktHetZwakDo",
-  },
-  {
-    title: "Loopt het? (Organisatie & Flow)",
-    seeField: "looptHetSee",
-    doField: "looptHetDo",
-  },
-  {
-    title: "Leeft het? (Beleving & Plezier)",
-    seeField: "leeftHetSee",
-    doField: "leeftHetDo",
-  },
-  {
-    title: "Lukt het? (Betere beweger)",
-    seeField: "luktHetGoedSee",
-    doField: "luktHetGoedDo",
-  },
-];
+// Backs both the Leerlijn and Bewegingsprobleem fields: a dropdown of
+// Basisdocument-standardized options, with an "Anders, namelijk..." escape
+// hatch into free text for cases the curated list doesn't cover.
+function BasisdocumentField({
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  const [mode, setMode] = useState<"select" | "custom">(
+    value && !options.includes(value) ? "custom" : "select",
+  );
+
+  if (mode === "custom") {
+    return (
+      <div className="flex gap-2">
+        <Input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setMode("select");
+            onChange("");
+          }}
+          disabled={disabled}
+        >
+          Kies uit lijst
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={options.includes(value) ? value : ""}
+      onChange={(event) => {
+        if (event.target.value === ANDERS_OPTION) {
+          setMode("custom");
+          onChange("");
+        } else {
+          onChange(event.target.value);
+        }
+      }}
+      disabled={disabled}
+      className={SELECT_CLASS}
+    >
+      <option value="" disabled>
+        Kies een optie
+      </option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+      <option value={ANDERS_OPTION}>{ANDERS_OPTION}</option>
+    </select>
+  );
+}
 
 export function LessonForm({
   role,
@@ -133,6 +176,9 @@ export function LessonForm({
     initialValues?.ruleMaterials ?? [],
   );
   const [rules, setRules] = useState<string[]>(initialValues?.rules ?? []);
+  const [didacticItems, setDidacticItems] = useState<DidacticItem[]>(
+    initialValues?.didacticItems ?? [],
+  );
   const [diagram, setDiagram] = useState<{
     data: DiagramData;
     imageDataUrl: string;
@@ -142,6 +188,10 @@ export function LessonForm({
     resolver: zodResolver(createLessonInputSchema),
     defaultValues: { ...createLessonDefaultValues, ...initialValues },
   });
+  const selectedLearningLine = useWatch({
+    control: form.control,
+    name: "learningLine",
+  }) as BasisdocumentLeerlijn;
 
   function goRelative(offset: 1 | -1) {
     const index = TAB_ORDER.indexOf(activeTab);
@@ -155,6 +205,7 @@ export function LessonForm({
       baseMaterials,
       ruleMaterials,
       rules,
+      didacticItems,
     };
 
     const result = await createLesson(payload, diagram);
@@ -241,9 +292,17 @@ export function LessonForm({
                   name="learningLine"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Leerlijn</FormLabel>
+                      <FormLabel>Leerlijn (Basisdocument Bewegingsonderwijs)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Bijv. Doelspelen" {...field} />
+                        <BasisdocumentField
+                          value={field.value}
+                          onChange={(value) => {
+                            field.onChange(value);
+                            form.setValue("movementProblem", "");
+                          }}
+                          options={BASISDOCUMENT_LEERLIJNEN}
+                          placeholder="Bijv. Doelspelen"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -252,15 +311,31 @@ export function LessonForm({
                 <FormField
                   control={form.control}
                   name="movementProblem"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bewegingsprobleem</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Bijv. Keeper verdedigen" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const options =
+                      BASISDOCUMENT_BEWEGINGSPROBLEMEN[selectedLearningLine] ?? [];
+                    return (
+                      <FormItem>
+                        <FormLabel>Bewegingsprobleem</FormLabel>
+                        <FormControl>
+                          <BasisdocumentField
+                            key={selectedLearningLine}
+                            value={field.value}
+                            onChange={field.onChange}
+                            options={options}
+                            placeholder="Bijv. Keeper verdedigen"
+                            disabled={options.length === 0}
+                          />
+                        </FormControl>
+                        {options.length === 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Kies eerst een leerlijn voor gestandaardiseerde opties.
+                          </p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
                 <FormField
                   control={form.control}
@@ -362,14 +437,14 @@ export function LessonForm({
             </div>
           </TabsContent>
 
-          {/* Tab 3 — Didactische analyse (de 4 L'en) */}
-          <TabsContent value="didactiek" className="animate-fade-up">
+          {/* Tab 3 — Didactische analyse (de 3 L'en, Walinga & Koekoek 2021) */}
+          <TabsContent value="didactiek" className="animate-fade-up space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Didactische analyse</CardTitle>
-                <CardDescription>Doelen en de 4 L&apos;en.</CardDescription>
+                <CardDescription>Doelen en de 3 L&apos;en.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent>
                 <FormField
                   control={form.control}
                   name="goals"
@@ -386,46 +461,12 @@ export function LessonForm({
                     </FormItem>
                   )}
                 />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {L_QUESTIONS.map((question) => (
-                    <Card key={question.title}>
-                      <CardHeader>
-                        <CardTitle className="text-base">
-                          {question.title}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <FormField
-                          control={form.control}
-                          name={question.seeField}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Wat zie je?</FormLabel>
-                              <FormControl>
-                                <Textarea {...field} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={question.doField}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Wat doe je?</FormLabel>
-                              <FormControl>
-                                <Textarea {...field} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
               </CardContent>
             </Card>
-            <div className="mt-4 flex justify-between">
+
+            <DidacticsForm items={didacticItems} onChange={setDidacticItems} />
+
+            <div className="flex justify-between">
               <Button type="button" variant="outline" onClick={() => goRelative(-1)}>
                 Vorige
               </Button>

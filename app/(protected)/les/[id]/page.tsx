@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 
 import { LessonPdfButton } from "@/components/LessonPdfButton";
+import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,11 +15,7 @@ import {
 import { formatDate } from "@/lib/format";
 import { getLessonById } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
-import {
-  L_QUESTIONS,
-  LESSON_BLOCK_LABELS,
-  LESSON_BLOCK_TYPES,
-} from "@/types/lesson";
+import { LESSON_BLOCK_LABELS, LESSON_BLOCK_TYPES } from "@/types/lesson";
 
 function TextList({ items }: { items: string[] | null }) {
   if (!items || items.length === 0) {
@@ -158,7 +155,7 @@ export default async function LesDetailPage({
         </CardContent>
       </Card>
 
-      {/* Sectie 2: Didactische analyse (de 4 L'en) */}
+      {/* Sectie 2: Didactische analyse (de 3 L'en, Walinga & Koekoek 2021) */}
       <Card className="animate-fade-up" style={{ animationDelay: "80ms" }}>
         <CardHeader>
           <CardTitle>Didactische analyse</CardTitle>
@@ -168,25 +165,7 @@ export default async function LesDetailPage({
             <h3 className="mb-1 text-sm font-medium">Doelen</h3>
             <p className="text-sm text-muted-foreground">{lesson.goals ?? "-"}</p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {L_QUESTIONS.map((question) => (
-              <Card key={question.title} className="bg-muted/40">
-                <CardHeader>
-                  <CardTitle className="text-base">{question.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  <p>
-                    <span className="font-medium">Wat zie je? </span>
-                    {lesson.lesson_didactics?.[question.seeKey] || "-"}
-                  </p>
-                  <p>
-                    <span className="font-medium">Wat doe je? </span>
-                    {lesson.lesson_didactics?.[question.doKey] || "-"}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <DidacticsMatrix items={lesson.lesson_didactics?.items ?? []} />
         </CardContent>
       </Card>
 

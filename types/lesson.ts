@@ -22,12 +22,148 @@ export const LESSON_BLOCK_LABELS: Record<LessonBlockType, string> = {
 // `.default()` at the zod level — that would make z.input diverge from
 // z.output and break zodResolver's generic match against `useForm<T>`.
 const requiredText = (message: string) => z.string().trim().min(1, message);
-const freeText = z.string().trim();
 const textList = z.array(z.string().trim().min(1));
 const optionalCount = z.preprocess(
   (value) => (value === "" || value === undefined || value === null ? undefined : value),
   z.coerce.number().int().min(0).optional(),
 );
+
+// ----------------------------------------------------------------------------
+// Didactische analyse — Walinga & Koekoek (2021), de 3 L'en
+// ----------------------------------------------------------------------------
+
+export const DIDACTIC_CATEGORIES = ["loopt_het", "lukt_het", "leeft_het"] as const;
+export const didacticCategorySchema = z.enum(DIDACTIC_CATEGORIES);
+export type DidacticCategory = z.infer<typeof didacticCategorySchema>;
+
+export const DIDACTIC_CATEGORY_LABELS: Record<DidacticCategory, string> = {
+  loopt_het: "Loopt 't?",
+  lukt_het: "Lukt 't?",
+  leeft_het: "Leeft 't?",
+};
+
+export const DIDACTIC_CATEGORY_SUBTITLES: Record<DidacticCategory, string> = {
+  loopt_het: "Organisatie & groepsdynamica",
+  lukt_het: "Bewegingsvaardigheid & motorisch leren",
+  leeft_het: "Betrokkenheid & motivatietheorie",
+};
+
+// Subthema's + specialistische invalshoeken uit de Walinga & Koekoek-matrix,
+// samengevoegd tot één keuzelijst per L (de UI toont één dropdown per item).
+export const DIDACTIC_SUBTHEMES: Record<DidacticCategory, string[]> = {
+  loopt_het: [
+    "Werkvorm",
+    "Afstemming",
+    "Sfeer",
+    "Communicatie",
+    "Leiderschap",
+    "Organisatie",
+    "Zelfregulatie (groep)",
+    "Wisselafspraken",
+  ],
+  lukt_het: [
+    "Haalbaarheid",
+    "Uitbouwbaarheid",
+    "Eigenheid",
+    "Methodiek",
+    "Motorisch leren",
+    "Differentiatie (zwakke vs betere beweger)",
+    "Deliberate play",
+    "TGfU",
+  ],
+  leeft_het: [
+    "Inbreng",
+    "Succeservaring",
+    "Erbij horen",
+    "Motivatietheorie",
+    "Reflectie",
+    "Goal achievement",
+    "Eigenaarschap & plezier",
+  ],
+};
+
+export const didacticItemSchema = z.object({
+  id: z.string(),
+  category: didacticCategorySchema,
+  subTheme: z.string().trim().min(1).nullable(),
+  observation: requiredText("Vul in wat je ziet."),
+  action: requiredText("Vul in wat je doet."),
+});
+export type DidacticItem = z.infer<typeof didacticItemSchema>;
+
+// ----------------------------------------------------------------------------
+// Basisdocument Bewegingsonderwijs — 12 leerlijnen + gestandaardiseerde
+// bewegingsproblemen per leerlijn.
+// ----------------------------------------------------------------------------
+
+export const BASISDOCUMENT_LEERLIJNEN = [
+  "Balanceren",
+  "Klimmen",
+  "Zwaaien",
+  "Springen",
+  "Hardlopen",
+  "Midden- en langafstandlopen",
+  "Werpen, stoten en slingeren",
+  "Doelspelen",
+  "Tikspelen",
+  "Trefspelen",
+  "Racketspelen / Honk- en loopspelen",
+  "Bewegen op muziek / Bewegen en regelen",
+] as const;
+export type BasisdocumentLeerlijn = (typeof BASISDOCUMENT_LEERLIJNEN)[number];
+
+export const BASISDOCUMENT_BEWEGINGSPROBLEMEN: Record<BasisdocumentLeerlijn, string[]> = {
+  Balanceren: [
+    "Het bewaren van evenwicht op een smal/instabiel vlak met verhoogde complexiteit",
+    "Balans hervinden na een verstoring",
+  ],
+  Klimmen: [
+    "Grip en steun vinden op wisselende hoogtes en afstanden",
+    "Veilig in- en afschatten van op- en afklimmen",
+  ],
+  Zwaaien: [
+    "Het vergroten van de zwaai en gecontroleerd neerkomen",
+    "Het juiste moment van loslaten bepalen",
+  ],
+  Springen: [
+    "Aanloop, afzet en landing op elkaar afstemmen",
+    "Hoogte of lengte vergroten met behoud van controle",
+  ],
+  Hardlopen: [
+    "Snelheid opbouwen en op tijd afremmen of van richting veranderen",
+    "Reactiesnelheid bij starts",
+  ],
+  "Midden- en langafstandlopen": [
+    "Tempo verdelen over een langere afstand",
+    "Doorzettingsvermogen en ademhaling reguleren",
+  ],
+  "Werpen, stoten en slingeren": [
+    "Kracht en richting van een werp- of stootbeweging afstemmen op een doel",
+    "Timing van loslaten bij een zwaai- of slingerbeweging",
+  ],
+  Doelspelen: [
+    "Samenwerken om een vrije kans te creëren",
+    "Verdedigen van de doellijn/zone",
+  ],
+  Tikspelen: [
+    "Snel reageren en uitwijken binnen afgebakende ruimtes",
+    "Overzicht houden wie tikker en wie deelnemer is",
+  ],
+  Trefspelen: [
+    "Gericht mikken op een bewegend doel",
+    "Uitwijken en ontwijken van een geworpen bal",
+  ],
+  "Racketspelen / Honk- en loopspelen": [
+    "Bal-racketcoördinatie onder tijdsdruk",
+    "Timing van slaan en lopen tussen honken",
+  ],
+  "Bewegen op muziek / Bewegen en regelen": [
+    "Bewegingen afstemmen op ritme en tempo",
+    "Eigen bewegingsvolgorde onthouden en regelen",
+  ],
+};
+
+export const ANDERS_OPTION = "Anders, namelijk...";
 
 /**
  * Full lesvoorbereiding form: validated identically on the client
@@ -49,16 +185,9 @@ export const createLessonInputSchema = z.object({
   participantsBench: optionalCount,
   rules: textList,
 
-  // Tab 3 — Didactische analyse (de 4 L'en)
+  // Tab 3 — Didactische analyse (de 3 L'en, Walinga & Koekoek 2021)
   goals: requiredText("Doelen zijn verplicht."),
-  luktHetZwakSee: freeText,
-  luktHetZwakDo: freeText,
-  looptHetSee: freeText,
-  looptHetDo: freeText,
-  leeftHetSee: freeText,
-  leeftHetDo: freeText,
-  luktHetGoedSee: freeText,
-  luktHetGoedDo: freeText,
+  didacticItems: z.array(didacticItemSchema),
 
   // Tab 4 — Activiteitsvoorbereiding (de 4 kernelementen)
   arrangement: requiredText("Arrangement is verplicht."),
@@ -88,14 +217,7 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   participantsBench: undefined,
   rules: [],
   goals: "",
-  luktHetZwakSee: "",
-  luktHetZwakDo: "",
-  looptHetSee: "",
-  looptHetDo: "",
-  leeftHetSee: "",
-  leeftHetDo: "",
-  luktHetGoedSee: "",
-  luktHetGoedDo: "",
+  didacticItems: [],
   arrangement: "",
   deelnemersRegels: "",
   plaatjePraatje: "",
@@ -135,15 +257,7 @@ export type Lesson = {
 export type LessonDidactics = {
   id: string;
   lesson_id: string;
-  instructions_text: string | null;
-  lukt_het_zwak_see: string | null;
-  lukt_het_zwak_do: string | null;
-  loopt_het_see: string | null;
-  loopt_het_do: string | null;
-  leeft_het_see: string | null;
-  leeft_het_do: string | null;
-  lukt_het_goed_see: string | null;
-  lukt_het_goed_do: string | null;
+  items: DidacticItem[];
 };
 
 export type LessonBlock = {
@@ -165,42 +279,18 @@ export type LessonWithDetails = Lesson & {
   author: LessonAuthor | null;
 };
 
-// Shared "4 L'en" question config for the didactische analyse — used by
-// both the /les/[id] detail view and the PDF document so the labels and
-// field mapping only live in one place.
-export type LessonDidacticsTextField =
-  | "lukt_het_zwak_see"
-  | "lukt_het_zwak_do"
-  | "loopt_het_see"
-  | "loopt_het_do"
-  | "leeft_het_see"
-  | "leeft_het_do"
-  | "lukt_het_goed_see"
-  | "lukt_het_goed_do";
-
-export const L_QUESTIONS: {
-  title: string;
-  seeKey: LessonDidacticsTextField;
-  doKey: LessonDidacticsTextField;
-}[] = [
-  {
-    title: "Lukt het? (Zwakkere beweger)",
-    seeKey: "lukt_het_zwak_see",
-    doKey: "lukt_het_zwak_do",
-  },
-  {
-    title: "Loopt het? (Organisatie & Flow)",
-    seeKey: "loopt_het_see",
-    doKey: "loopt_het_do",
-  },
-  {
-    title: "Leeft het? (Beleving & Plezier)",
-    seeKey: "leeft_het_see",
-    doKey: "leeft_het_do",
-  },
-  {
-    title: "Lukt het? (Betere beweger)",
-    seeKey: "lukt_het_goed_see",
-    doKey: "lukt_het_goed_do",
-  },
-];
+// Groups a flat DidacticItem[] by category, in canonical L-order, for the
+// detail page and PDF export.
+export function groupDidacticItemsByCategory(
+  items: DidacticItem[],
+): Record<DidacticCategory, DidacticItem[]> {
+  const grouped: Record<DidacticCategory, DidacticItem[]> = {
+    loopt_het: [],
+    lukt_het: [],
+    leeft_het: [],
+  };
+  for (const item of items) {
+    grouped[item.category].push(item);
+  }
+  return grouped;
+}

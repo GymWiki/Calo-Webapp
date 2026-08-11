@@ -2,11 +2,20 @@ import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/render
 
 import { formatDate } from "@/lib/format";
 import {
-  L_QUESTIONS,
+  DIDACTIC_CATEGORIES,
+  DIDACTIC_CATEGORY_LABELS,
   LESSON_BLOCK_LABELS,
   LESSON_BLOCK_TYPES,
+  groupDidacticItemsByCategory,
+  type DidacticCategory,
   type LessonWithDetails,
 } from "@/types/lesson";
+
+const DIDACTIC_COLORS: Record<DidacticCategory, string> = {
+  loopt_het: "#e6f4ea",
+  lukt_het: "#fff6d9",
+  leeft_het: "#e6f0fb",
+};
 
 const styles = StyleSheet.create({
   page: {
@@ -64,6 +73,19 @@ const styles = StyleSheet.create({
   },
   gridCell: { width: "48%", marginBottom: 8 },
   listItem: { fontSize: 9, marginBottom: 2 },
+  matrixRow: { flexDirection: "row", justifyContent: "space-between" },
+  matrixColumn: { width: "32%" },
+  matrixHeader: { borderRadius: 3, padding: 5, marginBottom: 5 },
+  matrixHeaderText: { fontSize: 9, fontFamily: "Helvetica-Bold" },
+  matrixItem: {
+    borderWidth: 1,
+    borderColor: "#DDDDDD",
+    borderRadius: 3,
+    padding: 5,
+    marginBottom: 5,
+  },
+  matrixSubtheme: { fontSize: 7, color: "#666666", marginBottom: 2 },
+  matrixText: { fontSize: 8, lineHeight: 1.35, marginBottom: 1 },
   diagramImage: {
     width: "100%",
     maxWidth: 380,
@@ -104,6 +126,9 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
     : "-";
   const blocksByType = new Map(
     lesson.lesson_blocks.map((block) => [block.block_type, block.content]),
+  );
+  const groupedDidactics = groupDidacticItemsByCategory(
+    lesson.lesson_didactics?.items ?? [],
   );
 
   return (
@@ -147,23 +172,39 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Didactische analyse (de 4 L&apos;en)</Text>
+          <Text style={styles.sectionTitle}>Didactische analyse (de 3 L&apos;en)</Text>
           <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
             <Text style={styles.boxLabel}>Doelen</Text>
             <Text style={styles.boxText}>{lesson.goals || "-"}</Text>
           </View>
-          <View style={styles.grid2}>
-            {L_QUESTIONS.map((question) => (
-              <View key={question.title} style={[styles.gridCell, styles.box]} wrap={false}>
-                <Text style={styles.boxLabel}>{question.title}</Text>
-                <Text style={styles.boxText}>
-                  Wat zie je? {lesson.lesson_didactics?.[question.seeKey] || "-"}
-                </Text>
-                <Text style={styles.boxText}>
-                  Wat doe je? {lesson.lesson_didactics?.[question.doKey] || "-"}
-                </Text>
-              </View>
-            ))}
+          <View style={styles.matrixRow}>
+            {DIDACTIC_CATEGORIES.map((category) => {
+              const items = groupedDidactics[category];
+              return (
+                <View key={category} style={styles.matrixColumn} wrap={false}>
+                  <View
+                    style={[styles.matrixHeader, { backgroundColor: DIDACTIC_COLORS[category] }]}
+                  >
+                    <Text style={styles.matrixHeaderText}>
+                      {DIDACTIC_CATEGORY_LABELS[category]}
+                    </Text>
+                  </View>
+                  {items.length === 0 ? (
+                    <Text style={styles.boxText}>-</Text>
+                  ) : (
+                    items.map((item) => (
+                      <View key={item.id} style={styles.matrixItem}>
+                        {item.subTheme && (
+                          <Text style={styles.matrixSubtheme}>#{item.subTheme}</Text>
+                        )}
+                        <Text style={styles.matrixText}>Zie: {item.observation}</Text>
+                        <Text style={styles.matrixText}>Doe: {item.action}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              );
+            })}
           </View>
         </View>
 

@@ -66,14 +66,7 @@ export async function createLesson(
       .from("lesson_didactics")
       .insert({
         lesson_id: lesson.id,
-        lukt_het_zwak_see: values.luktHetZwakSee || null,
-        lukt_het_zwak_do: values.luktHetZwakDo || null,
-        loopt_het_see: values.looptHetSee || null,
-        loopt_het_do: values.looptHetDo || null,
-        leeft_het_see: values.leeftHetSee || null,
-        leeft_het_do: values.leeftHetDo || null,
-        lukt_het_goed_see: values.luktHetGoedSee || null,
-        lukt_het_goed_do: values.luktHetGoedDo || null,
+        items: values.didacticItems,
       });
 
     const { error: blocksError } = await supabase.from("lesson_blocks").insert([
