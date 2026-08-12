@@ -5,7 +5,6 @@ import {
   DIDACTIC_CATEGORIES,
   DIDACTIC_CATEGORY_LABELS,
   LESSON_BLOCK_LABELS,
-  LESSON_BLOCK_TYPES,
   groupDidacticItemsByCategory,
   type DidacticCategory,
   type LessonWithDetails,
@@ -175,7 +174,14 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lesdoel, Leeruitkomsten & Beginsituatie</Text>
+          <Text style={styles.sectionTitle}>Lesinhoud & Regels</Text>
+          <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
+            <Text style={styles.boxLabel}>Beginsituatie & Doelgroep</Text>
+            <Text style={styles.boxText}>
+              Aantal deelnemers — in het veld: {lesson.min_participants ?? "-"} · op de
+              bank: {lesson.participants_bench ?? "-"}
+            </Text>
+          </View>
           <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
             <Text style={styles.boxLabel}>Doelstelling</Text>
             <Text style={styles.boxText}>{lesson.goals || "-"}</Text>
@@ -186,17 +192,28 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
               <NumberedList items={lesson.learning_outcomes} />
             </View>
           )}
-          <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
-            <Text style={styles.boxLabel}>Beginsituatie & Doelgroep</Text>
-            <Text style={styles.boxText}>
-              Aantal deelnemers — in het veld: {lesson.min_participants ?? "-"} · op de
-              bank: {lesson.participants_bench ?? "-"}
-            </Text>
+          <View style={styles.grid2}>
+            {(["deelnemers_regels", "plaatje_praatje", "aandachtspunten"] as const).map(
+              (type) => (
+                <View key={type} style={[styles.gridCell, styles.box]} wrap={false}>
+                  <Text style={styles.boxLabel}>{LESSON_BLOCK_LABELS[type]}</Text>
+                  <Text style={styles.boxText}>{blocksByType.get(type) || "-"}</Text>
+                </View>
+              ),
+            )}
+          </View>
+          <View style={[styles.box]} wrap={false}>
+            <Text style={styles.boxLabel}>Regels</Text>
+            <TextList items={lesson.rules} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Veld & Materiaal</Text>
+          <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
+            <Text style={styles.boxLabel}>Veldafmetingen & Veldopstelling</Text>
+            <Text style={styles.boxText}>{blocksByType.get("arrangement") || "-"}</Text>
+          </View>
           <View style={styles.grid2}>
             <View style={[styles.gridCell, styles.box]} wrap={false}>
               <Text style={styles.boxLabel}>Basismateriaal</Text>
@@ -211,13 +228,6 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
             // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop
             <Image style={styles.diagramImage} src={lesson.diagram_image_url} />
           )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Spelregels & Spelverloop</Text>
-          <View style={[styles.box]} wrap={false}>
-            <TextList items={lesson.rules} />
-          </View>
         </View>
 
         {hasGamePedagogy && (
@@ -247,16 +257,6 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
             )}
           </View>
         )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Kernblokken</Text>
-          {LESSON_BLOCK_TYPES.map((type) => (
-            <View key={type} style={styles.box} wrap={false}>
-              <Text style={styles.boxLabel}>{LESSON_BLOCK_LABELS[type]}</Text>
-              <Text style={styles.boxText}>{blocksByType.get(type) || "-"}</Text>
-            </View>
-          ))}
-        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Leerhulp (de 3 L&apos;en)</Text>

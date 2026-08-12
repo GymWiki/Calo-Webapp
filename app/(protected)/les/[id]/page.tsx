@@ -14,10 +14,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/format";
 import { getLessonById } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
-import { LESSON_BLOCK_LABELS, LESSON_BLOCK_TYPES } from "@/types/lesson";
+import { LESSON_BLOCK_LABELS } from "@/types/lesson";
+
+// Merkkleuren voor Tab 3 "Leerhulp" — bewust losgekoppeld van
+// lib/didactics-styles.ts's CATEGORY_STYLES, die ook door de client-side
+// didactiek-editor (les-maken) wordt gebruikt en dus niet stilzwijgend mee
+// mag veranderen met deze detailpagina-specifieke kleurwens.
+const LEERHULP_COLORS = {
+  loopt_het: { border: "border-blue-200", header: "bg-blue-50 text-blue-900", emoji: "🔵" },
+  lukt_het: { border: "border-green-200", header: "bg-green-50 text-green-900", emoji: "🟢" },
+  leeft_het: { border: "border-red-200", header: "bg-red-50 text-red-900", emoji: "🔴" },
+} as const;
 
 function TextList({ items }: { items: string[] | null }) {
   if (!items || items.length === 0) {
@@ -135,134 +146,139 @@ export default async function LesDetailPage({
         </div>
       </div>
 
-      {/* Header */}
+      {/* Header — vast bovenaan */}
       <Card className="animate-fade-up">
         <CardHeader>
           <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
             Lesvoorbereiding
           </p>
           <CardTitle className="mt-1 text-2xl">{lesson.title}</CardTitle>
+          {lesson.learning_line && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge variant="secondary">{lesson.learning_line}</Badge>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <HeaderField label="Studentnaam" value={authorName} />
             <HeaderField label="Datum" value={formatDate(lesson.lesson_date) ?? "-"} />
             <HeaderField label="Groep/klas" value={lesson.group_name ?? "-"} />
-            <HeaderField label="Leerlijn" value={lesson.learning_line ?? "-"} />
             <HeaderField label="Bewegingsprobleem" value={lesson.movement_problem ?? "-"} />
             <HeaderField label="Bewegingsthema" value={lesson.movement_theme ?? "-"} />
           </dl>
         </CardContent>
       </Card>
 
-      {/* Sectie 1: Lesdoel & Beginsituatie */}
+      {/* Afbeelding / Plattegrond — vast bovenaan, boven de tab-balk */}
       <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
         <CardHeader>
-          <CardTitle>Lesdoel & Beginsituatie</CardTitle>
+          <CardTitle>Plattegrond</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <h3 className="mb-1 text-sm font-medium">Doelstelling</h3>
-            <p className="text-sm text-muted-foreground">{lesson.goals ?? "-"}</p>
-          </div>
-          {lesson.learning_outcomes && lesson.learning_outcomes.length > 0 && (
-            <div>
-              <h3 className="mb-1 text-sm font-medium">Leeruitkomsten</h3>
-              <NumberedList items={lesson.learning_outcomes} />
-            </div>
+        <CardContent>
+          {lesson.diagram_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={lesson.diagram_image_url}
+              alt="Plattegrond van het arrangement"
+              className="w-full max-w-xl rounded-lg border"
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">Geen tekening toegevoegd.</p>
           )}
-          <div>
-            <h3 className="mb-1 text-sm font-medium">Beginsituatie & Doelgroep</h3>
-            <p className="text-sm text-muted-foreground">
-              Aantal deelnemers — in het veld: {lesson.min_participants ?? "-"} · op de
-              bank: {lesson.participants_bench ?? "-"}
-            </p>
-          </div>
         </CardContent>
       </Card>
 
-      {/* Sectie 2: Veld & Materiaal */}
-      <Card className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-        <CardHeader>
-          <CardTitle>Veld & Materiaal</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <h3 className="mb-2 text-sm font-medium">Basismateriaal</h3>
-              <BadgeList items={lesson.base_materials} />
-            </div>
-            <div>
-              <h3 className="mb-2 text-sm font-medium">Regelmateriaal</h3>
-              <BadgeList items={lesson.rule_materials} />
-            </div>
-          </div>
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Tekening van het arrangement</h3>
-            {lesson.diagram_image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={lesson.diagram_image_url}
-                alt="Plattegrond van het arrangement"
-                className="w-full max-w-xl rounded-lg border"
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Geen tekening toegevoegd.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3">
+          <TabsTrigger value="lesinhoud">Lesinhoud & Regels</TabsTrigger>
+          <TabsTrigger value="veld">Veld & Materiaal</TabsTrigger>
+          <TabsTrigger value="leerhulp">Leerhulp</TabsTrigger>
+        </TabsList>
 
-      {/* Sectie 3: Spelregels & Spelverloop */}
-      <Card className="animate-fade-up" style={{ animationDelay: "120ms" }}>
-        <CardHeader>
-          <CardTitle>Spelregels & Spelverloop</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TextList items={lesson.rules} />
-        </CardContent>
-      </Card>
-
-      {/* Kernblokken */}
-      <Card className="animate-fade-up" style={{ animationDelay: "160ms" }}>
-        <CardHeader>
-          <CardTitle>Kernblokken</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          {LESSON_BLOCK_TYPES.map((type) => (
-            <Card key={type} className="bg-muted/40">
-              <CardHeader>
-                <CardTitle className="text-base">
-                  {LESSON_BLOCK_LABELS[type]}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+        {/* Tab 1: Lesinhoud & Regels */}
+        <TabsContent value="lesinhoud" className="space-y-4">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <div>
+                <h3 className="mb-1 text-sm font-medium">Beginsituatie & Doelgroep</h3>
                 <p className="text-sm text-muted-foreground">
-                  {blocksByType.get(type) || "-"}
+                  Aantal deelnemers — in het veld: {lesson.min_participants ?? "-"} · op de
+                  bank: {lesson.participants_bench ?? "-"}
                 </p>
-              </CardContent>
-            </Card>
-          ))}
-        </CardContent>
-      </Card>
+              </div>
+              <div>
+                <h3 className="mb-1 text-sm font-medium">Doelstelling</h3>
+                <p className="text-sm text-muted-foreground">{lesson.goals ?? "-"}</p>
+              </div>
+              {lesson.learning_outcomes && lesson.learning_outcomes.length > 0 && (
+                <div>
+                  <h3 className="mb-1 text-sm font-medium">Leeruitkomsten</h3>
+                  <NumberedList items={lesson.learning_outcomes} />
+                </div>
+              )}
+              <div>
+                <h3 className="mb-2 text-sm font-medium">Beschrijving</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {(["deelnemers_regels", "plaatje_praatje", "aandachtspunten"] as const).map(
+                    (type) => (
+                      <div key={type}>
+                        <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                          {LESSON_BLOCK_LABELS[type]}
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          {blocksByType.get(type) || "-"}
+                        </p>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-medium">Regels</h3>
+                <TextList items={lesson.rules} />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <GameBasedPedagogyMatrix
-        category={lesson.game_category}
-        dimensions={lesson.game_dimensions}
-        tacticalQuestions={lesson.tactical_questions}
-      />
+        {/* Tab 2: Veld & Materiaal */}
+        <TabsContent value="veld" className="space-y-4">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <div>
+                <h3 className="mb-1 text-sm font-medium">Veldafmetingen & Veldopstelling</h3>
+                <p className="text-sm text-muted-foreground">
+                  {blocksByType.get("arrangement") || "-"}
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <h3 className="mb-2 text-sm font-medium">Basismateriaal</h3>
+                  <BadgeList items={lesson.base_materials} />
+                </div>
+                <div>
+                  <h3 className="mb-2 text-sm font-medium">Regelmateriaal</h3>
+                  <BadgeList items={lesson.rule_materials} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Sectie 4: Leerhulp (voormalig 'Didactische analyse') — helemaal onderaan */}
-      <Card className="animate-fade-up" style={{ animationDelay: "200ms" }}>
-        <CardHeader>
-          <CardTitle>Leerhulp</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DidacticsMatrix items={lesson.lesson_didactics?.items ?? []} />
-        </CardContent>
-      </Card>
+        {/* Tab 3: Leerhulp (3 L'en) */}
+        <TabsContent value="leerhulp" className="space-y-4">
+          <GameBasedPedagogyMatrix
+            category={lesson.game_category}
+            dimensions={lesson.game_dimensions}
+            tacticalQuestions={lesson.tactical_questions}
+          />
+          <DidacticsMatrix
+            items={lesson.lesson_didactics?.items ?? []}
+            styleOverrides={LEERHULP_COLORS}
+          />
+        </TabsContent>
+      </Tabs>
 
       <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-4 shadow-brand-lg md:hidden print:hidden">
         {isOwner && (
