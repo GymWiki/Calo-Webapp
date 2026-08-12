@@ -186,13 +186,17 @@ export default async function SharedLessonPage({
             ) : (
               <p className="text-sm text-muted-foreground">Geen tekening toegevoegd.</p>
             )}
-            <LessonPdfButton lesson={lesson} />
+            <LessonPdfButton
+              lesson={lesson}
+              isPro={profile?.is_pro ?? false}
+              xp={profile?.xp ?? 0}
+            />
           </CardContent>
         </Card>
 
         {profile && (
           <div className="animate-fade-up flex justify-end" style={{ animationDelay: "60ms" }}>
-            <AiLescoachButton payload={analyzePayload} />
+            <AiLescoachButton payload={analyzePayload} xp={profile?.xp ?? 0} />
           </div>
         )}
 

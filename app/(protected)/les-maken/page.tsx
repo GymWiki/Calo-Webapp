@@ -83,6 +83,7 @@ export default async function LesMakenPage({
         initialTab={initialTab}
         activeSourceCount={activeSourceCount}
         skipChoice={skipChoice}
+        xp={profile.xp}
       />
     </main>
   );

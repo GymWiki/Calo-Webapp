@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { awardXp, XP_REWARDS, type LevelUpEvent } from "@/lib/gamification";
+import { getUserPermissions } from "@/lib/permissions";
 import {
   createLessonInputSchema,
   type CreateLessonInput,
@@ -10,10 +11,12 @@ import {
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 
 type ActionResult =
-  | { error: string }
+  | { error: string; paywall?: true }
   | { success: true; levelUp?: LevelUpEvent };
 
 const GENERIC_ERROR = "Les opslaan is mislukt. Probeer het opnieuw.";
+const MAX_LESSONS_ERROR =
+  "Je hebt het maximum van 3 opgeslagen lessen voor gratis accounts bereikt. Upgrade naar Pro voor onbeperkt lessen opslaan.";
 
 export async function createLesson(
   input: CreateLessonInput,
@@ -36,6 +39,24 @@ export async function createLesson(
 
   if (!user) {
     return { error: "Je bent niet ingelogd." };
+  }
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("is_pro")
+    .eq("id", user.id)
+    .single();
+  const { maxSavedLessons } = getUserPermissions(profile);
+
+  if (Number.isFinite(maxSavedLessons)) {
+    const { count } = await supabase
+      .from("lessons")
+      .select("id", { count: "exact", head: true })
+      .eq("author_id", user.id);
+
+    if ((count ?? 0) >= maxSavedLessons) {
+      return { error: MAX_LESSONS_ERROR, paywall: true };
+    }
   }
 
   try {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Bot, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+import { PaywallModal } from "@/components/PaywallModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,16 +46,20 @@ export function AiLescoachSheet({
   onApplyImprovement,
   triggerClassName,
   triggerVariant = "outline",
+  xp = 0,
 }: {
   getPayload: () => AnalyzeLessonPayload;
   onApplyImprovement?: (item: DidacticItem) => void;
   triggerClassName?: string;
   triggerVariant?: "outline" | "default";
+  xp?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<LescoachFeedback | null>(null);
   const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallMessage, setPaywallMessage] = useState("");
 
   async function runAnalysis() {
     setIsLoading(true);
@@ -70,8 +75,15 @@ export function AiLescoachSheet({
       const data = await response.json();
 
       if (!response.ok || "error" in data) {
-        toast.error(data.error ?? "AI Lescoach-analyse is mislukt.");
         setOpen(false);
+        if (response.status === 429) {
+          setPaywallMessage(
+            data.error ?? "Je hebt je gratis AI-checks voor deze maand gebruikt.",
+          );
+          setPaywallOpen(true);
+        } else {
+          toast.error(data.error ?? "AI Lescoach-analyse is mislukt.");
+        }
         return;
       }
 
@@ -108,105 +120,113 @@ export function AiLescoachSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger asChild>
-        <Button type="button" variant={triggerVariant} className={triggerClassName}>
-          <Bot className="size-4" />
-          AI Lescoach raadplegen
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Bot className="size-5" />
-            AI Lescoach
-          </SheetTitle>
-          <SheetDescription>
-            Feedback op je lesvoorbereiding, gebaseerd op de Kennisbank.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="space-y-4 overflow-y-auto px-4">
-          {isLoading && (
-            <p className="text-sm text-muted-foreground">Bezig met analyseren...</p>
-          )}
-
-          {!isLoading && feedback && (
-            <>
-              <div className="flex items-center gap-3 rounded-xl border bg-muted/40 p-4">
-                <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-xl font-bold text-primary-foreground">
-                  {feedback.score}
-                </div>
-                <p className="text-sm">{feedback.summary}</p>
-              </div>
-
-              {feedback.strengths.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-sm font-semibold">Pluspunten</h3>
-                  <ul className="space-y-1.5">
-                    {feedback.strengths.map((strength, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm">
-                        <Check className="mt-0.5 size-4 shrink-0 text-success" />
-                        {strength}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {feedback.improvements.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-sm font-semibold">Verbeterpunten</h3>
-                  <ul className="space-y-2">
-                    {feedback.improvements.map((improvement, index) => (
-                      <li key={index} className="rounded-lg border p-3">
-                        <Badge variant="secondary" className="mb-1.5">
-                          {improvement.category}
-                        </Badge>
-                        <p className="text-sm">{improvement.suggestion}</p>
-                        {onApplyImprovement && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="mt-2"
-                            disabled={appliedIndexes.has(index)}
-                            onClick={() => handleApply(index)}
-                          >
-                            {appliedIndexes.has(index) ? (
-                              <>
-                                <Check className="size-3.5" />
-                                Toegepast
-                              </>
-                            ) : (
-                              <>
-                                <Sparkles className="size-3.5" />
-                                Pas automatisch toe
-                              </>
-                            )}
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <SheetFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={runAnalysis}
-            disabled={isLoading}
-          >
-            Opnieuw analyseren
+    <>
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetTrigger asChild>
+          <Button type="button" variant={triggerVariant} className={triggerClassName}>
+            <Bot className="size-4" />
+            AI Lescoach raadplegen
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </SheetTrigger>
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Bot className="size-5" />
+              AI Lescoach
+            </SheetTitle>
+            <SheetDescription>
+              Feedback op je lesvoorbereiding, gebaseerd op de Kennisbank.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-4 overflow-y-auto px-4">
+            {isLoading && (
+              <p className="text-sm text-muted-foreground">Bezig met analyseren...</p>
+            )}
+
+            {!isLoading && feedback && (
+              <>
+                <div className="flex items-center gap-3 rounded-xl border bg-muted/40 p-4">
+                  <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-xl font-bold text-primary-foreground">
+                    {feedback.score}
+                  </div>
+                  <p className="text-sm">{feedback.summary}</p>
+                </div>
+
+                {feedback.strengths.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold">Pluspunten</h3>
+                    <ul className="space-y-1.5">
+                      {feedback.strengths.map((strength, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm">
+                          <Check className="mt-0.5 size-4 shrink-0 text-success" />
+                          {strength}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {feedback.improvements.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold">Verbeterpunten</h3>
+                    <ul className="space-y-2">
+                      {feedback.improvements.map((improvement, index) => (
+                        <li key={index} className="rounded-lg border p-3">
+                          <Badge variant="secondary" className="mb-1.5">
+                            {improvement.category}
+                          </Badge>
+                          <p className="text-sm">{improvement.suggestion}</p>
+                          {onApplyImprovement && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                              disabled={appliedIndexes.has(index)}
+                              onClick={() => handleApply(index)}
+                            >
+                              {appliedIndexes.has(index) ? (
+                                <>
+                                  <Check className="size-3.5" />
+                                  Toegepast
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="size-3.5" />
+                                  Pas automatisch toe
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <SheetFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={runAnalysis}
+              disabled={isLoading}
+            >
+              Opnieuw analyseren
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      <PaywallModal
+        open={paywallOpen}
+        onOpenChange={setPaywallOpen}
+        message={paywallMessage}
+        xp={xp}
+      />
+    </>
   );
 }
 
@@ -219,11 +239,17 @@ export function AiLescoachSheet({
 export function AiLescoachButton({
   payload,
   className,
+  xp = 0,
 }: {
   payload: AnalyzeLessonPayload;
   className?: string;
+  xp?: number;
 }) {
   return (
-    <AiLescoachSheet getPayload={() => payload} triggerClassName={className} />
+    <AiLescoachSheet
+      getPayload={() => payload}
+      triggerClassName={className}
+      xp={xp}
+    />
   );
 }

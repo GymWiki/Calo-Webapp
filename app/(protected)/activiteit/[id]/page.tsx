@@ -89,7 +89,7 @@ export default async function ActiviteitDetailPage({
           </Link>
         </Button>
         <div className="hidden md:block">
-          <ActivityDetailActions activityId={activity.id} initiallySaved={saved} />
+          <ActivityDetailActions activityId={activity.id} initiallySaved={saved} isPro={profile.is_pro} xp={profile.xp} />
         </div>
       </div>
 
@@ -198,7 +198,7 @@ export default async function ActiviteitDetailPage({
       </Card>
 
       <div className="md:hidden">
-        <ActivityDetailActions activityId={activity.id} initiallySaved={saved} />
+        <ActivityDetailActions activityId={activity.id} initiallySaved={saved} isPro={profile.is_pro} xp={profile.xp} />
       </div>
     </main>
   );

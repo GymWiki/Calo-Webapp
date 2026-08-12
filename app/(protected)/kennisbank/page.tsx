@@ -27,7 +27,12 @@ export default async function KennisbankPage() {
         title="Kennisbank"
         description="Kies welke vakliteratuur en eigen documenten de AI Lescoach en Activiteiten Generator meenemen bij het genereren en beoordelen van lessen."
       />
-      <UserKnowledgeSections defaultDocuments={defaults} ownDocuments={own} />
+      <UserKnowledgeSections
+        defaultDocuments={defaults}
+        ownDocuments={own}
+        isPro={profile.is_pro}
+        xp={profile.xp}
+      />
 
       <div className="space-y-8 border-t pt-8">
         <PageHeader

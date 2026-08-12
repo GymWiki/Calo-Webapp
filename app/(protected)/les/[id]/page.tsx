@@ -139,8 +139,8 @@ export default async function LesDetailPage({
               Bewerken
             </Button>
           )}
-          <AiLescoachButton payload={analyzePayload} />
-          <LessonPdfButton lesson={lesson} />
+          <AiLescoachButton payload={analyzePayload} xp={profile.xp} />
+          <LessonPdfButton lesson={lesson} isPro={profile.is_pro} xp={profile.xp} />
         </div>
       </div>
 
@@ -291,8 +291,8 @@ export default async function LesDetailPage({
             Bewerken
           </Button>
         )}
-        <AiLescoachButton payload={analyzePayload} className="flex-1" />
-        <LessonPdfButton lesson={lesson} className="flex-1" />
+        <AiLescoachButton payload={analyzePayload} xp={profile.xp} className="flex-1" />
+        <LessonPdfButton lesson={lesson} isPro={profile.is_pro} xp={profile.xp} className="flex-1" />
       </div>
     </main>
   );

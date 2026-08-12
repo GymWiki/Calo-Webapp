@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
+import { PaywallModal } from "@/components/PaywallModal";
 import { Label } from "@/components/ui/label";
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
@@ -28,10 +29,12 @@ type Step = 1 | 2 | 3;
  */
 export function AiLessonWizard({
   activeSourceCount,
+  xp,
   onCancel,
   onGenerated,
 }: {
   activeSourceCount?: number;
+  xp: number;
   onCancel: () => void;
   onGenerated: () => void;
 }) {
@@ -39,6 +42,8 @@ export function AiLessonWizard({
   const [learningLine, setLearningLine] = useState("");
   const [targetGroup, setTargetGroup] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallMessage, setPaywallMessage] = useState("");
 
   async function handleGenerate() {
     setIsGenerating(true);
@@ -52,7 +57,14 @@ export function AiLessonWizard({
       const data = await response.json();
 
       if (!response.ok || "error" in data) {
-        toast.error(data.error ?? "Genereren van de lesvoorbereiding is mislukt.");
+        if (response.status === 429) {
+          setPaywallMessage(
+            data.error ?? "Je hebt je gratis AI-generaties voor deze maand gebruikt.",
+          );
+          setPaywallOpen(true);
+        } else {
+          toast.error(data.error ?? "Genereren van de lesvoorbereiding is mislukt.");
+        }
         return;
       }
 
@@ -195,6 +207,12 @@ export function AiLessonWizard({
           </Button>
         )}
       </div>
+      <PaywallModal
+        open={paywallOpen}
+        onOpenChange={setPaywallOpen}
+        message={paywallMessage}
+        xp={xp}
+      />
     </div>
   );
 }

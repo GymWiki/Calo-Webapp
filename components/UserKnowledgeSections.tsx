@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Trash2, Upload } from "lucide-react";
+import { BookOpen, Lock, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,6 +10,7 @@ import {
   deleteOwnKnowledgeDocument,
   toggleDocumentActive,
 } from "@/actions/knowledge";
+import { PaywallModal } from "@/components/PaywallModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,9 @@ import {
   KNOWLEDGE_CATEGORY_LABELS,
   type UserKnowledgeDocument,
 } from "@/types/knowledge";
+
+const PAYWALL_MESSAGE =
+  "Eigen documenten uploaden en beheren in je persoonlijke Kennisbank is een Pro-feature. Upgrade naar Pro of zet je Level-korting in!";
 
 const EMPTY_UPLOAD_FORM = { title: "", content: "" };
 
@@ -96,9 +100,13 @@ function DocumentToggleRow({
 export function UserKnowledgeSections({
   defaultDocuments,
   ownDocuments,
+  isPro,
+  xp,
 }: {
   defaultDocuments: UserKnowledgeDocument[];
   ownDocuments: UserKnowledgeDocument[];
+  isPro: boolean;
+  xp: number;
 }) {
   const router = useRouter();
   const [activeOverrides, setActiveOverrides] = useState<Record<string, boolean>>({});
@@ -106,6 +114,7 @@ export function UserKnowledgeSections({
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [isUploading, setIsUploading] = useState(false);
   const [form, setForm] = useState(EMPTY_UPLOAD_FORM);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   function setPending(id: string, pending: boolean) {
     setPendingIds((prev) => {
@@ -223,68 +232,100 @@ export function UserKnowledgeSections({
             wordt automatisch doorzoekbaar gemaakt voor de AI.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <form
-            onSubmit={handleUpload}
-            className="space-y-4 rounded-xl border border-dashed p-4"
-          >
-            <div>
-              <Label htmlFor="own-kb-title">Titel</Label>
-              <Input
-                id="own-kb-title"
-                className="mt-1.5"
-                value={form.title}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, title: event.target.value }))
-                }
-                placeholder="Bijv. Mijn stageverslag zwemmen"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="own-kb-content">Tekst</Label>
-              <Textarea
-                id="own-kb-content"
-                className="mt-1.5 min-h-40"
-                value={form.content}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, content: event.target.value }))
-                }
-                placeholder="Plak hier de volledige tekst..."
-                required
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                {form.content.length} tekens
-              </p>
-            </div>
-            <Button type="submit" disabled={isUploading} className="w-full sm:w-auto">
-              <Upload className="size-4" />
-              {isUploading ? "Verwerken..." : "+ Document toevoegen"}
-            </Button>
-          </form>
+        <CardContent>
+          <div className="relative">
+            <div
+              className={
+                isPro
+                  ? "space-y-6"
+                  : "space-y-6 pointer-events-none opacity-40 blur-[1.5px] select-none"
+              }
+              aria-hidden={isPro ? undefined : true}
+            >
+              <form
+                onSubmit={handleUpload}
+                className="space-y-4 rounded-xl border border-dashed p-4"
+              >
+                <div>
+                  <Label htmlFor="own-kb-title">Titel</Label>
+                  <Input
+                    id="own-kb-title"
+                    className="mt-1.5"
+                    value={form.title}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, title: event.target.value }))
+                    }
+                    placeholder="Bijv. Mijn stageverslag zwemmen"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="own-kb-content">Tekst</Label>
+                  <Textarea
+                    id="own-kb-content"
+                    className="mt-1.5 min-h-40"
+                    value={form.content}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, content: event.target.value }))
+                    }
+                    placeholder="Plak hier de volledige tekst..."
+                    required
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {form.content.length} tekens
+                  </p>
+                </div>
+                <Button type="submit" disabled={isUploading} className="w-full sm:w-auto">
+                  <Upload className="size-4" />
+                  {isUploading ? "Verwerken..." : "+ Document toevoegen"}
+                </Button>
+              </form>
 
-          {visibleOwnDocuments.length === 0 ? (
-            <EmptyState
-              icon={Upload}
-              title="Nog geen eigen documenten"
-              description="Upload hierboven je eerste document."
-            />
-          ) : (
-            <ul className="space-y-2">
-              {visibleOwnDocuments.map((document) => (
-                <DocumentToggleRow
-                  key={document.id}
-                  document={document}
-                  isActive={resolveActive(document)}
-                  isPending={pendingIds.has(document.id)}
-                  onToggle={(checked) => handleToggle(document, checked)}
-                  onDelete={() => handleDelete(document)}
+              {visibleOwnDocuments.length === 0 ? (
+                <EmptyState
+                  icon={Upload}
+                  title="Nog geen eigen documenten"
+                  description="Upload hierboven je eerste document."
                 />
-              ))}
-            </ul>
-          )}
+              ) : (
+                <ul className="space-y-2">
+                  {visibleOwnDocuments.map((document) => (
+                    <DocumentToggleRow
+                      key={document.id}
+                      document={document}
+                      isActive={resolveActive(document)}
+                      isPending={pendingIds.has(document.id)}
+                      onToggle={(checked) => handleToggle(document, checked)}
+                      onDelete={() => handleDelete(document)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {!isPro && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-card/70 p-6 text-center backdrop-blur-[1px]">
+                <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+                  <Lock className="size-5 text-muted-foreground" />
+                </div>
+                <p className="max-w-xs text-sm font-medium">
+                  Eigen documenten uploaden en beheren is een Pro-feature.
+                </p>
+                <Button type="button" size="sm" onClick={() => setPaywallOpen(true)}>
+                  Upgrade naar Pro
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      <PaywallModal
+        open={paywallOpen}
+        onOpenChange={setPaywallOpen}
+        message={PAYWALL_MESSAGE}
+        xp={xp}
+      />
     </div>
   );
 }
