@@ -167,10 +167,8 @@ function applyLeerlijnToggle(
 
 export function ActiviteitenSearchClient({
   activities,
-  savedIds,
 }: {
   activities: Activity[];
-  savedIds: string[];
 }) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
@@ -178,8 +176,6 @@ export function ActiviteitenSearchClient({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const isDesktop = useIsDesktop();
-
-  const savedIdSet = useMemo(() => new Set(savedIds), [savedIds]);
 
   // Canonical taxonomy (not derived from `activities`) so every category and
   // leerlijn is always filterable, even ones with zero activities right now.
@@ -330,17 +326,14 @@ export function ActiviteitenSearchClient({
             {filtered.length} {filtered.length === 1 ? "activiteit" : "activiteiten"}{" "}
             gevonden
           </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             {visible.map((activity, index) => (
               <div
                 key={activity.id}
                 className="animate-fade-up"
                 style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
               >
-                <ActivityCard
-                  activity={activity}
-                  initiallySaved={savedIdSet.has(activity.id)}
-                />
+                <ActivityCard activity={activity} />
               </div>
             ))}
           </div>

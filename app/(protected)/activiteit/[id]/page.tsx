@@ -168,10 +168,25 @@ export default async function ActiviteitDetailPage({
       </Card>
 
       <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3">
-          <TabsTrigger value="lesinhoud">Lesinhoud & Regels</TabsTrigger>
-          <TabsTrigger value="veld">Veld & Materiaal</TabsTrigger>
-          <TabsTrigger value="leerhulp">Leerhulp</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-3 gap-1">
+          <TabsTrigger
+            value="lesinhoud"
+            className="px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+          >
+            Lesinhoud & Regels
+          </TabsTrigger>
+          <TabsTrigger
+            value="veld"
+            className="px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+          >
+            Veld & Materiaal
+          </TabsTrigger>
+          <TabsTrigger
+            value="leerhulp"
+            className="px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+          >
+            Leerhulp
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab 1: Lesinhoud & Regels */}

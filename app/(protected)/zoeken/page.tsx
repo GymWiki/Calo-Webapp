@@ -2,8 +2,7 @@ import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
-import { getAllActivities, getSavedActivityIds } from "@/lib/services/activities";
+import { getAllActivities } from "@/lib/services/activities";
 import { ActiviteitenSearchClient } from "./activiteiten-search-client";
 
 export default function ZoekenPage() {
@@ -22,19 +21,7 @@ export default function ZoekenPage() {
 }
 
 async function ZoekenContent() {
-  const [activities, profile] = await Promise.all([
-    getAllActivities(),
-    getCurrentUserProfile(),
-  ]);
+  const activities = await getAllActivities();
 
-  const savedIds = profile
-    ? await getSavedActivityIds(profile.id)
-    : new Set<string>();
-
-  return (
-    <ActiviteitenSearchClient
-      activities={activities}
-      savedIds={Array.from(savedIds)}
-    />
-  );
+  return <ActiviteitenSearchClient activities={activities} />;
 }
