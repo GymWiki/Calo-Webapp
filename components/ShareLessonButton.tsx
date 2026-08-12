@@ -65,7 +65,7 @@ export function ShareLessonButton({
       try {
         await navigator.share({
           title: lessonTitle,
-          text: `Bekijk deze lesvoorbereiding op GymBase: ${lessonTitle}`,
+          text: `Bekijk deze lesvoorbereiding op GymWiki: ${lessonTitle}`,
           url: shareUrl,
         });
         return;

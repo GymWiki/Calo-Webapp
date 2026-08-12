@@ -20,7 +20,7 @@ export default async function ProfielPage() {
       <PageHeader
         eyebrow="Profiel"
         title="Jouw account"
-        description="Gegevens zoals ze bekend zijn bij GymBase."
+        description="Gegevens zoals ze bekend zijn bij GymWiki."
       />
 
       <Card>

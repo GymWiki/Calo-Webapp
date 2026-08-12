@@ -33,7 +33,7 @@ export default async function KennisbankPage() {
         <PageHeader
           eyebrow="Beheer"
           title="Standaard vakliteratuur beheren"
-          description="Voeg gedeelde vakliteratuur toe of verwijder die — dit geldt voor alle gebruikers van GymBase."
+          description="Voeg gedeelde vakliteratuur toe of verwijder die — dit geldt voor alle gebruikers van GymWiki."
         />
         <KnowledgeUploadForm />
         <KnowledgeDocumentList documents={sharedDocuments} />

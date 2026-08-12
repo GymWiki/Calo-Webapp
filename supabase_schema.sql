@@ -1,5 +1,5 @@
 -- ============================================================================
--- GymBase / GymWiki 2.0 — Database schema
+-- GymWiki 2.0 — Database schema
 -- ============================================================================
 -- Run against a Supabase project's SQL editor (or via `supabase db push` /
 -- a migration). Idempotent: safe to re-run on a fresh database.

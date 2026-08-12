@@ -59,7 +59,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen w-full md:flex-row">
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
         <div className="font-display px-6 py-5 text-lg tracking-wide">
-          GYMBASE
+          GYMWIKI
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {navItems.map((item) => {

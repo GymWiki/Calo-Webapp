@@ -98,7 +98,7 @@ export default async function SharedLessonPage({
           description="De link is verlopen of de les wordt niet langer openbaar gedeeld."
           action={
             <Button asChild>
-              <Link href="/">Naar GymBase</Link>
+              <Link href="/">Naar GymWiki</Link>
             </Button>
           }
         />
@@ -108,7 +108,7 @@ export default async function SharedLessonPage({
 
   const authorName = lesson.author
     ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
-    : "Een GymBase-gebruiker";
+    : "Een GymWiki-gebruiker";
   const blocksByType = new Map(
     lesson.lesson_blocks.map((block) => [block.block_type, block.content]),
   );
@@ -128,7 +128,7 @@ export default async function SharedLessonPage({
     <div className="min-h-screen bg-paper text-ink">
       <header className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 py-5 sm:px-8">
         <Link href="/" className="font-display text-lg tracking-wide">
-          GYMBASE
+          GYMWIKI
         </Link>
         <Button asChild variant="outline" size="sm">
           <Link href={profile ? "/dashboard" : "/login"}>
@@ -143,7 +143,7 @@ export default async function SharedLessonPage({
             Gedeelde lesvoorbereiding
           </Badge>
           <p className="text-sm text-muted-foreground">
-            Je bekijkt een openbaar gedeelde les van {authorName} op GymBase.
+            Je bekijkt een openbaar gedeelde les van {authorName} op GymWiki.
           </p>
         </div>
 

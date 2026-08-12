@@ -15,7 +15,7 @@ export default function RegisterPage() {
       <CardHeader>
         <CardTitle className="text-xl">Account aanmaken</CardTitle>
         <CardDescription>
-          Maak een GymBase-account aan.
+          Maak een GymWiki-account aan.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

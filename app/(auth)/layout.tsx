@@ -27,7 +27,7 @@ export default async function AuthLayout({
         href="/"
         className="animate-fade-up font-display relative z-10 mb-8 text-2xl tracking-wide text-ink"
       >
-        GYMBASE
+        GYMWIKI
       </Link>
 
       <div

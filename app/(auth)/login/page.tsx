@@ -14,7 +14,7 @@ export default function LoginPage() {
     <Card className="w-full shadow-brand-lg">
       <CardHeader>
         <CardTitle className="text-xl">Inloggen</CardTitle>
-        <CardDescription>Log in om verder te gaan naar GymBase.</CardDescription>
+        <CardDescription>Log in om verder te gaan naar GymWiki.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <LoginForm />

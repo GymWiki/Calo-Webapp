@@ -73,7 +73,7 @@ export default function LandingPage() {
       )}
     >
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6 sm:px-8">
-        <span className="font-display text-xl tracking-wide">GYMBASE</span>
+        <span className="font-display text-xl tracking-wide">GYMWIKI</span>
         <div className="flex items-center gap-4">
           <Link
             href="/login"
@@ -237,7 +237,7 @@ export default function LandingPage() {
           isDark ? "text-paper/50" : "text-ink/50",
         )}
       >
-        GymBase — gebouwd voor CALO-studenten en vakdocenten lichamelijke
+        GymWiki — gebouwd voor CALO-studenten en vakdocenten lichamelijke
         opvoeding.
       </footer>
     </div>

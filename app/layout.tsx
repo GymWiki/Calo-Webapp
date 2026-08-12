@@ -22,7 +22,7 @@ const anton = Anton({
 });
 
 export const metadata: Metadata = {
-  title: "GymBase",
+  title: "GymWiki",
   description: "GymWiki 2.0 — platform voor CALO-studenten en vakdocenten lichamelijke opvoeding.",
   manifest: "/manifest.json",
 };

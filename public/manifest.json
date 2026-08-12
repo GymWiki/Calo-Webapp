@@ -1,6 +1,6 @@
 {
-  "name": "GymBase",
-  "short_name": "GymBase",
+  "name": "GymWiki",
+  "short_name": "GymWiki",
   "description": "GymWiki 2.0 — platform voor CALO-studenten en vakdocenten lichamelijke opvoeding.",
   "start_url": "/",
   "scope": "/",
