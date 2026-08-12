@@ -120,6 +120,22 @@ function TextList({ items }: { items: string[] | null }) {
   );
 }
 
+function NumberedList({ items }: { items: string[] | null }) {
+  if (!items || items.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {items.map((item, index) => (
+        <Text key={index} style={styles.listItem}>
+          {index + 1}. {item}
+        </Text>
+      ))}
+    </>
+  );
+}
+
 const GAME_DIMENSION_LABELS: [key: "space" | "equipment" | "people" | "rules", label: string][] = [
   ["space", "Ruimte (Space)"],
   ["equipment", "Materiaal (Equipment)"],
@@ -159,7 +175,28 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Organisatie</Text>
+          <Text style={styles.sectionTitle}>Lesdoel, Leeruitkomsten & Beginsituatie</Text>
+          <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
+            <Text style={styles.boxLabel}>Doelstelling</Text>
+            <Text style={styles.boxText}>{lesson.goals || "-"}</Text>
+          </View>
+          {lesson.learning_outcomes && lesson.learning_outcomes.length > 0 && (
+            <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
+              <Text style={styles.boxLabel}>Leeruitkomsten</Text>
+              <NumberedList items={lesson.learning_outcomes} />
+            </View>
+          )}
+          <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
+            <Text style={styles.boxLabel}>Beginsituatie & Doelgroep</Text>
+            <Text style={styles.boxText}>
+              Aantal deelnemers — in het veld: {lesson.min_participants ?? "-"} · op de
+              bank: {lesson.participants_bench ?? "-"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Veld & Materiaal</Text>
           <View style={styles.grid2}>
             <View style={[styles.gridCell, styles.box]} wrap={false}>
               <Text style={styles.boxLabel}>Basismateriaal</Text>
@@ -169,54 +206,17 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
               <Text style={styles.boxLabel}>Regelmateriaal</Text>
               <TextList items={lesson.rule_materials} />
             </View>
-            <View style={[styles.gridCell, styles.box]} wrap={false}>
-              <Text style={styles.boxLabel}>Aantal deelnemers</Text>
-              <Text style={styles.boxText}>
-                In het veld: {lesson.min_participants ?? "-"} · Op de bank:{" "}
-                {lesson.participants_bench ?? "-"}
-              </Text>
-            </View>
-            <View style={[styles.gridCell, styles.box]} wrap={false}>
-              <Text style={styles.boxLabel}>Regels</Text>
-              <TextList items={lesson.rules} />
-            </View>
           </View>
+          {lesson.diagram_image_url && (
+            // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop
+            <Image style={styles.diagramImage} src={lesson.diagram_image_url} />
+          )}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Didactische analyse (de 3 L&apos;en)</Text>
-          <View style={[styles.box, { marginBottom: 8 }]} wrap={false}>
-            <Text style={styles.boxLabel}>Doelen</Text>
-            <Text style={styles.boxText}>{lesson.goals || "-"}</Text>
-          </View>
-          <View style={styles.matrixRow}>
-            {DIDACTIC_CATEGORIES.map((category) => {
-              const items = groupedDidactics[category];
-              return (
-                <View key={category} style={styles.matrixColumn} wrap={false}>
-                  <View
-                    style={[styles.matrixHeader, { backgroundColor: DIDACTIC_COLORS[category] }]}
-                  >
-                    <Text style={styles.matrixHeaderText}>
-                      {DIDACTIC_CATEGORY_LABELS[category]}
-                    </Text>
-                  </View>
-                  {items.length === 0 ? (
-                    <Text style={styles.boxText}>-</Text>
-                  ) : (
-                    items.map((item) => (
-                      <View key={item.id} style={styles.matrixItem}>
-                        {item.subTheme && (
-                          <Text style={styles.matrixSubtheme}>#{item.subTheme}</Text>
-                        )}
-                        <Text style={styles.matrixText}>Zie: {item.observation}</Text>
-                        <Text style={styles.matrixText}>Doe: {item.action}</Text>
-                      </View>
-                    ))
-                  )}
-                </View>
-              );
-            })}
+          <Text style={styles.sectionTitle}>Spelregels & Spelverloop</Text>
+          <View style={[styles.box]} wrap={false}>
+            <TextList items={lesson.rules} />
           </View>
         </View>
 
@@ -258,13 +258,38 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
           ))}
         </View>
 
-        {lesson.diagram_image_url && (
-          <View style={styles.section} wrap={false}>
-            <Text style={styles.sectionTitle}>Tekening van het arrangement</Text>
-            {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop */}
-            <Image style={styles.diagramImage} src={lesson.diagram_image_url} />
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Leerhulp (de 3 L&apos;en)</Text>
+          <View style={styles.matrixRow}>
+            {DIDACTIC_CATEGORIES.map((category) => {
+              const items = groupedDidactics[category];
+              return (
+                <View key={category} style={styles.matrixColumn} wrap={false}>
+                  <View
+                    style={[styles.matrixHeader, { backgroundColor: DIDACTIC_COLORS[category] }]}
+                  >
+                    <Text style={styles.matrixHeaderText}>
+                      {DIDACTIC_CATEGORY_LABELS[category]}
+                    </Text>
+                  </View>
+                  {items.length === 0 ? (
+                    <Text style={styles.boxText}>-</Text>
+                  ) : (
+                    items.map((item) => (
+                      <View key={item.id} style={styles.matrixItem}>
+                        {item.subTheme && (
+                          <Text style={styles.matrixSubtheme}>#{item.subTheme}</Text>
+                        )}
+                        <Text style={styles.matrixText}>Zie: {item.observation}</Text>
+                        <Text style={styles.matrixText}>Doe: {item.action}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              );
+            })}
           </View>
-        )}
+        </View>
       </Page>
     </Document>
   );

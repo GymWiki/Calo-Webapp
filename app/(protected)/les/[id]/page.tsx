@@ -33,6 +33,20 @@ function TextList({ items }: { items: string[] | null }) {
   );
 }
 
+function NumberedList({ items }: { items: string[] | null }) {
+  if (!items || items.length === 0) {
+    return null;
+  }
+
+  return (
+    <ol className="list-decimal space-y-1 pl-5 text-sm">
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`}>{item}</li>
+      ))}
+    </ol>
+  );
+}
+
 function BadgeList({ items }: { items: string[] | null }) {
   if (!items || items.length === 0) {
     return <p className="text-sm text-muted-foreground">-</p>;
@@ -141,56 +155,78 @@ export default async function LesDetailPage({
         </CardContent>
       </Card>
 
-      {/* Sectie 1: Organisatie */}
+      {/* Sectie 1: Lesdoel & Beginsituatie */}
       <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
         <CardHeader>
-          <CardTitle>Organisatie</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Basismateriaal</h3>
-            <BadgeList items={lesson.base_materials} />
-          </div>
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Regelmateriaal</h3>
-            <BadgeList items={lesson.rule_materials} />
-          </div>
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Aantal deelnemers</h3>
-            <p className="text-sm">
-              In het veld: {lesson.min_participants ?? "-"} · Op de bank:{" "}
-              {lesson.participants_bench ?? "-"}
-            </p>
-          </div>
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Regels</h3>
-            <TextList items={lesson.rules} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Sectie 2: Didactische analyse (de 3 L'en, Walinga & Koekoek 2021) */}
-      <Card className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-        <CardHeader>
-          <CardTitle>Didactische analyse</CardTitle>
+          <CardTitle>Lesdoel & Beginsituatie</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <h3 className="mb-1 text-sm font-medium">Doelen</h3>
+            <h3 className="mb-1 text-sm font-medium">Doelstelling</h3>
             <p className="text-sm text-muted-foreground">{lesson.goals ?? "-"}</p>
           </div>
-          <DidacticsMatrix items={lesson.lesson_didactics?.items ?? []} />
+          {lesson.learning_outcomes && lesson.learning_outcomes.length > 0 && (
+            <div>
+              <h3 className="mb-1 text-sm font-medium">Leeruitkomsten</h3>
+              <NumberedList items={lesson.learning_outcomes} />
+            </div>
+          )}
+          <div>
+            <h3 className="mb-1 text-sm font-medium">Beginsituatie & Doelgroep</h3>
+            <p className="text-sm text-muted-foreground">
+              Aantal deelnemers — in het veld: {lesson.min_participants ?? "-"} · op de
+              bank: {lesson.participants_bench ?? "-"}
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      <GameBasedPedagogyMatrix
-        category={lesson.game_category}
-        dimensions={lesson.game_dimensions}
-        tacticalQuestions={lesson.tactical_questions}
-      />
+      {/* Sectie 2: Veld & Materiaal */}
+      <Card className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+        <CardHeader>
+          <CardTitle>Veld & Materiaal</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <h3 className="mb-2 text-sm font-medium">Basismateriaal</h3>
+              <BadgeList items={lesson.base_materials} />
+            </div>
+            <div>
+              <h3 className="mb-2 text-sm font-medium">Regelmateriaal</h3>
+              <BadgeList items={lesson.rule_materials} />
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-medium">Tekening van het arrangement</h3>
+            {lesson.diagram_image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={lesson.diagram_image_url}
+                alt="Plattegrond van het arrangement"
+                className="w-full max-w-xl rounded-lg border"
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Geen tekening toegevoegd.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Sectie 3: Kernblokken */}
+      {/* Sectie 3: Spelregels & Spelverloop */}
       <Card className="animate-fade-up" style={{ animationDelay: "120ms" }}>
+        <CardHeader>
+          <CardTitle>Spelregels & Spelverloop</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TextList items={lesson.rules} />
+        </CardContent>
+      </Card>
+
+      {/* Kernblokken */}
+      <Card className="animate-fade-up" style={{ animationDelay: "160ms" }}>
         <CardHeader>
           <CardTitle>Kernblokken</CardTitle>
         </CardHeader>
@@ -212,24 +248,19 @@ export default async function LesDetailPage({
         </CardContent>
       </Card>
 
-      {/* Tekening van het arrangement */}
-      <Card className="animate-fade-up" style={{ animationDelay: "160ms" }}>
+      <GameBasedPedagogyMatrix
+        category={lesson.game_category}
+        dimensions={lesson.game_dimensions}
+        tacticalQuestions={lesson.tactical_questions}
+      />
+
+      {/* Sectie 4: Leerhulp (voormalig 'Didactische analyse') — helemaal onderaan */}
+      <Card className="animate-fade-up" style={{ animationDelay: "200ms" }}>
         <CardHeader>
-          <CardTitle>Tekening van het arrangement</CardTitle>
+          <CardTitle>Leerhulp</CardTitle>
         </CardHeader>
         <CardContent>
-          {lesson.diagram_image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={lesson.diagram_image_url}
-              alt="Plattegrond van het arrangement"
-              className="w-full max-w-xl rounded-lg border"
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Geen tekening toegevoegd.
-            </p>
-          )}
+          <DidacticsMatrix items={lesson.lesson_didactics?.items ?? []} />
         </CardContent>
       </Card>
 

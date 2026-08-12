@@ -202,6 +202,10 @@ export type Lesson = {
   movement_theme: string | null;
   learning_line: string | null;
   goals: string | null;
+  // Genummerde leeruitkomsten, getoond in "Lesdoel & Beginsituatie" —
+  // nullable, geen create/edit UI (nog) om dit te vullen; zie de migratie
+  // add_lesson_learning_outcomes.sql voor waarom.
+  learning_outcomes: string[] | null;
   points_of_attention: string | null;
   rules: string[] | null;
   min_participants: number | null;
