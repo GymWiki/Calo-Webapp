@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 
   let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
   try {
-    matches = await getRelevantKnowledge(supabase, query, { matchCount: 4 });
+    matches = await getRelevantKnowledge(supabase, query, user.id, { matchCount: 4 });
   } catch {
     // Retrieval failure shouldn't block feedback — the AI just falls back
     // to general knowledge, per buildKnowledgePromptSection's empty case.

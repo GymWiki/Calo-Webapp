@@ -15,14 +15,17 @@ const LESCOACH_SYSTEM_PROMPT =
 
 /**
  * Embeds `query`, then retrieves the top matching chunks from the
- * Kennisbank via the `match_knowledge_chunks` RPC. This is the retrieval
- * half of the RAG pipeline — call it from any AI feature (Lescoach,
- * Activiteiten Generator, ...) before constructing that feature's system
- * prompt with `buildKnowledgePromptSection`.
+ * Kennisbank via the `match_user_knowledge_chunks` RPC — scoped to `userId`
+ * so only that user's active documents (their own uploads + active
+ * defaults) are ever returned. This is the retrieval half of the RAG
+ * pipeline — call it from any AI feature (Lescoach, Activiteiten
+ * Generator, ...) before constructing that feature's system prompt with
+ * `buildKnowledgePromptSection`.
  */
 export async function getRelevantKnowledge(
   supabase: SupabaseClient,
   query: string,
+  userId: string,
   {
     matchThreshold = DEFAULT_MATCH_THRESHOLD,
     matchCount = DEFAULT_MATCH_COUNT,
@@ -30,8 +33,9 @@ export async function getRelevantKnowledge(
 ): Promise<KnowledgeMatch[]> {
   const embedding = await generateEmbedding(query);
 
-  const { data: rawMatches, error } = await supabase.rpc("match_knowledge_chunks", {
+  const { data: rawMatches, error } = await supabase.rpc("match_user_knowledge_chunks", {
     query_embedding: embedding,
+    p_user_id: userId,
     match_threshold: matchThreshold,
     match_count: matchCount,
   });
@@ -103,8 +107,9 @@ export function buildKnowledgePromptSection(matches: KnowledgeMatch[]): string {
 export async function getLescoachAdvice(
   supabase: SupabaseClient,
   userQuery: string,
+  userId: string,
 ): Promise<{ answer: string; matches: KnowledgeMatch[] }> {
-  const matches = await getRelevantKnowledge(supabase, userQuery);
+  const matches = await getRelevantKnowledge(supabase, userQuery, userId);
   const knowledgeSection = buildKnowledgePromptSection(matches);
 
   const client = getOpenAIClient();

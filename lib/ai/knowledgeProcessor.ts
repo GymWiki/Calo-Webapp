@@ -71,10 +71,20 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   return response.data.map((item) => item.embedding);
 }
 
+export type DocumentOwner = {
+  // Who created the row — unchanged meaning from before personal uploads
+  // existed, kept for admin uploads' audit trail.
+  uploadedBy: string;
+  // Non-null only for a personal (non-default) upload — the RLS/RPC
+  // ownership key. Null for the beheerder's shared vakliteratuur.
+  userId: string | null;
+  isDefault: boolean;
+};
+
 export async function processAndStoreDocument(
   supabase: SupabaseClient,
   input: CreateKnowledgeDocumentInput,
-  uploadedBy: string,
+  owner: DocumentOwner,
 ): Promise<{ documentId: string; chunkCount: number }> {
   const chunks = chunkText(input.content);
 
@@ -88,7 +98,9 @@ export async function processAndStoreDocument(
       title: input.title,
       author: input.author || null,
       category: input.category,
-      uploaded_by: uploadedBy,
+      uploaded_by: owner.uploadedBy,
+      user_id: owner.userId,
+      is_default: owner.isDefault,
     })
     .select("id")
     .single();

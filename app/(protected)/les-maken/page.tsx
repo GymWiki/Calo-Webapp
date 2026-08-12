@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { getActiveKnowledgeSourceCount } from "@/lib/services/knowledge";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
 import type { Activity } from "@/types/activity";
@@ -56,7 +57,10 @@ export default async function LesMakenPage({
   }
 
   const { vanuit, tab } = await searchParams;
-  const activity = vanuit ? await getActivityById(vanuit) : null;
+  const [activity, activeSourceCount] = await Promise.all([
+    vanuit ? getActivityById(vanuit) : Promise.resolve(null),
+    getActiveKnowledgeSourceCount(profile.id),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10">
@@ -74,6 +78,7 @@ export default async function LesMakenPage({
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
         initialValues={activity ? mapActivityToLessonInput(activity) : undefined}
         initialTab={parseInitialTab(tab)}
+        activeSourceCount={activeSourceCount}
       />
     </main>
   );

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createLesson } from "@/actions/lesson";
 import { AiLescoachSheet } from "@/components/AiLescoachSheet";
 import { DidacticsForm } from "@/components/DidacticsForm";
+import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -94,11 +95,13 @@ export function LessonForm({
   authorName,
   initialValues,
   initialTab,
+  activeSourceCount,
 }: {
   role: UserRole;
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
   initialTab?: TabValue;
+  activeSourceCount?: number;
 }) {
   const router = useRouter();
 
@@ -208,7 +211,7 @@ export function LessonForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="flex justify-end">
+        <div className="flex flex-col items-end gap-1.5">
           <AiLescoachSheet
             getPayload={() => ({
               title: form.getValues("title"),
@@ -223,6 +226,9 @@ export function LessonForm({
             })}
             onApplyImprovement={(item) => setDidacticItems((prev) => [...prev, item])}
           />
+          {activeSourceCount !== undefined && (
+            <KnowledgeSourceHint count={activeSourceCount} />
+          )}
         </div>
         <StepProgress activeTab={activeTab} />
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>

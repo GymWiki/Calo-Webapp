@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
 import { Label } from "@/components/ui/label";
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,11 @@ import { AI_GENERATED_LESSON_STORAGE_KEY } from "@/types/ai";
 const SELECT_CLASS =
   "border-input mt-1.5 flex h-11 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
-export function AiGeneratorDialog() {
+export function AiGeneratorDialog({
+  activeSourceCount,
+}: {
+  activeSourceCount?: number;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -132,6 +137,10 @@ export function AiGeneratorDialog() {
             />
           </div>
         </div>
+
+        {activeSourceCount !== undefined && (
+          <KnowledgeSourceHint count={activeSourceCount} />
+        )}
 
         <DialogFooter>
           <Button

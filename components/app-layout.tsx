@@ -50,15 +50,19 @@ function getNavItems(role: UserRole): NavItem[] {
 
 function getSecondaryNavItems(role: UserRole): NavItem[] {
   if (role === "admin") {
-    return [];
+    return [{ href: "/kennisbank", label: "Mijn Kennisbank", icon: Database }];
   }
   if (role === "docent") {
-    return [{ href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen }];
+    return [
+      { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
+      { href: "/kennisbank", label: "Kennisbank", icon: Database },
+    ];
   }
   return [
     { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
     { href: "/student/marktplaats", label: "Marktplaats", icon: Handshake },
     { href: "/student/stage-logboek", label: "Stage-logboek", icon: NotebookText },
+    { href: "/kennisbank", label: "Kennisbank", icon: Database },
   ];
 }
 

@@ -39,12 +39,43 @@ export type KnowledgeDocument = {
   author: string | null;
   category: KnowledgeCategory;
   uploaded_by: string | null;
+  user_id: string | null;
+  is_default: boolean;
   created_at: string;
 };
 
 export type KnowledgeDocumentWithChunkCount = KnowledgeDocument & {
   chunk_count: number;
 };
+
+// A document as shown on the user-facing Kennisbank page: the document
+// itself plus this specific user's resolved on/off toggle state (defaults
+// to true when no user_document_preferences row exists yet — see
+// match_user_knowledge_chunks's COALESCE for the DB-side equivalent).
+export type UserKnowledgeDocument = KnowledgeDocumentWithChunkCount & {
+  is_active: boolean;
+};
+
+export const createPersonalKnowledgeDocumentInputSchema = z.object({
+  title: z.string().trim().min(1, "Titel is verplicht."),
+  content: z
+    .string()
+    .trim()
+    .min(50, "Voeg minimaal 50 tekens tekst toe zodat er iets te chunken valt."),
+});
+
+export type CreatePersonalKnowledgeDocumentInput = z.infer<
+  typeof createPersonalKnowledgeDocumentInputSchema
+>;
+
+export const toggleDocumentActiveInputSchema = z.object({
+  documentId: z.string().uuid(),
+  isActive: z.boolean(),
+});
+
+export type ToggleDocumentActiveInput = z.infer<
+  typeof toggleDocumentActiveInputSchema
+>;
 
 export type KnowledgeChunk = {
   id: string;

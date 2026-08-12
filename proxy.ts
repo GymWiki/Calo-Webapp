@@ -10,6 +10,7 @@ const PROTECTED_PREFIXES = [
   "/les",
   "/activiteit",
   "/zoeken",
+  "/kennisbank",
   "/profiel",
   "/toernooi",
   "/bibliotheek",
