@@ -108,8 +108,6 @@ export default async function LesDetailPage({
   const authorName = lesson.author
     ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
     : "-";
-  const dashboardHref =
-    profile.role === "docent" ? "/docent/dashboard" : "/student/dashboard";
   const blocksByType = new Map(
     lesson.lesson_blocks.map((block) => [block.block_type, block.content]),
   );
@@ -129,7 +127,7 @@ export default async function LesDetailPage({
     <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 sm:p-8 md:pb-8 print:max-w-none print:p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Button asChild variant="outline">
-          <Link href={dashboardHref}>
+          <Link href="/dashboard">
             <ArrowLeft className="size-4" />
             Terug naar Dashboard
           </Link>

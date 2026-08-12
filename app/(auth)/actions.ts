@@ -3,7 +3,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import type { UserRole } from "@/lib/types";
 
 type ActionError = { error: string };
 
@@ -35,7 +34,6 @@ export async function register(input: {
   lastName: string;
   email: string;
   password: string;
-  role: UserRole;
 }): Promise<ActionError | { needsEmailConfirmation: boolean }> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -48,7 +46,6 @@ export async function register(input: {
         data: {
           first_name: input.firstName,
           last_name: input.lastName,
-          role: input.role,
         },
       },
     });

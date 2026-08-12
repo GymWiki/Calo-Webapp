@@ -13,5 +13,5 @@ export default async function ProtectedLayout({
     redirect("/login");
   }
 
-  return <AppLayout role={profile.role}>{children}</AppLayout>;
+  return <AppLayout>{children}</AppLayout>;
 }

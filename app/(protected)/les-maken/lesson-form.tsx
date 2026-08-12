@@ -44,7 +44,6 @@ import {
   type DidacticItem,
 } from "@/types/lesson";
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
-import type { UserRole } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import { DiagramEditorCard } from "./diagram-editor-card";
@@ -91,13 +90,11 @@ const SELECT_CLASS =
   "border-input flex h-11 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function LessonForm({
-  role,
   authorName,
   initialValues,
   initialTab,
   activeSourceCount,
 }: {
-  role: UserRole;
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
   initialTab?: TabValue;
@@ -205,7 +202,7 @@ export function LessonForm({
     }
 
     toast.success("Les opgeslagen!");
-    router.push(role === "docent" ? "/docent/dashboard" : "/student/dashboard");
+    router.push("/dashboard");
     router.refresh();
   }
 

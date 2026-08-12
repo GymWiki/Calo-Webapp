@@ -14,7 +14,6 @@ export default async function ProfielPage() {
   }
 
   const initials = `${profile.first_name.charAt(0)}${profile.last_name.charAt(0)}`.toUpperCase();
-  const roleLabel = profile.role === "docent" ? "Docent" : "Student";
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
@@ -34,14 +33,11 @@ export default async function ProfielPage() {
               {profile.first_name} {profile.last_name}
             </p>
             <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
-              <Badge>{roleLabel}</Badge>
-              {profile.role === "student" && (
-                <Badge variant={profile.available_for_internship ? "success" : "secondary"}>
-                  {profile.available_for_internship
-                    ? "Beschikbaar voor stage"
-                    : "Niet beschikbaar voor stage"}
-                </Badge>
-              )}
+              <Badge variant={profile.available_for_internship ? "success" : "secondary"}>
+                {profile.available_for_internship
+                  ? "Beschikbaar voor stage"
+                  : "Niet beschikbaar voor stage"}
+              </Badge>
             </div>
           </div>
         </CardContent>

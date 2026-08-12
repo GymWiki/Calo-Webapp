@@ -78,7 +78,6 @@ export default async function LesMakenPage({
         }
       />
       <LesMakenFlow
-        role={profile.role}
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
         initialValues={activity ? mapActivityToLessonInput(activity) : undefined}
         initialTab={initialTab}

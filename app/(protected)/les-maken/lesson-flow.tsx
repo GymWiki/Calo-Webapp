@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { NotebookPen, Sparkles, type LucideIcon } from "lucide-react";
 
-import type { UserRole } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { AiLessonWizard } from "./ai-lesson-wizard";
@@ -66,14 +65,12 @@ function ChoiceCard({
  * "wanneer er nog geen actieve les-concept gekozen is" condition.
  */
 export function LesMakenFlow({
-  role,
   authorName,
   initialValues,
   initialTab,
   activeSourceCount,
   skipChoice,
 }: {
-  role: UserRole;
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
   initialTab?: TabValue;
@@ -117,7 +114,6 @@ export function LesMakenFlow({
 
   return (
     <LessonForm
-      role={role}
       authorName={authorName}
       initialValues={initialValues}
       initialTab={initialTab}

@@ -109,8 +109,6 @@ export default async function SharedLessonPage({
   const authorName = lesson.author
     ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
     : "Een GymBase-gebruiker";
-  const dashboardHref =
-    profile?.role === "docent" ? "/docent/dashboard" : "/student/dashboard";
   const blocksByType = new Map(
     lesson.lesson_blocks.map((block) => [block.block_type, block.content]),
   );
@@ -133,7 +131,7 @@ export default async function SharedLessonPage({
           GYMBASE
         </Link>
         <Button asChild variant="outline" size="sm">
-          <Link href={profile ? dashboardHref : "/login"}>
+          <Link href={profile ? "/dashboard" : "/login"}>
             {profile ? "Naar mijn dashboard" : "Inloggen"}
           </Link>
         </Button>

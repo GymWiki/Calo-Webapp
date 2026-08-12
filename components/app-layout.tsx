@@ -17,7 +17,6 @@ import {
 import { logout } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { UserRole } from "@/lib/types";
 
 type NavItem = {
   href: string;
@@ -25,57 +24,27 @@ type NavItem = {
   icon: typeof LayoutDashboard;
 };
 
-// The four items every role needs at a thumb's reach — kept lean so the
-// mobile bottom nav never crowds. Role-specific extras live in
-// getSecondaryNavItems, sidebar-only on desktop.
-function getNavItems(role: UserRole): NavItem[] {
-  if (role === "admin") {
-    return [
-      { href: "/admin/kennisbank", label: "Kennisbank", icon: Database },
-      { href: "/profiel", label: "Profiel", icon: UserIcon },
-    ];
-  }
+// The four items everyone needs at a thumb's reach — kept lean so the
+// mobile bottom nav never crowds. The rest live in SECONDARY_NAV_ITEMS,
+// sidebar-only on desktop.
+const NAV_ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/zoeken", label: "Activiteiten", icon: Search },
+  { href: "/les-maken", label: "Les maken", icon: SquarePen },
+  { href: "/profiel", label: "Profiel", icon: UserIcon },
+];
 
-  return [
-    {
-      href: role === "docent" ? "/docent/dashboard" : "/student/dashboard",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-    },
-    { href: "/zoeken", label: "Activiteiten", icon: Search },
-    { href: "/les-maken", label: "Les maken", icon: SquarePen },
-    { href: "/profiel", label: "Profiel", icon: UserIcon },
-  ];
-}
+const SECONDARY_NAV_ITEMS: NavItem[] = [
+  { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
+  { href: "/marktplaats", label: "Marktplaats", icon: Handshake },
+  { href: "/stage-logboek", label: "Stage-logboek", icon: NotebookText },
+  { href: "/kennisbank", label: "Kennisbank", icon: Database },
+];
 
-function getSecondaryNavItems(role: UserRole): NavItem[] {
-  if (role === "admin") {
-    return [{ href: "/kennisbank", label: "Mijn Kennisbank", icon: Database }];
-  }
-  if (role === "docent") {
-    return [
-      { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
-      { href: "/kennisbank", label: "Kennisbank", icon: Database },
-    ];
-  }
-  return [
-    { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
-    { href: "/student/marktplaats", label: "Marktplaats", icon: Handshake },
-    { href: "/student/stage-logboek", label: "Stage-logboek", icon: NotebookText },
-    { href: "/kennisbank", label: "Kennisbank", icon: Database },
-  ];
-}
-
-export function AppLayout({
-  role,
-  children,
-}: {
-  role: UserRole;
-  children: React.ReactNode;
-}) {
+export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const navItems = getNavItems(role);
-  const secondaryNavItems = getSecondaryNavItems(role);
+  const navItems = NAV_ITEMS;
+  const secondaryNavItems = SECONDARY_NAV_ITEMS;
 
   function navLinkClass(isActive: boolean) {
     return cn(

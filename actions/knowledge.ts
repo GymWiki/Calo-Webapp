@@ -20,7 +20,6 @@ type ActionResult = { error: string } | { success: true };
 
 const GENERIC_ERROR = "Document verwerken is mislukt. Probeer het opnieuw.";
 const NOT_LOGGED_IN_ERROR = "Je bent niet ingelogd.";
-const NOT_ADMIN_ERROR = "Alleen beheerders kunnen de Kennisbank beheren.";
 
 type AuthResult =
   | { error: string }
@@ -41,25 +40,6 @@ async function requireAuth(): Promise<AuthResult> {
   return { supabase, userId: user.id };
 }
 
-async function requireAdmin(): Promise<AuthResult> {
-  const auth = await requireAuth();
-  if ("error" in auth) {
-    return auth;
-  }
-
-  const { data: profile } = await auth.supabase
-    .from("users")
-    .select("role")
-    .eq("id", auth.userId)
-    .single();
-
-  if (profile?.role !== "admin") {
-    return { error: NOT_ADMIN_ERROR };
-  }
-
-  return auth;
-}
-
 export async function addKnowledgeDocument(
   input: CreateKnowledgeDocumentInput,
 ): Promise<ActionResult> {
@@ -69,7 +49,7 @@ export async function addKnowledgeDocument(
     return { error: "Controleer de ingevulde velden en probeer het opnieuw." };
   }
 
-  const auth = await requireAdmin();
+  const auth = await requireAuth();
   if ("error" in auth) {
     return { error: auth.error };
   }
@@ -84,14 +64,14 @@ export async function addKnowledgeDocument(
     return { error: cause instanceof Error ? cause.message : GENERIC_ERROR };
   }
 
-  revalidatePath("/admin/kennisbank");
+  revalidatePath("/kennisbank");
   return { success: true };
 }
 
 export async function deleteKnowledgeDocument(
   documentId: string,
 ): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAuth();
   if ("error" in auth) {
     return { error: auth.error };
   }
@@ -105,13 +85,13 @@ export async function deleteKnowledgeDocument(
     return { error: "Document verwijderen is mislukt. Probeer het opnieuw." };
   }
 
-  revalidatePath("/admin/kennisbank");
+  revalidatePath("/kennisbank");
   return { success: true };
 }
 
 // The user-facing counterparts below back the /kennisbank page (Sectie 2:
-// "Mijn Uploads") — any logged-in user, not just admins, since every user
-// manages their own personal documents.
+// "Mijn Uploads") — every logged-in user manages their own personal
+// documents this way.
 
 export async function addPersonalKnowledgeDocument(
   input: CreatePersonalKnowledgeDocumentInput,
@@ -129,9 +109,9 @@ export async function addPersonalKnowledgeDocument(
 
   try {
     // Personal uploads (eigen lesplannen/stagescripts/artikelen) don't fit
-    // the beheerder's curated categories, so they're filed under "overig"
-    // — the category picker stays admin-only, keeping this upload form to
-    // just title + tekst.
+    // the curated categories used for shared vakliteratuur, so they're
+    // filed under "overig" — the category picker stays reserved for that
+    // shared-upload form, keeping this one to just title + tekst.
     await processAndStoreDocument(
       auth.supabase,
       { title: parsed.data.title, category: "overig", content: parsed.data.content },
@@ -217,7 +197,7 @@ export async function testLescoachQuery(
     return { error: "Stel een vraag van minimaal 3 tekens." };
   }
 
-  const auth = await requireAdmin();
+  const auth = await requireAuth();
   if ("error" in auth) {
     return { error: auth.error };
   }

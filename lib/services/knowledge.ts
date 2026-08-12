@@ -22,12 +22,10 @@ function withChunkCount(
   }));
 }
 
-// Admin's /admin/kennisbank page: only the beheerder's own shared
-// vakliteratuur — explicitly scoped to defaults so a user's private
-// upload never shows up here (RLS would let an admin see it, since
-// knowledge_documents_write_admin grants admins full read access, but this
-// page's purpose is managing the shared literature, not other people's
-// personal documents).
+// Backs the "shared vakliteratuur" management section on /kennisbank —
+// explicitly scoped to defaults so a user's private upload never shows up
+// here; that section only manages the shared literature, not other
+// people's personal documents.
 export async function getKnowledgeDocuments(): Promise<
   KnowledgeDocumentWithChunkCount[]
 > {

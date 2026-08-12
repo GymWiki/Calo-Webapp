@@ -188,7 +188,7 @@ export function UserKnowledgeSections({
         <CardHeader>
           <CardTitle>Standaard vakliteratuur</CardTitle>
           <CardDescription>
-            Door de beheerder aangeleverde bronnen. Zet een bron uit om die
+            Gedeelde bronnen voor alle gebruikers. Zet een bron uit om die
             tijdelijk niet te laten meewegen in AI-antwoorden.
           </CardDescription>
         </CardHeader>
@@ -197,7 +197,7 @@ export function UserKnowledgeSections({
             <EmptyState
               icon={BookOpen}
               title="Nog geen standaard vakliteratuur"
-              description="De beheerder heeft nog geen documenten toegevoegd aan de Kennisbank."
+              description="Er zijn nog geen documenten toegevoegd aan de gedeelde Kennisbank."
             />
           ) : (
             <ul className="space-y-2">
