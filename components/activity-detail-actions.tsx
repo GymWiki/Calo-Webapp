@@ -7,24 +7,27 @@ import { Bookmark, BookmarkCheck, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 import { toggleSavedActivity } from "@/actions/activity";
+import { ActivityPdfButton } from "@/components/ActivityPdfButton";
 import { showLevelUpToast } from "@/components/gamification/level-up-toast";
 import { PaywallModal } from "@/components/PaywallModal";
 import { Button } from "@/components/ui/button";
+import type { Activity } from "@/types/activity";
 
 const PAYWALL_MESSAGE =
   "Kopieer & bewerk is een Pro-feature. Upgrade naar Pro of zet je Level-korting in!";
 
 export function ActivityDetailActions({
-  activityId,
+  activity,
   initiallySaved,
   isPro,
   xp,
 }: {
-  activityId: string;
+  activity: Activity;
   initiallySaved: boolean;
   isPro: boolean;
   xp: number;
 }) {
+  const activityId = activity.id;
   const router = useRouter();
   const [saved, setSaved] = useState(initiallySaved);
   const [pending, startTransition] = useTransition();
@@ -78,6 +81,7 @@ export function ActivityDetailActions({
           Kopieer & bewerk
         </Link>
       </Button>
+      <ActivityPdfButton activity={activity} isPro={isPro} xp={xp} className="flex-1" />
       <PaywallModal
         open={paywallOpen}
         onOpenChange={setPaywallOpen}

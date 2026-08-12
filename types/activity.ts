@@ -18,6 +18,9 @@ export type Activity = {
   veld: string | null;
   regels: string[] | null;
   doelgroep: number[] | null;
+  // Genummerde leeruitkomsten, getoond in "Lesinhoud & Regels" — nullable en
+  // voor de meeste rijen een lege array; alleen tonen als er items in staan.
+  learning_outcomes: string[] | null;
 };
 
 // `doelgroep` isn't a school-year number — it's a fixed 1-6 bucket code

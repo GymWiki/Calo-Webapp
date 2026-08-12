@@ -7,10 +7,20 @@ import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { DOELGROEP_LABELS } from "@/types/activity";
+
+// Zelfde blauw/groen/rood-indeling als de Leerhulp-tab op de lesvoorbereiding-
+// detailpagina (app/(protected)/les/[id]/page.tsx) — merkkleur per L, niet
+// per willekeurige volgorde.
+const LEERHULP_COLORS = {
+  loopt: { border: "border-blue-200", header: "bg-blue-50 text-blue-900" },
+  lukt: { border: "border-green-200", header: "bg-green-50 text-green-900" },
+  leeft: { border: "border-red-200", header: "bg-red-50 text-red-900" },
+} as const;
 
 function TextList({ items }: { items: string[] | null }) {
   if (!items || items.length === 0) {
@@ -23,6 +33,20 @@ function TextList({ items }: { items: string[] | null }) {
         <li key={`${item}-${index}`}>• {item}</li>
       ))}
     </ul>
+  );
+}
+
+function NumberedList({ items }: { items: string[] | null }) {
+  if (!items || items.length === 0) {
+    return null;
+  }
+
+  return (
+    <ol className="list-decimal space-y-1 pl-5 text-sm">
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`}>{item}</li>
+      ))}
+    </ol>
   );
 }
 
@@ -42,13 +66,21 @@ function BadgeList({ items }: { items: string[] | null }) {
   );
 }
 
-function TipCard({ title, tips }: { title: string; tips: string[] | null }) {
+function LeerhulpCard({
+  title,
+  tips,
+  colors,
+}: {
+  title: string;
+  tips: string[] | null;
+  colors: { border: string; header: string };
+}) {
   return (
-    <Card className="bg-muted/40">
-      <CardHeader>
+    <Card className={colors.border}>
+      <CardHeader className={`rounded-t-xl ${colors.header}`}>
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <TextList items={tips} />
       </CardContent>
     </Card>
@@ -80,6 +112,12 @@ export default async function ActiviteitDetailPage({
   const doelgroepLabels = (activity.doelgroep ?? [])
     .map((waarde) => DOELGROEP_LABELS[waarde])
     .filter((label): label is string => Boolean(label));
+  const groepNiveauSummary = [
+    activity.niveau !== null ? `Niveau ${activity.niveau}` : null,
+    doelgroepLabels.length > 0 ? doelgroepLabels.join(", ") : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 md:p-8 md:pb-8">
@@ -91,11 +129,11 @@ export default async function ActiviteitDetailPage({
           </Link>
         </Button>
         <div className="hidden md:block">
-          <ActivityDetailActions activityId={activity.id} initiallySaved={saved} isPro={isPro} xp={profile.xp} />
+          <ActivityDetailActions activity={activity} initiallySaved={saved} isPro={isPro} xp={profile.xp} />
         </div>
       </div>
 
-      {/* Header */}
+      {/* Header — vast bovenaan */}
       <Card className="animate-fade-up">
         <CardHeader>
           <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
@@ -119,7 +157,7 @@ export default async function ActiviteitDetailPage({
         </CardContent>
       </Card>
 
-      {/* Arrangement / plattegrond */}
+      {/* Arrangement / plattegrond — vast bovenaan, boven de tab-balk */}
       <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
         <CardHeader>
           <CardTitle>Arrangement</CardTitle>
@@ -129,78 +167,78 @@ export default async function ActiviteitDetailPage({
         </CardContent>
       </Card>
 
-      {/* Sectie 1: Context & Materialen */}
-      <Card className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-        <CardHeader>
-          <CardTitle>Context & Materialen</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Basismateriaal</h3>
-            <BadgeList items={activity.materiaal} />
-          </div>
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Veld</h3>
-            <p className="text-sm text-muted-foreground">{activity.veld ?? "-"}</p>
-          </div>
-          <div className="sm:col-span-2">
-            <h3 className="mb-2 text-sm font-medium">Regels</h3>
-            <TextList items={activity.regels} />
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3">
+          <TabsTrigger value="lesinhoud">Lesinhoud & Regels</TabsTrigger>
+          <TabsTrigger value="veld">Veld & Materiaal</TabsTrigger>
+          <TabsTrigger value="leerhulp">Leerhulp</TabsTrigger>
+        </TabsList>
 
-      {/* Sectie 2: Didactische analyse */}
-      <Card className="animate-fade-up" style={{ animationDelay: "120ms" }}>
-        <CardHeader>
-          <CardTitle>Didactische analyse</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {activity.doel && (
-            <div>
-              <h3 className="mb-1 text-sm font-medium">Doel</h3>
-              <p className="text-sm text-muted-foreground">{activity.doel}</p>
-            </div>
-          )}
+        {/* Tab 1: Lesinhoud & Regels */}
+        <TabsContent value="lesinhoud" className="space-y-4">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <div>
+                <h3 className="mb-1 text-sm font-medium">Beginsituatie & Doelgroep</h3>
+                {groepNiveauSummary && (
+                  <p className="text-sm text-muted-foreground">{groepNiveauSummary}</p>
+                )}
+                <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">
+                  {activity.beginsituatie || "-"}
+                </p>
+              </div>
+              <div>
+                <h3 className="mb-1 text-sm font-medium">Doelstelling</h3>
+                <p className="text-sm text-muted-foreground">{activity.doel || "-"}</p>
+              </div>
+              {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
+                <div>
+                  <h3 className="mb-1 text-sm font-medium">Leermogelijkheden / Leeruitkomsten</h3>
+                  <NumberedList items={activity.learning_outcomes} />
+                </div>
+              )}
+              <div>
+                <h3 className="mb-1 text-sm font-medium">Beschrijving</h3>
+                <p className="text-sm whitespace-pre-line text-muted-foreground">
+                  {activity.beschrijving || "-"}
+                </p>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-medium">Regels</h3>
+                <TextList items={activity.regels} />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 2: Veld & Materiaal */}
+        <TabsContent value="veld" className="space-y-4">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <div>
+                <h3 className="mb-1 text-sm font-medium">Veldafmetingen & Opstelling</h3>
+                <p className="text-sm text-muted-foreground">{activity.veld || "-"}</p>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-medium">Materiaallijst</h3>
+                <BadgeList items={activity.materiaal} />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 3: Leerhulp (3 L'en) */}
+        <TabsContent value="leerhulp" className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
-            <TipCard title="Loopt het?" tips={activity.loopt} />
-            <TipCard title="Lukt het?" tips={activity.lukt} />
-            <TipCard title="Leeft het?" tips={activity.leeft} />
+            <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
+            <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
+            <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Sectie 3: Beginsituatie & Beschrijving */}
-      <Card className="animate-fade-up" style={{ animationDelay: "160ms" }}>
-        <CardHeader>
-          <CardTitle>Beginsituatie & Beschrijving</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Card className="bg-muted/40">
-            <CardHeader>
-              <CardTitle className="text-base">Beginsituatie</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm whitespace-pre-line text-muted-foreground">
-                {activity.beginsituatie || "-"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-muted/40">
-            <CardHeader>
-              <CardTitle className="text-base">Beschrijving</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm whitespace-pre-line text-muted-foreground">
-                {activity.beschrijving || "-"}
-              </p>
-            </CardContent>
-          </Card>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
 
       <div className="md:hidden">
-        <ActivityDetailActions activityId={activity.id} initiallySaved={saved} isPro={isPro} xp={profile.xp} />
+        <ActivityDetailActions activity={activity} initiallySaved={saved} isPro={isPro} xp={profile.xp} />
       </div>
     </main>
   );

@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
 
 const ACTIVITY_SELECT =
-  "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep";
+  "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes";
 
 async function getServerClient() {
   const cookieStore = await cookies();
