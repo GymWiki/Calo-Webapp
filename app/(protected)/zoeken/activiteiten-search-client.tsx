@@ -80,14 +80,21 @@ function toggle<T>(set: Set<T>, value: T): Set<T> {
   return next;
 }
 
+// Trefwoord-zoekopdracht matcht uitsluitend op titel, beschrijving, leerlijn
+// en doelgroep — geen materiaal (zie DOELGROEP_LABELS voor de "target_group"
+// tekstvorm). Dit voorkomt dat een activiteit die toevallig een ander stuk
+// materiaal noemt (bijv. een rugbybal bij een tikspel) onterecht bovenaan
+// een trefwoordzoekopdracht op sportnaam verschijnt.
 function matchesQuery(activity: Activity, query: string) {
+  const doelgroepLabels = (activity.doelgroep ?? [])
+    .map((code) => DOELGROEP_LABELS[code])
+    .filter(Boolean);
+
   const haystack = [
     activity.titel,
-    activity.beweegthema,
-    activity.doel,
+    activity.beschrijving,
     activity.leerlijn,
-    activity.actcode,
-    ...(activity.materiaal ?? []),
+    ...doelgroepLabels,
   ]
     .filter(Boolean)
     .join(" ")
@@ -117,6 +124,45 @@ function countActive(filters: FilterState) {
     filters.doelgroep.size +
     (filters.weinigMateriaal ? 1 : 0)
   );
+}
+
+// "Alles [Categorie]" and a specific leerlijn-chip within that same category
+// are mutually exclusive — selecting one clears the other so the combined
+// categorie/leerlijn filter (see the OR-group in the `filtered` memo below)
+// never ends up in a contradictory state like "Turnen (helemaal)" plus
+// "Turnen: Springen" active at once.
+function applyCategorieAlles(
+  state: FilterState,
+  category: string,
+  lines: string[],
+): FilterState {
+  const alreadyActive = state.categorie.has(category);
+  const nextCategorie = new Set(state.categorie);
+  const nextLeerlijn = new Set(state.leerlijn);
+
+  if (alreadyActive) {
+    nextCategorie.delete(category);
+  } else {
+    nextCategorie.add(category);
+    lines.forEach((line) => nextLeerlijn.delete(line));
+  }
+
+  return { ...state, categorie: nextCategorie, leerlijn: nextLeerlijn };
+}
+
+function applyLeerlijnToggle(
+  state: FilterState,
+  category: string,
+  line: string,
+): FilterState {
+  const nextLeerlijn = toggle(state.leerlijn, line);
+  const nextCategorie = new Set(state.categorie);
+
+  if (nextLeerlijn.has(line)) {
+    nextCategorie.delete(category);
+  }
+
+  return { ...state, leerlijn: nextLeerlijn, categorie: nextCategorie };
 }
 
 export function ActiviteitenSearchClient({
@@ -150,7 +196,9 @@ export function ActiviteitenSearchClient({
 
   // Quick-row (categorie) toggles the committed filters directly — no drawer needed.
   function toggleQuickCategorie(categorie: string) {
-    setFilters((prev) => ({ ...prev, categorie: toggle(prev.categorie, categorie) }));
+    const lines =
+      LEARNING_LINE_CATEGORIES.find((c) => c.category === categorie)?.lines ?? [];
+    setFilters((prev) => applyCategorieAlles(prev, categorie, lines));
     resetPaging();
   }
 
@@ -179,15 +227,15 @@ export function ActiviteitenSearchClient({
     return activities.filter((activity) => {
       if (trimmedQuery && !matchesQuery(activity, trimmedQuery)) return false;
 
-      if (filters.leerlijn.size > 0 && !filters.leerlijn.has(activity.leerlijn ?? "")) {
-        return false;
-      }
-
-      if (
-        filters.categorie.size > 0 &&
-        !filters.categorie.has(activity.categorie ?? "")
-      ) {
-        return false;
+      // Categorie ("Alles [Categorie]") and leerlijn selections form one
+      // combined OR-group, not two separately-ANDed constraints — a chip
+      // picks a granularity (whole categorie vs. one specific leerlijn), so
+      // "Turnen (alles)" plus "Werpen" (Atletiek) should surface activities
+      // matching either, not require both simultaneously.
+      if (filters.categorie.size > 0 || filters.leerlijn.size > 0) {
+        const matchesCategorie = filters.categorie.has(activity.categorie ?? "");
+        const matchesLeerlijn = filters.leerlijn.has(activity.leerlijn ?? "");
+        if (!matchesCategorie && !matchesLeerlijn) return false;
       }
 
       if (
@@ -316,33 +364,28 @@ export function ActiviteitenSearchClient({
           </SheetHeader>
 
           <div className="space-y-6 overflow-y-auto px-4">
-            <div className="space-y-4">
+            <div className="space-y-5">
               <h3 className="text-sm font-semibold text-foreground">
                 Categorie & Leerlijn
               </h3>
               {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
                 <div key={category} className="space-y-2">
-                  <FilterChip
-                    active={draft.categorie.has(category)}
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        categorie: toggle(prev.categorie, category),
-                      }))
-                    }
-                  >
-                    {category}
-                  </FilterChip>
-                  <div className="flex flex-wrap gap-1.5 pl-1">
+                  <h4 className="text-sm font-bold text-foreground">{category}</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    <FilterChip
+                      active={draft.categorie.has(category)}
+                      onClick={() =>
+                        setDraft((prev) => applyCategorieAlles(prev, category, lines))
+                      }
+                    >
+                      Alles ({category})
+                    </FilterChip>
                     {lines.map((line) => (
                       <FilterChip
                         key={line}
                         active={draft.leerlijn.has(line)}
                         onClick={() =>
-                          setDraft((prev) => ({
-                            ...prev,
-                            leerlijn: toggle(prev.leerlijn, line),
-                          }))
+                          setDraft((prev) => applyLeerlijnToggle(prev, category, line))
                         }
                       >
                         {line}
