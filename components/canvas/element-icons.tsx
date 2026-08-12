@@ -1,11 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
+import useImage from "use-image";
 import {
   Arrow,
   Circle,
   Ellipse,
   Group,
+  Image as KonvaImage,
   Line,
   Rect,
   RegularPolygon,
@@ -14,6 +16,7 @@ import {
 
 import type { ElementType, ViewMode } from "./gym-canvas-types";
 import { ELEMENT_DEFS } from "./gym-canvas-types";
+import { MATERIAL_IMAGE_URLS } from "./material-images";
 
 const STROKE = "rgba(0,0,0,0.25)";
 const SEAM = "rgba(0,0,0,0.35)";
@@ -185,7 +188,55 @@ function CurvedArrow({ w, h, color }: { w: number; h: number; color: string }) {
 
 // -- element graphic per type -------------------------------------------------
 
+/**
+ * Public entry point: renders the uploaded material photo when one is
+ * matched in MATERIAL_IMAGE_URLS, falling back to the hand-drawn vector
+ * icon (VectorIcon below) for every other type — and transiently while a
+ * matched photo is still loading, so nothing ever renders blank.
+ */
 export function ElementIcon({
+  type,
+  viewMode = "top",
+}: {
+  type: ElementType;
+  viewMode?: ViewMode;
+}) {
+  const imageUrl = MATERIAL_IMAGE_URLS[type];
+
+  if (imageUrl) {
+    return <MaterialIcon type={type} url={imageUrl} viewMode={viewMode} />;
+  }
+
+  return <VectorIcon type={type} viewMode={viewMode} />;
+}
+
+function MaterialIcon({
+  type,
+  url,
+  viewMode,
+}: {
+  type: ElementType;
+  url: string;
+  viewMode: ViewMode;
+}) {
+  const [image, status] = useImage(url, "anonymous");
+
+  if (status !== "loaded" || !image) {
+    return <VectorIcon type={type} viewMode={viewMode} />;
+  }
+
+  const def = ELEMENT_DEFS[type];
+  // Contain-fit within the element's usual bounding box instead of
+  // stretching to it, so non-square photos (e.g. kast, doel) keep their
+  // real aspect ratio.
+  const scale = Math.min(def.width / image.width, def.height / image.height);
+  const w = image.width * scale;
+  const h = image.height * scale;
+
+  return <KonvaImage image={image} x={-w / 2} y={-h / 2} width={w} height={h} />;
+}
+
+function VectorIcon({
   type,
   viewMode = "top",
 }: {
