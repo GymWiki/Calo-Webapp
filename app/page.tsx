@@ -10,35 +10,48 @@ type Feature = {
   tag: string;
   title: string;
   body: string;
+  highlight?: string;
+  accent: "cone" | "line-blue" | "court-yellow";
 };
 
 const FEATURES: Feature[] = [
   {
-    tag: "Modus",
-    title: "Ontworpen voor elk licht",
-    body: "Of je 's avonds laat thuis je lesvoorbereiding afmaakt of in het felle TL-licht van de sporthal snel iets wilt opzoeken: GymBase is gebouwd om overal leesbaar te blijven.",
+    tag: "Pijler 1",
+    title: "Eigenaarschap & betekenisgeving",
+    body: "Stem af op 'Loopt 't, Lukt 't en Leeft 't' om te zorgen dat elke leerling plezier, succes en uitdaging ervaart op het eigen niveau.",
+    highlight:
+      "Snel interventies toevoegen op Organisatie (Loopt 't), Motoriek (Lukt 't) en Motivatie (Leeft 't).",
+    accent: "cone",
   },
   {
-    tag: "Lesopbouw",
-    title: "De modulaire les-flow",
-    body: "Geen eindeloze lappen tekst meer, maar visuele, intuïtieve blokken. Van je Arrangement tot de 4 L'en: je klikt je les in een handomdraai in elkaar.",
+    tag: "Pijler 2",
+    title: "Rijke bewegingssituaties & spelinzicht",
+    body: "Bouw uitdagende arrangementen gebaseerd op officiële leerlijnen en speldimensies. Laat leerlingen tactisch en motorisch groeien binnen authentieke spelvormen.",
+    highlight:
+      "Gecategoriseerde leerlijnen (Spel, Turnen, Atletiek, Vechtspelen) en slimme speldimensies (Ruimte, Materiaal, Aantallen, Regels).",
+    accent: "line-blue",
   },
   {
-    tag: "Schets",
-    title: "Plattegrond in één upload",
-    body: "Voeg in een paar tikken een foto of schets van je arrangement toe aan je lesvoorbereiding — professioneel genoeg om direct in te leveren bij je praktijkbegeleider.",
+    tag: "Pijler 3",
+    title: "Zelfstandigheid & vaste kennisbron",
+    body: "Koppel je eigen didactische bronnen of raadpleeg de AI Lescoach om direct te reflecteren op de kwaliteit en differentiatie van je les.",
+    highlight:
+      "Directe didactische feedback op je voorbereiding met bronnen die je zelf aan- of uitzet.",
+    accent: "court-yellow",
   },
   {
-    tag: "Export",
-    title: "Instant A4 PDF-export",
-    body: "Met één tik verandert jouw digitale lesvoorbereiding in een strak, officieel document dat voldoet aan de eisen van de hogeschool of schoolleiding.",
-  },
-  {
-    tag: "Offline",
-    title: "Offline-first PWA",
-    body: "Geen internet in de gymzaal? De app blijft lokaal werken, zodat je lessen altijd en overal direct bij de hand hebt.",
+    tag: "Pijler 4",
+    title: "Overzicht & continuïteit",
+    body: "Sla bewezen lesvoorbereidingen op, bewerk ze voor jouw specifieke groepen en exporteer direct naar een helder A4-overzicht voor in de zaal.",
+    accent: "cone",
   },
 ];
+
+const ACCENT_BORDER: Record<Feature["accent"], string> = {
+  cone: "border-t-cone",
+  "line-blue": "border-t-line-blue",
+  "court-yellow": "border-t-court-yellow",
+};
 
 export default function LandingPage() {
   const [isDark, setIsDark] = useState(false);
@@ -111,7 +124,7 @@ export default function LandingPage() {
             className="animate-landing-rise font-mono text-xs font-medium tracking-[0.2em] text-cone uppercase"
             style={{ animationDelay: "0ms" }}
           >
-            Geen Word-documenten. Geen printjes. Geen rommel.
+            Betekenisvol Bewegingsonderwijs, digitaal onderbouwd
           </p>
           <h1
             className="animate-landing-rise font-display mt-4 text-4xl leading-[0.95] tracking-tight sm:text-6xl md:text-7xl"
@@ -126,23 +139,22 @@ export default function LandingPage() {
             )}
             style={{ animationDelay: "160ms" }}
           >
-            Jouw lessen verdienen een interface die net zo strak, dynamisch en
-            professioneel is als jij voor de klas staat. Ontwerp en beleef
-            bewegingsonderwijs zoals het hoort: minimalistisch, razendsnel en
-            ontworpen voor de praktijk.
+            Help iedere beweger de eigen betekenis van bewegen te ontdekken.
+            Bied structuur, variatie en didactische diepgang met één
+            overzichtelijke tool.
           </p>
           <div
             className="animate-landing-rise mt-8 flex flex-wrap gap-3"
             style={{ animationDelay: "240ms" }}
           >
             <Link
-              href="/dashboard"
+              href="/register"
               className="rounded-full bg-cone px-6 py-3 text-sm font-semibold text-ink transition-transform hover:scale-[1.03]"
             >
-              Naar dashboard
+              Start gratis met bouwen
             </Link>
             <Link
-              href="/register"
+              href="/bibliotheek"
               className={cn(
                 "rounded-full border px-6 py-3 text-sm font-semibold transition-colors",
                 isDark
@@ -150,7 +162,7 @@ export default function LandingPage() {
                   : "border-ink/20 text-ink hover:bg-ink/5",
               )}
             >
-              Account aanmaken
+              Ontdek de bibliotheek
             </Link>
           </div>
         </div>
@@ -159,20 +171,16 @@ export default function LandingPage() {
       {/* Features */}
       <section className="mx-auto w-full max-w-5xl px-6 py-12 sm:px-8 sm:py-16">
         <p className="font-mono text-xs font-medium tracking-[0.2em] text-cone uppercase">
-          Wat onze UI/UX uniek maakt
+          Gebouwd rond de pijlers van Betekenisvol Bewegingsonderwijs
         </p>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {FEATURES.map((feature) => (
             <div
               key={feature.tag}
               className={cn(
                 "rounded-xl border-t-4 p-5 transition-transform hover:-translate-y-1",
                 isDark ? "bg-paper/5" : "bg-ink/[0.03]",
-                feature.tag === "Modus" || feature.tag === "Export"
-                  ? "border-t-cone"
-                  : feature.tag === "Lesopbouw" || feature.tag === "Offline"
-                    ? "border-t-line-blue"
-                    : "border-t-court-yellow",
+                ACCENT_BORDER[feature.accent],
               )}
             >
               <span className="font-mono text-[0.65rem] font-semibold tracking-[0.18em] text-cone uppercase">
@@ -187,6 +195,18 @@ export default function LandingPage() {
               >
                 {feature.body}
               </p>
+              {feature.highlight && (
+                <p
+                  className={cn(
+                    "mt-3 border-t pt-3 text-xs leading-relaxed font-medium",
+                    isDark
+                      ? "border-paper/10 text-paper/55"
+                      : "border-ink/10 text-ink/55",
+                  )}
+                >
+                  {feature.highlight}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -196,16 +216,17 @@ export default function LandingPage() {
       <section className="bg-cone px-6 py-14 text-ink sm:px-8 sm:py-20">
         <div className="mx-auto w-full max-w-5xl">
           <p className="font-display text-2xl leading-tight sm:text-4xl">
-            DIT IS NIET ZOMAAR EEN TOOL.
+            KLAAR OM BETEKENISVOL BEWEGINGSONDERWIJS VORM TE GEVEN?
           </p>
           <p className="mt-3 max-w-lg text-sm leading-relaxed text-ink/80 sm:text-base">
-            Dit is de go-to standaard voor de moderne bewegingsonderwijzer.
+            Meld je direct aan en ervaar het gemak van een didactisch
+            onderbouwde lesvoorbereider.
           </p>
           <Link
             href="/register"
             className="mt-6 inline-block rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper transition-transform hover:scale-[1.03]"
           >
-            Account aanmaken
+            Maak je eerste les
           </Link>
         </div>
       </section>
