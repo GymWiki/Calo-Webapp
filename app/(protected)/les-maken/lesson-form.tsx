@@ -105,12 +105,13 @@ export function LessonForm({
 }) {
   const router = useRouter();
 
-  // Picks up a lesson stashed by the AI Activiteiten Generator (written to
-  // sessionStorage by AiGeneratorDialog before navigating here). Read once,
-  // synchronously, as part of the initial render via lazy useState
-  // initializers below — not in an effect — so there's no post-mount
-  // setState cascade; a fresh /les-maken visit is the only time this
-  // matters, and every initializer here runs once per mount regardless.
+  // Picks up a lesson stashed by the AI Activiteiten Generator wizard
+  // (written to sessionStorage by AiLessonWizard before LesMakenFlow
+  // switches to this component). Read once, synchronously, as part of the
+  // initial render via lazy useState initializers below — not in an
+  // effect — so there's no post-mount setState cascade; a fresh mount of
+  // this component is the only time this matters, and every initializer
+  // here runs once per mount regardless.
   const [stashedGenerated] = useState<GeneratedLessonWithIds | null>(() => {
     if (typeof window === "undefined") return null;
     const raw = sessionStorage.getItem(AI_GENERATED_LESSON_STORAGE_KEY);

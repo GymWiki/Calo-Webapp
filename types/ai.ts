@@ -93,7 +93,7 @@ export type GeneratedLessonWithIds = Omit<GeneratedLesson, "didacticItems"> & {
   didacticItems: DidacticItem[];
 };
 
-// sessionStorage key AiGeneratorDialog writes to and the les-maken form
-// reads from, to hand off an AI-generated lesson across a client-side
-// navigation without a huge query string.
+// sessionStorage key the /les-maken AI wizard (AiLessonWizard) writes to
+// and LessonForm reads from, to hand off an AI-generated lesson to the
+// form when LesMakenFlow switches views, without threading it through props.
 export const AI_GENERATED_LESSON_STORAGE_KEY = "gymbase-ai-generated-lesson";

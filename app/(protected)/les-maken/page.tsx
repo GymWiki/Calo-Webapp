@@ -5,7 +5,7 @@ import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
 import type { Activity } from "@/types/activity";
 import type { CreateLessonFormInput } from "@/types/lesson";
-import { LessonForm } from "./lesson-form";
+import { LesMakenFlow } from "./lesson-flow";
 
 // "Kopieer & bewerk" pre-fill (activiteiten-bibliotheek -> les-maken). Only
 // the fields with a reasonable source on `activiteiten` are mapped —
@@ -61,6 +61,8 @@ export default async function LesMakenPage({
     vanuit ? getActivityById(vanuit) : Promise.resolve(null),
     getActiveKnowledgeSourceCount(profile.id),
   ]);
+  const initialTab = parseInitialTab(tab);
+  const skipChoice = Boolean(activity) || Boolean(initialTab);
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10">
@@ -70,15 +72,18 @@ export default async function LesMakenPage({
         description={
           activity
             ? `Gebaseerd op "${activity.titel}" — vul de ontbrekende velden aan.`
-            : "Bouw je activiteitvoorbereiding stap voor stap op."
+            : skipChoice
+              ? "Bouw je activiteitvoorbereiding stap voor stap op."
+              : "Kies hoe je wilt beginnen."
         }
       />
-      <LessonForm
+      <LesMakenFlow
         role={profile.role}
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
         initialValues={activity ? mapActivityToLessonInput(activity) : undefined}
-        initialTab={parseInitialTab(tab)}
+        initialTab={initialTab}
         activeSourceCount={activeSourceCount}
+        skipChoice={skipChoice}
       />
     </main>
   );
