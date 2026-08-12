@@ -5,6 +5,7 @@ import { Check, Copy, Globe, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { setLessonPublic } from "@/actions/lesson";
+import { showLevelUpToast } from "@/components/gamification/level-up-toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -97,6 +98,9 @@ export function ShareLessonButton({
       toast.success(
         next ? "Les is nu openbaar in de bibliotheek." : "Les is weer privé.",
       );
+      if (result.levelUp) {
+        showLevelUpToast(result.levelUp);
+      }
     });
   }
 

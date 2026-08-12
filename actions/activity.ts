@@ -2,8 +2,11 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { awardXp, XP_REWARDS, type LevelUpEvent } from "@/lib/gamification";
 
-type ToggleResult = { error: string } | { success: true; saved: boolean };
+type ToggleResult =
+  | { error: string }
+  | { success: true; saved: boolean; levelUp?: LevelUpEvent };
 
 const GENERIC_ERROR = "Opslaan is mislukt. Probeer het opnieuw.";
 
@@ -53,5 +56,6 @@ export async function toggleSavedActivity(
     return { error: GENERIC_ERROR };
   }
 
-  return { success: true, saved: true };
+  const { levelUp } = await awardXp(supabase, user.id, XP_REWARDS.activitySaved);
+  return levelUp ? { success: true, saved: true, levelUp } : { success: true, saved: true };
 }

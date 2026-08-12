@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Crown,
   Database,
   Handshake,
   LayoutDashboard,
@@ -39,6 +40,7 @@ const SECONDARY_NAV_ITEMS: NavItem[] = [
   { href: "/marktplaats", label: "Marktplaats", icon: Handshake },
   { href: "/stage-logboek", label: "Stage-logboek", icon: NotebookText },
   { href: "/kennisbank", label: "Kennisbank", icon: Database },
+  { href: "/pro", label: "Pro", icon: Crown },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

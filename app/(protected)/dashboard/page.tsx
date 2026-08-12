@@ -5,6 +5,7 @@ import { CalendarDays, NotebookPen, SquarePen, Trophy } from "lucide-react";
 
 import { CommunityLessonsSection } from "@/components/community-lessons-section";
 import { EmptyState } from "@/components/empty-state";
+import { LevelStatusCard } from "@/components/gamification/LevelStatusCard";
 import { LessonCard } from "@/components/lesson-card";
 import { PageHeader } from "@/components/page-header";
 import { QuickActionGrid } from "@/components/quick-action-grid";
@@ -32,6 +33,8 @@ export default async function DashboardPage() {
         title={`Welkom terug, ${profile.first_name}`}
         description="Hier vind je je snelle acties, je lesvoorbereidingen en wat er speelt in de community."
       />
+
+      <LevelStatusCard xp={profile.xp} isPro={profile.is_pro} />
 
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardContent userId={profile.id} />

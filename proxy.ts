@@ -13,6 +13,7 @@ const PROTECTED_PREFIXES = [
   "/bibliotheek",
   "/marktplaats",
   "/stage-logboek",
+  "/pro",
 ];
 
 // Publicly reachable even though they start with a protected prefix above

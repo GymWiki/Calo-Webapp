@@ -6,6 +6,7 @@ import { Bookmark, BookmarkCheck, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 import { toggleSavedActivity } from "@/actions/activity";
+import { showLevelUpToast } from "@/components/gamification/level-up-toast";
 import { Button } from "@/components/ui/button";
 
 export function ActivityDetailActions({
@@ -27,6 +28,10 @@ export function ActivityDetailActions({
       if ("error" in result) {
         setSaved(!next); // revert
         toast.error(result.error);
+        return;
+      }
+      if (result.levelUp) {
+        showLevelUpToast(result.levelUp);
       }
     });
   }

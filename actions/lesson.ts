@@ -2,13 +2,16 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { awardXp, XP_REWARDS, type LevelUpEvent } from "@/lib/gamification";
 import {
   createLessonInputSchema,
   type CreateLessonInput,
 } from "@/types/lesson";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 
-type ActionResult = { error: string } | { success: true };
+type ActionResult =
+  | { error: string }
+  | { success: true; levelUp?: LevelUpEvent };
 
 const GENERIC_ERROR = "Les opslaan is mislukt. Probeer het opnieuw.";
 
@@ -98,7 +101,8 @@ export async function createLesson(
       return { error: GENERIC_ERROR };
     }
 
-    return { success: true };
+    const { levelUp } = await awardXp(supabase, user.id, XP_REWARDS.lessonCreated);
+    return levelUp ? { success: true, levelUp } : { success: true };
   } catch {
     return { error: GENERIC_ERROR };
   }
@@ -119,6 +123,16 @@ export async function setLessonPublic(
     return { error: "Je bent niet ingelogd." };
   }
 
+  // Alleen bij de false->true overgang beloond met XP — anders zou
+  // heen-en-weer schakelen in ShareLessonButton oneindig XP opleveren.
+  const { data: existing } = await supabase
+    .from("lessons")
+    .select("is_public")
+    .eq("id", lessonId)
+    .eq("author_id", user.id)
+    .maybeSingle();
+  const wasAlreadyPublic = existing?.is_public ?? true;
+
   // RLS ("Eigenaren kunnen eigen lessen beheren") is the actual
   // enforcement — a lesson the caller doesn't own simply won't match and
   // nothing is updated.
@@ -134,6 +148,11 @@ export async function setLessonPublic(
         ? "Les openbaar maken is mislukt. Probeer het opnieuw."
         : "Les privé maken is mislukt. Probeer het opnieuw.",
     };
+  }
+
+  if (isPublic && !wasAlreadyPublic) {
+    const { levelUp } = await awardXp(supabase, user.id, XP_REWARDS.lessonShared);
+    return levelUp ? { success: true, levelUp } : { success: true };
   }
 
   return { success: true };

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createLesson } from "@/actions/lesson";
 import { AiLescoachSheet } from "@/components/AiLescoachSheet";
 import { DidacticsForm } from "@/components/DidacticsForm";
+import { showLevelUpToast } from "@/components/gamification/level-up-toast";
 import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
 import { Button } from "@/components/ui/button";
 import {
@@ -202,6 +203,9 @@ export function LessonForm({
     }
 
     toast.success("Les opgeslagen!");
+    if (result.levelUp) {
+      showLevelUpToast(result.levelUp);
+    }
     router.push("/dashboard");
     router.refresh();
   }

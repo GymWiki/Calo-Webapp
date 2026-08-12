@@ -6,6 +6,7 @@ import { Bookmark, BookmarkCheck, Copy, Eye, ImageOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { toggleSavedActivity } from "@/actions/activity";
+import { showLevelUpToast } from "@/components/gamification/level-up-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,10 @@ export function ActivityCard({
       if ("error" in result) {
         setSaved(!next); // revert
         toast.error(result.error);
+        return;
+      }
+      if (result.levelUp) {
+        showLevelUpToast(result.levelUp);
       }
     });
   }
