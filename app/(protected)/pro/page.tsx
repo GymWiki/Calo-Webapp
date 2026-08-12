@@ -12,6 +12,7 @@ import {
   getDiscountedPriceCents,
   getLevelInfo,
 } from "@/lib/gamification";
+import { getUserPermissions } from "@/lib/permissions";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
 const PRO_FEATURES = [
@@ -28,7 +29,7 @@ export default async function ProPage() {
     redirect("/login");
   }
 
-  if (profile.is_pro) {
+  if (getUserPermissions(profile).isPro) {
     const level = getLevelInfo(profile.xp);
     return (
       <main className="mx-auto w-full max-w-2xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">

@@ -55,14 +55,14 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("is_pro")
+    .select("plan_type")
     .eq("id", user.id)
     .single();
 
   const usage = await checkAndRecordAiUsage(
     supabase,
     user.id,
-    profile?.is_pro ?? false,
+    profile?.plan_type ?? "free",
     "analyze-lesson",
   );
 

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/format";
+import { getUserPermissions } from "@/lib/permissions";
 import { getLessonById } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { LESSON_BLOCK_LABELS } from "@/types/lesson";
@@ -188,7 +189,7 @@ export default async function SharedLessonPage({
             )}
             <LessonPdfButton
               lesson={lesson}
-              isPro={profile?.is_pro ?? false}
+              isPro={getUserPermissions(profile).isPro}
               xp={profile?.xp ?? 0}
             />
           </CardContent>

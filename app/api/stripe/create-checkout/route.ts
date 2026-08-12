@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { getLevelInfo } from "@/lib/gamification";
+import { getUserPermissions } from "@/lib/permissions";
 import { getStripeClient } from "@/lib/stripe/client";
 
 export async function POST(request: Request) {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   // altijd opnieuw uit de xp-stand in de database afleiden.
   const { data: profile } = await supabase
     .from("users")
-    .select("xp, is_pro")
+    .select("xp, plan_type")
     .eq("id", user.id)
     .single();
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Profiel niet gevonden." }, { status: 404 });
   }
 
-  if (profile.is_pro) {
+  if (getUserPermissions(profile).isPro) {
     return Response.json(
       { error: "Je hebt al een actief Pro-abonnement." },
       { status: 400 },

@@ -15,10 +15,10 @@ export type AiUsageResult =
 export async function checkAndRecordAiUsage(
   supabase: SupabaseClient,
   userId: string,
-  isPro: boolean,
+  planType: string,
   endpoint: "analyze-lesson" | "generate-activity",
 ): Promise<AiUsageResult> {
-  const { monthlyAiLimit } = getUserPermissions({ is_pro: isPro });
+  const { monthlyAiLimit } = getUserPermissions({ plan_type: planType });
 
   if (!Number.isFinite(monthlyAiLimit)) {
     await supabase.from("ai_usage_log").insert({ user_id: userId, endpoint });

@@ -13,6 +13,7 @@ import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
+import { getUserPermissions } from "@/lib/permissions";
 import { getPublicLessons, getUserLessons } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import type { LessonWithDetails } from "@/types/lesson";
@@ -34,7 +35,7 @@ export default async function DashboardPage() {
         description="Hier vind je je snelle acties, je lesvoorbereidingen en wat er speelt in de community."
       />
 
-      <LevelStatusCard xp={profile.xp} isPro={profile.is_pro} />
+      <LevelStatusCard xp={profile.xp} isPro={getUserPermissions(profile).isPro} />
 
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardContent userId={profile.id} />

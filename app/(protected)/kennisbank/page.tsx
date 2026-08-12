@@ -5,6 +5,7 @@ import { KnowledgeUploadForm } from "@/components/KnowledgeUploadForm";
 import { LescoachTestPanel } from "@/components/LescoachTestPanel";
 import { PageHeader } from "@/components/page-header";
 import { UserKnowledgeSections } from "@/components/UserKnowledgeSections";
+import { getUserPermissions } from "@/lib/permissions";
 import { getKnowledgeDocuments, getUserKnowledgeOverview } from "@/lib/services/knowledge";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
@@ -30,7 +31,7 @@ export default async function KennisbankPage() {
       <UserKnowledgeSections
         defaultDocuments={defaults}
         ownDocuments={own}
-        isPro={profile.is_pro}
+        isPro={getUserPermissions(profile).isPro}
         xp={profile.xp}
       />
 

@@ -7,6 +7,7 @@ import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { DOELGROEP_LABELS } from "@/types/activity";
@@ -74,6 +75,7 @@ export default async function ActiviteitDetailPage({
   }
 
   const saved = await isActivitySaved(profile.id, activity.id);
+  const { isPro } = getUserPermissions(profile);
 
   const doelgroepLabels = (activity.doelgroep ?? [])
     .map((waarde) => DOELGROEP_LABELS[waarde])
@@ -89,7 +91,7 @@ export default async function ActiviteitDetailPage({
           </Link>
         </Button>
         <div className="hidden md:block">
-          <ActivityDetailActions activityId={activity.id} initiallySaved={saved} isPro={profile.is_pro} xp={profile.xp} />
+          <ActivityDetailActions activityId={activity.id} initiallySaved={saved} isPro={isPro} xp={profile.xp} />
         </div>
       </div>
 
@@ -198,7 +200,7 @@ export default async function ActiviteitDetailPage({
       </Card>
 
       <div className="md:hidden">
-        <ActivityDetailActions activityId={activity.id} initiallySaved={saved} isPro={profile.is_pro} xp={profile.xp} />
+        <ActivityDetailActions activityId={activity.id} initiallySaved={saved} isPro={isPro} xp={profile.xp} />
       </div>
     </main>
   );

@@ -43,7 +43,7 @@ export async function createLesson(
 
   const { data: profile } = await supabase
     .from("users")
-    .select("is_pro")
+    .select("plan_type")
     .eq("id", user.id)
     .single();
   const { maxSavedLessons } = getUserPermissions(profile);

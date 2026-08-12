@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/format";
+import { getUserPermissions } from "@/lib/permissions";
 import { getLessonById } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { LESSON_BLOCK_LABELS } from "@/types/lesson";
@@ -105,6 +106,7 @@ export default async function LesDetailPage({
   }
 
   const isOwner = lesson.author_id === profile.id;
+  const { isPro } = getUserPermissions(profile);
   const authorName = lesson.author
     ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
     : "-";
@@ -140,7 +142,7 @@ export default async function LesDetailPage({
             </Button>
           )}
           <AiLescoachButton payload={analyzePayload} xp={profile.xp} />
-          <LessonPdfButton lesson={lesson} isPro={profile.is_pro} xp={profile.xp} />
+          <LessonPdfButton lesson={lesson} isPro={isPro} xp={profile.xp} />
         </div>
       </div>
 
@@ -292,7 +294,7 @@ export default async function LesDetailPage({
           </Button>
         )}
         <AiLescoachButton payload={analyzePayload} xp={profile.xp} className="flex-1" />
-        <LessonPdfButton lesson={lesson} isPro={profile.is_pro} xp={profile.xp} className="flex-1" />
+        <LessonPdfButton lesson={lesson} isPro={isPro} xp={profile.xp} className="flex-1" />
       </div>
     </main>
   );
