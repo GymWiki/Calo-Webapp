@@ -43,7 +43,7 @@ export async function createLesson(
 
   const { data: profile } = await supabase
     .from("users")
-    .select("plan_type")
+    .select("plan_type, xp")
     .eq("id", user.id)
     .single();
   const { maxSavedLessons } = getUserPermissions(profile);
@@ -122,7 +122,13 @@ export async function createLesson(
       return { error: GENERIC_ERROR };
     }
 
-    const { levelUp } = await awardXp(supabase, user.id, XP_REWARDS.lessonCreated);
+    const { levelUp } = await awardXp(
+      supabase,
+      user.id,
+      XP_REWARDS.lessonCreated,
+      "lesson_created",
+      lesson.id,
+    );
     return levelUp ? { success: true, levelUp } : { success: true };
   } catch {
     return { error: GENERIC_ERROR };
@@ -172,7 +178,13 @@ export async function setLessonPublic(
   }
 
   if (isPublic && !wasAlreadyPublic) {
-    const { levelUp } = await awardXp(supabase, user.id, XP_REWARDS.lessonShared);
+    const { levelUp } = await awardXp(
+      supabase,
+      user.id,
+      XP_REWARDS.lessonShared,
+      "lesson_shared",
+      lessonId,
+    );
     return levelUp ? { success: true, levelUp } : { success: true };
   }
 

@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { CalendarDays, NotebookPen, SquarePen, Trophy } from "lucide-react";
 
 import { CommunityLessonsSection } from "@/components/community-lessons-section";
 import { EmptyState } from "@/components/empty-state";
+import { ContributionQuotaBanner } from "@/components/gamification/ContributionQuotaBanner";
 import { LevelStatusCard } from "@/components/gamification/LevelStatusCard";
 import { LessonCard } from "@/components/lesson-card";
 import { PageHeader } from "@/components/page-header";
@@ -12,10 +14,12 @@ import { QuickActionGrid } from "@/components/quick-action-grid";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { checkContributionStatus } from "@/lib/gamification";
 import { formatDate } from "@/lib/format";
 import { getUserPermissions } from "@/lib/permissions";
 import { getPublicLessons, getUserLessons } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
+import { createClient } from "@/utils/supabase/server";
 import type { LessonWithDetails } from "@/types/lesson";
 
 const COMMUNITY_LIMIT = 6;
@@ -27,6 +31,10 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const contributionStatus = await checkContributionStatus(supabase, profile.id);
+
   return (
     <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
       <PageHeader
@@ -35,7 +43,12 @@ export default async function DashboardPage() {
         description="Hier vind je je snelle acties, je lesvoorbereidingen en wat er speelt in de community."
       />
 
-      <LevelStatusCard xp={profile.xp} isPro={getUserPermissions(profile).isPro} />
+      <LevelStatusCard
+        xp={profile.xp}
+        isPro={getUserPermissions(profile).isPro}
+        loginStreakCurrent={profile.login_streak_current}
+      />
+      <ContributionQuotaBanner status={contributionStatus} />
 
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardContent userId={profile.id} />

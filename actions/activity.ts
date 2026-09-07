@@ -56,6 +56,11 @@ export async function toggleSavedActivity(
     return { error: GENERIC_ERROR };
   }
 
-  const { levelUp } = await awardXp(supabase, user.id, XP_REWARDS.activitySaved);
+  const { levelUp } = await awardXp(
+    supabase,
+    user.id,
+    XP_REWARDS.activitySaved,
+    "activity_saved",
+  );
   return levelUp ? { success: true, saved: true, levelUp } : { success: true, saved: true };
 }

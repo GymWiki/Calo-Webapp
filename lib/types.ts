@@ -11,4 +11,7 @@ export type UserProfile = {
   plan_type: string;
   xp: number;
   email: string | null;
+  member_since: string;
+  login_streak_current: number;
+  login_streak_longest: number;
 };

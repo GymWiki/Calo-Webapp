@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { showLoginActivityToast } from "@/components/gamification/level-up-toast";
 import { login } from "@/app/(auth)/actions";
 
 const loginSchema = z.object({
@@ -41,6 +42,10 @@ export function LoginForm() {
     if ("error" in result) {
       setFormError(result.error);
       return;
+    }
+
+    if (result.loginActivity) {
+      showLoginActivityToast(result.loginActivity);
     }
 
     router.push("/dashboard");

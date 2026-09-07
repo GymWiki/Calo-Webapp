@@ -2,7 +2,7 @@
 
 import { toast } from "sonner";
 
-import type { LevelUpEvent } from "@/lib/gamification";
+import type { LevelUpEvent, LoginActivityResult } from "@/lib/gamification";
 
 /**
  * Shared client-side notification for a level-up, fired from every action
@@ -44,4 +44,22 @@ export function showLevelUpToast(levelUp: LevelUpEvent) {
       duration: 8000,
     },
   );
+}
+
+/**
+ * Fired right after een geslaagde login/registratie voor de streak- en
+ * lidmaatschapsjubileum-bonussen die record_login_activity net toekende.
+ * Beide kunnen in principe tegelijk vallen (zeldzaam, maar mogelijk), dus
+ * toon ze allebei als ze allebei zijn toegekend.
+ */
+export function showLoginActivityToast(result: LoginActivityResult) {
+  if (result.streakBonusAwarded > 0) {
+    toast.success(
+      `🔥 ${result.loginStreakCurrent}-dagen inlogstreak! +${result.streakBonusAwarded} XP`,
+    );
+  }
+
+  if (result.anniversaryBonusAwarded) {
+    toast.success("🎉 Alweer een jaar lid van GymWiki! +150 XP");
+  }
 }

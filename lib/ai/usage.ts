@@ -8,17 +8,18 @@ export type AiUsageResult =
 /**
  * Fair-use gate for the AI endpoints: unlimited for Pro users, otherwise
  * `monthlyAiLimit` (lib/permissions.ts — the single source of truth for
- * this number) checks per calendar month across both AI endpoints
- * (analyze-lesson + generate-activity share one pool). Records the attempt
- * in `ai_usage_log` when it's allowed.
+ * this number, level-scaled per config/levels.ts) checks per calendar
+ * month across both AI endpoints (analyze-lesson + generate-activity
+ * share one pool). Records the attempt in `ai_usage_log` when it's
+ * allowed.
  */
 export async function checkAndRecordAiUsage(
   supabase: SupabaseClient,
   userId: string,
-  planType: string,
+  profile: { plan_type: string; xp: number },
   endpoint: "analyze-lesson" | "generate-activity",
 ): Promise<AiUsageResult> {
-  const { monthlyAiLimit } = getUserPermissions({ plan_type: planType });
+  const { monthlyAiLimit } = getUserPermissions(profile);
 
   if (!Number.isFinite(monthlyAiLimit)) {
     await supabase.from("ai_usage_log").insert({ user_id: userId, endpoint });

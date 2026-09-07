@@ -74,14 +74,14 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("plan_type")
+    .select("plan_type, xp")
     .eq("id", user.id)
     .single();
 
   const usage = await checkAndRecordAiUsage(
     supabase,
     user.id,
-    profile?.plan_type ?? "free",
+    { plan_type: profile?.plan_type ?? "free", xp: profile?.xp ?? 0 },
     "generate-activity",
   );
 

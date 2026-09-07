@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Crown, Sparkles } from "lucide-react";
+import { Crown, Flame, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,9 +8,11 @@ import { getXpProgress } from "@/lib/gamification";
 export function LevelStatusCard({
   xp,
   isPro,
+  loginStreakCurrent = 0,
 }: {
   xp: number;
   isPro: boolean;
+  loginStreakCurrent?: number;
 }) {
   const { current, next, xpIntoLevel, xpForNextLevel, progressPercent } =
     getXpProgress(xp);
@@ -19,6 +21,14 @@ export function LevelStatusCard({
     next && xpForNextLevel
       ? `${xpIntoLevel} / ${xpForNextLevel} XP naar Level ${next.level} (${next.name})`
       : "Hoogste level bereikt";
+
+  const streakBadge = loginStreakCurrent > 0 && (
+    <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+      <Flame className="size-3.5 text-cone" aria-hidden="true" />
+      {loginStreakCurrent} {loginStreakCurrent === 1 ? "dag" : "dagen"} op rij
+      ingelogd
+    </p>
+  );
 
   const progressBar = (
     <div className="mt-1.5 h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted">
@@ -54,6 +64,7 @@ export function LevelStatusCard({
                 {progressLabel}
               </p>
               {progressBar}
+              {streakBadge}
             </div>
           </div>
         </CardContent>
@@ -94,6 +105,7 @@ export function LevelStatusCard({
                 " — verdien XP met lessen maken, delen en activiteiten opslaan om korting op Pro vrij te spelen."}
             </p>
             {progressBar}
+            {streakBadge}
           </div>
         </div>
         {hasDiscount && (
