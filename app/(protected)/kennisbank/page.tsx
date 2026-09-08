@@ -5,7 +5,6 @@ import { KnowledgeUploadForm } from "@/components/KnowledgeUploadForm";
 import { LescoachTestPanel } from "@/components/LescoachTestPanel";
 import { PageHeader } from "@/components/page-header";
 import { UserKnowledgeSections } from "@/components/UserKnowledgeSections";
-import { getUserPermissions } from "@/lib/permissions";
 import { getKnowledgeDocuments, getUserKnowledgeOverview } from "@/lib/services/knowledge";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
@@ -28,12 +27,7 @@ export default async function KennisbankPage() {
         title="Kennisbank"
         description="Kies welke vakliteratuur en eigen documenten de AI Lescoach en Activiteiten Generator meenemen bij het genereren en beoordelen van lessen."
       />
-      <UserKnowledgeSections
-        defaultDocuments={defaults}
-        ownDocuments={own}
-        isPro={getUserPermissions(profile).isPro}
-        xp={profile.xp}
-      />
+      <UserKnowledgeSections defaultDocuments={defaults} ownDocuments={own} />
 
       <div className="space-y-8 border-t pt-8">
         <PageHeader

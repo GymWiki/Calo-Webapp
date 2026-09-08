@@ -9,9 +9,7 @@ import { toast } from "sonner";
 import { createLesson } from "@/actions/lesson";
 import { AiLescoachSheet } from "@/components/AiLescoachSheet";
 import { DidacticsForm } from "@/components/DidacticsForm";
-import { showLevelUpToast } from "@/components/gamification/level-up-toast";
 import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
-import { PaywallModal } from "@/components/PaywallModal";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -96,17 +94,13 @@ export function LessonForm({
   initialValues,
   initialTab,
   activeSourceCount,
-  xp,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
   initialTab?: TabValue;
   activeSourceCount?: number;
-  xp: number;
 }) {
   const router = useRouter();
-  const [paywallOpen, setPaywallOpen] = useState(false);
-  const [paywallMessage, setPaywallMessage] = useState("");
 
   // Picks up a lesson stashed by the AI Activiteiten Generator wizard
   // (written to sessionStorage by AiLessonWizard before LesMakenFlow
@@ -203,19 +197,11 @@ export function LessonForm({
     const result = await createLesson(payload, diagram);
 
     if ("error" in result) {
-      if (result.paywall) {
-        setPaywallMessage(result.error);
-        setPaywallOpen(true);
-      } else {
-        toast.error(result.error);
-      }
+      toast.error(result.error);
       return;
     }
 
     toast.success("Les opgeslagen!");
-    if (result.levelUp) {
-      showLevelUpToast(result.levelUp);
-    }
     router.push("/dashboard");
     router.refresh();
   }
@@ -237,7 +223,6 @@ export function LessonForm({
               tacticalQuestions,
             })}
             onApplyImprovement={(item) => setDidacticItems((prev) => [...prev, item])}
-            xp={xp}
           />
           {activeSourceCount !== undefined && (
             <KnowledgeSourceHint count={activeSourceCount} />
@@ -710,12 +695,6 @@ export function LessonForm({
           </TabsContent>
         </Tabs>
       </form>
-      <PaywallModal
-        open={paywallOpen}
-        onOpenChange={setPaywallOpen}
-        message={paywallMessage}
-        xp={xp}
-      />
     </Form>
   );
 }

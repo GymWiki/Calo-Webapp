@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import { getLevelInfo } from "@/lib/gamification";
 import { getUserPermissions } from "@/lib/permissions";
 import { getStripeClient } from "@/lib/stripe/client";
 
@@ -16,11 +15,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Je bent niet ingelogd." }, { status: 401 });
   }
 
-  // Nooit een door de client meegestuurd kortingspercentage vertrouwen —
-  // altijd opnieuw uit de xp-stand in de database afleiden.
   const { data: profile } = await supabase
     .from("users")
-    .select("xp, plan_type")
+    .select("subscription_status")
     .eq("id", user.id)
     .single();
 
@@ -28,9 +25,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Profiel niet gevonden." }, { status: 404 });
   }
 
-  if (getUserPermissions(profile).isPro) {
+  if (getUserPermissions(profile).subscriptionStatus === "paid_subscriber") {
     return Response.json(
-      { error: "Je hebt al een actief Pro-abonnement." },
+      { error: "Je hebt al een actief abonnement." },
       { status: 400 },
     );
   }
@@ -40,7 +37,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          "Stripe is nog niet geconfigureerd. Voeg STRIPE_SECRET_KEY en STRIPE_PRICE_ID toe aan de omgevingsvariabelen om Pro-upgrades te verwerken.",
+          "Stripe is nog niet geconfigureerd. Voeg STRIPE_SECRET_KEY en STRIPE_PRICE_ID (het EUR 3,-/mnd-abonnement) toe aan de omgevingsvariabelen.",
       },
       { status: 501 },
     );
@@ -56,33 +53,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const discountPercent = getLevelInfo(profile.xp).freeDiscountPercent;
   const origin = new URL(request.url).origin;
 
   try {
-    // Dynamische Maker-korting: geen vooraf aangemaakte Stripe-coupon per
-    // niveau nodig — we maken 'm on-the-fly op basis van het huidige level.
-    const discounts = discountPercent > 0
-      ? [
-          {
-            coupon: (
-              await stripe.coupons.create({
-                percent_off: discountPercent,
-                duration: "forever",
-                name: `GymWiki Maker-korting ${discountPercent}%`,
-              })
-            ).id,
-          },
-        ]
-      : undefined;
-
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      discounts,
       client_reference_id: user.id,
       customer_email: user.email ?? undefined,
-      metadata: { userId: user.id, discountPercent: String(discountPercent) },
+      metadata: { userId: user.id },
       success_url: `${origin}/pro?checkout=success`,
       cancel_url: `${origin}/pro?checkout=cancelled`,
     });

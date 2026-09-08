@@ -70,14 +70,12 @@ export function LesMakenFlow({
   initialTab,
   activeSourceCount,
   skipChoice,
-  xp,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
   initialTab?: TabValue;
   activeSourceCount?: number;
   skipChoice: boolean;
-  xp: number;
 }) {
   const [mode, setMode] = useState<Mode>(skipChoice ? "form" : "choice");
 
@@ -108,7 +106,6 @@ export function LesMakenFlow({
     return (
       <AiLessonWizard
         activeSourceCount={activeSourceCount}
-        xp={xp}
         onCancel={() => setMode("choice")}
         onGenerated={() => setMode("form")}
       />
@@ -121,7 +118,6 @@ export function LesMakenFlow({
       initialValues={initialValues}
       initialTab={initialTab}
       activeSourceCount={activeSourceCount}
-      xp={xp}
     />
   );
 }

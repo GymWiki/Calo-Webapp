@@ -6,7 +6,6 @@ import {
   BookOpen,
   Crown,
   Database,
-  Handshake,
   LayoutDashboard,
   LogOut,
   NotebookText,
@@ -37,10 +36,9 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECONDARY_NAV_ITEMS: NavItem[] = [
   { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
-  { href: "/marktplaats", label: "Marktplaats", icon: Handshake },
   { href: "/stage-logboek", label: "Stage-logboek", icon: NotebookText },
   { href: "/kennisbank", label: "Kennisbank", icon: Database },
-  { href: "/pro", label: "Pro", icon: Crown },
+  { href: "/pro", label: "Abonnement", icon: Crown },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

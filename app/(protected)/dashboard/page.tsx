@@ -5,18 +5,16 @@ import { redirect } from "next/navigation";
 import { CalendarDays, NotebookPen, SquarePen, Trophy } from "lucide-react";
 
 import { CommunityLessonsSection } from "@/components/community-lessons-section";
+import { ContributionStatusCard } from "@/components/ContributionStatusCard";
 import { EmptyState } from "@/components/empty-state";
-import { ContributionQuotaBanner } from "@/components/gamification/ContributionQuotaBanner";
-import { LevelStatusCard } from "@/components/gamification/LevelStatusCard";
 import { LessonCard } from "@/components/lesson-card";
 import { PageHeader } from "@/components/page-header";
 import { QuickActionGrid } from "@/components/quick-action-grid";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { checkContributionStatus } from "@/lib/gamification";
 import { formatDate } from "@/lib/format";
-import { getUserPermissions } from "@/lib/permissions";
+import { getContributionStatus } from "@/lib/services/contribution";
 import { getPublicLessons, getUserLessons } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
@@ -33,7 +31,11 @@ export default async function DashboardPage() {
 
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
-  const contributionStatus = await checkContributionStatus(supabase, profile.id);
+  const contributionStatus = await getContributionStatus(
+    supabase,
+    profile.id,
+    profile.subscription_status,
+  );
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
@@ -43,12 +45,10 @@ export default async function DashboardPage() {
         description="Hier vind je je snelle acties, je lesvoorbereidingen en wat er speelt in de community."
       />
 
-      <LevelStatusCard
-        xp={profile.xp}
-        isPro={getUserPermissions(profile).isPro}
-        loginStreakCurrent={profile.login_streak_current}
+      <ContributionStatusCard
+        status={contributionStatus}
+        subscriptionStatus={profile.subscription_status}
       />
-      <ContributionQuotaBanner status={contributionStatus} />
 
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardContent userId={profile.id} />

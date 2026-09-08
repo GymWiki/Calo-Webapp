@@ -1,3 +1,5 @@
+export type ActivityReviewStatus = "pending" | "approved" | "rejected";
+
 export type Activity = {
   id: string;
   titel: string;
@@ -21,6 +23,13 @@ export type Activity = {
   // Genummerde leeruitkomsten, getoond in "Lesinhoud & Regels" — nullable en
   // voor de meeste rijen een lege array; alleen tonen als er items in staan.
   learning_outcomes: string[] | null;
+  // null voor de oorspronkelijk geïmporteerde bibliotheek-activiteiten —
+  // die hebben geen indiener. Alles wat via /activiteit-indienen binnenkomt
+  // heeft een author_id.
+  author_id: string | null;
+  status: ActivityReviewStatus;
+  rejection_reason: string | null;
+  submitted_at: string;
 };
 
 // `doelgroep` isn't a school-year number — it's a fixed 1-6 bucket code
@@ -45,3 +54,30 @@ export const CATEGORIE_WAARDEN = [
   "Bewegen op muziek",
   "Overig",
 ] as const;
+
+// -- Indienen van een nieuwe activiteit (bijdrage-freemium-model) -----------
+
+import { z } from "zod";
+
+export const submitActivityInputSchema = z.object({
+  titel: z.string().trim().min(3, "Titel moet minstens 3 tekens bevatten."),
+  categorie: z.enum(CATEGORIE_WAARDEN, { message: "Kies een categorie." }),
+  leerlijn: z.string().trim().min(1, "Leerlijn is verplicht."),
+  doelgroep: z
+    .array(z.number().int())
+    .min(1, "Kies minstens één doelgroep."),
+  beschrijving: z
+    .string()
+    .trim()
+    .min(40, "Beschrijf de activiteit in minstens 40 tekens."),
+  beginsituatie: z.string().trim(),
+  doel: z.string().trim().min(1, "Doelstelling is verplicht."),
+  veld: z.string().trim(),
+  materiaal: z.array(z.string().trim().min(1)),
+  regels: z.array(z.string().trim().min(1)),
+  loopt: z.array(z.string().trim().min(1)),
+  lukt: z.array(z.string().trim().min(1)),
+  leeft: z.array(z.string().trim().min(1)),
+});
+
+export type SubmitActivityInput = z.infer<typeof submitActivityInputSchema>;

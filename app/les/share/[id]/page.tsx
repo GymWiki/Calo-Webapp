@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/format";
-import { getUserPermissions } from "@/lib/permissions";
 import { getLessonById } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { LESSON_BLOCK_LABELS } from "@/types/lesson";
@@ -187,17 +186,13 @@ export default async function SharedLessonPage({
             ) : (
               <p className="text-sm text-muted-foreground">Geen tekening toegevoegd.</p>
             )}
-            <LessonPdfButton
-              lesson={lesson}
-              isPro={getUserPermissions(profile).isPro}
-              xp={profile?.xp ?? 0}
-            />
+            <LessonPdfButton lesson={lesson} />
           </CardContent>
         </Card>
 
         {profile && (
           <div className="animate-fade-up flex justify-end" style={{ animationDelay: "60ms" }}>
-            <AiLescoachButton payload={analyzePayload} xp={profile?.xp ?? 0} />
+            <AiLescoachButton payload={analyzePayload} />
           </div>
         )}
 

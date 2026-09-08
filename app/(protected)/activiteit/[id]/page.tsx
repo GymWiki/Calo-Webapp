@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Lock } from "lucide-react";
 
 import { ActivityDetailActions } from "@/components/activity-detail-actions";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
+import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,8 +107,33 @@ export default async function ActiviteitDetailPage({
     notFound();
   }
 
+  const { hasFullLibraryAccess } = getUserPermissions(profile);
+  const isOwnActivity = activity.author_id === profile.id;
+
+  if (!hasFullLibraryAccess && !isOwnActivity) {
+    return (
+      <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 md:p-8 md:pb-8">
+        <Button asChild variant="outline">
+          <Link href="/zoeken">
+            <ArrowLeft className="size-4" />
+            Terug naar Activiteiten
+          </Link>
+        </Button>
+        <EmptyState
+          icon={Lock}
+          title="Bibliotheektoegang beperkt"
+          description="Je hebt de maandelijkse bijdrage-eis niet gehaald, dus zie je alleen je eigen bijdragen. Dien deze maand nieuwe activiteiten in of neem het betaalde abonnement voor volledige toegang."
+          action={
+            <Button asChild>
+              <Link href="/activiteit-indienen">Activiteit indienen</Link>
+            </Button>
+          }
+        />
+      </main>
+    );
+  }
+
   const saved = await isActivitySaved(profile.id, activity.id);
-  const { isPro } = getUserPermissions(profile);
 
   const doelgroepLabels = (activity.doelgroep ?? [])
     .map((waarde) => DOELGROEP_LABELS[waarde])
@@ -129,7 +155,7 @@ export default async function ActiviteitDetailPage({
           </Link>
         </Button>
         <div className="hidden md:block">
-          <ActivityDetailActions activity={activity} initiallySaved={saved} isPro={isPro} xp={profile.xp} />
+          <ActivityDetailActions activity={activity} initiallySaved={saved} />
         </div>
       </div>
 
@@ -253,7 +279,7 @@ export default async function ActiviteitDetailPage({
       </Tabs>
 
       <div className="md:hidden">
-        <ActivityDetailActions activity={activity} initiallySaved={saved} isPro={isPro} xp={profile.xp} />
+        <ActivityDetailActions activity={activity} initiallySaved={saved} />
       </div>
     </main>
   );

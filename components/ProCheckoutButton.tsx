@@ -18,13 +18,13 @@ export function ProCheckoutButton({ className }: { className?: string }) {
       const result = await response.json();
 
       if (!response.ok || "error" in result) {
-        toast.error(result.error ?? "Upgraden is mislukt. Probeer het opnieuw.");
+        toast.error(result.error ?? "Abonneren is mislukt. Probeer het opnieuw.");
         return;
       }
 
       window.location.href = result.url;
     } catch {
-      toast.error("Upgraden is mislukt. Controleer je verbinding.");
+      toast.error("Abonneren is mislukt. Controleer je verbinding.");
     } finally {
       setIsPending(false);
     }
@@ -43,7 +43,7 @@ export function ProCheckoutButton({ className }: { className?: string }) {
       ) : (
         <Sparkles className="size-4" />
       )}
-      {isPending ? "Bezig..." : "Upgrade naar Pro"}
+      {isPending ? "Bezig..." : "Abonneren"}
     </Button>
   );
 }

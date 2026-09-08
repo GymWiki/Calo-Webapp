@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Bot, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-import { PaywallModal } from "@/components/PaywallModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,20 +45,16 @@ export function AiLescoachSheet({
   onApplyImprovement,
   triggerClassName,
   triggerVariant = "outline",
-  xp = 0,
 }: {
   getPayload: () => AnalyzeLessonPayload;
   onApplyImprovement?: (item: DidacticItem) => void;
   triggerClassName?: string;
   triggerVariant?: "outline" | "default";
-  xp?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<LescoachFeedback | null>(null);
   const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
-  const [paywallOpen, setPaywallOpen] = useState(false);
-  const [paywallMessage, setPaywallMessage] = useState("");
 
   async function runAnalysis() {
     setIsLoading(true);
@@ -76,14 +71,7 @@ export function AiLescoachSheet({
 
       if (!response.ok || "error" in data) {
         setOpen(false);
-        if (response.status === 429) {
-          setPaywallMessage(
-            data.error ?? "Je hebt je gratis AI-checks voor deze maand gebruikt.",
-          );
-          setPaywallOpen(true);
-        } else {
-          toast.error(data.error ?? "AI Lescoach-analyse is mislukt.");
-        }
+        toast.error(data.error ?? "AI Lescoach-analyse is mislukt.");
         return;
       }
 
@@ -120,9 +108,8 @@ export function AiLescoachSheet({
   }
 
   return (
-    <>
-      <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetTrigger asChild>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetTrigger asChild>
           <Button type="button" variant={triggerVariant} className={triggerClassName}>
             <Bot className="size-4" />
             AI Lescoach raadplegen
@@ -218,15 +205,8 @@ export function AiLescoachSheet({
               Opnieuw analyseren
             </Button>
           </SheetFooter>
-        </SheetContent>
-      </Sheet>
-      <PaywallModal
-        open={paywallOpen}
-        onOpenChange={setPaywallOpen}
-        message={paywallMessage}
-        xp={xp}
-      />
-    </>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -239,17 +219,9 @@ export function AiLescoachSheet({
 export function AiLescoachButton({
   payload,
   className,
-  xp = 0,
 }: {
   payload: AnalyzeLessonPayload;
   className?: string;
-  xp?: number;
 }) {
-  return (
-    <AiLescoachSheet
-      getPayload={() => payload}
-      triggerClassName={className}
-      xp={xp}
-    />
-  );
+  return <AiLescoachSheet getPayload={() => payload} triggerClassName={className} />;
 }

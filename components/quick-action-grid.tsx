@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LayoutTemplate, SquarePen, Trophy, type LucideIcon } from "lucide-react";
+import { LayoutTemplate, ListPlus, SquarePen, Trophy, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -40,6 +40,13 @@ const ACTIONS: QuickAction[] = [
     description: "Spring direct naar de canvas en bouw de opstelling.",
     icon: LayoutTemplate,
     accent: "blue",
+  },
+  {
+    href: "/activiteit-indienen",
+    label: "Activiteit indienen",
+    description: "Draag bij aan de bibliotheek en tel mee voor je maandquotum.",
+    icon: ListPlus,
+    accent: "cone",
   },
 ];
 

@@ -1,17 +1,11 @@
-// Flexibel gehouden (niet als union) — een beheerder kan via de Supabase
-// Table Editor elke waarde in deze kolom zetten (bijv. "organization",
-// "admin") zonder dat dat een schema- of type-wijziging vereist; welke
-// waarden als Pro gelden, bepaalt lib/permissions.ts.
+export type SubscriptionStatus = "free_contributor" | "free_blocked" | "paid_subscriber";
+
 export type UserProfile = {
   id: string;
   first_name: string;
   last_name: string;
   avatar_url: string | null;
   available_for_internship: boolean;
-  plan_type: string;
-  xp: number;
+  subscription_status: SubscriptionStatus;
   email: string | null;
-  member_since: string;
-  login_streak_current: number;
-  login_streak_longest: number;
 };

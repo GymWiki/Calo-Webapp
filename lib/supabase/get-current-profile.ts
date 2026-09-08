@@ -19,7 +19,7 @@ export const getCurrentUserProfile = cache(
     const { data: profile } = await supabase
       .from("users")
       .select(
-        "id, first_name, last_name, avatar_url, available_for_internship, plan_type, xp, member_since, login_streak_current, login_streak_longest",
+        "id, first_name, last_name, avatar_url, available_for_internship, subscription_status",
       )
       .eq("id", user.id)
       .single();

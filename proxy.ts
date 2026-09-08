@@ -7,11 +7,11 @@ const PROTECTED_PREFIXES = [
   "/les",
   "/activiteit",
   "/zoeken",
+  "/activiteit-indienen",
   "/kennisbank",
   "/profiel",
   "/toernooi",
   "/bibliotheek",
-  "/marktplaats",
   "/stage-logboek",
   "/pro",
 ];

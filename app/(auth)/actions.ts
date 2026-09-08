@@ -2,7 +2,6 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { recordLoginActivity, type LoginActivityResult } from "@/lib/gamification";
 import { createClient } from "@/utils/supabase/server";
 
 type ActionError = { error: string };
@@ -13,22 +12,18 @@ const GENERIC_ERROR =
 export async function login(input: {
   email: string;
   password: string;
-}): Promise<ActionError | { loginActivity?: LoginActivityResult }> {
+}): Promise<ActionError | Record<string, never>> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword(input);
+    const { error } = await supabase.auth.signInWithPassword(input);
 
     if (error) {
       return { error: error.message };
     }
 
-    const loginActivity = data.user
-      ? await recordLoginActivity(supabase, data.user.id)
-      : null;
-
-    return loginActivity ? { loginActivity } : {};
+    return {};
   } catch {
     return { error: GENERIC_ERROR };
   }
@@ -57,12 +52,6 @@ export async function register(input: {
 
     if (error) {
       return { error: error.message };
-    }
-
-    if (data.session && data.user) {
-      // Best-effort: zet de streak/lidmaatschapsklok meteen in gang als
-      // e-mailbevestiging uitstaat en de gebruiker direct is ingelogd.
-      await recordLoginActivity(supabase, data.user.id);
     }
 
     return { needsEmailConfirmation: !data.session };

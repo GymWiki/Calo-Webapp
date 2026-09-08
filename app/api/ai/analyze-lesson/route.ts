@@ -53,24 +53,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "Je bent niet ingelogd." }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("plan_type, xp")
-    .eq("id", user.id)
-    .single();
-
-  const usage = await checkAndRecordAiUsage(
-    supabase,
-    user.id,
-    { plan_type: profile?.plan_type ?? "free", xp: profile?.xp ?? 0 },
-    "analyze-lesson",
-  );
+  const usage = await checkAndRecordAiUsage(supabase, user.id, "analyze-lesson");
 
   if (!usage.allowed) {
     return Response.json(
       {
         error:
-          "Je hebt je gratis AI Lescoach-checks voor deze maand gebruikt. Upgrade naar Pro voor onbeperkt gebruik.",
+          "Je hebt je AI Lescoach-checks voor deze maand gebruikt. Probeer het volgende maand opnieuw.",
       },
       { status: 429 },
     );

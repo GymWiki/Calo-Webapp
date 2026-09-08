@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Lock, Trash2, Upload } from "lucide-react";
+import { BookOpen, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,7 +10,6 @@ import {
   deleteOwnKnowledgeDocument,
   toggleDocumentActive,
 } from "@/actions/knowledge";
-import { PaywallModal } from "@/components/PaywallModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,9 +29,6 @@ import {
   KNOWLEDGE_CATEGORY_LABELS,
   type UserKnowledgeDocument,
 } from "@/types/knowledge";
-
-const PAYWALL_MESSAGE =
-  "Eigen documenten uploaden en beheren in je persoonlijke Kennisbank is een Pro-feature. Upgrade naar Pro of zet je Level-korting in!";
 
 const EMPTY_UPLOAD_FORM = { title: "", content: "" };
 
@@ -100,13 +96,9 @@ function DocumentToggleRow({
 export function UserKnowledgeSections({
   defaultDocuments,
   ownDocuments,
-  isPro,
-  xp,
 }: {
   defaultDocuments: UserKnowledgeDocument[];
   ownDocuments: UserKnowledgeDocument[];
-  isPro: boolean;
-  xp: number;
 }) {
   const router = useRouter();
   const [activeOverrides, setActiveOverrides] = useState<Record<string, boolean>>({});
@@ -114,7 +106,6 @@ export function UserKnowledgeSections({
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [isUploading, setIsUploading] = useState(false);
   const [form, setForm] = useState(EMPTY_UPLOAD_FORM);
-  const [paywallOpen, setPaywallOpen] = useState(false);
 
   function setPending(id: string, pending: boolean) {
     setPendingIds((prev) => {
@@ -233,16 +224,8 @@ export function UserKnowledgeSections({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="relative">
-            <div
-              className={
-                isPro
-                  ? "space-y-6"
-                  : "space-y-6 pointer-events-none opacity-40 blur-[1.5px] select-none"
-              }
-              aria-hidden={isPro ? undefined : true}
-            >
-              <form
+          <div className="space-y-6">
+            <form
                 onSubmit={handleUpload}
                 className="space-y-4 rounded-xl border border-dashed p-4"
               >
@@ -301,31 +284,9 @@ export function UserKnowledgeSections({
                   ))}
                 </ul>
               )}
-            </div>
-
-            {!isPro && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-card/70 p-6 text-center backdrop-blur-[1px]">
-                <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-                  <Lock className="size-5 text-muted-foreground" />
-                </div>
-                <p className="max-w-xs text-sm font-medium">
-                  Eigen documenten uploaden en beheren is een Pro-feature.
-                </p>
-                <Button type="button" size="sm" onClick={() => setPaywallOpen(true)}>
-                  Upgrade naar Pro
-                </Button>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
-
-      <PaywallModal
-        open={paywallOpen}
-        onOpenChange={setPaywallOpen}
-        message={PAYWALL_MESSAGE}
-        xp={xp}
-      />
     </div>
   );
 }

@@ -1,25 +1,16 @@
 import { redirect } from "next/navigation";
-import { Check, Crown } from "lucide-react";
+import { Check, CircleCheck } from "lucide-react";
 
-import { ProCheckoutButton } from "@/components/gamification/ProCheckoutButton";
+import { ProCheckoutButton } from "@/components/ProCheckoutButton";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  LEVELS,
-  PRO_BASE_PRICE_CENTS,
-  formatEuroCents,
-  getDiscountedPriceCents,
-  getLevelInfo,
-} from "@/lib/gamification";
 import { getUserPermissions } from "@/lib/permissions";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
-const PRO_FEATURES = [
-  "Onbeperkt AI Lescoach & Activiteiten Generator",
-  "Volledige toegang tot de Kennisbank",
-  "PDF-export zonder limiet",
-  "Toernooi Generator",
+const SUBSCRIPTION_FEATURES = [
+  "Altijd volledige toegang tot de activiteitenbibliotheek",
+  "Geen maandelijkse bijdrage-eis",
+  "Zelf activiteiten blijven delen mag altijd, maar is niet verplicht",
 ];
 
 export default async function ProPage() {
@@ -29,89 +20,48 @@ export default async function ProPage() {
     redirect("/login");
   }
 
-  if (getUserPermissions(profile).isPro) {
-    const level = getLevelInfo(profile.xp);
+  if (getUserPermissions(profile).subscriptionStatus === "paid_subscriber") {
     return (
       <main className="mx-auto w-full max-w-2xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
         <PageHeader
-          eyebrow="Pro"
-          title="Je bent al Pro"
-          description="Bedankt dat je GymWiki Pro gebruikt — hieronder zie je je huidige status-perks."
+          eyebrow="Abonnement"
+          title="Je hebt een actief abonnement"
+          description="Bedankt voor je steun aan GymWiki — je hebt altijd volledige toegang tot de bibliotheek, zonder bijdrage-eis."
         />
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="flex items-start gap-3 py-6">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-              <Crown className="size-5" />
+              <CircleCheck className="size-5" />
             </div>
-            <div>
-              <p className="font-semibold">
-                Level {level.level} · {level.name}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {level.proBadge && <>Badge &quot;{level.proBadge}&quot; · </>}+
-                {level.proBonusAiGenerations} bonus AI Lescoach-generaties/mnd
-                {level.proVipSupport && " · VIP-support"}
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Je abonnement wordt maandelijks automatisch verlengd via Stripe. Opzeggen kan op elk
+              moment via je Stripe-facturatieportaal.
+            </p>
           </CardContent>
         </Card>
       </main>
     );
   }
 
-  const level = getLevelInfo(profile.xp);
-  const hasDiscount = level.freeDiscountPercent > 0;
-  const discountedPriceCents = getDiscountedPriceCents(level.freeDiscountPercent);
-  const nextLevel = LEVELS.find((l) => l.level === level.level + 1);
-
   return (
     <main className="mx-auto w-full max-w-2xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
       <PageHeader
-        eyebrow="GymWiki Pro"
-        title="Upgrade naar Pro"
-        description="Onbeperkt AI Lescoach, volledige Kennisbank-toegang en meer — voor de vakdocent die er alles uit wil halen."
+        eyebrow="GymWiki-abonnement"
+        title="Volledige toegang zonder bijdrage-eis"
+        description="GymWiki is gratis zolang je maandelijks minstens 4 activiteiten bijdraagt aan de bibliotheek. Liever geen bijdrage-eis? Neem het abonnement."
       />
 
-      <Card className={hasDiscount ? "border-cone/40" : undefined}>
+      <Card>
         <CardContent className="space-y-6 py-6">
-          {hasDiscount && (
-            <Badge className="bg-cone text-ink hover:bg-cone">
-              Level {level.level} · {level.name} — {level.freeDiscountPercent}%
-              Maker-korting actief
-            </Badge>
-          )}
-
           <div>
-            {hasDiscount ? (
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-lg text-muted-foreground line-through">
-                  Normaal {formatEuroCents(PRO_BASE_PRICE_CENTS)}/mnd
-                </span>
-                <span className="text-3xl font-bold tracking-tight">
-                  Jouw Maker Prijs: {formatEuroCents(discountedPriceCents)}/mnd
-                </span>
-              </div>
-            ) : (
-              <span className="text-3xl font-bold tracking-tight">
-                {formatEuroCents(PRO_BASE_PRICE_CENTS)}/mnd
-              </span>
-            )}
-            {!hasDiscount && (
-              <p className="mt-1 text-sm text-muted-foreground">
-                Verdien XP met lessen maken, delen en activiteiten opslaan om
-                korting vrij te spelen — bij Level 2 begint dat al.
-              </p>
-            )}
-            {hasDiscount && nextLevel && (
-              <p className="mt-1 text-sm text-muted-foreground">
-                Nog meer korting? Level {nextLevel.level} ({nextLevel.name})
-                geeft {nextLevel.freeDiscountPercent}%.
-              </p>
-            )}
+            <span className="text-3xl font-bold tracking-tight">EUR 3,- /mnd</span>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Op elk moment opzegbaar. Geen verplichting om zelf activiteiten toe te voegen.
+            </p>
           </div>
 
           <ul className="space-y-2">
-            {PRO_FEATURES.map((feature) => (
+            {SUBSCRIPTION_FEATURES.map((feature) => (
               <li key={feature} className="flex items-start gap-2 text-sm">
                 <Check className="mt-0.5 size-4 shrink-0 text-primary" />
                 {feature}

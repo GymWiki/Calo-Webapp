@@ -1,37 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Bookmark, BookmarkCheck, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 import { toggleSavedActivity } from "@/actions/activity";
 import { ActivityPdfButton } from "@/components/ActivityPdfButton";
-import { showLevelUpToast } from "@/components/gamification/level-up-toast";
-import { PaywallModal } from "@/components/PaywallModal";
 import { Button } from "@/components/ui/button";
 import type { Activity } from "@/types/activity";
-
-const PAYWALL_MESSAGE =
-  "Kopieer & bewerk is een Pro-feature. Upgrade naar Pro of zet je Level-korting in!";
 
 export function ActivityDetailActions({
   activity,
   initiallySaved,
-  isPro,
-  xp,
 }: {
   activity: Activity;
   initiallySaved: boolean;
-  isPro: boolean;
-  xp: number;
 }) {
   const activityId = activity.id;
-  const router = useRouter();
   const [saved, setSaved] = useState(initiallySaved);
   const [pending, startTransition] = useTransition();
-  const [paywallOpen, setPaywallOpen] = useState(false);
 
   function handleToggleSave() {
     const next = !saved;
@@ -42,21 +30,8 @@ export function ActivityDetailActions({
       if ("error" in result) {
         setSaved(!next); // revert
         toast.error(result.error);
-        return;
-      }
-      if (result.levelUp) {
-        showLevelUpToast(result.levelUp);
       }
     });
-  }
-
-  function handleCopyClick(event: React.MouseEvent) {
-    if (!isPro) {
-      event.preventDefault();
-      setPaywallOpen(true);
-      return;
-    }
-    router.push(`/les-maken?vanuit=${activityId}`);
   }
 
   return (
@@ -76,18 +51,12 @@ export function ActivityDetailActions({
         {saved ? "Opgeslagen" : "Bewaren"}
       </Button>
       <Button asChild className="flex-1">
-        <Link href={`/les-maken?vanuit=${activityId}`} onClick={handleCopyClick}>
+        <Link href={`/les-maken?vanuit=${activityId}`}>
           <Copy className="size-4" />
           Kopieer & bewerk
         </Link>
       </Button>
-      <ActivityPdfButton activity={activity} isPro={isPro} xp={xp} className="flex-1" />
-      <PaywallModal
-        open={paywallOpen}
-        onOpenChange={setPaywallOpen}
-        message={PAYWALL_MESSAGE}
-        xp={xp}
-      />
+      <ActivityPdfButton activity={activity} className="flex-1" />
     </div>
   );
 }
