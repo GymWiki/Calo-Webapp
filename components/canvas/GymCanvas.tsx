@@ -30,13 +30,18 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { ElementIcon } from "./element-icons";
+import { createClient } from "@/utils/supabase/client";
+import { incrementMaterialUsage } from "@/lib/services/materials";
+import type { Material } from "@/types/material";
+import { ElementIcon, SystemElementPreviewIcon } from "./element-icons";
+import { MaterialPicker } from "./MaterialPicker";
 import {
   CATEGORY_LABELS,
   ELEMENT_CATEGORIES,
   ELEMENT_DEFS,
   type DiagramData,
   type DiagramElement,
+  type ElementTransform,
   type ElementType,
   type ViewMode,
 } from "./gym-canvas-types";
@@ -45,6 +50,10 @@ const BASE_WIDTH = 800;
 const BASE_HEIGHT = 560;
 const MAX_HISTORY = 30;
 const THUMB_BOX = 40;
+// Vaste weergavegrootte voor materiaal-elementen — de echte foto-
+// beeldverhouding wordt daarbinnen "contain"-gefit (zie MaterialElementIcon
+// in element-icons.tsx), dus dit is puur de sleep-/selectiebox op canvas.
+const MATERIAL_DEFAULT_SIZE = 48;
 
 export type GymCanvasHandle = {
   exportDiagram: () => { data: DiagramData; imageDataUrl: string };
@@ -126,7 +135,7 @@ function GymBackground({ viewMode }: { viewMode: ViewMode }) {
   );
 }
 
-function ElementThumbnail({ type }: { type: ElementType }) {
+function SystemElementThumbnail({ type }: { type: ElementType }) {
   const def = ELEMENT_DEFS[type];
   const scale = Math.min(1.4, (THUMB_BOX - 8) / Math.max(def.width, def.height));
 
@@ -134,14 +143,14 @@ function ElementThumbnail({ type }: { type: ElementType }) {
     <Stage width={THUMB_BOX} height={THUMB_BOX} listening={false}>
       <Layer listening={false}>
         <Group x={THUMB_BOX / 2} y={THUMB_BOX / 2} scaleX={scale} scaleY={scale}>
-          <ElementIcon type={type} viewMode="top" />
+          <SystemElementPreviewIcon type={type} viewMode="top" />
         </Group>
       </Layer>
     </Stage>
   );
 }
 
-function ElementPickerButton({
+function SystemElementPickerButton({
   type,
   onSelect,
 }: {
@@ -154,7 +163,7 @@ function ElementPickerButton({
       onClick={() => onSelect(type)}
       className="flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-lg border bg-background p-2 text-center transition-colors duration-150 ease-brand hover:bg-accent active:scale-95"
     >
-      <ElementThumbnail type={type} />
+      <SystemElementThumbnail type={type} />
       <span className="text-[11px] leading-tight font-medium">
         {ELEMENT_DEFS[type].label}
       </span>
@@ -239,16 +248,25 @@ export const GymCanvas = forwardRef<
     setElements(mutator);
   }
 
-  function addElement(type: ElementType) {
-    // Stagger stacked adds by a deterministic offset (derived from the
-    // current count) instead of Math.random(), which the React Compiler's
-    // purity check flags even though this only ever runs from a click.
+  // Stagger stacked adds by a deterministic offset (derived from the
+  // current count) instead of Math.random(), which the React Compiler's
+  // purity check flags even though this only ever runs from a click.
+  function staggeredCenter() {
     const step = elements.length % 6;
-    const newElement: DiagramElement = {
-      id: createId(),
-      type,
+    return {
       x: BASE_WIDTH / 2 + (step - 2.5) * 24,
       y: BASE_HEIGHT / 2 + (step - 2.5) * 18,
+    };
+  }
+
+  function addElement(type: ElementType) {
+    const { x, y } = staggeredCenter();
+    const newElement: DiagramElement = {
+      id: createId(),
+      kind: "system",
+      type,
+      x,
+      y,
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
@@ -257,7 +275,28 @@ export const GymCanvas = forwardRef<
     setSelectedId(newElement.id);
   }
 
-  function updateElement(id: string, changes: Partial<DiagramElement>) {
+  function addMaterialElement(material: Material) {
+    const { x, y } = staggeredCenter();
+    const newElement: DiagramElement = {
+      id: createId(),
+      kind: "material",
+      materialId: material.id,
+      name: material.name,
+      imageUrl: material.image_url,
+      width: MATERIAL_DEFAULT_SIZE,
+      height: MATERIAL_DEFAULT_SIZE,
+      x,
+      y,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    };
+    withHistory((prev) => [...prev, newElement]);
+    setSelectedId(newElement.id);
+    void incrementMaterialUsage(createClient(), material.id);
+  }
+
+  function updateElement(id: string, changes: Partial<ElementTransform>) {
     withHistory((prev) =>
       prev.map((el) => (el.id === id ? { ...el, ...changes } : el)),
     );
@@ -304,35 +343,38 @@ export const GymCanvas = forwardRef<
                 <SheetTitle>Materiaal & spelers</SheetTitle>
               </SheetHeader>
               <div className="p-4 pt-0">
-                <Tabs defaultValue={ELEMENT_CATEGORIES[0]}>
+                <Tabs defaultValue="materiaal">
                   <TabsList className="h-auto w-full flex-wrap gap-1">
-                    {ELEMENT_CATEGORIES.map((category) => (
-                      <TabsTrigger
-                        key={category}
-                        value={category}
-                        className="min-h-9 flex-1 text-xs"
-                      >
-                        {CATEGORY_LABELS[category]}
-                      </TabsTrigger>
-                    ))}
+                    <TabsTrigger value="materiaal" className="min-h-9 flex-1 text-xs">
+                      Materiaal
+                    </TabsTrigger>
+                    <TabsTrigger value="systeem" className="min-h-9 flex-1 text-xs">
+                      Spelers & lijnen
+                    </TabsTrigger>
                   </TabsList>
-                  {ELEMENT_CATEGORIES.map((category) => (
-                    <TabsContent
-                      key={category}
-                      value={category}
-                      className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4"
-                    >
-                      {(Object.keys(ELEMENT_DEFS) as ElementType[])
-                        .filter((type) => ELEMENT_DEFS[type].category === category)
-                        .map((type) => (
-                          <ElementPickerButton
-                            key={type}
-                            type={type}
-                            onSelect={addElement}
-                          />
-                        ))}
-                    </TabsContent>
-                  ))}
+                  <TabsContent value="materiaal" className="mt-3">
+                    <MaterialPicker onSelect={addMaterialElement} />
+                  </TabsContent>
+                  <TabsContent value="systeem" className="mt-3 space-y-4">
+                    {ELEMENT_CATEGORIES.map((category) => (
+                      <div key={category}>
+                        <p className="mb-2 text-sm font-semibold">
+                          {CATEGORY_LABELS[category]}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                          {(Object.keys(ELEMENT_DEFS) as ElementType[])
+                            .filter((type) => ELEMENT_DEFS[type].category === category)
+                            .map((type) => (
+                              <SystemElementPickerButton
+                                key={type}
+                                type={type}
+                                onSelect={addElement}
+                              />
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                  </TabsContent>
                 </Tabs>
               </div>
             </SheetContent>
@@ -448,7 +490,7 @@ export const GymCanvas = forwardRef<
                     });
                   }}
                 >
-                  <ElementIcon type={el.type} viewMode={viewMode} />
+                  <ElementIcon element={el} viewMode={viewMode} />
                 </Group>
               ))}
               <Transformer
