@@ -8,7 +8,6 @@ import {
   Database,
   LayoutDashboard,
   LogOut,
-  NotebookText,
   Search,
   SquarePen,
   User as UserIcon,
@@ -36,7 +35,6 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECONDARY_NAV_ITEMS: NavItem[] = [
   { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
-  { href: "/stage-logboek", label: "Stage-logboek", icon: NotebookText },
   { href: "/kennisbank", label: "Kennisbank", icon: Database },
   { href: "/pro", label: "Abonnement", icon: Crown },
 ];
