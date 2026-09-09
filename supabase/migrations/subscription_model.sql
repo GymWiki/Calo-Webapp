@@ -140,7 +140,12 @@ create policy "Activiteiten: eigen bijdragen aanmaken" on public.activiteiten
 -- Duplicaatdetectie: tekstuele similarity tegen eerdere inzendingen van
 -- dezelfde auteur (activityQualityCheck.ts). security invoker (standaard) —
 -- leunt op dezelfde "Activiteiten: goedgekeurd of eigen"-RLS-policy als een
--- gewone select, dus kan nooit iemand anders' inzendingen doorzoeken.
+-- gewone select, dus kan nooit iemand anders' inzendingen doorzoeken. Geen
+-- "set search_path = ''" hier (in tegenstelling tot de definer-functies
+-- hieronder) — pg_trgm's similarity() is een unqualified extensiefunctie,
+-- net als vector's <=>-operator in match_knowledge_chunks
+-- (schema_kennisbank.sql), en moet dus via het normale search_path
+-- gevonden worden.
 create or replace function public.find_similar_own_activities(
   p_author_id uuid,
   p_text text,
@@ -149,7 +154,6 @@ create or replace function public.find_similar_own_activities(
 returns table (id text, titel text, similarity real)
 language sql
 stable
-set search_path = ''
 as $$
   select a.id, a.titel, similarity(a.beschrijving, p_text) as similarity
   from public.activiteiten a
