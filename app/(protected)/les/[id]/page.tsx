@@ -16,6 +16,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getCategoryColor } from "@/lib/constants/categoryColors";
+import { getCategoryForLearningLine } from "@/lib/constants/learningLines";
 import { formatDate } from "@/lib/format";
 import { getLessonById } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -112,6 +114,7 @@ export default async function LesDetailPage({
   const blocksByType = new Map(
     lesson.lesson_blocks.map((block) => [block.block_type, block.content]),
   );
+  const category = getCategoryForLearningLine(lesson.learning_line ?? "");
   const analyzePayload = {
     title: lesson.title,
     learningLine: lesson.learning_line ?? undefined,
@@ -149,8 +152,10 @@ export default async function LesDetailPage({
       <Card className="animate-fade-up">
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
-            <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-              Lesvoorbereiding
+            <p
+              className={`font-mono text-xs font-semibold tracking-[0.14em] uppercase ${getCategoryColor(category).text}`}
+            >
+              {category ?? "Lesvoorbereiding"}
             </p>
             {lesson.is_public && <SourceBadge source="public" />}
           </div>

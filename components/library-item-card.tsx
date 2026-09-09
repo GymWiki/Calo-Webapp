@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { ImageOff, MapPinned } from "lucide-react";
+import { BookOpen, Globe2, ImageOff, MapPinned } from "lucide-react";
 
+import { getCategoryForLearningLine } from "@/lib/constants/learningLines";
+import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, type Activity } from "@/types/activity";
 import type { LessonWithDetails } from "@/types/lesson";
@@ -17,27 +19,29 @@ export type LibraryListItem =
 const TILE_CLASS =
   "flex flex-col overflow-hidden rounded-xl border border-l-4 bg-card shadow-brand-sm transition-transform duration-150 ease-brand active:scale-[0.98]";
 
-// Blauw = GymWiki (de eigen merkkleur, zie --line-blue), oranje = extern/
-// publiek gedeeld — dezelfde "cone"-accentkleur die elders al community-
-// content markeert (bijv. ContributionStatusCard).
+// Herkomst-badge is bewust grijstinten/inkt i.p.v. een kleur uit
+// CATEGORY_COLORS (lib/constants/categoryColors.ts) — de linkerrand toont al
+// de categorie in kleur, dus de bron mag daar niet mee concurreren of mee
+// verward worden.
 const SOURCE_STYLES = {
   gymwiki: {
-    border: "border-l-line-blue",
-    badge: "border-line-blue/30 bg-line-blue text-white",
+    badge: "border-transparent bg-ink text-paper dark:bg-paper dark:text-ink",
     label: "GymWiki",
+    icon: BookOpen,
   },
   public: {
-    border: "border-l-cone",
-    badge: "border-cone/30 bg-cone text-ink",
+    badge: "border-ink/20 bg-paper text-ink dark:border-paper/25 dark:bg-charcoal dark:text-paper",
     label: "Publiek",
+    icon: Globe2,
   },
 } as const;
 
 /**
- * Klein herkomst-label — samen met de gekleurde linkerrand (zie
- * TILE_CLASS/SOURCE_STYLES) de tweeledige visuele distinctie die de brief
- * vraagt. Geen eigen positionering: in de kaart-hoek (grid) staat 'm z'n
- * ouder daarvoor `absolute`, op een detailpagina rendert 'm gewoon inline.
+ * Klein herkomst-label — bewust los van de categoriekleur op de linkerrand
+ * (zie TILE_CLASS/CATEGORY_COLORS): dit is de tweede, onafhankelijke
+ * visuele distinctie die de brief vraagt (categorie via rand, bron via dit
+ * label). Geen eigen positionering: in de kaart-hoek (grid) zet de ouder
+ * 'm `absolute`, op een detailpagina rendert 'm gewoon inline.
  */
 export function SourceBadge({
   source,
@@ -47,14 +51,16 @@ export function SourceBadge({
   className?: string;
 }) {
   const style = SOURCE_STYLES[source];
+  const Icon = style.icon;
   return (
     <span
       className={cn(
-        "rounded-md border px-1.5 py-0.5 text-[10px] font-semibold shadow-sm",
+        "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold shadow-sm",
         style.badge,
         className,
       )}
     >
+      <Icon className="size-3" aria-hidden="true" />
       {style.label}
     </span>
   );
@@ -72,7 +78,7 @@ function ActivityTile({ activity }: { activity: Activity }) {
   return (
     <Link
       href={`/activiteit/${activity.id}`}
-      className={cn(TILE_CLASS, SOURCE_STYLES.gymwiki.border)}
+      className={cn(TILE_CLASS, getCategoryColor(activity.categorie).border)}
     >
       <div className="relative flex h-28 items-center justify-center bg-muted">
         {activity.afbeelding ? (
@@ -107,8 +113,10 @@ function LessonTile({ lesson }: { lesson: LessonWithDetails }) {
     ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
     : null;
 
+  const category = getCategoryForLearningLine(lesson.learning_line ?? "");
+
   return (
-    <Link href={`/les/${lesson.id}`} className={cn(TILE_CLASS, SOURCE_STYLES.public.border)}>
+    <Link href={`/les/${lesson.id}`} className={cn(TILE_CLASS, getCategoryColor(category).border)}>
       <div className="relative flex h-28 items-center justify-center bg-muted">
         {lesson.diagram_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage-URL

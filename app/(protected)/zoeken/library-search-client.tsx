@@ -16,6 +16,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { getCategoryForLearningLine, LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
+import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import type { LessonWithDetails } from "@/types/lesson";
@@ -30,7 +31,7 @@ const SOURCE_FILTER_STORAGE_KEY = "gymwiki:zoeken:source-filter";
 const SOURCE_TABS: { value: SourceFilter; label: string }[] = [
   { value: "all", label: "Alles" },
   { value: "gymwiki", label: "GymWiki-activiteiten" },
-  { value: "public", label: "Publieke lessen" },
+  { value: "public", label: "Publieke activiteiten" },
 ];
 
 function readStoredSourceFilter(): SourceFilter {
@@ -447,6 +448,10 @@ export function LibrarySearchClient({
             active={filters.categorie.has(categorie)}
             onClick={() => toggleQuickCategorie(categorie)}
           >
+            <span
+              className={cn("mr-1.5 inline-block size-2 rounded-full", getCategoryColor(categorie).dot)}
+              aria-hidden="true"
+            />
             {categorie}
           </FilterChip>
         ))}
@@ -516,7 +521,13 @@ export function LibrarySearchClient({
               </h3>
               {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
                 <div key={category} className="space-y-2">
-                  <h4 className="text-sm font-bold text-foreground">{category}</h4>
+                  <h4 className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+                    <span
+                      className={cn("size-2 rounded-full", getCategoryColor(category).dot)}
+                      aria-hidden="true"
+                    />
+                    {category}
+                  </h4>
                   <div className="flex flex-wrap gap-1.5">
                     <FilterChip
                       active={draft.categorie.has(category)}

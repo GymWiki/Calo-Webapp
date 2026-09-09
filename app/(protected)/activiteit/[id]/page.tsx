@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -164,7 +165,9 @@ export default async function ActiviteitDetailPage({
       <Card className="animate-fade-up">
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
-            <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
+            <p
+              className={`font-mono text-xs font-semibold tracking-[0.14em] uppercase ${getCategoryColor(activity.categorie).text}`}
+            >
               {activity.categorie ?? "Activiteit"}
             </p>
             <SourceBadge source="gymwiki" />
