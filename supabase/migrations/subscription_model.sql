@@ -140,12 +140,12 @@ create policy "Activiteiten: eigen bijdragen aanmaken" on public.activiteiten
 -- Duplicaatdetectie: tekstuele similarity tegen eerdere inzendingen van
 -- dezelfde auteur (activityQualityCheck.ts). security invoker (standaard) —
 -- leunt op dezelfde "Activiteiten: goedgekeurd of eigen"-RLS-policy als een
--- gewone select, dus kan nooit iemand anders' inzendingen doorzoeken. Geen
--- "set search_path = ''" hier (in tegenstelling tot de definer-functies
--- hieronder) — pg_trgm's similarity() is een unqualified extensiefunctie,
--- net als vector's <=>-operator in match_knowledge_chunks
--- (schema_kennisbank.sql), en moet dus via het normale search_path
--- gevonden worden.
+-- gewone select, dus kan nooit iemand anders' inzendingen doorzoeken.
+-- search_path staat vast op 'public' (niet leeg, niet mutable) — pg_trgm's
+-- similarity() is een unqualified extensiefunctie die in het public-schema
+-- staat (net als vector's <=>-operator in match_knowledge_chunks,
+-- schema_kennisbank.sql), en moet dus via een schema kunnen resolven dat
+-- 'm bevat.
 create or replace function public.find_similar_own_activities(
   p_author_id uuid,
   p_text text,
@@ -154,6 +154,7 @@ create or replace function public.find_similar_own_activities(
 returns table (id text, titel text, similarity real)
 language sql
 stable
+set search_path = 'public'
 as $$
   select a.id, a.titel, similarity(a.beschrijving, p_text) as similarity
   from public.activiteiten a
@@ -221,7 +222,12 @@ begin
 end;
 $$;
 
-revoke all on function public.sync_monthly_contribution_tracking(uuid, date) from public;
+-- "revoke ... from public" alleen is niet genoeg: Supabase geeft nieuwe
+-- functies in het public-schema standaard óók expliciet EXECUTE aan de
+-- anon/authenticated-rollen (los van de public-rol), waardoor deze interne
+-- helper anders alsnog via /rest/v1/rpc/... aanroepbaar zou zijn.
+revoke execute on function public.sync_monthly_contribution_tracking(uuid, date)
+  from public, anon, authenticated;
 
 -- Bij elke goedkeuring van een bijdrage de telling van die kalendermaand
 -- verversen, zodat het dashboard-quotumwidget altijd een actuele stand
@@ -243,6 +249,10 @@ begin
   return new;
 end;
 $$;
+
+-- Puur een triggerfunctie — hoort niet via de RPC-API bereikbaar te zijn.
+revoke execute on function public.trg_sync_contribution_on_approval()
+  from public, anon, authenticated;
 
 drop trigger if exists activiteiten_sync_contribution on public.activiteiten;
 create trigger activiteiten_sync_contribution
@@ -290,7 +300,11 @@ begin
 end;
 $$;
 
-revoke all on function public.evaluate_monthly_contributions() from public;
+-- Alleen de pg_cron-job hieronder mag dit aanroepen — nooit via de
+-- publieke RPC-API (zie toelichting bij sync_monthly_contribution_tracking
+-- hierboven).
+revoke execute on function public.evaluate_monthly_contributions()
+  from public, anon, authenticated;
 
 -- pg_cron: elke 1e van de maand om 00:05 UTC. Vereist dat de pg_cron-
 -- extensie in dit project staat ingeschakeld (Database > Extensions in de

@@ -70,7 +70,11 @@ begin
 end;
 $$;
 
-revoke all on function public.increment_material_usage(uuid) from public;
+-- "revoke ... from public" alleen is niet genoeg: Supabase geeft nieuwe
+-- functies in het public-schema standaard óók expliciet EXECUTE aan de
+-- anon-rol (los van de public-rol) — die moet hier ook weg, alleen
+-- ingelogde gebruikers mogen de teller ophogen.
+revoke execute on function public.increment_material_usage(uuid) from public, anon;
 grant execute on function public.increment_material_usage(uuid) to authenticated;
 
 -- ============================================================================
