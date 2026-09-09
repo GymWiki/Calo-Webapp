@@ -11,7 +11,6 @@ const PROTECTED_PREFIXES = [
   "/kennisbank",
   "/profiel",
   "/toernooi",
-  "/bibliotheek",
   "/pro",
 ];
 

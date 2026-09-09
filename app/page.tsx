@@ -154,7 +154,7 @@ export default function LandingPage() {
               Start gratis met bouwen
             </Link>
             <Link
-              href="/bibliotheek"
+              href="/zoeken"
               className={cn(
                 "rounded-full border px-6 py-3 text-sm font-semibold transition-colors",
                 isDark

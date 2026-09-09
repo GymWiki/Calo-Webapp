@@ -5,6 +5,7 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { ActivityDetailActions } from "@/components/activity-detail-actions";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { EmptyState } from "@/components/empty-state";
+import { SourceBadge } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,7 +152,7 @@ export default async function ActiviteitDetailPage({
         <Button asChild variant="outline">
           <Link href="/zoeken">
             <ArrowLeft className="size-4" />
-            Terug naar Activiteiten
+            Terug naar Bibliotheek
           </Link>
         </Button>
         <div className="hidden md:block">
@@ -162,9 +163,12 @@ export default async function ActiviteitDetailPage({
       {/* Header — vast bovenaan */}
       <Card className="animate-fade-up">
         <CardHeader>
-          <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-            {activity.categorie ?? "Activiteit"}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
+              {activity.categorie ?? "Activiteit"}
+            </p>
+            <SourceBadge source="gymwiki" />
+          </div>
           <CardTitle className="mt-1 text-2xl">{activity.titel}</CardTitle>
         </CardHeader>
         <CardContent>

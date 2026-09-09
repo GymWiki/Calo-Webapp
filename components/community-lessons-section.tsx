@@ -23,7 +23,7 @@ export function CommunityLessonsSection({
           </p>
         </div>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/bibliotheek">Bekijk alles in de bibliotheek →</Link>
+          <Link href="/zoeken">Bekijk alles in de bibliotheek →</Link>
         </Button>
       </div>
 

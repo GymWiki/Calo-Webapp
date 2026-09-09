@@ -3,8 +3,8 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { Search, SearchX, SlidersHorizontal } from "lucide-react";
 
-import { ActivityCard } from "@/components/activity-card";
 import { EmptyState } from "@/components/empty-state";
+import { LibraryItemCard, type LibraryListItem } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,9 +18,72 @@ import {
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
+import type { LessonWithDetails } from "@/types/lesson";
 
 const PAGE_SIZE = 24;
 const WEINIG_MATERIAAL_MAX = 2;
+
+type SourceFilter = "all" | "gymwiki" | "public";
+
+const SOURCE_FILTER_STORAGE_KEY = "gymwiki:zoeken:source-filter";
+
+const SOURCE_TABS: { value: SourceFilter; label: string }[] = [
+  { value: "all", label: "Alles" },
+  { value: "gymwiki", label: "GymWiki-activiteiten" },
+  { value: "public", label: "Publieke lessen" },
+];
+
+function readStoredSourceFilter(): SourceFilter {
+  if (typeof window === "undefined") return "all";
+  try {
+    const value = window.localStorage.getItem(SOURCE_FILTER_STORAGE_KEY);
+    return value === "gymwiki" || value === "public" || value === "all" ? value : "all";
+  } catch {
+    return "all";
+  }
+}
+
+// Module-level store (niet React state) voor de onthouden bron-tab-keuze —
+// useSyncExternalStore i.p.v. "lees localStorage in een useEffect en zet
+// state" voorkomt de cascading-render die de laatste aanpak zou geven
+// (dezelfde reden waarom useIsDesktop hieronder ook dit patroon gebruikt).
+const sourceFilterListeners = new Set<() => void>();
+let cachedSourceFilter: SourceFilter | null = null;
+
+function getSourceFilterSnapshot(): SourceFilter {
+  if (cachedSourceFilter === null) {
+    cachedSourceFilter = readStoredSourceFilter();
+  }
+  return cachedSourceFilter;
+}
+
+function getSourceFilterServerSnapshot(): SourceFilter {
+  return "all";
+}
+
+function subscribeSourceFilter(listener: () => void) {
+  sourceFilterListeners.add(listener);
+  return () => sourceFilterListeners.delete(listener);
+}
+
+function writeSourceFilter(value: SourceFilter) {
+  cachedSourceFilter = value;
+  try {
+    window.localStorage.setItem(SOURCE_FILTER_STORAGE_KEY, value);
+  } catch {
+    // Best-effort — een voorkeur die niet onthouden wordt is geen ramp.
+  }
+  sourceFilterListeners.forEach((listener) => listener());
+}
+
+function useStoredSourceFilter(): [SourceFilter, (value: SourceFilter) => void] {
+  const value = useSyncExternalStore(
+    subscribeSourceFilter,
+    getSourceFilterSnapshot,
+    getSourceFilterServerSnapshot,
+  );
+  return [value, writeSourceFilter];
+}
 
 function subscribeToDesktopQuery(callback: () => void) {
   const mql = window.matchMedia("(min-width: 640px)");
@@ -85,7 +148,7 @@ function toggle<T>(set: Set<T>, value: T): Set<T> {
 // tekstvorm). Dit voorkomt dat een activiteit die toevallig een ander stuk
 // materiaal noemt (bijv. een rugbybal bij een tikspel) onterecht bovenaan
 // een trefwoordzoekopdracht op sportnaam verschijnt.
-function matchesQuery(activity: Activity, query: string) {
+function matchesActivityQuery(activity: Activity, query: string) {
   const doelgroepLabels = (activity.doelgroep ?? [])
     .map((code) => DOELGROEP_LABELS[code])
     .filter(Boolean);
@@ -95,6 +158,21 @@ function matchesQuery(activity: Activity, query: string) {
     activity.beschrijving,
     activity.leerlijn,
     ...doelgroepLabels,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(query.toLowerCase());
+}
+
+function matchesLessonQuery(lesson: LessonWithDetails, query: string) {
+  const haystack = [
+    lesson.title,
+    lesson.learning_line,
+    lesson.movement_problem,
+    lesson.movement_theme,
+    lesson.group_name,
   ]
     .filter(Boolean)
     .join(" ")
@@ -165,11 +243,18 @@ function applyLeerlijnToggle(
   return { ...state, leerlijn: nextLeerlijn, categorie: nextCategorie };
 }
 
-export function ActiviteitenSearchClient({
+export function LibrarySearchClient({
   activities,
+  lessons,
 }: {
   activities: Activity[];
+  lessons: LessonWithDetails[];
 }) {
+  // Onthoud de laatst gekozen bron-tab per gebruiker (localStorage via de
+  // module-level store hierboven) — geen server-round-trip nodig voor een
+  // pure weergavevoorkeur. Server-snapshot is altijd "all", dus client- en
+  // server-markup blijven identiek bij hydratie.
+  const [sourceFilter, setSourceFilter] = useStoredSourceFilter();
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [draft, setDraft] = useState<FilterState>(EMPTY_FILTERS);
@@ -188,6 +273,11 @@ export function ActiviteitenSearchClient({
 
   function resetPaging() {
     setVisibleCount(PAGE_SIZE);
+  }
+
+  function selectSourceFilter(value: SourceFilter) {
+    setSourceFilter(value);
+    resetPaging();
   }
 
   // Quick-row (categorie) toggles the committed filters directly — no drawer needed.
@@ -217,46 +307,75 @@ export function ActiviteitenSearchClient({
     setSheetOpen(false);
   }
 
-  const filtered = useMemo(() => {
+  // De categorie/leerlijn/doelgroep/materiaal-filters zijn opgebouwd rond de
+  // activiteiten-taxonomie en hebben geen zinvol equivalent op een
+  // lesvoorbereiding (geen categorie, geen genummerde doelgroepcodes) — ze
+  // gelden dus alleen voor GymWiki-activiteiten. Publieke lessen blijven wél
+  // gewoon onderhevig aan de zoekbalk en de bron-tab hierboven.
+  const filteredItems = useMemo(() => {
     const trimmedQuery = query.trim();
 
-    return activities.filter((activity) => {
-      if (trimmedQuery && !matchesQuery(activity, trimmedQuery)) return false;
+    const gymwikiItems: LibraryListItem[] = activities
+      .filter((activity) => {
+        if (trimmedQuery && !matchesActivityQuery(activity, trimmedQuery)) return false;
 
-      // Categorie ("Alles [Categorie]") and leerlijn selections form one
-      // combined OR-group, not two separately-ANDed constraints — a chip
-      // picks a granularity (whole categorie vs. one specific leerlijn), so
-      // "Turnen (alles)" plus "Werpen" (Atletiek) should surface activities
-      // matching either, not require both simultaneously.
-      if (filters.categorie.size > 0 || filters.leerlijn.size > 0) {
-        const matchesCategorie = filters.categorie.has(activity.categorie ?? "");
-        const matchesLeerlijn = filters.leerlijn.has(activity.leerlijn ?? "");
-        if (!matchesCategorie && !matchesLeerlijn) return false;
-      }
+        if (filters.categorie.size > 0 || filters.leerlijn.size > 0) {
+          const matchesCategorie = filters.categorie.has(activity.categorie ?? "");
+          const matchesLeerlijn = filters.leerlijn.has(activity.leerlijn ?? "");
+          if (!matchesCategorie && !matchesLeerlijn) return false;
+        }
 
-      if (
-        filters.doelgroep.size > 0 &&
-        !(activity.doelgroep ?? []).some((waarde) => filters.doelgroep.has(waarde))
-      ) {
-        return false;
-      }
+        if (
+          filters.doelgroep.size > 0 &&
+          !(activity.doelgroep ?? []).some((waarde) => filters.doelgroep.has(waarde))
+        ) {
+          return false;
+        }
 
-      if (
-        filters.weinigMateriaal &&
-        (activity.materiaal?.length ?? 0) > WEINIG_MATERIAAL_MAX
-      ) {
-        return false;
-      }
+        if (
+          filters.weinigMateriaal &&
+          (activity.materiaal?.length ?? 0) > WEINIG_MATERIAAL_MAX
+        ) {
+          return false;
+        }
 
-      return true;
-    });
-  }, [activities, query, filters]);
+        return true;
+      })
+      .map((activity) => ({ source: "gymwiki" as const, id: activity.id, activity }));
 
-  const visible = filtered.slice(0, visibleCount);
+    const publicItems: LibraryListItem[] = lessons
+      .filter((lesson) => !trimmedQuery || matchesLessonQuery(lesson, trimmedQuery))
+      .map((lesson) => ({ source: "public" as const, id: lesson.id, lesson }));
+
+    if (sourceFilter === "gymwiki") return gymwikiItems;
+    if (sourceFilter === "public") return publicItems;
+    return [...gymwikiItems, ...publicItems];
+  }, [activities, lessons, query, filters, sourceFilter]);
+
+  const visible = filteredItems.slice(0, visibleCount);
   const hasActiveFilters = query.trim() !== "" || activeCount > 0;
+  const showActivityFilters = sourceFilter !== "public";
 
   return (
     <div className="space-y-4">
+      <div className="flex overflow-hidden rounded-md border w-fit max-w-full">
+        {SOURCE_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => selectSourceFilter(tab.value)}
+            className={cn(
+              "min-h-9 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-150 ease-brand first:border-l-0 border-l",
+              sourceFilter === tab.value
+                ? "bg-primary text-primary-foreground"
+                : "bg-background hover:bg-accent",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -268,48 +387,60 @@ export function ActiviteitenSearchClient({
             }}
             placeholder="Zoek op trefwoord, bijv. trefbal, keeperspelen, groep 7…"
             className="h-12 pl-10 text-base"
-            aria-label="Zoek activiteiten"
+            aria-label="Zoek in de bibliotheek"
           />
         </div>
-        <Button
-          variant="outline"
-          className="relative h-12 shrink-0 px-3"
-          onClick={openSheet}
-          aria-label="Filters"
-        >
-          <SlidersHorizontal className="size-4" />
-          <span className="hidden sm:inline">Filters</span>
-          {activeCount > 0 && (
-            <Badge className="absolute -top-2 -right-2 size-5 justify-center rounded-full p-0">
-              {activeCount}
-            </Badge>
-          )}
-        </Button>
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {categorieen.map((categorie) => (
-          <FilterChip
-            key={categorie}
-            active={filters.categorie.has(categorie)}
-            onClick={() => toggleQuickCategorie(categorie)}
+        {showActivityFilters && (
+          <Button
+            variant="outline"
+            className="relative h-12 shrink-0 px-3"
+            onClick={openSheet}
+            aria-label="Filters"
           >
-            {categorie}
-          </FilterChip>
-        ))}
+            <SlidersHorizontal className="size-4" />
+            <span className="hidden sm:inline">Filters</span>
+            {activeCount > 0 && (
+              <Badge className="absolute -top-2 -right-2 size-5 justify-center rounded-full p-0">
+                {activeCount}
+              </Badge>
+            )}
+          </Button>
+        )}
       </div>
 
-      {filtered.length === 0 ? (
+      {showActivityFilters && (
+        <>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categorieen.map((categorie) => (
+              <FilterChip
+                key={categorie}
+                active={filters.categorie.has(categorie)}
+                onClick={() => toggleQuickCategorie(categorie)}
+              >
+                {categorie}
+              </FilterChip>
+            ))}
+          </div>
+          {sourceFilter === "all" && activeCount > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Categorie/leerlijn/doelgroep-filters gelden alleen voor GymWiki-activiteiten —
+              publieke lessen blijven zichtbaar op basis van je zoekopdracht.
+            </p>
+          )}
+        </>
+      )}
+
+      {filteredItems.length === 0 ? (
         <EmptyState
           icon={SearchX}
           title={
-            activities.length === 0
-              ? "Nog geen activiteiten in de bibliotheek"
-              : "Geen activiteiten gevonden"
+            activities.length === 0 && lessons.length === 0
+              ? "Nog geen activiteiten of lessen in de bibliotheek"
+              : "Niets gevonden"
           }
           description={
-            activities.length === 0
-              ? "Zodra activiteiten zijn toegevoegd, kun je ze hier terugvinden."
+            activities.length === 0 && lessons.length === 0
+              ? "Zodra er activiteiten of publiek gedeelde lessen zijn, kun je ze hier terugvinden."
               : "Niets gevonden voor deze zoekterm/filters."
           }
           action={
@@ -323,21 +454,21 @@ export function ActiviteitenSearchClient({
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? "activiteit" : "activiteiten"}{" "}
+            {filteredItems.length} {filteredItems.length === 1 ? "resultaat" : "resultaten"}{" "}
             gevonden
           </p>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-            {visible.map((activity, index) => (
+            {visible.map((item, index) => (
               <div
-                key={activity.id}
+                key={`${item.source}-${item.id}`}
                 className="animate-fade-up"
                 style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
               >
-                <ActivityCard activity={activity} />
+                <LibraryItemCard item={item} />
               </div>
             ))}
           </div>
-          {visibleCount < filtered.length && (
+          {visibleCount < filteredItems.length && (
             <div className="flex justify-center">
               <Button
                 variant="outline"

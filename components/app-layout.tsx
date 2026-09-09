@@ -8,7 +8,6 @@ import {
   Database,
   LayoutDashboard,
   LogOut,
-  Search,
   SquarePen,
   User as UserIcon,
 } from "lucide-react";
@@ -28,13 +27,12 @@ type NavItem = {
 // sidebar-only on desktop.
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/zoeken", label: "Activiteiten", icon: Search },
+  { href: "/zoeken", label: "Bibliotheek", icon: BookOpen },
   { href: "/les-maken", label: "Les maken", icon: SquarePen },
   { href: "/profiel", label: "Profiel", icon: UserIcon },
 ];
 
 const SECONDARY_NAV_ITEMS: NavItem[] = [
-  { href: "/bibliotheek", label: "Bibliotheek", icon: BookOpen },
   { href: "/kennisbank", label: "Kennisbank", icon: Database },
   { href: "/pro", label: "Abonnement", icon: Crown },
 ];

@@ -6,6 +6,7 @@ import { AiLescoachButton } from "@/components/AiLescoachSheet";
 import { GameBasedPedagogyMatrix } from "@/components/GameBasedPedagogyMatrix";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
+import { SourceBadge } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,9 +148,12 @@ export default async function LesDetailPage({
       {/* Header — vast bovenaan */}
       <Card className="animate-fade-up">
         <CardHeader>
-          <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-            Lesvoorbereiding
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
+              Lesvoorbereiding
+            </p>
+            {lesson.is_public && <SourceBadge source="public" />}
+          </div>
           <CardTitle className="mt-1 text-2xl">{lesson.title}</CardTitle>
           {lesson.learning_line && (
             <div className="mt-2 flex flex-wrap gap-2">
