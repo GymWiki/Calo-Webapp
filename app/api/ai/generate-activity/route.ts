@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/lescoach";
+import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
 import { isGameDomain } from "@/lib/constants/learningLines";
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 
   let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
   try {
-    matches = await getRelevantKnowledge(supabase, query, user.id, { matchCount: 4 });
+    matches = await getRelevantKnowledge(supabase, query, { matchCount: 4 });
   } catch {
     // Retrieval failure shouldn't block generation — falls back to general
     // knowledge, per buildKnowledgePromptSection's empty case.

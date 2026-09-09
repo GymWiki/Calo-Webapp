@@ -1,31 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { generateEmbedding } from "@/lib/ai/knowledgeProcessor";
-import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import type { KnowledgeMatch } from "@/types/knowledge";
 
 const DEFAULT_MATCH_THRESHOLD = 0.5;
 const DEFAULT_MATCH_COUNT = 5;
 
-const LESCOACH_SYSTEM_PROMPT =
-  "Je bent de AI Lescoach van Calo, een assistent voor docenten en " +
-  "stagiairs Lichamelijke Opvoeding. Geef praktische, didactisch " +
-  "onderbouwde feedback en suggesties voor lessen bewegingsonderwijs, " +
-  "in het Nederlands.";
-
 /**
- * Embeds `query`, then retrieves the top matching chunks from the
- * Kennisbank via the `match_user_knowledge_chunks` RPC — scoped to `userId`
- * so only that user's active documents (their own uploads + active
- * defaults) are ever returned. This is the retrieval half of the RAG
- * pipeline — call it from any AI feature (Lescoach, Activiteiten
- * Generator, ...) before constructing that feature's system prompt with
- * `buildKnowledgePromptSection`.
+ * Losstaande, herbruikbare retrieval-service: haalt de meest relevante
+ * Kennisbank-fragmenten op voor een query. Gedeeld door de AI-
+ * activiteitenchecker (lib/ai/activityQualityCheck.ts) en de AI-
+ * activiteitengenerator (app/api/ai/generate-activity/route.ts) — beide
+ * roepen dit aan in plaats van zelf te embedden/matchen. Geen
+ * gebruikersscoping meer: de Kennisbank is nu één gedeelde bron voor
+ * iedereen (zie supabase/migrations/knowledge_base_simplify.sql).
  */
 export async function getRelevantKnowledge(
   supabase: SupabaseClient,
   query: string,
-  userId: string,
   {
     matchThreshold = DEFAULT_MATCH_THRESHOLD,
     matchCount = DEFAULT_MATCH_COUNT,
@@ -33,9 +25,8 @@ export async function getRelevantKnowledge(
 ): Promise<KnowledgeMatch[]> {
   const embedding = await generateEmbedding(query);
 
-  const { data: rawMatches, error } = await supabase.rpc("match_user_knowledge_chunks", {
+  const { data: rawMatches, error } = await supabase.rpc("match_knowledge_base_chunks", {
     query_embedding: embedding,
-    p_user_id: userId,
     match_threshold: matchThreshold,
     match_count: matchCount,
   });
@@ -49,7 +40,7 @@ export async function getRelevantKnowledge(
   ];
 
   const { data: documents } = await supabase
-    .from("knowledge_documents")
+    .from("knowledge_base")
     .select("id, title")
     .in("id", documentIds);
 
@@ -97,38 +88,4 @@ export function buildKnowledgePromptSection(matches: KnowledgeMatch[]): string {
     "te beantwoorden of de les te beoordelen. Wijk niet af van de hier " +
     `beschreven didactische principes:\n\n${citedFragments}`
   );
-}
-
-/**
- * The AI Lescoach integration point: retrieves relevant Kennisbank
- * knowledge for `userQuery`, injects it into the system prompt, and
- * returns a grounded answer plus the sources it was based on.
- */
-export async function getLescoachAdvice(
-  supabase: SupabaseClient,
-  userQuery: string,
-  userId: string,
-): Promise<{ answer: string; matches: KnowledgeMatch[] }> {
-  const matches = await getRelevantKnowledge(supabase, userQuery, userId);
-  const knowledgeSection = buildKnowledgePromptSection(matches);
-
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: CHAT_MODEL,
-    messages: [
-      {
-        role: "system",
-        content: `${LESCOACH_SYSTEM_PROMPT}\n\n${knowledgeSection}`,
-      },
-      { role: "user", content: userQuery },
-    ],
-  });
-
-  const answer = completion.choices[0]?.message?.content;
-
-  if (!answer) {
-    throw new Error("AI Lescoach gaf geen antwoord terug. Probeer het opnieuw.");
-  }
-
-  return { answer, matches };
 }

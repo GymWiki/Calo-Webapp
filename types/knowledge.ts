@@ -1,89 +1,49 @@
 import { z } from "zod";
 
-export const KNOWLEDGE_CATEGORIES = [
-  "basisdocument",
-  "game_based_pedagogy",
-  "3L_model",
-  "beoordeling",
-  "overig",
+export const KNOWLEDGE_STATUSES = ["pending", "processed", "failed"] as const;
+export type KnowledgeStatus = (typeof KNOWLEDGE_STATUSES)[number];
+
+// Wat de app zelf uploadt naar Supabase Storage — een bewust smalle lijst
+// (PDF/Word/tekst) die matcht met wat lib/ai/knowledgeProcessor.ts kan
+// extraheren. Nieuwe bestandstypes vereisen dus zowel hier als daar een
+// toevoeging.
+export const ALLOWED_KNOWLEDGE_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
 ] as const;
 
-export const knowledgeCategorySchema = z.enum(KNOWLEDGE_CATEGORIES);
-export type KnowledgeCategory = z.infer<typeof knowledgeCategorySchema>;
+export const KNOWLEDGE_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
-export const KNOWLEDGE_CATEGORY_LABELS: Record<KnowledgeCategory, string> = {
-  basisdocument: "Basisdocument Bewegingsonderwijs",
-  game_based_pedagogy: "Game-Based Pedagogy",
-  "3L_model": "3L-model (Walinga & Koekoek)",
-  beoordeling: "Beoordeling",
-  overig: "Overig",
-};
-
-export const createKnowledgeDocumentInputSchema = z.object({
-  title: z.string().trim().min(1, "Titel is verplicht."),
-  author: z.string().trim().optional(),
-  category: knowledgeCategorySchema,
-  content: z
-    .string()
-    .trim()
-    .min(50, "Voeg minimaal 50 tekens tekst toe zodat er iets te chunken valt."),
-});
-
-export type CreateKnowledgeDocumentInput = z.infer<
-  typeof createKnowledgeDocumentInputSchema
->;
-
-export type KnowledgeDocument = {
+export type KnowledgeBaseDocument = {
   id: string;
   title: string;
-  author: string | null;
-  category: KnowledgeCategory;
-  uploaded_by: string | null;
-  user_id: string | null;
-  is_default: boolean;
+  description: string | null;
+  tags: string[];
+  file_url: string;
+  file_type: string;
+  uploaded_by: string;
+  status: KnowledgeStatus;
+  error_message: string | null;
   created_at: string;
+  updated_at: string;
 };
 
-export type KnowledgeDocumentWithChunkCount = KnowledgeDocument & {
-  chunk_count: number;
+export type KnowledgeBaseDocumentWithUploader = KnowledgeBaseDocument & {
+  uploader_name: string;
 };
 
-// A document as shown on the user-facing Kennisbank page: the document
-// itself plus this specific user's resolved on/off toggle state (defaults
-// to true when no user_document_preferences row exists yet — see
-// match_user_knowledge_chunks's COALESCE for the DB-side equivalent).
-export type UserKnowledgeDocument = KnowledgeDocumentWithChunkCount & {
-  is_active: boolean;
-};
-
-export const createPersonalKnowledgeDocumentInputSchema = z.object({
+// Metadata gevalideerd server-side; het bestand zelf komt via FormData en
+// wordt apart gecontroleerd (type/grootte) in actions/knowledge.ts.
+export const uploadKnowledgeDocumentMetaSchema = z.object({
   title: z.string().trim().min(1, "Titel is verplicht."),
-  content: z
-    .string()
-    .trim()
-    .min(50, "Voeg minimaal 50 tekens tekst toe zodat er iets te chunken valt."),
+  description: z.string().trim().optional(),
+  tags: z.array(z.string().trim().min(1)).default([]),
 });
 
-export type CreatePersonalKnowledgeDocumentInput = z.infer<
-  typeof createPersonalKnowledgeDocumentInputSchema
+export type UploadKnowledgeDocumentMeta = z.infer<
+  typeof uploadKnowledgeDocumentMetaSchema
 >;
-
-export const toggleDocumentActiveInputSchema = z.object({
-  documentId: z.string().uuid(),
-  isActive: z.boolean(),
-});
-
-export type ToggleDocumentActiveInput = z.infer<
-  typeof toggleDocumentActiveInputSchema
->;
-
-export type KnowledgeChunk = {
-  id: string;
-  document_id: string;
-  chunk_index: number;
-  content: string;
-  created_at: string;
-};
 
 export type KnowledgeMatch = {
   id: string;
@@ -92,9 +52,3 @@ export type KnowledgeMatch = {
   content: string;
   similarity: number;
 };
-
-export const testLescoachQueryInputSchema = z.object({
-  query: z.string().trim().min(3, "Stel een vraag van minimaal 3 tekens."),
-});
-
-export type TestLescoachQueryInput = z.infer<typeof testLescoachQueryInputSchema>;

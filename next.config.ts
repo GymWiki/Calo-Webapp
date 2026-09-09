@@ -18,11 +18,16 @@ const nextConfig: NextConfig = {
   // Production builds opt back into webpack via `next build --webpack` so
   // the service worker still gets generated.
   turbopack: {},
+  // pdf-parse/mammoth (Kennisbank-tekstextractie) doen native/CJS dingen
+  // die niet door Next's server-bundelaar moeten worden herverpakt.
+  serverExternalPackages: ["pdf-parse", "mammoth"],
   experimental: {
     serverActions: {
       // createLesson's payload can include a base64 PNG of the exported
-      // gym-floor diagram; the 1 MB default is too tight for that.
-      bodySizeLimit: "4mb",
+      // gym-floor diagram; the Kennisbank-upload kan een PDF/Word-bestand
+      // tot 20MB zijn (zie KNOWLEDGE_MAX_FILE_SIZE_BYTES) — de 1MB default
+      // is voor beide te tight.
+      bodySizeLimit: "20mb",
     },
   },
 };

@@ -2,20 +2,19 @@ import Link from "next/link";
 
 /**
  * Subtiel informatielabel bij de AI Lescoach / Activiteiten Generator: laat
- * zien op hoeveel actieve Kennisbank-bronnen (defaults + eigen uploads met
- * de toggle aan) de AI zich baseert, met een snelkoppeling naar /kennisbank
- * om dat aantal te wijzigen.
+ * zien op hoeveel verwerkte Kennisbank-documenten de AI zich baseert (de
+ * hele, gedeelde Kennisbank — geen per-gebruiker toggle meer), met een
+ * snelkoppeling naar /kennisbank om zelf een document toe te voegen.
  */
 export function KnowledgeSourceHint({ count }: { count: number }) {
   return (
     <p className="text-xs text-muted-foreground">
-      AI analyseert op basis van {count}{" "}
-      {count === 1 ? "actieve bron" : "actieve bronnen"} in jouw Kennisbank ·{" "}
+      AI baseert zich op {count} {count === 1 ? "bron" : "bronnen"} in de Kennisbank ·{" "}
       <Link
         href="/kennisbank"
         className="font-medium text-primary underline-offset-2 hover:underline"
       >
-        Beheer Kennisbank
+        Kennisbank bekijken
       </Link>
     </p>
   );

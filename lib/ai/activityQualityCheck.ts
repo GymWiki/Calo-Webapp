@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import type { SubmitActivityInput } from "@/types/activity";
 
@@ -20,11 +21,13 @@ const qualityCheckSchema = z.object({
 const CONTENT_QUALITY_SYSTEM_PROMPT =
   "Je bent kwaliteitscontroleur voor GymWiki, een gedeelde activiteitenbibliotheek voor " +
   "bewegingsonderwijs. Beoordeel of een ingediende activiteit compleet en bruikbaar genoeg is " +
-  "om in de bibliotheek te publiceren. Keur af bij: onzin-invoer (test-tekst, willekeurige " +
-  "tekens, duidelijk niet-serieuze inhoud), een beschrijving die geen daadwerkelijke " +
-  "les-/spelactiviteit beschrijft, of instructies die te vaag/onvolledig zijn om zonder verdere " +
-  "uitleg uit te voeren. Wees niet overdreven streng op stijl of spelling — het gaat om " +
-  "bruikbaarheid, niet perfectie. " +
+  "om in de bibliotheek te publiceren, en of ze aansluit bij de meegeleverde vakliteratuur-" +
+  "fragmenten uit de Kennisbank (indien aanwezig). Keur af bij: onzin-invoer (test-tekst, " +
+  "willekeurige tekens, duidelijk niet-serieuze inhoud), een beschrijving die geen daadwerkelijke " +
+  "les-/spelactiviteit beschrijft, instructies die te vaag/onvolledig zijn om zonder verdere " +
+  "uitleg uit te voeren, of inhoud die duidelijk in strijd is met de meegeleverde vakliteratuur. " +
+  "Zijn er geen relevante fragmenten gevonden, beoordeel dan alleen op algemene bruikbaarheid. " +
+  "Wees niet overdreven streng op stijl of spelling — het gaat om bruikbaarheid, niet perfectie. " +
   'Antwoord uitsluitend met geldige JSON: {"acceptable": boolean, "reason": string} — ' +
   "reason is een korte, opbouwende Nederlandse toelichting (1-2 zinnen), ook bij goedkeuring.";
 
@@ -45,15 +48,26 @@ function buildSubmissionSummary(input: SubmitActivityInput): string {
 }
 
 async function checkContentQuality(
+  supabase: SupabaseClient,
   input: SubmitActivityInput,
 ): Promise<ActivityQualityResult> {
   try {
+    const query = [input.titel, input.leerlijn, input.beschrijving].join(". ");
+    let knowledgeSection = "";
+    try {
+      const matches = await getRelevantKnowledge(supabase, query, { matchCount: 4 });
+      knowledgeSection = `\n\n${buildKnowledgePromptSection(matches)}`;
+    } catch {
+      // Retrieval-storing mag de kwaliteitscheck niet blokkeren — de check
+      // valt dan terug op algemene beoordeling zonder Kennisbank-grounding.
+    }
+
     const client = getOpenAIClient();
     const completion = await client.chat.completions.create({
       model: CHAT_MODEL,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: CONTENT_QUALITY_SYSTEM_PROMPT },
+        { role: "system", content: `${CONTENT_QUALITY_SYSTEM_PROMPT}${knowledgeSection}` },
         { role: "user", content: buildSubmissionSummary(input) },
       ],
     });
@@ -128,5 +142,5 @@ export async function checkActivityQuality(
     return duplicateResult;
   }
 
-  return checkContentQuality(input);
+  return checkContentQuality(supabase, input);
 }

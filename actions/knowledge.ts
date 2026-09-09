@@ -3,23 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import { processAndStoreDocument } from "@/lib/ai/knowledgeProcessor";
-import { getLescoachAdvice } from "@/lib/ai/lescoach";
+import { processKnowledgeDocument } from "@/lib/ai/knowledgeProcessor";
 import {
-  createKnowledgeDocumentInputSchema,
-  createPersonalKnowledgeDocumentInputSchema,
-  testLescoachQueryInputSchema,
-  toggleDocumentActiveInputSchema,
-  type CreateKnowledgeDocumentInput,
-  type CreatePersonalKnowledgeDocumentInput,
-  type TestLescoachQueryInput,
-  type ToggleDocumentActiveInput,
+  ALLOWED_KNOWLEDGE_MIME_TYPES,
+  KNOWLEDGE_MAX_FILE_SIZE_BYTES,
+  uploadKnowledgeDocumentMetaSchema,
 } from "@/types/knowledge";
 
 type ActionResult = { error: string } | { success: true };
 
-const GENERIC_ERROR = "Document verwerken is mislukt. Probeer het opnieuw.";
+const GENERIC_ERROR = "Uploaden is mislukt. Probeer het opnieuw.";
 const NOT_LOGGED_IN_ERROR = "Je bent niet ingelogd.";
+const BUCKET = "kennisbank-documenten";
 
 type AuthResult =
   | { error: string }
@@ -40,186 +35,117 @@ async function requireAuth(): Promise<AuthResult> {
   return { supabase, userId: user.id };
 }
 
-export async function addKnowledgeDocument(
-  input: CreateKnowledgeDocumentInput,
-): Promise<ActionResult> {
-  const parsed = createKnowledgeDocumentInputSchema.safeParse(input);
+function parseTags(raw: FormDataEntryValue | null): string[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  return raw
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Uploadt één document naar de gedeelde Kennisbank: bestand naar Storage,
+ * metadata naar knowledge_base, en verwerkt het direct (tekst extraheren +
+ * chunken/embedden) — synchroon binnen deze action, zodat de gebruiker de
+ * uiteindelijke status (processed/failed) al bij de eerste refresh ziet in
+ * plaats van permanent op "pending" te blijven staan.
+ */
+export async function uploadKnowledgeDocument(formData: FormData): Promise<ActionResult> {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return { error: auth.error };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Kies een bestand om te uploaden." };
+  }
+
+  if (!(ALLOWED_KNOWLEDGE_MIME_TYPES as readonly string[]).includes(file.type)) {
+    return { error: "Alleen PDF, Word (.docx) en tekstbestanden worden ondersteund." };
+  }
+
+  if (file.size > KNOWLEDGE_MAX_FILE_SIZE_BYTES) {
+    return { error: "Bestand is te groot (max 20 MB)." };
+  }
+
+  const parsed = uploadKnowledgeDocumentMetaSchema.safeParse({
+    title: formData.get("title"),
+    description: formData.get("description") || undefined,
+    tags: parseTags(formData.get("tags")),
+  });
 
   if (!parsed.success) {
     return { error: "Controleer de ingevulde velden en probeer het opnieuw." };
   }
 
-  const auth = await requireAuth();
-  if ("error" in auth) {
-    return { error: auth.error };
+  const { supabase, userId } = auth;
+  const path = `${userId}/${Date.now()}-${file.name}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file, { contentType: file.type });
+
+  if (uploadError) {
+    return { error: GENERIC_ERROR };
   }
 
-  try {
-    await processAndStoreDocument(auth.supabase, parsed.data, {
-      uploadedBy: auth.userId,
-      userId: null,
-      isDefault: true,
-    });
-  } catch (cause) {
-    return { error: cause instanceof Error ? cause.message : GENERIC_ERROR };
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
+  const { data: document, error: insertError } = await supabase
+    .from("knowledge_base")
+    .insert({
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+      tags: parsed.data.tags,
+      file_url: publicUrl,
+      file_type: file.type,
+      uploaded_by: userId,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !document) {
+    await supabase.storage.from(BUCKET).remove([path]);
+    return { error: GENERIC_ERROR };
   }
+
+  await processKnowledgeDocument(supabase, document.id);
 
   revalidatePath("/kennisbank");
   return { success: true };
 }
 
-export async function deleteKnowledgeDocument(
-  documentId: string,
-): Promise<ActionResult> {
+/**
+ * Verwijdert een document (en, via cascade, zijn chunks). RLS
+ * ("knowledge_base_delete_own") is de daadwerkelijke handhaving — een
+ * document dat de aanroeper niet zelf uploadde matcht simpelweg niet.
+ */
+export async function deleteKnowledgeDocument(documentId: string): Promise<ActionResult> {
   const auth = await requireAuth();
   if ("error" in auth) {
     return { error: auth.error };
   }
 
-  const { error } = await auth.supabase
-    .from("knowledge_documents")
-    .delete()
-    .eq("id", documentId);
+  const { data: document } = await auth.supabase
+    .from("knowledge_base")
+    .select("file_url")
+    .eq("id", documentId)
+    .maybeSingle();
+
+  const { error } = await auth.supabase.from("knowledge_base").delete().eq("id", documentId);
 
   if (error) {
-    return { error: "Document verwijderen is mislukt. Probeer het opnieuw." };
+    return { error: "Verwijderen is mislukt. Probeer het opnieuw." };
+  }
+
+  const path = document?.file_url.split(`/${BUCKET}/`)[1];
+  if (path) {
+    await auth.supabase.storage.from(BUCKET).remove([decodeURIComponent(path)]);
   }
 
   revalidatePath("/kennisbank");
   return { success: true };
-}
-
-// The user-facing counterparts below back the /kennisbank page (Sectie 2:
-// "Mijn Uploads") — every logged-in user manages their own personal
-// documents this way.
-
-export async function addPersonalKnowledgeDocument(
-  input: CreatePersonalKnowledgeDocumentInput,
-): Promise<ActionResult> {
-  const parsed = createPersonalKnowledgeDocumentInputSchema.safeParse(input);
-
-  if (!parsed.success) {
-    return { error: "Controleer de ingevulde velden en probeer het opnieuw." };
-  }
-
-  const auth = await requireAuth();
-  if ("error" in auth) {
-    return { error: auth.error };
-  }
-
-  try {
-    // Personal uploads (eigen lesplannen/stagescripts/artikelen) don't fit
-    // the curated categories used for shared vakliteratuur, so they're
-    // filed under "overig" — the category picker stays reserved for that
-    // shared-upload form, keeping this one to just title + tekst.
-    await processAndStoreDocument(
-      auth.supabase,
-      { title: parsed.data.title, category: "overig", content: parsed.data.content },
-      { uploadedBy: auth.userId, userId: auth.userId, isDefault: false },
-    );
-  } catch (cause) {
-    return { error: cause instanceof Error ? cause.message : GENERIC_ERROR };
-  }
-
-  revalidatePath("/kennisbank");
-  return { success: true };
-}
-
-export async function deleteOwnKnowledgeDocument(
-  documentId: string,
-): Promise<ActionResult> {
-  const auth = await requireAuth();
-  if ("error" in auth) {
-    return { error: auth.error };
-  }
-
-  // RLS ("knowledge_documents_delete_own") is the actual enforcement here —
-  // a document the caller doesn't own simply won't match and nothing is
-  // deleted. Chunks disappear via ON DELETE CASCADE.
-  const { error } = await auth.supabase
-    .from("knowledge_documents")
-    .delete()
-    .eq("id", documentId);
-
-  if (error) {
-    return { error: "Document verwijderen is mislukt. Probeer het opnieuw." };
-  }
-
-  revalidatePath("/kennisbank");
-  return { success: true };
-}
-
-export async function toggleDocumentActive(
-  input: ToggleDocumentActiveInput,
-): Promise<ActionResult> {
-  const parsed = toggleDocumentActiveInputSchema.safeParse(input);
-  if (!parsed.success) {
-    return { error: "Ongeldige aanvraag." };
-  }
-
-  const auth = await requireAuth();
-  if ("error" in auth) {
-    return { error: auth.error };
-  }
-
-  const { error } = await auth.supabase.from("user_document_preferences").upsert(
-    {
-      user_id: auth.userId,
-      document_id: parsed.data.documentId,
-      is_active: parsed.data.isActive,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,document_id" },
-  );
-
-  if (error) {
-    return { error: "Voorkeur opslaan is mislukt. Probeer het opnieuw." };
-  }
-
-  revalidatePath("/kennisbank");
-  return { success: true };
-}
-
-type TestLescoachResult =
-  | { error: string }
-  | {
-      success: true;
-      answer: string;
-      sources: { title: string; similarity: number }[];
-    };
-
-export async function testLescoachQuery(
-  input: TestLescoachQueryInput,
-): Promise<TestLescoachResult> {
-  const parsed = testLescoachQueryInputSchema.safeParse(input);
-
-  if (!parsed.success) {
-    return { error: "Stel een vraag van minimaal 3 tekens." };
-  }
-
-  const auth = await requireAuth();
-  if ("error" in auth) {
-    return { error: auth.error };
-  }
-
-  try {
-    const { answer, matches } = await getLescoachAdvice(
-      auth.supabase,
-      parsed.data.query,
-      auth.userId,
-    );
-
-    return {
-      success: true,
-      answer,
-      sources: matches.map((match) => ({
-        title: match.document_title,
-        similarity: match.similarity,
-      })),
-    };
-  } catch (cause) {
-    return {
-      error: cause instanceof Error ? cause.message : GENERIC_ERROR,
-    };
-  }
 }

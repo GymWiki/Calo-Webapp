@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { getActiveKnowledgeSourceCount } from "@/lib/services/knowledge";
+import { getKnowledgeBaseDocumentCount } from "@/lib/services/knowledge";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
 import type { Activity } from "@/types/activity";
@@ -59,7 +59,7 @@ export default async function LesMakenPage({
   const { vanuit, tab } = await searchParams;
   const [activity, activeSourceCount] = await Promise.all([
     vanuit ? getActivityById(vanuit) : Promise.resolve(null),
-    getActiveKnowledgeSourceCount(profile.id),
+    getKnowledgeBaseDocumentCount(),
   ]);
   const initialTab = parseInitialTab(tab);
   const skipChoice = Boolean(activity) || Boolean(initialTab);

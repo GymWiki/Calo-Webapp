@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
 
 import { EMBEDDING_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
-import type { CreateKnowledgeDocumentInput } from "@/types/knowledge";
 
 const DEFAULT_CHUNK_SIZE = 800;
 const DEFAULT_OVERLAP = 150;
@@ -71,50 +72,84 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   return response.data.map((item) => item.embedding);
 }
 
-export type DocumentOwner = {
-  // Who created the row — unchanged meaning from before personal uploads
-  // existed, kept for admin uploads' audit trail.
-  uploadedBy: string;
-  // Non-null only for a personal (non-default) upload — the RLS/RPC
-  // ownership key. Null for the beheerder's shared vakliteratuur.
-  userId: string | null;
-  isDefault: boolean;
-};
-
-export async function processAndStoreDocument(
-  supabase: SupabaseClient,
-  input: CreateKnowledgeDocumentInput,
-  owner: DocumentOwner,
-): Promise<{ documentId: string; chunkCount: number }> {
-  const chunks = chunkText(input.content);
-
-  if (chunks.length === 0) {
-    throw new Error("Geen tekst om te verwerken.");
+/**
+ * Extraheert platte tekst uit een geüpload bestand. Ondersteunde types
+ * matchen ALLOWED_KNOWLEDGE_MIME_TYPES (types/knowledge.ts) — een nieuw
+ * bestandstype vereist een toevoeging op beide plekken.
+ */
+async function extractText(buffer: Buffer, fileType: string): Promise<string> {
+  if (fileType === "text/plain") {
+    return buffer.toString("utf-8");
   }
 
-  const { data: document, error: documentError } = await supabase
-    .from("knowledge_documents")
-    .insert({
-      title: input.title,
-      author: input.author || null,
-      category: input.category,
-      uploaded_by: owner.uploadedBy,
-      user_id: owner.userId,
-      is_default: owner.isDefault,
-    })
-    .select("id")
+  if (fileType === "application/pdf") {
+    const parser = new PDFParse({ data: buffer });
+    try {
+      const result = await parser.getText();
+      return result.text;
+    } finally {
+      await parser.destroy();
+    }
+  }
+
+  if (
+    fileType ===
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value;
+  }
+
+  throw new Error(`Bestandstype "${fileType}" wordt niet ondersteund.`);
+}
+
+/**
+ * Verwerkt één knowledge_base-document: downloadt het bestand, extraheert
+ * de tekst, chunkt/embedt die, en zet de status op 'processed' of 'failed'
+ * (met foutmelding). Draait synchroon binnen de upload-server action, dus
+ * een falende extractie blokkeert nooit de upload zelf — het document
+ * blijft gewoon zichtbaar in de lijst met status 'failed' + reden.
+ */
+export async function processKnowledgeDocument(
+  supabase: SupabaseClient,
+  documentId: string,
+): Promise<void> {
+  const markFailed = async (message: string) => {
+    await supabase
+      .from("knowledge_base")
+      .update({ status: "failed", error_message: message, updated_at: new Date().toISOString() })
+      .eq("id", documentId);
+  };
+
+  const { data: document, error: fetchError } = await supabase
+    .from("knowledge_base")
+    .select("file_url, file_type")
+    .eq("id", documentId)
     .single();
 
-  if (documentError || !document) {
-    throw new Error("Document aanmaken is mislukt.");
+  if (fetchError || !document) {
+    return;
   }
 
   try {
+    const response = await fetch(document.file_url);
+    if (!response.ok) {
+      throw new Error("Bestand kon niet worden gedownload.");
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const text = await extractText(buffer, document.file_type);
+    const chunks = chunkText(text);
+
+    if (chunks.length === 0) {
+      throw new Error("Er is geen tekst gevonden in dit bestand.");
+    }
+
     const embeddings = await generateEmbeddings(chunks);
 
-    const { error: chunksError } = await supabase.from("knowledge_chunks").insert(
+    const { error: chunksError } = await supabase.from("knowledge_base_chunks").insert(
       chunks.map((content, index) => ({
-        document_id: document.id,
+        document_id: documentId,
         chunk_index: index,
         content,
         embedding: embeddings[index],
@@ -122,13 +157,16 @@ export async function processAndStoreDocument(
     );
 
     if (chunksError) {
-      throw new Error("Chunks opslaan is mislukt.");
+      throw new Error("Fragmenten opslaan is mislukt.");
     }
-  } catch (cause) {
-    // Roll back the document row (cascades to any chunks that did insert).
-    await supabase.from("knowledge_documents").delete().eq("id", document.id);
-    throw cause instanceof Error ? cause : new Error("Verwerken van document is mislukt.");
-  }
 
-  return { documentId: document.id, chunkCount: chunks.length };
+    await supabase
+      .from("knowledge_base")
+      .update({ status: "processed", error_message: null, updated_at: new Date().toISOString() })
+      .eq("id", documentId);
+  } catch (cause) {
+    await markFailed(
+      cause instanceof Error ? cause.message : "Verwerken van dit document is mislukt.",
+    );
+  }
 }
