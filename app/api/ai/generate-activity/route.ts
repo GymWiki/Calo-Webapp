@@ -31,7 +31,11 @@ const JSON_FORMAT_INSTRUCTION =
   "Antwoord uitsluitend met geldige JSON in dit exacte formaat, zonder extra tekst of " +
   "markdown-opmaak: " +
   '{"title": string, "learningLine": string, "movementProblem": string, ' +
-  '"movementTheme": string, "groupName": string, "goals": string, "gameCategory": string, ' +
+  '"movementTheme": string, "groupName": string, ' +
+  '"doelgroep": number[] (leid dit af uit de opgegeven doelgroep — kies 1 of meer codes ' +
+  "uit deze lijst die het beste passen: 1 = Groep 1/2, 2 = Groep 3/4, 3 = Groep 5/6, " +
+  "4 = Groep 7/8, 5 = Onderbouw, 6 = Bovenbouw), " +
+  '"goals": string, "gameCategory": string, ' +
   '"gameDimensions": {"space": string, "equipment": string, "people": string, "rules": string}, ' +
   '"tacticalQuestions": string[] (2 tot 3 tactische reflectievragen), ' +
   '"didacticItems": [{"category": "loopt_het" | "lukt_het" | "leeft_het", ' +

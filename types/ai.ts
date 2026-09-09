@@ -72,6 +72,7 @@ export const generatedLessonSchema = z.object({
   movementProblem: z.string(),
   movementTheme: z.string(),
   groupName: z.string().optional().default(""),
+  doelgroep: z.array(z.number().int()).optional().default([]),
   goals: z.string(),
   gameCategory: z.string().optional().default(""),
   gameDimensions: gameDimensionsSchema.partial().optional(),

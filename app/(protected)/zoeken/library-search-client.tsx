@@ -15,7 +15,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
+import { getCategoryForLearningLine, LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import type { LessonWithDetails } from "@/types/lesson";
@@ -167,18 +167,55 @@ function matchesActivityQuery(activity: Activity, query: string) {
 }
 
 function matchesLessonQuery(lesson: LessonWithDetails, query: string) {
+  const doelgroepLabels = (lesson.doelgroep ?? [])
+    .map((code) => DOELGROEP_LABELS[code])
+    .filter(Boolean);
+
   const haystack = [
     lesson.title,
     lesson.learning_line,
     lesson.movement_problem,
     lesson.movement_theme,
     lesson.group_name,
+    ...doelgroepLabels,
   ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
 
   return haystack.includes(query.toLowerCase());
+}
+
+// Normalizes an activity or lesson onto the shared categorie/leerlijn/
+// doelgroep/materiaal shape the filters operate on — a lesson has no
+// `categorie` column of its own, so it's derived from `learning_line` via
+// the reverse taxonomy lookup, and its "materiaal" is the combined base +
+// regelmateriaal arrays.
+function toFilterableFields(item: LibraryListItem): {
+  categorie: string;
+  leerlijn: string;
+  doelgroep: number[];
+  materiaalCount: number;
+} {
+  if (item.source === "gymwiki") {
+    const { activity } = item;
+    return {
+      categorie: activity.categorie ?? "",
+      leerlijn: activity.leerlijn ?? "",
+      doelgroep: activity.doelgroep ?? [],
+      materiaalCount: activity.materiaal?.length ?? 0,
+    };
+  }
+
+  const { lesson } = item;
+  const leerlijn = lesson.learning_line ?? "";
+  return {
+    categorie: getCategoryForLearningLine(leerlijn) ?? "",
+    leerlijn,
+    doelgroep: lesson.doelgroep ?? [],
+    materiaalCount:
+      (lesson.base_materials?.length ?? 0) + (lesson.rule_materials?.length ?? 0),
+  };
 }
 
 type FilterState = {
@@ -307,54 +344,51 @@ export function LibrarySearchClient({
     setSheetOpen(false);
   }
 
-  // De categorie/leerlijn/doelgroep/materiaal-filters zijn opgebouwd rond de
-  // activiteiten-taxonomie en hebben geen zinvol equivalent op een
-  // lesvoorbereiding (geen categorie, geen genummerde doelgroepcodes) — ze
-  // gelden dus alleen voor GymWiki-activiteiten. Publieke lessen blijven wél
-  // gewoon onderhevig aan de zoekbalk en de bron-tab hierboven.
+  // Categorie/leerlijn/doelgroep/materiaal-filters gelden nu voor beide
+  // brontypes: een lesvoorbereiding heeft geen eigen `categorie`-kolom, maar
+  // die wordt afgeleid uit `learning_line` (zie getCategoryForLearningLine),
+  // en "materiaal" is de som van basis- en regelmateriaal.
   const filteredItems = useMemo(() => {
     const trimmedQuery = query.trim();
 
     const gymwikiItems: LibraryListItem[] = activities
-      .filter((activity) => {
-        if (trimmedQuery && !matchesActivityQuery(activity, trimmedQuery)) return false;
-
-        if (filters.categorie.size > 0 || filters.leerlijn.size > 0) {
-          const matchesCategorie = filters.categorie.has(activity.categorie ?? "");
-          const matchesLeerlijn = filters.leerlijn.has(activity.leerlijn ?? "");
-          if (!matchesCategorie && !matchesLeerlijn) return false;
-        }
-
-        if (
-          filters.doelgroep.size > 0 &&
-          !(activity.doelgroep ?? []).some((waarde) => filters.doelgroep.has(waarde))
-        ) {
-          return false;
-        }
-
-        if (
-          filters.weinigMateriaal &&
-          (activity.materiaal?.length ?? 0) > WEINIG_MATERIAAL_MAX
-        ) {
-          return false;
-        }
-
-        return true;
-      })
+      .filter((activity) => matchesActivityQuery(activity, trimmedQuery))
       .map((activity) => ({ source: "gymwiki" as const, id: activity.id, activity }));
 
     const publicItems: LibraryListItem[] = lessons
       .filter((lesson) => !trimmedQuery || matchesLessonQuery(lesson, trimmedQuery))
       .map((lesson) => ({ source: "public" as const, id: lesson.id, lesson }));
 
-    if (sourceFilter === "gymwiki") return gymwikiItems;
-    if (sourceFilter === "public") return publicItems;
-    return [...gymwikiItems, ...publicItems];
+    const combined =
+      sourceFilter === "gymwiki"
+        ? gymwikiItems
+        : sourceFilter === "public"
+          ? publicItems
+          : [...gymwikiItems, ...publicItems];
+
+    return combined.filter((item) => {
+      const { categorie, leerlijn, doelgroep, materiaalCount } = toFilterableFields(item);
+
+      if (filters.categorie.size > 0 || filters.leerlijn.size > 0) {
+        const matchesCategorie = filters.categorie.has(categorie);
+        const matchesLeerlijn = filters.leerlijn.has(leerlijn);
+        if (!matchesCategorie && !matchesLeerlijn) return false;
+      }
+
+      if (filters.doelgroep.size > 0 && !doelgroep.some((waarde) => filters.doelgroep.has(waarde))) {
+        return false;
+      }
+
+      if (filters.weinigMateriaal && materiaalCount > WEINIG_MATERIAAL_MAX) {
+        return false;
+      }
+
+      return true;
+    });
   }, [activities, lessons, query, filters, sourceFilter]);
 
   const visible = filteredItems.slice(0, visibleCount);
   const hasActiveFilters = query.trim() !== "" || activeCount > 0;
-  const showActivityFilters = sourceFilter !== "public";
 
   return (
     <div className="space-y-4">
@@ -390,45 +424,33 @@ export function LibrarySearchClient({
             aria-label="Zoek in de bibliotheek"
           />
         </div>
-        {showActivityFilters && (
-          <Button
-            variant="outline"
-            className="relative h-12 shrink-0 px-3"
-            onClick={openSheet}
-            aria-label="Filters"
-          >
-            <SlidersHorizontal className="size-4" />
-            <span className="hidden sm:inline">Filters</span>
-            {activeCount > 0 && (
-              <Badge className="absolute -top-2 -right-2 size-5 justify-center rounded-full p-0">
-                {activeCount}
-              </Badge>
-            )}
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="relative h-12 shrink-0 px-3"
+          onClick={openSheet}
+          aria-label="Filters"
+        >
+          <SlidersHorizontal className="size-4" />
+          <span className="hidden sm:inline">Filters</span>
+          {activeCount > 0 && (
+            <Badge className="absolute -top-2 -right-2 size-5 justify-center rounded-full p-0">
+              {activeCount}
+            </Badge>
+          )}
+        </Button>
       </div>
 
-      {showActivityFilters && (
-        <>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categorieen.map((categorie) => (
-              <FilterChip
-                key={categorie}
-                active={filters.categorie.has(categorie)}
-                onClick={() => toggleQuickCategorie(categorie)}
-              >
-                {categorie}
-              </FilterChip>
-            ))}
-          </div>
-          {sourceFilter === "all" && activeCount > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Categorie/leerlijn/doelgroep-filters gelden alleen voor GymWiki-activiteiten —
-              publieke lessen blijven zichtbaar op basis van je zoekopdracht.
-            </p>
-          )}
-        </>
-      )}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {categorieen.map((categorie) => (
+          <FilterChip
+            key={categorie}
+            active={filters.categorie.has(categorie)}
+            onClick={() => toggleQuickCategorie(categorie)}
+          >
+            {categorie}
+          </FilterChip>
+        ))}
+      </div>
 
       {filteredItems.length === 0 ? (
         <EmptyState

@@ -77,3 +77,10 @@ export const isGameDomain = (learningLine: string): boolean => {
 export const ALL_LEARNING_LINES: string[] = LEARNING_LINE_CATEGORIES.flatMap(
   (c) => c.lines,
 );
+
+// Reverse lookup: a lesson only stores `learning_line`, not a separate
+// `categorie` (unlike activiteiten) — this derives the category so the
+// merged bibliotheek page's categorie-filter can apply to lessons too.
+export function getCategoryForLearningLine(learningLine: string): string | undefined {
+  return LEARNING_LINE_CATEGORIES.find((c) => c.lines.includes(learningLine))?.category;
+}

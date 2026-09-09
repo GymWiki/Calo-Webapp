@@ -130,6 +130,10 @@ export const createLessonInputSchema = z.object({
   lessonDate: requiredText("Datum is verplicht."),
   groupName: requiredText("Groep/klas is verplicht."),
   learningLine: requiredText("Leerlijn is verplicht."),
+  // Zelfde 1-6 doelgroepcodes als activiteiten (types/activity.ts) — nodig
+  // zodat de samengevoegde bibliotheekpagina (/zoeken) hierop kan filteren
+  // over beide brontypes heen.
+  doelgroep: z.array(z.number().int()),
   movementProblem: requiredText("Bewegingsprobleem is verplicht."),
   movementTheme: requiredText("Bewegingsthema is verplicht."),
 
@@ -168,6 +172,7 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   lessonDate: "",
   groupName: "",
   learningLine: "",
+  doelgroep: [],
   movementProblem: "",
   movementTheme: "",
   baseMaterials: [],
@@ -201,6 +206,7 @@ export type Lesson = {
   movement_problem: string | null;
   movement_theme: string | null;
   learning_line: string | null;
+  doelgroep: number[] | null;
   goals: string | null;
   // Genummerde leeruitkomsten, getoond in "Lesdoel & Beginsituatie" —
   // nullable, geen create/edit UI (nog) om dit te vullen; zie de migratie

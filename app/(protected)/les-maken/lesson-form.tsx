@@ -34,6 +34,7 @@ import {
   AI_GENERATED_LESSON_STORAGE_KEY,
   type GeneratedLessonWithIds,
 } from "@/types/ai";
+import { DOELGROEP_LABELS, DOELGROEP_WAARDEN } from "@/types/activity";
 import {
   EMPTY_GAME_DIMENSIONS,
   GAME_CATEGORIES,
@@ -154,6 +155,7 @@ export function LessonForm({
             movementProblem: stashedGenerated.movementProblem,
             movementTheme: stashedGenerated.movementTheme,
             groupName: stashedGenerated.groupName || "",
+            doelgroep: stashedGenerated.doelgroep ?? [],
             goals: stashedGenerated.goals,
             gameCategory: stashedGenerated.gameCategory || "",
             gameDimensions: {
@@ -182,6 +184,16 @@ export function LessonForm({
     const index = TAB_ORDER.indexOf(activeTab);
     const next = TAB_ORDER[index + offset];
     if (next) setActiveTab(next);
+  }
+
+  function toggleDoelgroep(waarde: number) {
+    const current = form.getValues("doelgroep");
+    form.setValue(
+      "doelgroep",
+      current.includes(waarde)
+        ? current.filter((v) => v !== waarde)
+        : [...current, waarde],
+    );
   }
 
   async function onSubmit(values: CreateLessonInput) {
@@ -322,6 +334,33 @@ export function LessonForm({
                     </FormItem>
                   )}
                 />
+                <div>
+                  <Label>Doelgroep</Label>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {DOELGROEP_WAARDEN.map((waarde) => {
+                      const active = form.watch("doelgroep").includes(waarde);
+                      return (
+                        <button
+                          key={waarde}
+                          type="button"
+                          onClick={() => toggleDoelgroep(waarde)}
+                          className={
+                            active
+                              ? "rounded-full border border-primary bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+                              : "rounded-full border px-3 py-1.5 text-sm text-muted-foreground"
+                          }
+                        >
+                          {DOELGROEP_LABELS[waarde]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {form.formState.errors.doelgroep && (
+                    <p className="mt-1.5 text-sm text-destructive">
+                      {form.formState.errors.doelgroep.message}
+                    </p>
+                  )}
+                </div>
                 <FormField
                   control={form.control}
                   name="movementProblem"

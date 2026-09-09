@@ -44,6 +44,7 @@ export async function createLesson(
         lesson_date: values.lessonDate,
         group_name: values.groupName,
         learning_line: values.learningLine,
+        doelgroep: values.doelgroep,
         movement_problem: values.movementProblem,
         movement_theme: values.movementTheme,
         base_materials: values.baseMaterials,
