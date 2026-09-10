@@ -98,3 +98,10 @@ export type GeneratedLessonWithIds = Omit<GeneratedLesson, "didacticItems"> & {
 // and LessonForm reads from, to hand off an AI-generated lesson to the
 // form when LesMakenFlow switches views, without threading it through props.
 export const AI_GENERATED_LESSON_STORAGE_KEY = "gymbase-ai-generated-lesson";
+
+// Zelfde handoff-patroon, maar voor de "Activiteit uploaden uit bestand"-
+// kaart op /les-maken: die navigeert naar de aparte /activiteit-toevoegen-
+// route (een ander route-segment, dus geen gedeelde component-state
+// mogelijk), en geeft de geëxtraheerde activiteit via sessionStorage mee
+// zodat AddActivityForm zichzelf daarmee voorvult.
+export const AI_EXTRACTED_ACTIVITY_STORAGE_KEY = "gymbase-ai-extracted-activity";

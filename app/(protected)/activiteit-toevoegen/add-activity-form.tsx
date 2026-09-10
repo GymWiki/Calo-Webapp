@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
+import { AI_EXTRACTED_ACTIVITY_STORAGE_KEY } from "@/types/ai";
 import {
   CATEGORIE_WAARDEN,
   DOELGROEP_LABELS,
@@ -91,16 +92,48 @@ function missingFieldLabels(extraction: ExtractedActivity): string[] {
   return missing;
 }
 
+// Leest een gestashte extractie (via de "Activiteit uploaden uit bestand"-
+// kaart op /les-maken) synchroon uit sessionStorage, vóór de eerste render —
+// zelfde lazy-useState-initializer-patroon als LessonForm's stashedGenerated,
+// zodat het formulier er meteen mee gevuld start i.p.v. via een effect na
+// mount (wat de react-hooks/set-state-in-effect-regel zou schenden en een
+// zichtbare flits van lege velden zou geven). Wist de key meteen na lezen
+// zodat een refresh niet opnieuw voorvult.
+function readStashedExtraction(): ExtractedActivity | null {
+  if (typeof window === "undefined") return null;
+  const raw = sessionStorage.getItem(AI_EXTRACTED_ACTIVITY_STORAGE_KEY);
+  if (!raw) return null;
+  sessionStorage.removeItem(AI_EXTRACTED_ACTIVITY_STORAGE_KEY);
+  try {
+    return JSON.parse(raw) as ExtractedActivity;
+  } catch {
+    return null;
+  }
+}
+
 export function AddActivityForm() {
   const router = useRouter();
+  const [stashedExtraction] = useState(readStashedExtraction);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [missingFields, setMissingFields] = useState<string[] | null>(null);
+  const [missingFields, setMissingFields] = useState<string[] | null>(() =>
+    stashedExtraction ? missingFieldLabels(stashedExtraction) : null,
+  );
 
   const form = useForm<SubmitActivityInput>({
     resolver: zodResolver(submitActivityInputSchema),
-    defaultValues: DEFAULT_VALUES,
+    defaultValues: stashedExtraction
+      ? mapExtractionToFormValues(stashedExtraction)
+      : DEFAULT_VALUES,
   });
+
+  // Puur een notificatie-effect (geen setState) — mag dus wel in een effect,
+  // in tegenstelling tot het voorvullen zelf hierboven.
+  useEffect(() => {
+    if (stashedExtraction) {
+      toast.success("Bestand verwerkt — controleer de ingevulde gegevens hieronder.");
+    }
+  }, [stashedExtraction]);
 
   async function onSubmit(values: SubmitActivityInput) {
     // De activiteit wordt server-side altijd meteen toegevoegd (zie

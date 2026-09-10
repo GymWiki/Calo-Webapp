@@ -25,10 +25,17 @@ const ACCEPT =
  * form.tsx). Optioneel: het handmatige formulier blijft altijd gewoon
  * bruikbaar zonder dit ooit te gebruiken.
  */
+const DEFAULT_DESCRIPTION =
+  "PDF, Word (.docx), PowerPoint (.pptx) of tekstbestand — de AI zet het om naar het " +
+  "formulier hieronder, zodat je het alleen nog hoeft te controleren vóór je indient. " +
+  "Liever alles zelf intypen? Dat kan ook gewoon, hieronder.";
+
 export function ActivityImportUploadCard({
   onExtracted,
+  description = DEFAULT_DESCRIPTION,
 }: {
   onExtracted: (activity: ExtractedActivity) => void;
+  description?: string;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -69,11 +76,7 @@ export function ActivityImportUploadCard({
           <FileUp className="size-4 text-primary" aria-hidden="true" />
           <CardTitle className="text-base">Upload een bestaande lesvoorbereiding</CardTitle>
         </div>
-        <CardDescription>
-          PDF, Word (.docx), PowerPoint (.pptx) of tekstbestand — de AI zet het om naar het
-          formulier hieronder, zodat je het alleen nog hoeft te controleren vóór je indient.
-          Liever alles zelf intypen? Dat kan ook gewoon, hieronder.
-        </CardDescription>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         <input

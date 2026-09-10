@@ -2,7 +2,9 @@ import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { DOCUMENT_MAX_FILE_SIZE_BYTES, SUPPORTED_DOCUMENT_MIME_TYPES, extractDocumentText } from "@/lib/ai/documentText";
 import { extractActivityFromText } from "@/lib/ai/activityImportExtraction";
+import { CHAT_MODEL } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
+import { recordAiUsage } from "@/lib/ai/usageTracking";
 
 export async function POST(request: Request) {
   const cookieStore = await cookies();
@@ -64,9 +66,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const extraction = await extractActivityFromText(text);
+    const { activity, inputTokens, outputTokens } = await extractActivityFromText(text);
 
-    if (!extraction.isMovementActivity) {
+    // Loggen ongeacht isMovementActivity — de OpenAI-call (en dus de echte
+    // kosten) heeft sowieso plaatsgevonden, ook als het document afgekeurd
+    // wordt in de check hierna.
+    await recordAiUsage(supabase, {
+      userId: user.id,
+      feature: "activity_import_extraction",
+      model: CHAT_MODEL,
+      inputTokens,
+      outputTokens,
+    });
+
+    if (!activity.isMovementActivity) {
       return Response.json(
         {
           error:
@@ -76,7 +89,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return Response.json({ success: true, activity: extraction, remaining: usage.remaining });
+    return Response.json({ success: true, activity, remaining: usage.remaining });
   } catch (cause) {
     return Response.json(
       {

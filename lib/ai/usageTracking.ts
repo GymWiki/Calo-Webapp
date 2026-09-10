@@ -6,7 +6,8 @@ export type AiUsageFeature =
   | "activity_checker"
   | "lesson_generator"
   | "ai_lescoach"
-  | "knowledge_base_embedding";
+  | "knowledge_base_embedding"
+  | "activity_import_extraction";
 
 /**
  * Losstaande, herbruikbare logservice voor elke betaalde AI-aanroep — vult

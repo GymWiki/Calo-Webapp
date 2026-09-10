@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Lock, NotebookPen, Sparkles, type LucideIcon } from "lucide-react";
+import { FileUp, Lock, NotebookPen, Sparkles, type LucideIcon } from "lucide-react";
 
 import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { cn } from "@/lib/utils";
 import type { CreateLessonFormInput } from "@/types/lesson";
+import { ActivityUploadStep } from "./activity-upload-step";
 import { AiLessonWizard } from "./ai-lesson-wizard";
 import { LessonForm } from "./lesson-form";
 
 type TabValue = "context" | "organisatie" | "didactiek" | "voorbereiding";
-type Mode = "choice" | "ai-wizard" | "form";
+type Mode = "choice" | "ai-wizard" | "form" | "upload-activity";
 
 function ChoiceCard({
   icon: Icon,
@@ -112,7 +113,7 @@ export function LesMakenFlow({
         : `${lessonGeneratorAccess.remaining} van ${lessonGeneratorAccess.limit} lesgeneraties deze maand over.`;
 
     return (
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <ChoiceCard
           icon={isNotSubscriber ? Lock : Sparkles}
           title="Genereer een les op maat met AI"
@@ -132,6 +133,14 @@ export function LesMakenFlow({
           accent="neutral"
           onClick={() => setMode("form")}
         />
+        <ChoiceCard
+          icon={FileUp}
+          title="Activiteit uploaden uit bestand"
+          description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een GymWiki-activiteit."
+          actionLabel="Uploaden →"
+          accent="neutral"
+          onClick={() => setMode("upload-activity")}
+        />
       </div>
     );
   }
@@ -145,6 +154,10 @@ export function LesMakenFlow({
         onGenerated={() => setMode("form")}
       />
     );
+  }
+
+  if (mode === "upload-activity") {
+    return <ActivityUploadStep onCancel={() => setMode("choice")} />;
   }
 
   return (

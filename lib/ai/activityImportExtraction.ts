@@ -53,13 +53,23 @@ const SYSTEM_PROMPT =
   '"beginsituatie": string|null, "doel": string|null, "veld": string|null, ' +
   '"materiaal": string[]|null, "regels": string[]|null}';
 
+export type ExtractActivityResult = {
+  activity: ExtractedActivity;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 /**
  * Losstaande AI-extractie/mapping-service: zet ruwe documenttekst (uit
  * lib/ai/documentText.ts) om naar de GymWiki-activiteitenstructuur. Bewust
  * hier geïsoleerd van app/api/ai/extract-activity/route.ts zodat dezelfde
  * mapping later voor andere import-functionaliteit hergebruikt kan worden.
+ * Geeft ook de token-usage terug zodat de aanroepende route dit als echte
+ * AI-kosten kan loggen (zie lib/ai/usageTracking.ts).
  */
-export async function extractActivityFromText(sourceText: string): Promise<ExtractedActivity> {
+export async function extractActivityFromText(
+  sourceText: string,
+): Promise<ExtractActivityResult> {
   const client = getOpenAIClient();
   const truncated =
     sourceText.length > MAX_SOURCE_CHARS ? sourceText.slice(0, MAX_SOURCE_CHARS) : sourceText;
@@ -93,16 +103,20 @@ export async function extractActivityFromText(sourceText: string): Promise<Extra
   );
 
   return {
-    isMovementActivity: parsed.isMovementActivity,
-    titel: parsed.titel || null,
-    categorie,
-    leerlijn: parsed.leerlijn || null,
-    doelgroep: geldigeDoelgroep.length > 0 ? geldigeDoelgroep : null,
-    beschrijving: parsed.beschrijving || null,
-    beginsituatie: parsed.beginsituatie || null,
-    doel: parsed.doel || null,
-    veld: parsed.veld || null,
-    materiaal: parsed.materiaal && parsed.materiaal.length > 0 ? parsed.materiaal : null,
-    regels: parsed.regels && parsed.regels.length > 0 ? parsed.regels : null,
+    activity: {
+      isMovementActivity: parsed.isMovementActivity,
+      titel: parsed.titel || null,
+      categorie,
+      leerlijn: parsed.leerlijn || null,
+      doelgroep: geldigeDoelgroep.length > 0 ? geldigeDoelgroep : null,
+      beschrijving: parsed.beschrijving || null,
+      beginsituatie: parsed.beginsituatie || null,
+      doel: parsed.doel || null,
+      veld: parsed.veld || null,
+      materiaal: parsed.materiaal && parsed.materiaal.length > 0 ? parsed.materiaal : null,
+      regels: parsed.regels && parsed.regels.length > 0 ? parsed.regels : null,
+    },
+    inputTokens: completion.usage?.prompt_tokens ?? 0,
+    outputTokens: completion.usage?.completion_tokens ?? 0,
   };
 }
