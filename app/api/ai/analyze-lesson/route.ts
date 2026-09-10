@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
-import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
+import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
 import { isGameDomain } from "@/lib/constants/learningLines";
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
   try {
     const client = getOpenAIClient();
     const completion = await client.chat.completions.create({
-      model: CHAT_MODEL,
+      model: CHECK_MODEL,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     await recordAiUsage(supabase, {
       userId: user.id,
       feature: "ai_lescoach",
-      model: CHAT_MODEL,
+      model: CHECK_MODEL,
       inputTokens: completion.usage?.prompt_tokens ?? 0,
       outputTokens: completion.usage?.completion_tokens ?? 0,
     });

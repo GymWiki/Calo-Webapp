@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
-import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
+import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
 import type { SubmitActivityInput } from "@/types/activity";
 
@@ -66,7 +66,7 @@ async function checkContentQuality(
 
     const client = getOpenAIClient();
     const completion = await client.chat.completions.create({
-      model: CHAT_MODEL,
+      model: CHECK_MODEL,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: `${CONTENT_QUALITY_SYSTEM_PROMPT}${knowledgeSection}` },
@@ -82,7 +82,7 @@ async function checkContentQuality(
     await recordAiUsage(supabase, {
       userId: authorId,
       feature: "activity_checker",
-      model: CHAT_MODEL,
+      model: CHECK_MODEL,
       inputTokens: completion.usage?.prompt_tokens ?? 0,
       outputTokens: completion.usage?.completion_tokens ?? 0,
     });

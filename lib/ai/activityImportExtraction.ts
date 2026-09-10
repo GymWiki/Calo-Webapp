@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
+import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { CATEGORIE_WAARDEN, DOELGROEP_LABELS, DOELGROEP_WAARDEN } from "@/types/activity";
 
 const rawExtractionSchema = z.object({
@@ -75,7 +75,7 @@ export async function extractActivityFromText(
     sourceText.length > MAX_SOURCE_CHARS ? sourceText.slice(0, MAX_SOURCE_CHARS) : sourceText;
 
   const completion = await client.chat.completions.create({
-    model: CHAT_MODEL,
+    model: CHECK_MODEL,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT },

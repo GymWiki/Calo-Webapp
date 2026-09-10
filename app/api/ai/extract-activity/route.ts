@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { DOCUMENT_MAX_FILE_SIZE_BYTES, SUPPORTED_DOCUMENT_MIME_TYPES, extractDocumentText } from "@/lib/ai/documentText";
 import { extractActivityFromText } from "@/lib/ai/activityImportExtraction";
-import { CHAT_MODEL } from "@/lib/ai/openai-client";
+import { CHECK_MODEL } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     await recordAiUsage(supabase, {
       userId: user.id,
       feature: "activity_import_extraction",
-      model: CHAT_MODEL,
+      model: CHECK_MODEL,
       inputTokens,
       outputTokens,
     });

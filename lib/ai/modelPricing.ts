@@ -10,6 +10,9 @@ export const MODEL_PRICING: Record<
   { inputPerMillion: number; outputPerMillion: number }
 > = {
   "gpt-4o": { inputPerMillion: 2.5, outputPerMillion: 10 },
+  // Gebruikt voor de "check"-taken (kwaliteitscontrole, AI Lescoach,
+  // document-extractie) — zie CHECK_MODEL in openai-client.ts.
+  "gpt-4o-mini": { inputPerMillion: 0.15, outputPerMillion: 0.6 },
   // Embeddings hebben geen "output" in de gebruikelijke zin — alle kosten
   // zitten in de inputtokens.
   "text-embedding-3-small": { inputPerMillion: 0.02, outputPerMillion: 0 },
