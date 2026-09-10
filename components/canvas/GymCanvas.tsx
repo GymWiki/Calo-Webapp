@@ -221,6 +221,31 @@ export const GymCanvas = forwardRef<
     }
   }, [selectedId, elements]);
 
+  // Backspace/Delete verwijdert het geselecteerde element — zelfde actie als
+  // de "Verwijderen"-knop. Genegeerd terwijl een tekstveld elders op de
+  // pagina focus heeft (bijv. Titel/Doelstelling), anders zou backspace
+  // tijdens het typen daar per ongeluk het canvas-element weggooien.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Backspace" && event.key !== "Delete") return;
+      if (!selectedId) return;
+
+      const target = event.target as HTMLElement | null;
+      const isEditableTarget =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable;
+      if (isEditableTarget) return;
+
+      event.preventDefault();
+      removeSelected();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- removeSelected is a plain (non-memoized) function that only closes over selectedId, already the sole dep; listing it too would just reattach the listener every render.
+  }, [selectedId]);
+
   useImperativeHandle(ref, () => ({
     exportDiagram: () => {
       transformerRef.current?.nodes([]);
