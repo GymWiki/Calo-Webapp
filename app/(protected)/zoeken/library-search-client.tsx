@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { Search, SearchX, SlidersHorizontal } from "lucide-react";
+import { Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { LibraryItemCard, type LibraryListItem } from "@/components/library-item-card";
@@ -26,18 +26,16 @@ const WEINIG_MATERIAAL_MAX = 2;
 
 type SourceFilter = "all" | "gymwiki" | "public";
 
-const SOURCE_FILTER_STORAGE_KEY = "gymwiki:zoeken:source-filter";
-
 const SOURCE_TABS: { value: SourceFilter; label: string }[] = [
   { value: "all", label: "Alles" },
-  { value: "gymwiki", label: "GymWiki-activiteiten" },
-  { value: "public", label: "Publieke activiteiten" },
+  { value: "gymwiki", label: "GymWiki" },
+  { value: "public", label: "Publiek" },
 ];
 
 function readStoredSourceFilter(): SourceFilter {
   if (typeof window === "undefined") return "all";
   try {
-    const value = window.localStorage.getItem(SOURCE_FILTER_STORAGE_KEY);
+    const value = window.localStorage.getItem("gymwiki:zoeken:source-filter");
     return value === "gymwiki" || value === "public" || value === "all" ? value : "all";
   } catch {
     return "all";
@@ -70,7 +68,7 @@ function subscribeSourceFilter(listener: () => void) {
 function writeSourceFilter(value: SourceFilter) {
   cachedSourceFilter = value;
   try {
-    window.localStorage.setItem(SOURCE_FILTER_STORAGE_KEY, value);
+    window.localStorage.setItem("gymwiki:zoeken:source-filter", value);
   } catch {
     // Best-effort — een voorkeur die niet onthouden wordt is geen ramp.
   }
@@ -84,6 +82,83 @@ function useStoredSourceFilter(): [SourceFilter, (value: SourceFilter) => void] 
     getSourceFilterServerSnapshot,
   );
   return [value, writeSourceFilter];
+}
+
+// Zoekterm + categorie/leerlijn/doelgroep/materiaal-filters — samen
+// persisted onder één sleutel, zelfde useSyncExternalStore-patroon als de
+// bron-tab hierboven. Nodig omdat /activiteit/[id] en /les/[id] losse
+// route-segmenten zijn: terugnavigeren daarvandaan unmount deze pagina
+// écht, dus gewone useState zou de opgebouwde zoekopdracht kwijtraken.
+type PersistedSearchState = {
+  query: string;
+  categorie: string[];
+  leerlijn: string[];
+  doelgroep: number[];
+  weinigMateriaal: boolean;
+};
+
+const EMPTY_PERSISTED_STATE: PersistedSearchState = {
+  query: "",
+  categorie: [],
+  leerlijn: [],
+  doelgroep: [],
+  weinigMateriaal: false,
+};
+
+function readStoredSearchState(): PersistedSearchState {
+  if (typeof window === "undefined") return EMPTY_PERSISTED_STATE;
+  try {
+    const raw = window.localStorage.getItem("gymwiki:zoeken:filters");
+    if (!raw) return EMPTY_PERSISTED_STATE;
+    const parsed = JSON.parse(raw) as Partial<PersistedSearchState>;
+    return {
+      query: typeof parsed.query === "string" ? parsed.query : "",
+      categorie: Array.isArray(parsed.categorie) ? parsed.categorie : [],
+      leerlijn: Array.isArray(parsed.leerlijn) ? parsed.leerlijn : [],
+      doelgroep: Array.isArray(parsed.doelgroep) ? parsed.doelgroep : [],
+      weinigMateriaal: parsed.weinigMateriaal === true,
+    };
+  } catch {
+    return EMPTY_PERSISTED_STATE;
+  }
+}
+
+const searchStateListeners = new Set<() => void>();
+let cachedSearchState: PersistedSearchState | null = null;
+
+function getSearchStateSnapshot(): PersistedSearchState {
+  if (cachedSearchState === null) {
+    cachedSearchState = readStoredSearchState();
+  }
+  return cachedSearchState;
+}
+
+function getSearchStateServerSnapshot(): PersistedSearchState {
+  return EMPTY_PERSISTED_STATE;
+}
+
+function subscribeSearchState(listener: () => void) {
+  searchStateListeners.add(listener);
+  return () => searchStateListeners.delete(listener);
+}
+
+function writeSearchState(value: PersistedSearchState) {
+  cachedSearchState = value;
+  try {
+    window.localStorage.setItem("gymwiki:zoeken:filters", JSON.stringify(value));
+  } catch {
+    // Best-effort.
+  }
+  searchStateListeners.forEach((listener) => listener());
+}
+
+function useStoredSearchState(): [PersistedSearchState, (value: PersistedSearchState) => void] {
+  const value = useSyncExternalStore(
+    subscribeSearchState,
+    getSearchStateSnapshot,
+    getSearchStateServerSnapshot,
+  );
+  return [value, writeSearchState];
 }
 
 function subscribeToDesktopQuery(callback: () => void) {
@@ -131,6 +206,20 @@ function FilterChip({
     >
       {children}
     </button>
+  );
+}
+
+// Vierkant "markeer-pion"-swatch i.p.v. een rond stipje — leunt bewust op
+// hetzelfde beeldidioom als --cone (de kegel die een zone op de vloer
+// markeert) voor het enige facet waar kleur de primaire betekenisdrager is
+// (categorie); andere facetten (leerlijn/doelgroep/materiaal) blijven
+// kleurloos zodat categorie herkenbaar blijft als hét kleurvlak.
+function CategorySwatch({ category, className }: { category: string; className?: string }) {
+  return (
+    <span
+      className={cn("inline-block size-2.5 shrink-0 rounded-[3px]", getCategoryColor(category).dot, className)}
+      aria-hidden="true"
+    />
   );
 }
 
@@ -233,6 +322,15 @@ const EMPTY_FILTERS: FilterState = {
   weinigMateriaal: false,
 };
 
+function toFilterState(persisted: PersistedSearchState): FilterState {
+  return {
+    categorie: new Set(persisted.categorie),
+    leerlijn: new Set(persisted.leerlijn),
+    doelgroep: new Set(persisted.doelgroep),
+    weinigMateriaal: persisted.weinigMateriaal,
+  };
+}
+
 function countActive(filters: FilterState) {
   return (
     filters.leerlijn.size +
@@ -281,6 +379,13 @@ function applyLeerlijnToggle(
   return { ...state, leerlijn: nextLeerlijn, categorie: nextCategorie };
 }
 
+type ActiveChip = {
+  key: string;
+  label: string;
+  category?: string;
+  onRemove: () => void;
+};
+
 export function LibrarySearchClient({
   activities,
   lessons,
@@ -293,19 +398,14 @@ export function LibrarySearchClient({
   // pure weergavevoorkeur. Server-snapshot is altijd "all", dus client- en
   // server-markup blijven identiek bij hydratie.
   const [sourceFilter, setSourceFilter] = useStoredSourceFilter();
-  const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [persisted, setPersisted] = useStoredSearchState();
   const [draft, setDraft] = useState<FilterState>(EMPTY_FILTERS);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const isDesktop = useIsDesktop();
 
-  // Canonical taxonomy (not derived from `activities`) so every category and
-  // leerlijn is always filterable, even ones with zero activities right now.
-  const categorieen = useMemo(
-    () => LEARNING_LINE_CATEGORIES.map((c) => c.category),
-    [],
-  );
+  const query = persisted.query;
+  const filters = useMemo(() => toFilterState(persisted), [persisted]);
 
   const activeCount = countActive(filters);
 
@@ -318,11 +418,19 @@ export function LibrarySearchClient({
     resetPaging();
   }
 
-  // Quick-row (categorie) toggles the committed filters directly — no drawer needed.
-  function toggleQuickCategorie(categorie: string) {
-    const lines =
-      LEARNING_LINE_CATEGORIES.find((c) => c.category === categorie)?.lines ?? [];
-    setFilters((prev) => applyCategorieAlles(prev, categorie, lines));
+  function setQuery(value: string) {
+    setPersisted({ ...persisted, query: value });
+    resetPaging();
+  }
+
+  function commitFilters(next: FilterState) {
+    setPersisted({
+      ...persisted,
+      categorie: [...next.categorie],
+      leerlijn: [...next.leerlijn],
+      doelgroep: [...next.doelgroep],
+      weinigMateriaal: next.weinigMateriaal,
+    });
     resetPaging();
   }
 
@@ -332,24 +440,21 @@ export function LibrarySearchClient({
   }
 
   function applyDraft() {
-    setFilters(draft);
-    resetPaging();
+    commitFilters(draft);
     setSheetOpen(false);
   }
 
   function clearAll() {
-    setFilters(EMPTY_FILTERS);
+    setPersisted(EMPTY_PERSISTED_STATE);
     setDraft(EMPTY_FILTERS);
-    setQuery("");
     resetPaging();
     setSheetOpen(false);
   }
 
-  // Categorie/leerlijn/doelgroep/materiaal-filters gelden nu voor beide
-  // brontypes: een lesvoorbereiding heeft geen eigen `categorie`-kolom, maar
-  // die wordt afgeleid uit `learning_line` (zie getCategoryForLearningLine),
-  // en "materiaal" is de som van basis- en regelmateriaal.
-  const filteredItems = useMemo(() => {
+  // Bron + zoekterm toegepast, vóór categorie/leerlijn/doelgroep/materiaal —
+  // de basis waartegen "X van Y resultaten" en de per-categorie-tellingen in
+  // de sheet worden afgezet.
+  const preFilterItems = useMemo(() => {
     const trimmedQuery = query.trim();
 
     const gymwikiItems: LibraryListItem[] = activities
@@ -360,14 +465,30 @@ export function LibrarySearchClient({
       .filter((lesson) => !trimmedQuery || matchesLessonQuery(lesson, trimmedQuery))
       .map((lesson) => ({ source: "public" as const, id: lesson.id, lesson }));
 
-    const combined =
-      sourceFilter === "gymwiki"
-        ? gymwikiItems
-        : sourceFilter === "public"
-          ? publicItems
-          : [...gymwikiItems, ...publicItems];
+    if (sourceFilter === "gymwiki") return gymwikiItems;
+    if (sourceFilter === "public") return publicItems;
+    return [...gymwikiItems, ...publicItems];
+  }, [activities, lessons, query, sourceFilter]);
 
-    return combined.filter((item) => {
+  // Hoeveel resultaten er per categorie in preFilterItems zitten — voedt de
+  // tellingen naast elke categorie in de filter-sheet, zodat je vóór het
+  // selecteren al ziet wat de moeite waard is.
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of preFilterItems) {
+      const { categorie } = toFilterableFields(item);
+      if (!categorie) continue;
+      counts.set(categorie, (counts.get(categorie) ?? 0) + 1);
+    }
+    return counts;
+  }, [preFilterItems]);
+
+  // Categorie/leerlijn/doelgroep/materiaal-filters gelden voor beide
+  // brontypes: een lesvoorbereiding heeft geen eigen `categorie`-kolom, maar
+  // die wordt afgeleid uit `learning_line` (zie getCategoryForLearningLine),
+  // en "materiaal" is de som van basis- en regelmateriaal.
+  const filteredItems = useMemo(() => {
+    return preFilterItems.filter((item) => {
       const { categorie, leerlijn, doelgroep, materiaalCount } = toFilterableFields(item);
 
       if (filters.categorie.size > 0 || filters.leerlijn.size > 0) {
@@ -386,7 +507,49 @@ export function LibrarySearchClient({
 
       return true;
     });
-  }, [activities, lessons, query, filters, sourceFilter]);
+  }, [preFilterItems, filters]);
+
+  // Eén losstaande, verwijderbare chip per actief filter — categorie draagt
+  // z'n kleurmarkering mee, de rest blijft kleurloos (zie CategorySwatch).
+  const activeChips = useMemo(() => {
+    const chips: ActiveChip[] = [];
+
+    filters.categorie.forEach((categorie) => {
+      chips.push({
+        key: `categorie:${categorie}`,
+        label: categorie,
+        category: categorie,
+        onRemove: () => commitFilters({ ...filters, categorie: toggle(filters.categorie, categorie) }),
+      });
+    });
+
+    filters.leerlijn.forEach((line) => {
+      chips.push({
+        key: `leerlijn:${line}`,
+        label: line,
+        onRemove: () => commitFilters({ ...filters, leerlijn: toggle(filters.leerlijn, line) }),
+      });
+    });
+
+    filters.doelgroep.forEach((waarde) => {
+      chips.push({
+        key: `doelgroep:${waarde}`,
+        label: DOELGROEP_LABELS[waarde],
+        onRemove: () => commitFilters({ ...filters, doelgroep: toggle(filters.doelgroep, waarde) }),
+      });
+    });
+
+    if (filters.weinigMateriaal) {
+      chips.push({
+        key: "weinigMateriaal",
+        label: "Weinig materiaal",
+        onRemove: () => commitFilters({ ...filters, weinigMateriaal: false }),
+      });
+    }
+
+    return chips;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- commitFilters closes over `persisted`/`filters` fresh each render; only `filters` itself should retrigger this list.
+  }, [filters]);
 
   const visible = filteredItems.slice(0, visibleCount);
   const hasActiveFilters = query.trim() !== "" || activeCount > 0;
@@ -400,7 +563,7 @@ export function LibrarySearchClient({
             type="button"
             onClick={() => selectSourceFilter(tab.value)}
             className={cn(
-              "min-h-9 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-150 ease-brand first:border-l-0 border-l",
+              "min-h-9 px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-150 ease-brand first:border-l-0 border-l",
               sourceFilter === tab.value
                 ? "bg-primary text-primary-foreground"
                 : "bg-background hover:bg-accent",
@@ -416,10 +579,7 @@ export function LibrarySearchClient({
           <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              resetPaging();
-            }}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder="Zoek op trefwoord, bijv. trefbal, keeperspelen, groep 7…"
             className="h-12 pl-10 text-base"
             aria-label="Zoek in de bibliotheek"
@@ -429,10 +589,10 @@ export function LibrarySearchClient({
           variant="outline"
           className="relative h-12 shrink-0 px-3"
           onClick={openSheet}
-          aria-label="Filters"
+          aria-label={activeCount > 0 ? `Filters, ${activeCount} actief` : "Filters"}
         >
           <SlidersHorizontal className="size-4" />
-          <span className="hidden sm:inline">Filters</span>
+          Filters
           {activeCount > 0 && (
             <Badge className="absolute -top-2 -right-2 size-5 justify-center rounded-full p-0">
               {activeCount}
@@ -441,21 +601,32 @@ export function LibrarySearchClient({
         </Button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {categorieen.map((categorie) => (
-          <FilterChip
-            key={categorie}
-            active={filters.categorie.has(categorie)}
-            onClick={() => toggleQuickCategorie(categorie)}
-          >
-            <span
-              className={cn("mr-1.5 inline-block size-2 rounded-full", getCategoryColor(categorie).dot)}
-              aria-hidden="true"
-            />
-            {categorie}
-          </FilterChip>
-        ))}
-      </div>
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {activeChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={chip.onRemove}
+              aria-label={`Verwijder filter ${chip.label}`}
+              className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 py-1 pr-1.5 pl-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+            >
+              {chip.category && <CategorySwatch category={chip.category} />}
+              {chip.label}
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          ))}
+          {activeChips.length > 1 && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              Wis alles
+            </button>
+          )}
+        </div>
+      )}
 
       {filteredItems.length === 0 ? (
         <EmptyState
@@ -481,8 +652,9 @@ export function LibrarySearchClient({
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {filteredItems.length} {filteredItems.length === 1 ? "resultaat" : "resultaten"}{" "}
-            gevonden
+            {preFilterItems.length === filteredItems.length
+              ? `${filteredItems.length} ${filteredItems.length === 1 ? "resultaat" : "resultaten"} gevonden`
+              : `${filteredItems.length} van ${preFilterItems.length} resultaten`}
           </p>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             {visible.map((item, index) => (
@@ -522,11 +694,11 @@ export function LibrarySearchClient({
               {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
                 <div key={category} className="space-y-2">
                   <h4 className="flex items-center gap-1.5 text-sm font-bold text-foreground">
-                    <span
-                      className={cn("size-2 rounded-full", getCategoryColor(category).dot)}
-                      aria-hidden="true"
-                    />
+                    <CategorySwatch category={category} />
                     {category}
+                    <span className="font-normal text-muted-foreground">
+                      ({categoryCounts.get(category) ?? 0})
+                    </span>
                   </h4>
                   <div className="flex flex-wrap gap-1.5">
                     <FilterChip
@@ -535,6 +707,7 @@ export function LibrarySearchClient({
                         setDraft((prev) => applyCategorieAlles(prev, category, lines))
                       }
                     >
+                      <CategorySwatch category={category} className="mr-1.5" />
                       Alles ({category})
                     </FilterChip>
                     {lines.map((line) => (
