@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
 import { Label } from "@/components/ui/label";
+import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
 import { AI_GENERATED_LESSON_STORAGE_KEY } from "@/types/ai";
@@ -28,10 +29,12 @@ type Step = 1 | 2 | 3;
  */
 export function AiLessonWizard({
   activeSourceCount,
+  lessonGeneratorAccess,
   onCancel,
   onGenerated,
 }: {
   activeSourceCount?: number;
+  lessonGeneratorAccess: LessonGeneratorAccess;
   onCancel: () => void;
   onGenerated: () => void;
 }) {
@@ -166,6 +169,10 @@ export function AiLessonWizard({
           {activeSourceCount !== undefined && (
             <KnowledgeSourceHint count={activeSourceCount} />
           )}
+          <p className="text-xs text-muted-foreground">
+            {lessonGeneratorAccess.remaining} van {lessonGeneratorAccess.limit} lesgeneraties
+            deze maand over.
+          </p>
         </div>
       )}
 
@@ -189,7 +196,11 @@ export function AiLessonWizard({
             <ArrowRight className="size-4" />
           </Button>
         ) : (
-          <Button type="button" onClick={handleGenerate} disabled={isGenerating}>
+          <Button
+            type="button"
+            onClick={handleGenerate}
+            disabled={isGenerating || !lessonGeneratorAccess.allowed}
+          >
             <Sparkles className="size-4" />
             {isGenerating ? "Bezig met genereren..." : "Genereer lesvoorbereiding"}
           </Button>

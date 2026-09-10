@@ -1,8 +1,9 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
+import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
-import { checkAndRecordAiUsage } from "@/lib/ai/usage";
+import { recordAiUsage } from "@/lib/ai/usageTracking";
 import { isGameDomain } from "@/lib/constants/learningLines";
 import {
   generateActivityInputSchema,
@@ -76,14 +77,28 @@ export async function POST(request: Request) {
     return Response.json({ error: "Je bent niet ingelogd." }, { status: 401 });
   }
 
-  const usage = await checkAndRecordAiUsage(supabase, user.id, "generate-activity");
+  const { data: profile } = await supabase
+    .from("users")
+    .select("subscription_status")
+    .eq("id", user.id)
+    .single();
 
-  if (!usage.allowed) {
+  const access = await checkLessonGeneratorAccess(
+    supabase,
+    user.id,
+    profile?.subscription_status ?? "free_contributor",
+  );
+
+  if (!access.allowed) {
     return Response.json(
       {
-        error: "Je hebt je AI-checks voor deze maand gebruikt. Probeer het volgende maand opnieuw.",
+        error:
+          access.reason === "not_subscriber"
+            ? "De AI-lessengenerator is een functie van het betaalde abonnement (EUR 3,-/mnd). Upgrade om 'm te gebruiken."
+            : `Je hebt je ${access.limit} lesgeneraties voor deze maand gebruikt. Volgende maand heb je weer ${access.limit} beschikbaar.`,
+        reason: access.reason,
       },
-      { status: 429 },
+      { status: access.reason === "not_subscriber" ? 403 : 429 },
     );
   }
 
@@ -107,9 +122,17 @@ export async function POST(request: Request) {
   }
 
   const domainInstruction = isGame ? GAME_DOMAIN_INSTRUCTION : NON_GAME_DOMAIN_INSTRUCTION;
+  // Statische instructies eerst, de per-aanroep opgehaalde Kennisbank-
+  // fragmenten laatst: OpenAI cachet automatisch een identiek prompt-
+  // prefix tussen aanroepen (geen aparte cache-API nodig, in tegenstelling
+  // tot Anthropic). Omdat de fragmenten hier query-afhankelijk zijn (RAG op
+  // leerlijn+doelgroep) is de prefix niet bij élke aanroep identiek, maar
+  // deze volgorde maximaliseert het stabiele, cachebare deel en profiteert
+  // dus wél zodra twee aanroepen dezelfde leerlijn/doelgroep-combinatie
+  // gebruiken.
   const systemPrompt =
-    `${SYSTEM_PROMPT_BASE}\n\n${domainInstruction}\n\n` +
-    `${buildKnowledgePromptSection(matches)}\n\n${JSON_FORMAT_INSTRUCTION}`;
+    `${SYSTEM_PROMPT_BASE}\n\n${JSON_FORMAT_INSTRUCTION}\n\n${domainInstruction}\n\n` +
+    buildKnowledgePromptSection(matches);
   const userPrompt = `Leerlijn: ${input.learningLine}\nDoelgroep: ${input.targetGroup}`;
 
   try {
@@ -136,7 +159,19 @@ export async function POST(request: Request) {
       ),
     };
 
-    return Response.json({ success: true, lesson, remaining: usage.remaining });
+    await recordAiUsage(supabase, {
+      userId: user.id,
+      feature: "lesson_generator",
+      model: CHAT_MODEL,
+      inputTokens: completion.usage?.prompt_tokens ?? 0,
+      outputTokens: completion.usage?.completion_tokens ?? 0,
+    });
+
+    return Response.json({
+      success: true,
+      lesson,
+      remaining: Math.max(access.remaining - 1, 0),
+    });
   } catch (cause) {
     return Response.json(
       {

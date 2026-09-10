@@ -1,8 +1,11 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { getKnowledgeBaseDocumentCount } from "@/lib/services/knowledge";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
+import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { LesMakenFlow } from "./lesson-flow";
@@ -57,9 +60,12 @@ export default async function LesMakenPage({
   }
 
   const { vanuit, tab } = await searchParams;
-  const [activity, activeSourceCount] = await Promise.all([
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const [activity, activeSourceCount, lessonGeneratorAccess] = await Promise.all([
     vanuit ? getActivityById(vanuit) : Promise.resolve(null),
     getKnowledgeBaseDocumentCount(),
+    checkLessonGeneratorAccess(supabase, profile.id, profile.subscription_status),
   ]);
   const initialTab = parseInitialTab(tab);
   const skipChoice = Boolean(activity) || Boolean(initialTab);
@@ -82,6 +88,7 @@ export default async function LesMakenPage({
         initialValues={activity ? mapActivityToLessonInput(activity) : undefined}
         initialTab={initialTab}
         activeSourceCount={activeSourceCount}
+        lessonGeneratorAccess={lessonGeneratorAccess}
         skipChoice={skipChoice}
       />
     </main>

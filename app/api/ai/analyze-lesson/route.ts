@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
+import { recordAiUsage } from "@/lib/ai/usageTracking";
 import { isGameDomain } from "@/lib/constants/learningLines";
 import { analyzeLessonInputSchema, lescoachFeedbackSchema } from "@/types/ai";
 
@@ -114,6 +115,14 @@ export async function POST(request: Request) {
     if (!raw) {
       throw new Error("Geen antwoord van de AI Lescoach ontvangen.");
     }
+
+    await recordAiUsage(supabase, {
+      userId: user.id,
+      feature: "ai_lescoach",
+      model: CHAT_MODEL,
+      inputTokens: completion.usage?.prompt_tokens ?? 0,
+      outputTokens: completion.usage?.completion_tokens ?? 0,
+    });
 
     const feedback = lescoachFeedbackSchema.parse(JSON.parse(raw));
     return Response.json({ success: true, feedback, remaining: usage.remaining });

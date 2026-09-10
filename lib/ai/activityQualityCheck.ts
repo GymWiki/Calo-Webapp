@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
+import { recordAiUsage } from "@/lib/ai/usageTracking";
 import type { SubmitActivityInput } from "@/types/activity";
 
 // Drempelwaarde voor de duplicaatcheck (pg_trgm similarity, 0-1) — hoe hoger,
@@ -49,6 +50,7 @@ function buildSubmissionSummary(input: SubmitActivityInput): string {
 
 async function checkContentQuality(
   supabase: SupabaseClient,
+  authorId: string,
   input: SubmitActivityInput,
 ): Promise<ActivityQualityResult> {
   try {
@@ -76,6 +78,14 @@ async function checkContentQuality(
     if (!raw) {
       throw new Error("Geen antwoord van de kwaliteitscheck ontvangen.");
     }
+
+    await recordAiUsage(supabase, {
+      userId: authorId,
+      feature: "activity_checker",
+      model: CHAT_MODEL,
+      inputTokens: completion.usage?.prompt_tokens ?? 0,
+      outputTokens: completion.usage?.completion_tokens ?? 0,
+    });
 
     const result = qualityCheckSchema.parse(JSON.parse(raw));
     return result.acceptable
@@ -142,5 +152,5 @@ export async function checkActivityQuality(
     return duplicateResult;
   }
 
-  return checkContentQuality(supabase, input);
+  return checkContentQuality(supabase, authorId, input);
 }

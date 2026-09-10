@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { extractDocumentText } from "@/lib/ai/documentText";
 import { EMBEDDING_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
+import { recordAiUsage } from "@/lib/ai/usageTracking";
 
 const DEFAULT_CHUNK_SIZE = 800;
 const DEFAULT_OVERLAP = 150;
@@ -62,13 +63,18 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
-async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+async function generateEmbeddings(
+  texts: string[],
+): Promise<{ embeddings: number[][]; totalTokens: number }> {
   const client = getOpenAIClient();
   const response = await client.embeddings.create({
     model: EMBEDDING_MODEL,
     input: texts,
   });
-  return response.data.map((item) => item.embedding);
+  return {
+    embeddings: response.data.map((item) => item.embedding),
+    totalTokens: response.usage?.total_tokens ?? 0,
+  };
 }
 
 /**
@@ -91,7 +97,7 @@ export async function processKnowledgeDocument(
 
   const { data: document, error: fetchError } = await supabase
     .from("knowledge_base")
-    .select("file_url, file_type")
+    .select("file_url, file_type, uploaded_by")
     .eq("id", documentId)
     .single();
 
@@ -113,7 +119,15 @@ export async function processKnowledgeDocument(
       throw new Error("Er is geen tekst gevonden in dit bestand.");
     }
 
-    const embeddings = await generateEmbeddings(chunks);
+    const { embeddings, totalTokens } = await generateEmbeddings(chunks);
+
+    await recordAiUsage(supabase, {
+      userId: document.uploaded_by,
+      feature: "knowledge_base_embedding",
+      model: EMBEDDING_MODEL,
+      inputTokens: totalTokens,
+      outputTokens: 0,
+    });
 
     const { error: chunksError } = await supabase.from("knowledge_base_chunks").insert(
       chunks.map((content, index) => ({

@@ -7,6 +7,13 @@ import type { SubscriptionStatus, UserProfile } from "@/lib/types";
 // betaalfunctie.
 export const MONTHLY_AI_LIMIT = 40;
 
+// Dedicated fair-use-limiet voor de AI-lessengenerator (/api/ai/generate-
+// activity) — losstaand van MONTHLY_AI_LIMIT hierboven, want deze functie
+// heeft sinds de kostenbeheersing-taak een eigen toegangsmodel: alleen
+// paid_subscriber-accounts, met dit eigen maandquotum. Zie
+// lib/ai/lessonGeneratorAccess.ts.
+export const LESSON_GENERATOR_MONTHLY_LIMIT = 25;
+
 export interface UserPermissions {
   subscriptionStatus: SubscriptionStatus;
   /**
