@@ -8,14 +8,14 @@ export type AiUsageResult =
 /**
  * Fair-use gate for the AI endpoints: a flat monthly quota (MONTHLY_AI_LIMIT,
  * lib/permissions.ts) for every user regardless of subscription status,
- * checked per calendar month across both AI endpoints (analyze-lesson +
- * generate-activity share one pool). Records the attempt in `ai_usage_log`
- * when it's allowed.
+ * checked per calendar month across all three AI endpoints (analyze-lesson +
+ * generate-activity + extract-activity share one pool). Records the attempt
+ * in `ai_usage_log` when it's allowed.
  */
 export async function checkAndRecordAiUsage(
   supabase: SupabaseClient,
   userId: string,
-  endpoint: "analyze-lesson" | "generate-activity",
+  endpoint: "analyze-lesson" | "generate-activity" | "extract-activity",
 ): Promise<AiUsageResult> {
   const monthlyAiLimit = MONTHLY_AI_LIMIT;
 

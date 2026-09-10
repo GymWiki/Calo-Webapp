@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { addActivity, saveActivityDraft } from "@/actions/activity-submission";
 import { DynamicTextList } from "@/app/(protected)/les-maken/dynamic-text-list";
+import { ActivityImportUploadCard } from "@/components/ActivityImportUploadCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -23,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
+import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
 import {
   CATEGORIE_WAARDEN,
   DOELGROEP_LABELS,
@@ -55,10 +57,45 @@ type Outcome =
   | { status: "approved" }
   | { status: "rejected"; reason: string };
 
+// Zet de (mogelijk onvolledige) AI-extractie om naar het formulier-formaat
+// — ontbrekende velden worden lege string/array, exact zoals DEFAULT_VALUES,
+// zodat de gebruiker ze gewoon zelf invult i.p.v. dat de AI iets verzint.
+function mapExtractionToFormValues(extraction: ExtractedActivity): SubmitActivityInput {
+  return {
+    titel: extraction.titel ?? "",
+    categorie: extraction.categorie ?? CATEGORIE_WAARDEN[0],
+    leerlijn: extraction.leerlijn ?? "",
+    doelgroep: extraction.doelgroep ?? [],
+    beschrijving: extraction.beschrijving ?? "",
+    beginsituatie: extraction.beginsituatie ?? "",
+    doel: extraction.doel ?? "",
+    veld: extraction.veld ?? "",
+    materiaal: extraction.materiaal ?? [],
+    regels: extraction.regels ?? [],
+    loopt: [],
+    lukt: [],
+    leeft: [],
+  };
+}
+
+// Welke verplichte velden de AI niet uit het document kon halen — getoond
+// in de reviewbanner zodat de gebruiker precies weet wat nog moet.
+function missingFieldLabels(extraction: ExtractedActivity): string[] {
+  const missing: string[] = [];
+  if (!extraction.titel) missing.push("Titel");
+  if (!extraction.categorie) missing.push("Categorie");
+  if (!extraction.leerlijn) missing.push("Leerlijn");
+  if (!extraction.doelgroep || extraction.doelgroep.length === 0) missing.push("Doelgroep");
+  if (!extraction.doel) missing.push("Doelstelling");
+  if (!extraction.beschrijving) missing.push("Beschrijving & opbouw");
+  return missing;
+}
+
 export function AddActivityForm() {
   const router = useRouter();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [missingFields, setMissingFields] = useState<string[] | null>(null);
 
   const form = useForm<SubmitActivityInput>({
     resolver: zodResolver(submitActivityInputSchema),
@@ -83,10 +120,18 @@ export function AddActivityForm() {
       setOutcome({ status: "approved" });
       toast.success("Activiteit toegevoegd en goedgekeurd!");
       form.reset(DEFAULT_VALUES);
+      setMissingFields(null);
       router.refresh();
     } else {
       setOutcome({ status: "rejected", reason: result.reason });
     }
+  }
+
+  function handleExtracted(extraction: ExtractedActivity) {
+    form.reset(mapExtractionToFormValues(extraction));
+    setMissingFields(missingFieldLabels(extraction));
+    setOutcome(null);
+    toast.success("Bestand verwerkt — controleer de ingevulde gegevens hieronder.");
   }
 
   async function onSaveDraft(values: SubmitActivityInput) {
@@ -119,6 +164,24 @@ export function AddActivityForm() {
 
   return (
     <div className="space-y-6">
+      <ActivityImportUploadCard onExtracted={handleExtracted} />
+
+      {missingFields && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-start gap-3 py-4">
+            <Sparkles className="mt-0.5 size-5 shrink-0 text-primary" />
+            <div>
+              <p className="font-semibold">Gecontroleerd door AI op basis van je upload</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Controleer de gegevens voordat je verzendt.
+                {missingFields.length > 0 &&
+                  ` Deze velden kon de AI niet uit je document halen: ${missingFields.join(", ")}.`}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {outcome && (
         <Card
           className={

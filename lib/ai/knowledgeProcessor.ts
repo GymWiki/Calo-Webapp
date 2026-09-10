@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PDFParse } from "pdf-parse";
-import mammoth from "mammoth";
 
+import { extractDocumentText } from "@/lib/ai/documentText";
 import { EMBEDDING_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 
 const DEFAULT_CHUNK_SIZE = 800;
@@ -73,37 +72,6 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 }
 
 /**
- * Extraheert platte tekst uit een geüpload bestand. Ondersteunde types
- * matchen ALLOWED_KNOWLEDGE_MIME_TYPES (types/knowledge.ts) — een nieuw
- * bestandstype vereist een toevoeging op beide plekken.
- */
-async function extractText(buffer: Buffer, fileType: string): Promise<string> {
-  if (fileType === "text/plain") {
-    return buffer.toString("utf-8");
-  }
-
-  if (fileType === "application/pdf") {
-    const parser = new PDFParse({ data: buffer });
-    try {
-      const result = await parser.getText();
-      return result.text;
-    } finally {
-      await parser.destroy();
-    }
-  }
-
-  if (
-    fileType ===
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
-  }
-
-  throw new Error(`Bestandstype "${fileType}" wordt niet ondersteund.`);
-}
-
-/**
  * Verwerkt één knowledge_base-document: downloadt het bestand, extraheert
  * de tekst, chunkt/embedt die, en zet de status op 'processed' of 'failed'
  * (met foutmelding). Draait synchroon binnen de upload-server action, dus
@@ -138,7 +106,7 @@ export async function processKnowledgeDocument(
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    const text = await extractText(buffer, document.file_type);
+    const text = await extractDocumentText(buffer, document.file_type);
     const chunks = chunkText(text);
 
     if (chunks.length === 0) {
