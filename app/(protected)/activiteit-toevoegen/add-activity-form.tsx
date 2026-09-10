@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
-import { submitActivity } from "@/actions/activity-submission";
+import { addActivity } from "@/actions/activity-submission";
 import { DynamicTextList } from "@/app/(protected)/les-maken/dynamic-text-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,10 +51,11 @@ const DEFAULT_VALUES: SubmitActivityInput = {
 };
 
 type Outcome =
+  | { status: "pending" }
   | { status: "approved" }
   | { status: "rejected"; reason: string };
 
-export function SubmitActivityForm() {
+export function AddActivityForm() {
   const router = useRouter();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
 
@@ -64,17 +65,22 @@ export function SubmitActivityForm() {
   });
 
   async function onSubmit(values: SubmitActivityInput) {
-    setOutcome(null);
-    const result = await submitActivity(values);
+    // De activiteit wordt server-side altijd meteen toegevoegd (zie
+    // addActivity) — dit "pending"-moment is dus geen wachtrij, alleen de
+    // duur van de achtergrond-kwaliteitscheck die daarna direct de
+    // definitieve status (approved/rejected) teruggeeft.
+    setOutcome({ status: "pending" });
+    const result = await addActivity(values);
 
     if ("error" in result) {
+      setOutcome(null);
       toast.error(result.error);
       return;
     }
 
     if (result.status === "approved") {
       setOutcome({ status: "approved" });
-      toast.success("Activiteit goedgekeurd en toegevoegd aan de bibliotheek!");
+      toast.success("Activiteit toegevoegd en goedgekeurd!");
       form.reset(DEFAULT_VALUES);
       router.refresh();
     } else {
@@ -100,23 +106,33 @@ export function SubmitActivityForm() {
           className={
             outcome.status === "approved"
               ? "border-success/40 bg-success/5"
-              : "border-destructive/40 bg-destructive/5"
+              : outcome.status === "rejected"
+                ? "border-destructive/40 bg-destructive/5"
+                : "border-primary/30 bg-primary/5"
           }
         >
           <CardContent className="flex items-start gap-3 py-4">
             {outcome.status === "approved" ? (
               <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
-            ) : (
+            ) : outcome.status === "rejected" ? (
               <XCircle className="mt-0.5 size-5 shrink-0 text-destructive" />
+            ) : (
+              <Loader2 className="mt-0.5 size-5 shrink-0 animate-spin text-primary" />
             )}
             <div>
               <p className="font-semibold">
-                {outcome.status === "approved" ? "Goedgekeurd" : "Afgekeurd"}
+                {outcome.status === "approved"
+                  ? "Goedgekeurd"
+                  : outcome.status === "rejected"
+                    ? "Niet goedgekeurd"
+                    : "Activiteit toegevoegd — wordt automatisch gecontroleerd"}
               </p>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {outcome.status === "approved"
-                  ? "Deze activiteit is direct zichtbaar in de bibliotheek en telt mee voor je maandquotum."
-                  : outcome.reason}
+                  ? "Telt mee voor je maandelijkse bijdrage en is direct zichtbaar in de bibliotheek."
+                  : outcome.status === "rejected"
+                    ? `${outcome.reason} Pas de activiteit aan en probeer het opnieuw.`
+                    : "Even geduld — de kwaliteits- en duplicaatcheck ronden zo af."}
               </p>
             </div>
           </CardContent>
@@ -312,7 +328,7 @@ export function SubmitActivityForm() {
           />
 
           <Button type="submit" disabled={form.formState.isSubmitting} className="w-full sm:w-auto">
-            {form.formState.isSubmitting ? "Bezig met controleren..." : "Activiteit indienen"}
+            {form.formState.isSubmitting ? "Bezig met controleren..." : "Activiteit toevoegen"}
           </Button>
         </form>
       </Form>

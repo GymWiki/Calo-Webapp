@@ -10,18 +10,19 @@ type SubmitResult =
   | { success: true; status: "approved"; activityId: string }
   | { success: true; status: "rejected"; reason: string };
 
-const GENERIC_ERROR = "Indienen is mislukt. Probeer het opnieuw.";
+const GENERIC_ERROR = "Toevoegen is mislukt. Probeer het opnieuw.";
 
 /**
- * Dient een nieuwe activiteit in voor de gedeelde bibliotheek. De status
+ * Voegt een nieuwe activiteit toe aan de gedeelde bibliotheek. De status
  * (approved/rejected) wordt hier — server-side, vóór de insert — bepaald
  * door de losstaande kwaliteitscheck (lib/ai/activityQualityCheck.ts): de
  * client kan nooit zelf 'approved' forceren, zie de insert-RLS-policy in
- * subscription_model.sql. Alleen goedgekeurde inzendingen tellen mee voor
- * de maandelijkse bijdrage-eis (via de activiteiten_sync_contribution-
- * trigger) en verschijnen in de bibliotheek.
+ * subscription_model.sql. De activiteit wordt altijd meteen toegevoegd
+ * (insert gebeurt ongeacht status); alleen goedgekeurde activiteiten tellen
+ * mee voor de maandelijkse bijdrage-eis (via de activiteiten_sync_
+ * contribution-trigger) en verschijnen in de gedeelde bibliotheek.
  */
-export async function submitActivity(
+export async function addActivity(
   input: SubmitActivityInput,
 ): Promise<SubmitResult> {
   const parsed = submitActivityInputSchema.safeParse(input);

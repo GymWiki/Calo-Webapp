@@ -8,6 +8,7 @@ import { CommunityLessonsSection } from "@/components/community-lessons-section"
 import { ContributionStatusCard } from "@/components/ContributionStatusCard";
 import { EmptyState } from "@/components/empty-state";
 import { LessonCard } from "@/components/lesson-card";
+import { OwnActivitiesSection } from "@/components/own-activities-section";
 import { PageHeader } from "@/components/page-header";
 import { QuickActionGrid } from "@/components/quick-action-grid";
 import { StatCard } from "@/components/stat-card";
@@ -15,12 +16,14 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
 import { getContributionStatus } from "@/lib/services/contribution";
+import { getOwnSubmissions } from "@/lib/services/activities";
 import { getPublicLessons, getUserLessons } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
 import type { LessonWithDetails } from "@/types/lesson";
 
 const COMMUNITY_LIMIT = 6;
+const OWN_ACTIVITIES_LIMIT = 5;
 
 export default async function DashboardPage() {
   const profile = await getCurrentUserProfile();
@@ -69,12 +72,14 @@ function countThisMonth(lessons: LessonWithDetails[]) {
 }
 
 async function DashboardContent({ userId }: { userId: string }) {
-  const [lessons, publicLessons] = await Promise.all([
+  const [lessons, publicLessons, ownActivities] = await Promise.all([
     getUserLessons(userId),
     getPublicLessons(),
+    getOwnSubmissions(userId),
   ]);
   const latest = lessons[0];
   const communityLessons = publicLessons.slice(0, COMMUNITY_LIMIT);
+  const recentOwnActivities = ownActivities.slice(0, OWN_ACTIVITIES_LIMIT);
 
   return (
     <>
@@ -134,6 +139,8 @@ async function DashboardContent({ userId }: { userId: string }) {
           </div>
         )}
       </div>
+
+      <OwnActivitiesSection activities={recentOwnActivities} />
 
       <CommunityLessonsSection lessons={communityLessons} currentUserId={userId} />
     </>

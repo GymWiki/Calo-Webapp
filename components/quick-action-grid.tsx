@@ -42,8 +42,8 @@ const ACTIONS: QuickAction[] = [
     accent: "blue",
   },
   {
-    href: "/activiteit-indienen",
-    label: "Activiteit indienen",
+    href: "/activiteit-toevoegen",
+    label: "Activiteit toevoegen",
     description: "Draag bij aan de bibliotheek en tel mee voor je maandquotum.",
     icon: ListPlus,
     accent: "cone",

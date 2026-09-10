@@ -24,7 +24,7 @@ export type Activity = {
   // voor de meeste rijen een lege array; alleen tonen als er items in staan.
   learning_outcomes: string[] | null;
   // null voor de oorspronkelijk geïmporteerde bibliotheek-activiteiten —
-  // die hebben geen indiener. Alles wat via /activiteit-indienen binnenkomt
+  // die hebben geen indiener. Alles wat via /activiteit-toevoegen binnenkomt
   // heeft een author_id.
   author_id: string | null;
   status: ActivityReviewStatus;
@@ -55,7 +55,7 @@ export const CATEGORIE_WAARDEN = [
   "Overig",
 ] as const;
 
-// -- Indienen van een nieuwe activiteit (bijdrage-freemium-model) -----------
+// -- Toevoegen van een nieuwe activiteit (bijdrage-freemium-model) ---------
 
 import { z } from "zod";
 
