@@ -33,9 +33,10 @@ export async function getAllActivities(): Promise<Activity[]> {
 }
 
 /**
- * Eigen inzendingen van een gebruiker, ongeacht status (pending/approved/
- * rejected) — gebruikt voor "Mijn bijdragen" en voor de beperkte
- * bibliotheekweergave van free_blocked-accounts.
+ * Eigen ingediende activiteiten (pending/approved/rejected) — gebruikt voor
+ * "Mijn activiteiten" en voor de beperkte bibliotheekweergave van
+ * free_blocked-accounts. Sluit concepten (status 'draft') bewust uit — die
+ * zijn nog niet ingediend, zie getActivityDrafts hieronder.
  */
 export async function getOwnSubmissions(authorId: string): Promise<Activity[]> {
   const supabase = await getServerClient();
@@ -44,10 +45,33 @@ export async function getOwnSubmissions(authorId: string): Promise<Activity[]> {
     .from("activiteiten")
     .select(ACTIVITY_SELECT)
     .eq("author_id", authorId)
+    .neq("status", "draft")
     .order("submitted_at", { ascending: false });
 
   if (error) {
     throw new Error(`Kon eigen bijdragen niet ophalen: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Eigen concepten (status 'draft') — volledig ingevuld maar nog niet
+ * ingediend, dus nog niet door de AI-kwaliteitscheck gegaan. Zie
+ * submitActivityDraft/deleteActivityDraft in actions/activity-submission.ts.
+ */
+export async function getActivityDrafts(authorId: string): Promise<Activity[]> {
+  const supabase = await getServerClient();
+
+  const { data, error } = await supabase
+    .from("activiteiten")
+    .select(ACTIVITY_SELECT)
+    .eq("author_id", authorId)
+    .eq("status", "draft")
+    .order("submitted_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Kon concepten niet ophalen: ${error.message}`);
   }
 
   return data ?? [];
@@ -106,4 +130,41 @@ export async function getSavedActivityIds(
   }
 
   return new Set((data ?? []).map((row) => row.activiteit_id));
+}
+
+/**
+ * Volledige, opgeslagen-favorieten-lijst voor de profielpagina — meest
+ * recent opgeslagen eerst. Twee stappen (i.p.v. een embedded select) zodat
+ * de save-volgorde expliciet bewaard blijft ondanks Postgres' `in()` geen
+ * volgorde garandeert.
+ */
+export async function getSavedActivities(userId: string): Promise<Activity[]> {
+  const supabase = await getServerClient();
+
+  const { data: saved, error: savedError } = await supabase
+    .from("opgeslagen_activiteiten")
+    .select("activiteit_id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (savedError) {
+    throw new Error(`Kon opgeslagen activiteiten niet ophalen: ${savedError.message}`);
+  }
+
+  const orderedIds = (saved ?? []).map((row) => row.activiteit_id);
+  if (orderedIds.length === 0) return [];
+
+  const { data: activities, error } = await supabase
+    .from("activiteiten")
+    .select(ACTIVITY_SELECT)
+    .in("id", orderedIds);
+
+  if (error) {
+    throw new Error(`Kon opgeslagen activiteiten niet ophalen: ${error.message}`);
+  }
+
+  const byId = new Map((activities ?? []).map((activity) => [activity.id, activity]));
+  return orderedIds
+    .map((id) => byId.get(id))
+    .filter((activity): activity is Activity => activity !== undefined);
 }

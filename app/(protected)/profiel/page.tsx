@@ -1,10 +1,23 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Mail } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommunityStatsCard } from "@/components/profile/CommunityStatsCard";
+import { FreemiumStatusCard } from "@/components/profile/FreemiumStatusCard";
+import { KnowledgeBaseSummaryCard } from "@/components/profile/KnowledgeBaseSummaryCard";
+import { ProfileHeader } from "@/components/profile/ProfileHeader";
+import { ProfileNavGrid } from "@/components/profile/ProfileNavGrid";
+import { getCommunityStats } from "@/lib/services/community-stats";
+import { getContributionStatus } from "@/lib/services/contribution";
+import {
+  getActivityDrafts,
+  getOwnSubmissions,
+  getSavedActivityIds,
+} from "@/lib/services/activities";
+import { getAllKnowledgeDocuments } from "@/lib/services/knowledge";
+import { getUserLessons } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
+import { createClient } from "@/utils/supabase/server";
 
 export default async function ProfielPage() {
   const profile = await getCurrentUserProfile();
@@ -13,47 +26,59 @@ export default async function ProfielPage() {
     redirect("/login");
   }
 
-  const initials = `${profile.first_name.charAt(0)}${profile.last_name.charAt(0)}`.toUpperCase();
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const [
+    contributionStatus,
+    ownSubmissions,
+    savedIds,
+    lessons,
+    drafts,
+    knowledgeDocuments,
+    communityStats,
+  ] = await Promise.all([
+    getContributionStatus(supabase, profile.id, profile.subscription_status),
+    getOwnSubmissions(profile.id),
+    getSavedActivityIds(profile.id),
+    getUserLessons(profile.id),
+    getActivityDrafts(profile.id),
+    getAllKnowledgeDocuments(),
+    getCommunityStats(profile.id),
+  ]);
+
+  const processedDocuments = knowledgeDocuments.filter(
+    (document) => document.status === "processed",
+  ).length;
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
       <PageHeader
         eyebrow="Profiel"
-        title="Jouw account"
-        description="Gegevens zoals ze bekend zijn bij GymWiki."
+        title="Jouw GymWiki-hub"
+        description="Alles wat bij jouw account hoort, op één plek."
       />
 
-      <Card>
-        <CardContent className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
-          <div className="font-display flex size-20 shrink-0 items-center justify-center rounded-full bg-primary/10 text-2xl text-primary">
-            {initials}
-          </div>
-          <div className="space-y-2">
-            <p className="text-xl font-bold">
-              {profile.first_name} {profile.last_name}
-            </p>
-            <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
-              <Badge variant={profile.available_for_internship ? "success" : "secondary"}>
-                {profile.available_for_internship
-                  ? "Beschikbaar voor stage"
-                  : "Niet beschikbaar voor stage"}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <ProfileHeader profile={profile} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Contactgegevens</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3 text-sm">
-            <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>{profile.email ?? "Geen e-mailadres bekend"}</span>
-          </div>
-        </CardContent>
-      </Card>
+      <FreemiumStatusCard
+        status={contributionStatus}
+        subscriptionStatus={profile.subscription_status}
+      />
+
+      <ProfileNavGrid
+        activitiesCount={ownSubmissions.length}
+        savedCount={savedIds.size}
+        lessonsCount={lessons.length}
+        draftsCount={drafts.length}
+      />
+
+      <KnowledgeBaseSummaryCard
+        totalCount={knowledgeDocuments.length}
+        processedCount={processedDocuments}
+      />
+
+      <CommunityStatsCard stats={communityStats} />
     </main>
   );
 }

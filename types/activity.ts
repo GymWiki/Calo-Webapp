@@ -1,4 +1,4 @@
-export type ActivityReviewStatus = "pending" | "approved" | "rejected";
+export type ActivityReviewStatus = "draft" | "pending" | "approved" | "rejected";
 
 export type Activity = {
   id: string;

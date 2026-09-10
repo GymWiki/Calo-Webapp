@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
-import { addActivity } from "@/actions/activity-submission";
+import { addActivity, saveActivityDraft } from "@/actions/activity-submission";
 import { DynamicTextList } from "@/app/(protected)/les-maken/dynamic-text-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,6 +58,7 @@ type Outcome =
 export function AddActivityForm() {
   const router = useRouter();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   const form = useForm<SubmitActivityInput>({
     resolver: zodResolver(submitActivityInputSchema),
@@ -85,6 +86,23 @@ export function AddActivityForm() {
       router.refresh();
     } else {
       setOutcome({ status: "rejected", reason: result.reason });
+    }
+  }
+
+  async function onSaveDraft(values: SubmitActivityInput) {
+    setIsSavingDraft(true);
+    try {
+      const result = await saveActivityDraft(values);
+
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Concept opgeslagen — dien 'm in wanneer je klaar bent.");
+      router.push("/profiel/concepten");
+    } finally {
+      setIsSavingDraft(false);
     }
   }
 
@@ -327,9 +345,24 @@ export function AddActivityForm() {
             onChange={(items) => form.setValue("leeft", items)}
           />
 
-          <Button type="submit" disabled={form.formState.isSubmitting} className="w-full sm:w-auto">
-            {form.formState.isSubmitting ? "Bezig met controleren..." : "Activiteit toevoegen"}
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              type="submit"
+              disabled={form.formState.isSubmitting || isSavingDraft}
+              className="w-full sm:w-auto"
+            >
+              {form.formState.isSubmitting ? "Bezig met controleren..." : "Activiteit toevoegen"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={form.formState.isSubmitting || isSavingDraft}
+              onClick={form.handleSubmit(onSaveDraft)}
+              className="w-full sm:w-auto"
+            >
+              {isSavingDraft ? "Bezig met opslaan..." : "Bewaar als concept"}
+            </Button>
+          </div>
         </form>
       </Form>
     </div>

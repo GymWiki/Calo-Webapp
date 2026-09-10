@@ -1,23 +1,11 @@
 import Link from "next/link";
-import { CircleCheck, Clock, ListPlus, TriangleAlert } from "lucide-react";
+import { ListPlus } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { Activity, ActivityReviewStatus } from "@/types/activity";
-
-// "pending" komt momenteel niet in de praktijk voor — de kwaliteitscheck
-// (lib/ai/activityQualityCheck.ts) draait synchroon vóór de insert, dus elke
-// rij landt meteen als approved/rejected. Toch hier gedekt zodat deze
-// weergave blijft kloppen als die check ooit asynchroon wordt.
-const STATUS_STYLES: Record<
-  ActivityReviewStatus,
-  { label: string; variant: "success" | "destructive" | "secondary"; icon: typeof CircleCheck }
-> = {
-  approved: { label: "Goedgekeurd", variant: "success", icon: CircleCheck },
-  pending: { label: "Wordt gecontroleerd", variant: "secondary", icon: Clock },
-  rejected: { label: "Niet goedgekeurd", variant: "destructive", icon: TriangleAlert },
-};
+import { ACTIVITY_STATUS_STYLES } from "@/lib/constants/activityStatus";
+import type { Activity } from "@/types/activity";
 
 /**
  * Dashboard-overzicht van eigen toegevoegde activiteiten met status per
@@ -59,7 +47,7 @@ export function OwnActivitiesSection({ activities }: { activities: Activity[] })
       ) : (
         <div className="mt-4 space-y-2">
           {activities.map((activity) => {
-            const style = STATUS_STYLES[activity.status];
+            const style = ACTIVITY_STATUS_STYLES[activity.status];
             const Icon = style.icon;
             return (
               <Link
