@@ -225,6 +225,13 @@ export type Lesson = {
   game_category: string | null;
   game_dimensions: GameDimensions | null;
   tactical_questions: string[] | null;
+  // Bepaalt of deze les meetelt voor de maandelijkse bijdrage-eis (zie
+  // supabase/migrations/lesson_contribution_tracking.sql): alleen publieke,
+  // zelf samengestelde (niet-AI) lessen tellen mee. `public_since` is het
+  // moment waarop de les voor het laatst openbaar is gezet — bepaalt in
+  // welke kalendermaand de bijdrage meetelt.
+  is_ai_generated: boolean;
+  public_since: string | null;
   created_at: string;
   updated_at: string;
 };

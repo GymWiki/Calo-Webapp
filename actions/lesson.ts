@@ -15,6 +15,7 @@ const GENERIC_ERROR = "Les opslaan is mislukt. Probeer het opnieuw.";
 export async function createLesson(
   input: CreateLessonInput,
   diagram: { data: DiagramData; imageDataUrl: string } | null = null,
+  isAiGenerated = false,
 ): Promise<ActionResult> {
   const parsed = createLessonInputSchema.safeParse(input);
 
@@ -58,6 +59,7 @@ export async function createLesson(
         game_category: values.gameCategory || null,
         game_dimensions: values.gameDimensions,
         tactical_questions: values.tacticalQuestions,
+        is_ai_generated: isAiGenerated,
       })
       .select("id")
       .single();
@@ -122,10 +124,17 @@ export async function setLessonPublic(
 
   // RLS ("Eigenaren kunnen eigen lessen beheren") is de daadwerkelijke
   // handhaving — een les die de aanroeper niet bezit matcht simpelweg niet
-  // en er wordt niets bijgewerkt.
+  // en er wordt niets bijgewerkt. `public_since` wordt bij elke keer
+  // openbaar maken ververst — dat is het moment dat telt voor de
+  // maandelijkse bijdrage-eis (zie lesson_contribution_tracking.sql), niet
+  // het oorspronkelijke aanmaakmoment.
   const { error } = await supabase
     .from("lessons")
-    .update({ is_public: isPublic })
+    .update(
+      isPublic
+        ? { is_public: true, public_since: new Date().toISOString() }
+        : { is_public: false },
+    )
     .eq("id", lessonId)
     .eq("author_id", user.id);
 

@@ -41,12 +41,14 @@ export function ShareLessonButton({
   lessonTitle,
   isOwner,
   initialIsPublic,
+  isAiGenerated = false,
   className,
 }: {
   lessonId: string;
   lessonTitle: string;
   isOwner: boolean;
   initialIsPublic: boolean;
+  isAiGenerated?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -162,6 +164,8 @@ export function ShareLessonButton({
                     <p className="text-xs text-muted-foreground">
                       Andere docenten en studenten kunnen deze les vinden en
                       kopiëren.
+                      {isAiGenerated &&
+                        " Let op: AI-gegenereerde lessen tellen niet mee voor je maandelijkse bijdrage-eis."}
                     </p>
                   </div>
                 </div>

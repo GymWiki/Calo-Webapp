@@ -206,7 +206,12 @@ export function LessonForm({
       tacticalQuestions,
     };
 
-    const result = await createLesson(payload, diagram);
+    // Herkomst is bepaald bij het openen van dit formulier (stashedGenerated
+    // hierboven) en blijft vastliggen, ook als de velden hierna handmatig
+    // zijn aangepast — telt daarom nooit mee voor de maandelijkse
+    // bijdrage-eis zodra deze les openbaar wordt gemaakt (zie
+    // lesson_contribution_tracking.sql).
+    const result = await createLesson(payload, diagram, stashedGenerated !== null);
 
     if ("error" in result) {
       toast.error(result.error);

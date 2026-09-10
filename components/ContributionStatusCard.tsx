@@ -48,15 +48,16 @@ export function ContributionStatusCard({
             <div>
               <p className="font-semibold">Bibliotheektoegang beperkt</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Vorige maand zijn er niet genoeg activiteiten goedgekeurd ({status.approvedCount}/
+                Vorige maand had je niet genoeg bijdragen ({status.approvedCount}/
                 {status.requiredCount}). Draag deze maand {status.requiredCount} nieuwe
-                activiteiten bij, of neem het betaalde abonnement voor onbeperkte toegang.
+                activiteiten of zelfgemaakte lessen bij, of neem het betaalde abonnement voor
+                onbeperkte toegang.
               </p>
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
             <Button asChild size="sm">
-              <Link href="/activiteit-toevoegen">Activiteit toevoegen</Link>
+              <Link href="/les-maken">Activiteit toevoegen</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href="/pro">Abonnement</Link>
@@ -85,18 +86,18 @@ export function ContributionStatusCard({
           </div>
           <div>
             <p className="font-semibold">
-              {status.approvedCount}/{status.requiredCount} activiteiten deze maand goedgekeurd
+              {status.approvedCount}/{status.requiredCount} bijdragen deze maand goedgekeurd
             </p>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {met
                 ? "Je voldoet aan de maandelijkse bijdrage-eis — de bibliotheek blijft volledig toegankelijk."
-                : `Nog ${remaining} ${remaining === 1 ? "activiteit" : "activiteiten"} nodig deze maand om volledige toegang te behouden.`}
+                : `Nog ${remaining} ${remaining === 1 ? "bijdrage" : "bijdragen"} nodig deze maand om volledige toegang te behouden.`}
             </p>
           </div>
         </div>
         {!met && (
           <Button asChild size="sm" className="shrink-0">
-            <Link href="/activiteit-toevoegen">Activiteit toevoegen</Link>
+            <Link href="/les-maken">Activiteit toevoegen</Link>
           </Button>
         )}
       </CardContent>
