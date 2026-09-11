@@ -1,3 +1,5 @@
+// Moet vóór de "pdf-parse"-import staan — zie domMatrixPolyfill.ts.
+import "@/lib/ai/domMatrixPolyfill";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { OfficeParser } from "officeparser";

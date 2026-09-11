@@ -20,12 +20,13 @@ const nextConfig: NextConfig = {
   turbopack: {},
   // pdf-parse/mammoth (Kennisbank-tekstextractie) doen native/CJS dingen
   // die niet door Next's server-bundelaar moeten worden herverpakt.
-  // @napi-rs/canvas is pdf-parse's (via pdfjs-dist) Node-polyfill voor
-  // DOMMatrix/ImageData/Path2D — zonder deze package (of als de bundelaar
-  // 'm herverpakt) crasht elke pdf-parse-aanroep in productie met
-  // "ReferenceError: DOMMatrix is not defined", want pdfjs-dist's
-  // legacy Node-build construeert op module-top-level al een DOMMatrix.
-  serverExternalPackages: ["pdf-parse", "mammoth", "@napi-rs/canvas"],
+  // (Eerder stond hier ook @napi-rs/canvas — pdf-parse's optionele, native
+  // DOMMatrix-polyfill voor pdfjs-dist. Die package wordt op Vercel niet
+  // betrouwbaar meegebundeld [dynamische require() diep in pdfjs-dist, niet
+  // statisch detecteerbaar door de file-tracer], wat alsnog "ReferenceError:
+  // DOMMatrix is not defined" gaf. Vervangen door een eigen, pure-JS
+  // polyfill vóór de pdf-parse-import — zie lib/ai/domMatrixPolyfill.ts.)
+  serverExternalPackages: ["pdf-parse", "mammoth"],
   experimental: {
     serverActions: {
       // createLesson's payload can include a base64 PNG of the exported
