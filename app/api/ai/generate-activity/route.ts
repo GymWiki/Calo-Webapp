@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import OpenAI from "openai";
 import { createClient } from "@/utils/supabase/server";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
 import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
@@ -50,6 +51,48 @@ function createId() {
   return `d-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// Logt de daadwerkelijke oorzaak server-side (zichtbaar in de Vercel
+// function logs) vóórdat er een nette, generieke melding teruggaat naar de
+// client — zonder dit was een fout als "OPENAI_MODEL bestaat niet" of een
+// verkeerd geconfigureerde afhankelijkheid onmogelijk te onderscheiden van
+// elke andere 500 in de UI.
+function logGenerationFailure(cause: unknown) {
+  if (cause instanceof OpenAI.APIError) {
+    console.error(
+      `AI Activiteiten Generator: OpenAI API-fout (status ${cause.status ?? "onbekend"}, ` +
+        `type ${cause.type ?? "onbekend"}, code ${cause.code ?? "onbekend"}): ${cause.message}`,
+    );
+    return;
+  }
+  console.error("AI Activiteiten Generator: onverwachte fout:", cause);
+}
+
+// Een specifieke, herkenbare melding voor de meest voorkomende faalmodi —
+// de rest valt terug op de rauwe foutmelding (nog altijd specifieker dan de
+// oude generieke "mislukt"-tekst) zodat toekomstige problemen sneller te
+// herleiden zijn vanuit de UI alleen, zonder de logs te hoeven raadplegen.
+function toUserMessage(cause: unknown): string {
+  if (cause instanceof OpenAI.APIError) {
+    if (cause.status === 401) {
+      return "De AI-configuratie is ongeldig (OpenAI-sleutel wordt geweigerd). Neem contact op met de beheerder.";
+    }
+    if (cause.status === 404) {
+      return "Het geconfigureerde AI-model bestaat niet (meer). Neem contact op met de beheerder.";
+    }
+    if (cause.status === 429) {
+      return "De AI-service zit tijdelijk aan de limiet. Probeer het over een paar minuten opnieuw.";
+    }
+    if (cause.status && cause.status >= 500) {
+      return "De AI-service is momenteel niet bereikbaar. Probeer het opnieuw.";
+    }
+    return `Genereren van de lesvoorbereiding is mislukt: ${cause.message}`;
+  }
+  if (cause instanceof Error) {
+    return cause.message;
+  }
+  return "Genereren van de lesvoorbereiding is mislukt. Probeer het opnieuw.";
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -66,76 +109,83 @@ export async function POST(request: Request) {
     );
   }
 
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return Response.json({ error: "Je bent niet ingelogd." }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from("users")
-    .select("subscription_status")
-    .eq("id", user.id)
-    .single();
-
-  const access = await checkLessonGeneratorAccess(
-    supabase,
-    user.id,
-    profile?.subscription_status ?? "free_contributor",
-  );
-
-  if (!access.allowed) {
-    return Response.json(
-      {
-        error:
-          access.reason === "not_subscriber"
-            ? "De AI-lessengenerator is een functie van het betaalde abonnement (EUR 3,-/mnd). Upgrade om 'm te gebruiken."
-            : `Je hebt je ${access.limit} lesgeneraties voor deze maand gebruikt. Volgende maand heb je weer ${access.limit} beschikbaar.`,
-        reason: access.reason,
-      },
-      { status: access.reason === "not_subscriber" ? 403 : 429 },
-    );
-  }
-
-  const input = parsed.data;
-  const isGame = isGameDomain(input.learningLine);
-
-  const queryParts = [input.learningLine, input.targetGroup];
-  if (isGame) {
-    queryParts.push(
-      "Game-Based Pedagogy speldimensies Space Equipment People Rules tactische reflectievragen",
-    );
-  }
-  const query = queryParts.join(". ");
-
-  let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
+  // Alles ná validatie in één try/catch: eerder ontbrak dit, waardoor een
+  // onverwachte fout (bijv. een module die niet in de Node-omgeving laadt)
+  // Next.js' eigen, contentloze 500-afhandeling raakte — de client kreeg
+  // dan geen bruikbare "error" terug en viel stil terug op de generieke
+  // wizard-toast, zonder dat er ook maar iets in de server-logs stond.
   try {
-    matches = await getRelevantKnowledge(supabase, query, { matchCount: 4 });
-  } catch {
-    // Retrieval failure shouldn't block generation — falls back to general
-    // knowledge, per buildKnowledgePromptSection's empty case.
-  }
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
 
-  const domainInstruction = isGame ? GAME_DOMAIN_INSTRUCTION : NON_GAME_DOMAIN_INSTRUCTION;
-  // Statische instructies eerst, de per-aanroep opgehaalde Kennisbank-
-  // fragmenten laatst: OpenAI cachet automatisch een identiek prompt-
-  // prefix tussen aanroepen (geen aparte cache-API nodig, in tegenstelling
-  // tot Anthropic). Omdat de fragmenten hier query-afhankelijk zijn (RAG op
-  // leerlijn+doelgroep) is de prefix niet bij élke aanroep identiek, maar
-  // deze volgorde maximaliseert het stabiele, cachebare deel en profiteert
-  // dus wél zodra twee aanroepen dezelfde leerlijn/doelgroep-combinatie
-  // gebruiken.
-  const systemPrompt =
-    `${SYSTEM_PROMPT_BASE}\n\n${JSON_FORMAT_INSTRUCTION}\n\n${domainInstruction}\n\n` +
-    buildKnowledgePromptSection(matches);
-  const userPrompt = `Leerlijn: ${input.learningLine}\nDoelgroep: ${input.targetGroup}`;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  try {
+    if (!user) {
+      return Response.json({ error: "Je bent niet ingelogd." }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from("users")
+      .select("subscription_status")
+      .eq("id", user.id)
+      .single();
+
+    const access = await checkLessonGeneratorAccess(
+      supabase,
+      user.id,
+      profile?.subscription_status ?? "free_contributor",
+    );
+
+    if (!access.allowed) {
+      return Response.json(
+        {
+          error:
+            access.reason === "not_subscriber"
+              ? "De AI-lessengenerator is een functie van het betaalde abonnement (EUR 3,-/mnd). Upgrade om 'm te gebruiken."
+              : `Je hebt je ${access.limit} lesgeneraties voor deze maand gebruikt. Volgende maand heb je weer ${access.limit} beschikbaar.`,
+          reason: access.reason,
+        },
+        { status: access.reason === "not_subscriber" ? 403 : 429 },
+      );
+    }
+
+    const input = parsed.data;
+    const isGame = isGameDomain(input.learningLine);
+
+    const queryParts = [input.learningLine, input.targetGroup];
+    if (isGame) {
+      queryParts.push(
+        "Game-Based Pedagogy speldimensies Space Equipment People Rules tactische reflectievragen",
+      );
+    }
+    const query = queryParts.join(". ");
+
+    let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
+    try {
+      matches = await getRelevantKnowledge(supabase, query, { matchCount: 4 });
+    } catch (cause) {
+      // Retrieval failure shouldn't block generation — falls back to general
+      // knowledge, per buildKnowledgePromptSection's empty case. Wél loggen:
+      // dit is precies het soort fout die eerder onzichtbaar bleef.
+      console.error("AI Activiteiten Generator: Kennisbank-retrieval mislukt:", cause);
+    }
+
+    const domainInstruction = isGame ? GAME_DOMAIN_INSTRUCTION : NON_GAME_DOMAIN_INSTRUCTION;
+    // Statische instructies eerst, de per-aanroep opgehaalde Kennisbank-
+    // fragmenten laatst: OpenAI cachet automatisch een identiek prompt-
+    // prefix tussen aanroepen (geen aparte cache-API nodig, in tegenstelling
+    // tot Anthropic). Omdat de fragmenten hier query-afhankelijk zijn (RAG op
+    // leerlijn+doelgroep) is de prefix niet bij élke aanroep identiek, maar
+    // deze volgorde maximaliseert het stabiele, cachebare deel en profiteert
+    // dus wél zodra twee aanroepen dezelfde leerlijn/doelgroep-combinatie
+    // gebruiken.
+    const systemPrompt =
+      `${SYSTEM_PROMPT_BASE}\n\n${JSON_FORMAT_INSTRUCTION}\n\n${domainInstruction}\n\n` +
+      buildKnowledgePromptSection(matches);
+    const userPrompt = `Leerlijn: ${input.learningLine}\nDoelgroep: ${input.targetGroup}`;
+
     const client = getOpenAIClient();
     const completion = await client.chat.completions.create({
       model: CHAT_MODEL,
@@ -173,14 +223,7 @@ export async function POST(request: Request) {
       remaining: Math.max(access.remaining - 1, 0),
     });
   } catch (cause) {
-    return Response.json(
-      {
-        error:
-          cause instanceof Error
-            ? cause.message
-            : "Genereren van de lesvoorbereiding is mislukt. Probeer het opnieuw.",
-      },
-      { status: 500 },
-    );
+    logGenerationFailure(cause);
+    return Response.json({ error: toUserMessage(cause) }, { status: 500 });
   }
 }

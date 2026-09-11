@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { generateEmbedding } from "@/lib/ai/knowledgeProcessor";
+import { generateEmbedding } from "@/lib/ai/embeddings";
 import type { KnowledgeMatch } from "@/types/knowledge";
 
 const DEFAULT_MATCH_THRESHOLD = 0.5;
