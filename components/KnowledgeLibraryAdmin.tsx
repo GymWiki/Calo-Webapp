@@ -121,11 +121,19 @@ function NewPackageForm() {
   );
 }
 
-function UploadDocumentForm({ packageId }: { packageId: string }) {
+/**
+ * Altijd zichtbare, standalone upload-sectie — los van een specifieke
+ * pakketkaart, zodat er sowieso een duidelijke "document uploaden"-knop op
+ * de pagina staat i.p.v. verstopt binnen een pakket dat je eerst moet
+ * hebben aangemaakt. Kiest het pakket via een dropdown; zonder pakketten
+ * is het formulier uitgeschakeld met een duidelijke hint.
+ */
+function UploadDocumentForm({ packages }: { packages: KnowledgePackageWithDocuments[] }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const titleInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
+  const hasPackages = packages.length > 0;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -135,9 +143,7 @@ function UploadDocumentForm({ packageId }: { packageId: string }) {
       return;
     }
 
-    const formData = new FormData();
-    formData.set("packageId", packageId);
-    formData.set("title", titleInputRef.current?.value ?? "");
+    const formData = new FormData(event.currentTarget);
     formData.set("file", file);
 
     startTransition(async () => {
@@ -147,44 +153,67 @@ function UploadDocumentForm({ packageId }: { packageId: string }) {
         return;
       }
       toast.success("Document geüpload en verwerkt.");
-      if (titleInputRef.current) titleInputRef.current.value = "";
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      formRef.current?.reset();
       router.refresh();
     });
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-      <div className="flex-1">
-        <Label htmlFor={`doc-title-${packageId}`} className="text-xs">
-          Titel
-        </Label>
-        <Input
-          id={`doc-title-${packageId}`}
-          ref={titleInputRef}
-          className="mt-1"
-          placeholder="Bijv. Hoofdstuk 3 — Motorisch leren"
-          required
-        />
-      </div>
-      <div className="flex-1">
-        <Label htmlFor={`doc-file-${packageId}`} className="text-xs">
-          Bestand (PDF, Word of tekst)
-        </Label>
-        <Input
-          id={`doc-file-${packageId}`}
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-          className="mt-1"
-          required
-        />
-      </div>
-      <Button type="submit" size="sm" disabled={isPending}>
-        <Upload className="size-3.5" />
-        {isPending ? "Bezig..." : "Uploaden"}
-      </Button>
-    </form>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Document uploaden</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {hasPackages ? (
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="doc-package">Pakket</Label>
+              <select
+                id="doc-package"
+                name="packageId"
+                required
+                className="border-input mt-1.5 flex h-11 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                {packages.map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>
+                    {pkg.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="doc-title">Titel</Label>
+              <Input
+                id="doc-title"
+                name="title"
+                className="mt-1.5"
+                placeholder="Bijv. Hoofdstuk 3 — Motorisch leren"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="doc-file">Bestand (PDF, Word of tekst)</Label>
+              <Input
+                id="doc-file"
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                className="mt-1.5"
+                required
+              />
+            </div>
+            <Button type="submit" disabled={isPending}>
+              <Upload className="size-4" />
+              {isPending ? "Bezig met verwerken..." : "Document uploaden"}
+            </Button>
+          </form>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Maak hierboven eerst een pakket aan — een document hoort altijd bij een pakket.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -326,9 +355,11 @@ function PackageCard({ pkg }: { pkg: KnowledgePackageWithDocuments }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <UploadDocumentForm packageId={pkg.id} />
         {pkg.documents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nog geen documenten in dit pakket.</p>
+          <p className="text-sm text-muted-foreground">
+            Nog geen documenten in dit pakket — upload er een via &ldquo;Document
+            uploaden&rdquo; hierboven.
+          </p>
         ) : (
           <ul className="space-y-2">
             {pkg.documents.map((document) => (
@@ -357,6 +388,8 @@ export function KnowledgeLibraryAdmin({
           + Nieuw pakket
         </Button>
       )}
+
+      <UploadDocumentForm packages={packages} />
 
       {packages.length === 0 ? (
         <EmptyState
