@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { matchDidacticCategory, type LescoachFeedback } from "@/types/ai";
 import type { DidacticItem, GameDimensions } from "@/types/lesson";
+import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
 
 export type AnalyzeLessonPayload = {
   title?: string;
@@ -54,11 +55,13 @@ export function AiLescoachSheet({
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<LescoachFeedback | null>(null);
+  const [sources, setSources] = useState<KnowledgeSourceSummary[]>([]);
   const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
 
   async function runAnalysis() {
     setIsLoading(true);
     setFeedback(null);
+    setSources([]);
     setAppliedIndexes(new Set());
 
     try {
@@ -76,6 +79,7 @@ export function AiLescoachSheet({
       }
 
       setFeedback(data.feedback);
+      setSources(data.sources ?? []);
     } catch {
       toast.error("AI Lescoach-analyse is mislukt. Controleer je verbinding.");
       setOpen(false);
@@ -139,6 +143,13 @@ export function AiLescoachSheet({
                   </div>
                   <p className="text-sm">{feedback.summary}</p>
                 </div>
+
+                {sources.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Gebaseerd op:{" "}
+                    {sources.map((source) => `${source.label} (${source.count})`).join(", ")}.
+                  </p>
+                )}
 
                 {feedback.strengths.length > 0 && (
                   <div>

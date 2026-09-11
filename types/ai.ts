@@ -105,3 +105,9 @@ export const AI_GENERATED_LESSON_STORAGE_KEY = "gymbase-ai-generated-lesson";
 // mogelijk), en geeft de geëxtraheerde activiteit via sessionStorage mee
 // zodat AddActivityForm zichzelf daarmee voorvult.
 export const AI_EXTRACTED_ACTIVITY_STORAGE_KEY = "gymbase-ai-extracted-activity";
+
+// Losse key naast AI_GENERATED_LESSON_STORAGE_KEY: de bron-attributie
+// ("Gebaseerd op: eigen kennisbank (3), Athletic Skills Model (2)") bij een
+// AI-generatie — apart gehouden i.p.v. in de les zelf, zodat
+// LessonForm's bestaande GeneratedLessonWithIds-vorm ongemoeid blijft.
+export const AI_GENERATED_LESSON_SOURCES_STORAGE_KEY = "gymbase-ai-generated-lesson-sources";

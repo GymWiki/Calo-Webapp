@@ -51,4 +51,8 @@ export type KnowledgeMatch = {
   document_title: string;
   content: string;
   similarity: number;
+  // "Eigen kennisbank" voor knowledge_base-matches, of de pakketnaam voor
+  // Standaardbibliotheek-matches — backt de "Gebaseerd op: ..."-attributie
+  // in de AI-checker/-generator/-lescoach-UI (zie lib/ai/knowledgeRetrieval.ts).
+  source_label: string;
 };

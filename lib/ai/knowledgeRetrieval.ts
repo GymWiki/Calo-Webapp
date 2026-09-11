@@ -6,25 +6,14 @@ import type { KnowledgeMatch } from "@/types/knowledge";
 const DEFAULT_MATCH_THRESHOLD = 0.5;
 const DEFAULT_MATCH_COUNT = 5;
 
-/**
- * Losstaande, herbruikbare retrieval-service: haalt de meest relevante
- * Kennisbank-fragmenten op voor een query. Gedeeld door de AI-
- * activiteitenchecker (lib/ai/activityQualityCheck.ts) en de AI-
- * activiteitengenerator (app/api/ai/generate-activity/route.ts) — beide
- * roepen dit aan in plaats van zelf te embedden/matchen. Geen
- * gebruikersscoping meer: de Kennisbank is nu één gedeelde bron voor
- * iedereen (zie supabase/migrations/knowledge_base_simplify.sql).
- */
-export async function getRelevantKnowledge(
-  supabase: SupabaseClient,
-  query: string,
-  {
-    matchThreshold = DEFAULT_MATCH_THRESHOLD,
-    matchCount = DEFAULT_MATCH_COUNT,
-  }: { matchThreshold?: number; matchCount?: number } = {},
-): Promise<KnowledgeMatch[]> {
-  const embedding = await generateEmbedding(query);
+const OWN_KNOWLEDGE_BASE_LABEL = "Eigen kennisbank";
 
+async function matchKnowledgeBase(
+  supabase: SupabaseClient,
+  embedding: number[],
+  matchThreshold: number,
+  matchCount: number,
+): Promise<KnowledgeMatch[]> {
   const { data: rawMatches, error } = await supabase.rpc("match_knowledge_base_chunks", {
     query_embedding: embedding,
     match_threshold: matchThreshold,
@@ -61,7 +50,95 @@ export async function getRelevantKnowledge(
   ).map((match) => ({
     ...match,
     document_title: titleById.get(match.document_id) ?? "Onbekend document",
+    source_label: OWN_KNOWLEDGE_BASE_LABEL,
   }));
+}
+
+async function matchKnowledgePackages(
+  supabase: SupabaseClient,
+  userId: string,
+  embedding: number[],
+  matchThreshold: number,
+  matchCount: number,
+): Promise<KnowledgeMatch[]> {
+  const { data: rawMatches, error } = await supabase.rpc("match_knowledge_package_chunks", {
+    query_embedding: embedding,
+    p_user_id: userId,
+    match_threshold: matchThreshold,
+    match_count: matchCount,
+  });
+
+  if (error || !rawMatches || rawMatches.length === 0) {
+    return [];
+  }
+
+  return (
+    rawMatches as {
+      id: string;
+      document_id: string;
+      document_title: string;
+      package_name: string;
+      content: string;
+      similarity: number;
+    }[]
+  ).map((match) => ({
+    id: match.id,
+    document_id: match.document_id,
+    document_title: match.document_title ?? "Onbekend document",
+    content: match.content,
+    similarity: match.similarity,
+    source_label: match.package_name,
+  }));
+}
+
+/**
+ * Losstaande, herbruikbare retrieval-service: haalt de meest relevante
+ * fragmenten op uit zowel de gedeelde, eigen Kennisbank (knowledge_base —
+ * altijd meegenomen, ongewijzigd t.o.v. voorheen) als de
+ * Standaardbibliotheek-pakketten die déze gebruiker heeft aangevinkt
+ * (knowledge_package_chunks, zie knowledge_packages.sql). Beide bronnen
+ * worden samengevoegd en puur op relevantie (similarity) geherrangschikt —
+ * geen quotum per bron — en afgekapt op matchCount totaal, voor
+ * voorspelbare tokenkosten. Gedeeld door de AI-activiteitenchecker
+ * (lib/ai/activityQualityCheck.ts), de AI Lescoach (analyze-lesson/route.ts)
+ * en de AI-activiteitengenerator (generate-activity/route.ts).
+ */
+export async function getRelevantKnowledge(
+  supabase: SupabaseClient,
+  userId: string,
+  query: string,
+  {
+    matchThreshold = DEFAULT_MATCH_THRESHOLD,
+    matchCount = DEFAULT_MATCH_COUNT,
+  }: { matchThreshold?: number; matchCount?: number } = {},
+): Promise<KnowledgeMatch[]> {
+  const embedding = await generateEmbedding(query);
+
+  const [baseMatches, packageMatches] = await Promise.all([
+    matchKnowledgeBase(supabase, embedding, matchThreshold, matchCount),
+    matchKnowledgePackages(supabase, userId, embedding, matchThreshold, matchCount),
+  ]);
+
+  return [...baseMatches, ...packageMatches]
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, matchCount);
+}
+
+export type KnowledgeSourceSummary = { label: string; count: number };
+
+/**
+ * Groepeert matches per bron voor de "Gebaseerd op: eigen kennisbank
+ * (3 bronnen), Athletic Skills Model (2 bronnen)"-attributie in de UI
+ * (Stap 7). Volgorde: meest-fragmenten-eerst.
+ */
+export function summarizeKnowledgeSources(matches: KnowledgeMatch[]): KnowledgeSourceSummary[] {
+  const counts = new Map<string, number>();
+  for (const match of matches) {
+    counts.set(match.source_label, (counts.get(match.source_label) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 /**
@@ -79,7 +156,7 @@ export function buildKnowledgePromptSection(matches: KnowledgeMatch[]): string {
   const citedFragments = matches
     .map(
       (match, index) =>
-        `[${index + 1}] (${match.document_title}) ${match.content}`,
+        `[${index + 1}] (${match.document_title} — ${match.source_label}) ${match.content}`,
     )
     .join("\n\n");
 

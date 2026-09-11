@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
-import { getKnowledgeBaseDocumentCount } from "@/lib/services/knowledge";
+import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
 import { createClient } from "@/utils/supabase/server";
@@ -64,7 +64,7 @@ export default async function LesMakenPage({
   const supabase = createClient(cookieStore);
   const [activity, activeSourceCount, lessonGeneratorAccess] = await Promise.all([
     vanuit ? getActivityById(vanuit) : Promise.resolve(null),
-    getKnowledgeBaseDocumentCount(),
+    getAvailableSourceCount(profile.id),
     checkLessonGeneratorAccess(supabase, profile.id, profile.subscription_status),
   ]);
   const initialTab = parseInitialTab(tab);

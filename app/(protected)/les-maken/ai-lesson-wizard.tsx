@@ -11,7 +11,10 @@ import { Label } from "@/components/ui/label";
 import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
-import { AI_GENERATED_LESSON_STORAGE_KEY } from "@/types/ai";
+import {
+  AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
+  AI_GENERATED_LESSON_STORAGE_KEY,
+} from "@/types/ai";
 
 const SELECT_CLASS =
   "border-input mt-1.5 flex h-11 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
@@ -63,6 +66,12 @@ export function AiLessonWizard({
         AI_GENERATED_LESSON_STORAGE_KEY,
         JSON.stringify(data.lesson),
       );
+      if (data.sources) {
+        sessionStorage.setItem(
+          AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
+          JSON.stringify(data.sources),
+        );
+      }
       onGenerated();
     } catch {
       toast.error("Genereren van de lesvoorbereiding is mislukt. Probeer het opnieuw.");
@@ -169,6 +178,12 @@ export function AiLessonWizard({
           {activeSourceCount !== undefined && (
             <KnowledgeSourceHint count={activeSourceCount} />
           )}
+          {activeSourceCount === 0 && (
+            <p className="text-xs font-medium text-destructive">
+              Selecteer minstens één bron in de kennisbank — voeg een artikel toe of zet een
+              Standaardbibliotheek-pakket aan voordat je genereert.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             {lessonGeneratorAccess.remaining} van {lessonGeneratorAccess.limit} lesgeneraties
             deze maand over.
@@ -199,7 +214,7 @@ export function AiLessonWizard({
           <Button
             type="button"
             onClick={handleGenerate}
-            disabled={isGenerating || !lessonGeneratorAccess.allowed}
+            disabled={isGenerating || !lessonGeneratorAccess.allowed || activeSourceCount === 0}
           >
             <Sparkles className="size-4" />
             {isGenerating ? "Bezig met genereren..." : "Genereer lesvoorbereiding"}

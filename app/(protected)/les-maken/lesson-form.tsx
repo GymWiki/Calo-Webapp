@@ -31,9 +31,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
   AI_GENERATED_LESSON_STORAGE_KEY,
   type GeneratedLessonWithIds,
 } from "@/types/ai";
+import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN } from "@/types/activity";
 import {
   EMPTY_GAME_DIMENSIONS,
@@ -122,6 +124,20 @@ export function LessonForm({
     }
   });
 
+  // Bron-attributie (Stap 7: "Gebaseerd op: ...") bij de zojuist opgehaalde
+  // stashedGenerated — apart gestasht, zie AI_GENERATED_LESSON_SOURCES_STORAGE_KEY.
+  const [generatedSources] = useState<KnowledgeSourceSummary[]>(() => {
+    if (typeof window === "undefined") return [];
+    const raw = sessionStorage.getItem(AI_GENERATED_LESSON_SOURCES_STORAGE_KEY);
+    if (!raw) return [];
+    sessionStorage.removeItem(AI_GENERATED_LESSON_SOURCES_STORAGE_KEY);
+    try {
+      return JSON.parse(raw) as KnowledgeSourceSummary[];
+    } catch {
+      return [];
+    }
+  });
+
   const [activeTab, setActiveTab] = useState<TabValue>(initialTab ?? "context");
   const [baseMaterials, setBaseMaterials] = useState<string[]>(
     stashedGenerated?.baseMaterials ?? initialValues?.baseMaterials ?? [],
@@ -175,7 +191,15 @@ export function LessonForm({
   // generated lesson was picked up above.
   useEffect(() => {
     if (stashedGenerated) {
-      toast.success("AI-gegenereerde lesvoorbereiding geladen — controleer en vul aan.");
+      const sourcesText =
+        generatedSources.length > 0
+          ? ` Gebaseerd op: ${generatedSources
+              .map((source) => `${source.label} (${source.count})`)
+              .join(", ")}.`
+          : "";
+      toast.success(
+        `AI-gegenereerde lesvoorbereiding geladen — controleer en vul aan.${sourcesText}`,
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

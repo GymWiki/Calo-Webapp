@@ -1,11 +1,16 @@
 import { cookies } from "next/headers";
 import OpenAI from "openai";
 import { createClient } from "@/utils/supabase/server";
-import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
+import {
+  buildKnowledgePromptSection,
+  getRelevantKnowledge,
+  summarizeKnowledgeSources,
+} from "@/lib/ai/knowledgeRetrieval";
 import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
 import { isGameDomain } from "@/lib/constants/learningLines";
+import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
 import {
   generateActivityInputSchema,
   generatedLessonSchema,
@@ -50,6 +55,10 @@ const JSON_FORMAT_INSTRUCTION =
 function createId() {
   return `d-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+const NO_SOURCES_ERROR =
+  "Selecteer minstens één bron in de kennisbank — er zijn nog geen eigen artikelen of " +
+  "Standaardbibliotheek-pakketten beschikbaar om de lesvoorbereiding op te baseren.";
 
 // Logt de daadwerkelijke oorzaak server-side (zichtbaar in de Vercel
 // function logs) vóórdat er een nette, generieke melding teruggaat naar de
@@ -151,6 +160,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Stap 8: geen enkele kennisbron beschikbaar (geen artikelen, geen
+    // aangevinkte pakketten) -> harde, duidelijke melding i.p.v. de AI een
+    // hele lesvoorbereiding volledig ongegrond te laten verzinnen.
+    const availableSourceCount = await getAvailableSourceCount(user.id);
+    if (availableSourceCount === 0) {
+      return Response.json({ error: NO_SOURCES_ERROR }, { status: 422 });
+    }
+
     const input = parsed.data;
     const isGame = isGameDomain(input.learningLine);
 
@@ -164,7 +181,7 @@ export async function POST(request: Request) {
 
     let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
     try {
-      matches = await getRelevantKnowledge(supabase, query, { matchCount: 4 });
+      matches = await getRelevantKnowledge(supabase, user.id, query, { matchCount: 4 });
     } catch (cause) {
       // Retrieval failure shouldn't block generation — falls back to general
       // knowledge, per buildKnowledgePromptSection's empty case. Wél loggen:
@@ -220,6 +237,7 @@ export async function POST(request: Request) {
     return Response.json({
       success: true,
       lesson,
+      sources: summarizeKnowledgeSources(matches),
       remaining: Math.max(access.remaining - 1, 0),
     });
   } catch (cause) {

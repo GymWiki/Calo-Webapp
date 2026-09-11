@@ -57,7 +57,7 @@ async function checkContentQuality(
     const query = [input.titel, input.leerlijn, input.beschrijving].join(". ");
     let knowledgeSection = "";
     try {
-      const matches = await getRelevantKnowledge(supabase, query, { matchCount: 4 });
+      const matches = await getRelevantKnowledge(supabase, authorId, query, { matchCount: 4 });
       knowledgeSection = `\n\n${buildKnowledgePromptSection(matches)}`;
     } catch {
       // Retrieval-storing mag de kwaliteitscheck niet blokkeren — de check
