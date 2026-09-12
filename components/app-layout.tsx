@@ -52,7 +52,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen w-full md:flex-row">
+    <div className="flex min-h-dvh w-full md:flex-row">
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
         <div className="font-display px-6 py-5 text-lg tracking-wide">
           GYMWIKI
@@ -111,7 +111,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t bg-background/95 backdrop-blur-sm md:hidden print:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 flex h-16 shrink-0 transform-gpu border-t bg-background/95 backdrop-blur-sm md:hidden print:hidden">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -120,17 +120,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium transition-colors duration-150 ease-brand",
+                "flex flex-1 shrink-0 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-150 ease-brand",
                 isActive ? "text-primary" : "text-muted-foreground",
               )}
             >
               <Icon
                 className={cn(
-                  "size-5 transition-transform duration-150 ease-brand",
+                  "size-5 shrink-0 transition-transform duration-150 ease-brand",
                   isActive && "-translate-y-0.5",
                 )}
               />
-              {item.label}
+              <span className="shrink-0 leading-none whitespace-nowrap">{item.label}</span>
             </Link>
           );
         })}
