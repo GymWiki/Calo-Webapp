@@ -13,9 +13,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
+import { createClient } from "@/utils/supabase/client";
 
 const ACCEPT =
   ".pdf,.docx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain";
+
+const BUCKET = "kennisbank-documenten";
 
 /**
  * Alternatieve invoerroute voor "Activiteit toevoegen": laat de gebruiker
@@ -46,12 +49,36 @@ export function ActivityImportUploadCard({
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.set("file", file);
+      // Het bestand gaat rechtstreeks van de browser naar Supabase Storage
+      // — NIET via onze eigen /api-route. Vercel Functions weigeren elke
+      // request-body boven 4,5 MB (een harde platformlimiet, niet
+      // instelbaar); een rauwe lesvoorbereiding van een paar MB liep daar
+      // al tegenaan, nog vóór de route-code ooit draaide. De route krijgt
+      // hierna alleen het (kleine) opslagpad en haalt het bestand zelf op.
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        toast.error("Je bent niet ingelogd.");
+        return;
+      }
+
+      const path = `${user.id}/activiteit-import/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, file, { contentType: file.type });
+
+      if (uploadError) {
+        toast.error("Uploaden is mislukt. Probeer het opnieuw.");
+        return;
+      }
 
       const response = await fetch("/api/ai/extract-activity", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, fileType: file.type }),
       });
       const data = await response.json();
 

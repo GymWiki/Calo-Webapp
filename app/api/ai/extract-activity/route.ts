@@ -15,6 +15,8 @@ import { recordAiUsage } from "@/lib/ai/usageTracking";
 // generieke foutmelding op de frontend zou geven).
 export const maxDuration = 60;
 
+const BUCKET = "kennisbank-documenten";
+
 const EXTRACTION_ERROR = "Kon geen tekst uit dit bestand halen. Probeer een ander bestand of vul de activiteit handmatig in.";
 const AI_MAPPING_ERROR = "De AI kon de inhoud van dit bestand niet goed omzetten naar een activiteit. Probeer het opnieuw of vul de activiteit handmatig in.";
 
@@ -44,6 +46,19 @@ function aiMappingUserMessage(cause: unknown): string {
   return AI_MAPPING_ERROR;
 }
 
+/**
+ * Verwacht GEEN rauw bestand meer in de request-body — zie
+ * components/ActivityImportUploadCard.tsx: de browser uploadt het bestand
+ * rechtstreeks naar Supabase Storage en stuurt hier alleen het opslagpad
+ * mee. Reden: Vercel Functions hanteren een harde, niet-instelbare limiet
+ * van 4,5 MB op de request-body — een rauw bestand van een paar MB (een
+ * reële lesvoorbereiding met afbeeldingen komt daar zomaar overheen) werd
+ * dus al door Vercel's infrastructuur met een 413 geweigerd, nog vóórdat
+ * deze route-code ooit draaide. Vandaar dat er nooit iets in de
+ * server-logs verscheen: de aanvraag bereikte de functie niet eens. Met
+ * alleen het pad in de body blijft de request-body altijd klein,
+ * ongeacht bestandsgrootte (tot de eigen 20MB-grens hieronder).
+ */
 export async function POST(request: Request) {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -67,26 +82,44 @@ export async function POST(request: Request) {
     );
   }
 
-  let formData: FormData;
+  let body: unknown;
   try {
-    formData = await request.formData();
+    body = await request.json();
   } catch {
     return Response.json({ error: "Ongeldige aanvraag." }, { status: 400 });
   }
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return Response.json({ error: "Kies een bestand om te uploaden." }, { status: 400 });
+  const path = (body as Record<string, unknown> | null)?.path;
+  const fileType = (body as Record<string, unknown> | null)?.fileType;
+
+  if (typeof path !== "string" || !path.startsWith(`${user.id}/`)) {
+    return Response.json({ error: "Ongeldige aanvraag." }, { status: 400 });
   }
 
-  if (!(SUPPORTED_DOCUMENT_MIME_TYPES as readonly string[]).includes(file.type)) {
+  if (typeof fileType !== "string" || !(SUPPORTED_DOCUMENT_MIME_TYPES as readonly string[]).includes(fileType)) {
     return Response.json(
       { error: "Alleen PDF, Word (.docx), PowerPoint (.pptx) en tekstbestanden worden ondersteund." },
       { status: 400 },
     );
   }
 
-  if (file.size > DOCUMENT_MAX_FILE_SIZE_BYTES) {
+  // Best-effort opruimen: dit is een tijdelijk scratch-bestand, alleen
+  // bedoeld om deze ene extractie te voeden — nooit bedoeld om te blijven
+  // staan in de (gedeelde) Kennisbank-bucket. Wordt hoe dan ook verwijderd,
+  // ook als extractie/AI-mapping hieronder mislukt.
+  const cleanup = () => supabase.storage.from(BUCKET).remove([path]).catch(() => {});
+
+  const { data: fileBlob, error: downloadError } = await supabase.storage
+    .from(BUCKET)
+    .download(path);
+
+  if (downloadError || !fileBlob) {
+    console.error("extract-activity: download uit Storage mislukt:", downloadError?.message);
+    return Response.json({ error: EXTRACTION_ERROR }, { status: 500 });
+  }
+
+  if (fileBlob.size > DOCUMENT_MAX_FILE_SIZE_BYTES) {
+    await cleanup();
     return Response.json({ error: "Bestand is te groot (max 20 MB)." }, { status: 400 });
   }
 
@@ -96,15 +129,18 @@ export async function POST(request: Request) {
   // met een eigen, herkenbare melding (Stap 4).
   let text: string;
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    text = await extractDocumentText(buffer, file.type);
+    const buffer = Buffer.from(await fileBlob.arrayBuffer());
+    text = await extractDocumentText(buffer, fileType);
   } catch (cause) {
     logFailure("tekstextractie", cause);
+    await cleanup();
     return Response.json(
       { error: cause instanceof Error ? cause.message : EXTRACTION_ERROR },
       { status: 500 },
     );
   }
+
+  await cleanup();
 
   if (!text.trim()) {
     return Response.json(
