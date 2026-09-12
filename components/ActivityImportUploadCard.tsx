@@ -28,15 +28,21 @@ const ACCEPT =
  * Stuurt het bestand rechtstreeks (same-origin FormData) naar onze eigen
  * /api-route. Een eerdere versie liet de browser eerst rechtstreeks naar
  * Supabase Storage uploaden (om Vercel's 4,5MB-request-limiet te omzeilen
- * voor grote bestanden) — maar dat introduceerde een nieuwe, ergere bug:
- * Supabase's eigen edge-logs lieten zien dat de CORS-preflight (OPTIONS)
- * steevast slaagde, maar de daadwerkelijke upload nooit volgde, óók niet
- * voor een bestand van maar 122 KB (dus ver onder elke size-limiet). De
- * simpele, bewezen same-origin route (die niet afhankelijk is van een
- * cross-origin browser-upload naar Supabase) is teruggezet; zie
- * DOCUMENT_UPLOAD_MAX_FILE_SIZE_BYTES in de route voor hoe de 4,5MB-
- * platformlimiet nu wordt afgehandeld (een duidelijke foutmelding i.p.v.
- * een crash, i.p.v. de complexere maar kennelijk onbetrouwbare omweg).
+ * voor grote bestanden) — maar dat introduceerde een nieuwe, ergere bug en
+ * is teruggedraaid naar deze simpele, bewezen same-origin route.
+ *
+ * De hardnekkige "Verwerken van dit bestand is mislukt" die daarna nog
+ * bleef optreden bleek, bevestigd via een echte test op een mobiel
+ * toestel, helemaal geen library-/serverbug: de browser gaf
+ * "TypeError: Failed to fetch" — de generieke melding voor een aanvraag
+ * die het netwerk niet eens haalt, meestal door geen/wankele
+ * internetverbinding op dat moment. Vercel's logs bevestigden dit: er kwam
+ * bij geen enkele van deze pogingen ook maar iets bij de server binnen.
+ * Verwarrend was dat de rest van de (PWA-gecachete) pagina wél leek te
+ * werken — een GET-navigatie valt bij Workbox terug op cache, een POST
+ * zoals deze upload niet, dus die faalt zichtbaar zodra de verbinding
+ * wegvalt terwijl de rest van de site "gewoon werkt" (uit cache). Vandaar
+ * de navigator.onLine-check en de specifieke netwerk-foutmelding hieronder.
  */
 const DEFAULT_DESCRIPTION =
   "PDF, Word (.docx), PowerPoint (.pptx) of tekstbestand — de AI zet het om naar het " +
@@ -56,6 +62,19 @@ export function ActivityImportUploadCard({
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Bevestigd via een echte test op een mobiel toestel: de meest
+    // voorkomende faalmodus hier is helemaal geen bug, maar een
+    // ontbrekende/wankele internetverbinding op het moment van uploaden —
+    // de browser geeft dat als "TypeError: Failed to fetch". Deze app is
+    // een PWA die pagina's cachet, dus de rest van de site kan dan alsnog
+    // prima lijken te werken (uit cache) terwijl een upload, die geen
+    // cache-terugval heeft, gewoon hard faalt. Vang het vooraf af met een
+    // duidelijke melding i.p.v. de gebruiker te laten gokken.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      toast.error("Geen internetverbinding. Controleer je verbinding en probeer het opnieuw.");
+      return;
+    }
 
     setIsUploading(true);
     try {
@@ -96,15 +115,16 @@ export function ActivityImportUploadCard({
       onExtracted(data.activity as ExtractedActivity);
     } catch (cause) {
       console.error("ActivityImportUploadCard: onverwachte fout:", cause);
-      // Tijdelijk (debug): toon de ruwe browser-foutmelding zelf i.p.v.
-      // alleen de gebruiksvriendelijke tekst — de server ontving deze
-      // aanvraag namelijk nooit (bevestigd via Vercel-logs), dus de
-      // daadwerkelijke oorzaak zit hier, client-side, in deze fetch-call
-      // zelf. Zonder dit zichtbaar te maken is er geen enkele foutmelding
-      // om op te debuggen.
-      const detail =
-        cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
-      toast.error(`Verwerken van dit bestand is mislukt. (${detail})`);
+      // "TypeError: Failed to fetch" is de browser-generieke melding voor
+      // "de aanvraag kon het netwerk niet eens op" — bevestigd (via een
+      // echte test) de daadwerkelijke, meest voorkomende oorzaak hier, dus
+      // die krijgt een eigen, herkenbare melding i.p.v. de generieke tekst.
+      const isNetworkError = cause instanceof TypeError && /fetch/i.test(cause.message);
+      toast.error(
+        isNetworkError
+          ? "Geen verbinding met de server. Controleer je internetverbinding en probeer het opnieuw."
+          : "Verwerken van dit bestand is mislukt. Probeer het opnieuw.",
+      );
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
