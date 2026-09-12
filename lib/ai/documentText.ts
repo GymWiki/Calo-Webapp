@@ -58,16 +58,30 @@ export async function extractDocumentText(buffer: Buffer, mimeType: string): Pro
     mimeType ===
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
+    try {
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    } catch (cause) {
+      console.error("extractDocumentText: Word-extractie mislukt:", cause);
+      throw new Error(
+        "Kon geen tekst uit dit Word-bestand halen. Probeer een ander bestand of vul de activiteit handmatig in.",
+      );
+    }
   }
 
   if (
     mimeType ===
     "application/vnd.openxmlformats-officedocument.presentationml.presentation"
   ) {
-    const ast = await OfficeParser.parseOffice(buffer, { fileType: "pptx" });
-    return ast.toText();
+    try {
+      const ast = await OfficeParser.parseOffice(buffer, { fileType: "pptx" });
+      return ast.toText();
+    } catch (cause) {
+      console.error("extractDocumentText: PowerPoint-extractie mislukt:", cause);
+      throw new Error(
+        "Kon geen tekst uit dit PowerPoint-bestand halen. Probeer een ander bestand of vul de activiteit handmatig in.",
+      );
+    }
   }
 
   throw new Error(`Bestandstype "${mimeType}" wordt niet ondersteund.`);

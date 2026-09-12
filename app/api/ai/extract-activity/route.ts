@@ -1,10 +1,48 @@
 import { cookies } from "next/headers";
+import OpenAI from "openai";
 import { createClient } from "@/utils/supabase/server";
 import { DOCUMENT_MAX_FILE_SIZE_BYTES, SUPPORTED_DOCUMENT_MIME_TYPES, extractDocumentText } from "@/lib/ai/documentText";
 import { extractActivityFromText } from "@/lib/ai/activityImportExtraction";
 import { CHECK_MODEL } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
+
+// pdfjs-dist-gebaseerde tekstextractie (unpdf) en de daaropvolgende
+// OpenAI-aanroep kunnen bij grotere lesvoorbereidingen samen meer tijd
+// kosten dan Vercel's standaard functie-limiet — expliciet ruimte geven
+// zodat een groter document niet halverwege wordt afgebroken (wat, net als
+// eerder bij generate-activity, een niet-JSON-response en dus een lege
+// generieke foutmelding op de frontend zou geven).
+export const maxDuration = 60;
+
+const EXTRACTION_ERROR = "Kon geen tekst uit dit bestand halen. Probeer een ander bestand of vul de activiteit handmatig in.";
+const AI_MAPPING_ERROR = "De AI kon de inhoud van dit bestand niet goed omzetten naar een activiteit. Probeer het opnieuw of vul de activiteit handmatig in.";
+
+function logFailure(stage: string, cause: unknown) {
+  if (cause instanceof OpenAI.APIError) {
+    console.error(
+      `extract-activity (${stage}): OpenAI API-fout (status ${cause.status ?? "onbekend"}, ` +
+        `type ${cause.type ?? "onbekend"}, code ${cause.code ?? "onbekend"}): ${cause.message}`,
+    );
+    return;
+  }
+  console.error(`extract-activity (${stage}): onverwachte fout:`, cause);
+}
+
+function aiMappingUserMessage(cause: unknown): string {
+  if (cause instanceof OpenAI.APIError) {
+    if (cause.status === 429) {
+      return "De AI-service zit tijdelijk aan de limiet. Probeer het over een paar minuten opnieuw.";
+    }
+    if (cause.status && cause.status >= 500) {
+      return "De AI-service is momenteel niet bereikbaar. Probeer het opnieuw.";
+    }
+  }
+  // SyntaxError (ongeldige JSON) of ZodError (onverwachte AI-output) geven
+  // beide een té technische .message om rechtstreeks te tonen — altijd de
+  // vaste, begrijpelijke melding, de technische fout is al gelogd.
+  return AI_MAPPING_ERROR;
+}
 
 export async function POST(request: Request) {
   const cookieStore = await cookies();
@@ -52,20 +90,36 @@ export async function POST(request: Request) {
     return Response.json({ error: "Bestand is te groot (max 20 MB)." }, { status: 400 });
   }
 
+  // Fase 1: tekst uit het bestand halen. Fouten hier (onleesbaar PDF,
+  // corrupt bestand, ongebruikelijke .docx/.pptx-structuur) zijn een ander
+  // soort probleem dan een AI-fout verderop — vandaar een eigen try/catch
+  // met een eigen, herkenbare melding (Stap 4).
+  let text: string;
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const text = await extractDocumentText(buffer, file.type);
+    text = await extractDocumentText(buffer, file.type);
+  } catch (cause) {
+    logFailure("tekstextractie", cause);
+    return Response.json(
+      { error: cause instanceof Error ? cause.message : EXTRACTION_ERROR },
+      { status: 500 },
+    );
+  }
 
-    if (!text.trim()) {
-      return Response.json(
-        {
-          error:
-            "Er is geen leesbare tekst gevonden in dit bestand. Is het een gescand document zonder tekstlaag? Vul de activiteit dan handmatig in.",
-        },
-        { status: 422 },
-      );
-    }
+  if (!text.trim()) {
+    return Response.json(
+      {
+        error:
+          "Er is geen leesbare tekst gevonden in dit bestand. Is het een gescand document zonder tekstlaag? Vul de activiteit dan handmatig in.",
+      },
+      { status: 422 },
+    );
+  }
 
+  // Fase 2: de geëxtraheerde tekst laten omzetten naar activiteit-
+  // formuliervelden door de AI. Losstaand try/catch van fase 1, zodat een
+  // OpenAI-fout hier nooit met een tekstextractie-fout verward wordt.
+  try {
     const { activity, inputTokens, outputTokens } = await extractActivityFromText(text);
 
     // Loggen ongeacht isMovementActivity — de OpenAI-call (en dus de echte
@@ -91,14 +145,7 @@ export async function POST(request: Request) {
 
     return Response.json({ success: true, activity, remaining: usage.remaining });
   } catch (cause) {
-    return Response.json(
-      {
-        error:
-          cause instanceof Error
-            ? cause.message
-            : "Verwerken van dit bestand is mislukt. Probeer het opnieuw of vul de activiteit handmatig in.",
-      },
-      { status: 500 },
-    );
+    logFailure("AI-mapping", cause);
+    return Response.json({ error: aiMappingUserMessage(cause) }, { status: 500 });
   }
 }
