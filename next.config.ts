@@ -18,15 +18,17 @@ const nextConfig: NextConfig = {
   // Production builds opt back into webpack via `next build --webpack` so
   // the service worker still gets generated.
   turbopack: {},
-  // pdf-parse/mammoth (Kennisbank-tekstextractie) doen native/CJS dingen
-  // die niet door Next's server-bundelaar moeten worden herverpakt.
-  // (Eerder stond hier ook @napi-rs/canvas — pdf-parse's optionele, native
-  // DOMMatrix-polyfill voor pdfjs-dist. Die package wordt op Vercel niet
-  // betrouwbaar meegebundeld [dynamische require() diep in pdfjs-dist, niet
-  // statisch detecteerbaar door de file-tracer], wat alsnog "ReferenceError:
-  // DOMMatrix is not defined" gaf. Vervangen door een eigen, pure-JS
-  // polyfill vóór de pdf-parse-import — zie lib/ai/domMatrixPolyfill.ts.)
-  serverExternalPackages: ["pdf-parse", "mammoth"],
+  // mammoth (Kennisbank-tekstextractie, .docx) doet native/CJS dingen die
+  // niet door Next's server-bundelaar moeten worden herverpakt.
+  // (PDF-tekstextractie liep eerst via pdf-parse/pdfjs-dist rechtstreeks —
+  // dat gaf op Vercel achtereenvolgens "ReferenceError: DOMMatrix is not
+  // defined" en "Setting up fake worker failed: Cannot find module
+  // '.../pdf.worker.mjs'", beide het bekende pdfjs-dist-op-serverless-
+  // compatibiliteitsprobleem. Vervangen door `unpdf`, dat een specifiek
+  // voor serverless/edge gecompileerde PDF.js-build gebruikt zonder los
+  // worker-bestand of native canvas-afhankelijkheid — zie
+  // lib/ai/documentText.ts.)
+  serverExternalPackages: ["mammoth"],
   experimental: {
     serverActions: {
       // createLesson's payload can include a base64 PNG of the exported
