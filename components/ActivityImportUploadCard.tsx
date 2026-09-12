@@ -66,7 +66,27 @@ export function ActivityImportUploadCard({
         method: "POST",
         body: formData,
       });
-      const data = await response.json();
+
+      // Ruwe tekst eerst lezen i.p.v. direct response.json(): als de server
+      // (of iets ertussenin, zoals een platform-timeout-pagina) geen geldige
+      // JSON teruggeeft, willen we die ruwe inhoud kunnen loggen/tonen i.p.v.
+      // gewoon in de catch hieronder te belanden zonder enig aanknopingspunt.
+      const rawBody = await response.text();
+      let data: { error?: string; activity?: ExtractedActivity };
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        console.error(
+          "ActivityImportUploadCard: response is geen geldige JSON. Status:",
+          response.status,
+          "Body:",
+          rawBody.slice(0, 500),
+        );
+        toast.error(
+          `Verwerken van dit bestand is mislukt. (HTTP ${response.status}, geen geldige respons)`,
+        );
+        return;
+      }
 
       if (!response.ok || "error" in data) {
         toast.error(data.error ?? "Verwerken van dit bestand is mislukt.");
@@ -76,7 +96,15 @@ export function ActivityImportUploadCard({
       onExtracted(data.activity as ExtractedActivity);
     } catch (cause) {
       console.error("ActivityImportUploadCard: onverwachte fout:", cause);
-      toast.error("Verwerken van dit bestand is mislukt. Probeer het opnieuw.");
+      // Tijdelijk (debug): toon de ruwe browser-foutmelding zelf i.p.v.
+      // alleen de gebruiksvriendelijke tekst — de server ontving deze
+      // aanvraag namelijk nooit (bevestigd via Vercel-logs), dus de
+      // daadwerkelijke oorzaak zit hier, client-side, in deze fetch-call
+      // zelf. Zonder dit zichtbaar te maken is er geen enkele foutmelding
+      // om op te debuggen.
+      const detail =
+        cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+      toast.error(`Verwerken van dit bestand is mislukt. (${detail})`);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
