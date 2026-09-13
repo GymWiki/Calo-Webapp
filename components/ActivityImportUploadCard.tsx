@@ -18,29 +18,34 @@ import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
 const ACCEPT =
   ".pdf,.docx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain";
 
+const FILE_INPUT_ID = "activity-import-file-input";
+
 /**
  * Alternatieve invoerroute voor "Activiteit toevoegen": laat de gebruiker
  * een bestaande lesvoorbereiding uploaden i.p.v. alles handmatig over te
  * typen. Geen eigen formulier — geeft de geëxtraheerde data terug aan de
- * ouder, die daarmee het bestaande AddActivityForm vult (zie add-activity-
- * form.tsx). Optioneel: het handmatige formulier blijft altijd gewoon
- * bruikbaar zonder dit ooit te gebruiken.
+ * ouder, die daarmee het bestaande AddActivityStep-formulier vult.
  *
- * Stuurt het bestand via een Server Action (extractActivityFromUpload,
- * actions/activityImport.ts) i.p.v. een fetch()-aanroep naar een eigen
- * /api-route. Twee eerdere pogingen faalden allebei op productie (Android
- * Chrome, "TypeError: Failed to fetch", bevestigd via Vercel-logs die voor
- * deze route nooit ook maar één binnenkomend request lieten zien):
- * eerst een rechtstreekse browser-upload naar Supabase Storage, daarna een
- * gewone same-origin fetch() met FormData. Uiteindelijk bleek, door het te
- * vergelijken met andere AI-aanroepen op dezelfde pagina op hetzelfde
- * toestel, dat specifiek de combinatie fetch()+FormData-met-een-echt-
- * File-object het probleem was (fetch() zonder bestand werkte wel; een
- * FormData-upload mét bestand via een Server Action, zoals de Kennisbank-
- * upload, werkte ook wel). Server Actions gebruiken React's eigen
- * formulier-actie-protocol, dat de browser's oudere, robuustere native
- * form-encoding voor bestanden gebruikt in plaats van fetch()'s eigen
- * Blob/File-leeslogica.
+ * Meerdere eerdere pogingen (rechtstreekse Storage-upload, fetch() met
+ * FormData, een Server Action met FormData) faalden allemaal identiek op
+ * Android Chrome met "TypeError: Failed to fetch" — bevestigd via Vercel-
+ * logs dat de aanvraag nooit ook maar het netwerk bereikte, op elke pagina
+ * die dit component gebruikt (/les-maken én het voormalige
+ * /activiteit-toevoegen), met elk bestand, ongeacht de servercode. Dat sluit
+ * server-side oorzaken uit: het probleem zat dus in de browser, vóórdat de
+ * aanvraag verstuurd wordt.
+ *
+ * Het enige overgebleven, nog niet geteste verschil met de wél werkende
+ * Kennisbank-upload (KnowledgeUploadForm): dié gebruikt een gewoon,
+ * zichtbaar `<input type="file">` dat de gebruiker rechtstreeks aantikt.
+ * Dit component gebruikt een verborgen input die programmatisch geopend
+ * werd via `ref.current.click()` vanuit een aparte knop — een JS-
+ * gesimuleerde klik i.p.v. een echte, native klik op het formulierveld
+ * zelf. Omgezet naar een `<label htmlFor>` die aan de (nog steeds verborgen)
+ * input gekoppeld is: het aantikken van het label IS voor de browser een
+ * native, vertrouwde interactie met de input, in tegenstelling tot een
+ * script-aangeroepen .click(). Dat is nu het enige punt van verschil met de
+ * bewezen werkende flow.
  */
 const DEFAULT_DESCRIPTION =
   "PDF, Word (.docx), PowerPoint (.pptx) of tekstbestand — de AI zet het om naar het " +
@@ -76,10 +81,9 @@ export function ActivityImportUploadCard({
       onExtracted(result.activity);
     } catch (cause) {
       console.error("ActivityImportUploadCard: onverwachte fout:", cause);
-      // Tijdelijk (debug): ondanks de overstap naar een Server Action bleef
-      // dezelfde generieke fout optreden, wéér zonder dat er ook maar iets in
-      // Vercel's logs verscheen — dus opnieuw de ruwe fout tonen i.p.v. te
-      // gokken wat hem veroorzaakt (zie STAP 3 van eerdere iteraties).
+      // Tijdelijk (debug): ondanks alle eerdere aanpassingen bleef dezelfde
+      // fout optreden, wéér zonder dat er iets in Vercel's logs verscheen —
+      // dus opnieuw de ruwe fout tonen i.p.v. te gokken wat hem veroorzaakt.
       const detail =
         cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
       toast.error(`Verwerken van dit bestand is mislukt. (${detail})`);
@@ -101,29 +105,27 @@ export function ActivityImportUploadCard({
       <CardContent>
         <input
           ref={fileInputRef}
+          id={FILE_INPUT_ID}
           type="file"
           accept={ACCEPT}
           className="hidden"
           onChange={handleFileChange}
           disabled={isUploading}
         />
-        <Button
-          type="button"
-          variant="outline"
-          disabled={isUploading}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          {isUploading ? (
-            <>
-              <Loader2 className="size-4 animate-spin" />
-              Bestand wordt geanalyseerd...
-            </>
-          ) : (
-            <>
-              <Upload className="size-4" />
-              Kies bestand
-            </>
-          )}
+        <Button asChild variant="outline" className={isUploading ? "pointer-events-none opacity-50" : undefined}>
+          <label htmlFor={FILE_INPUT_ID}>
+            {isUploading ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Bestand wordt geanalyseerd...
+              </>
+            ) : (
+              <>
+                <Upload className="size-4" />
+                Kies bestand
+              </>
+            )}
+          </label>
         </Button>
       </CardContent>
     </Card>
