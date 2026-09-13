@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDate } from "@/lib/format";
+import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { getActivityById } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
@@ -32,13 +32,14 @@ function TextList({ items }: { items: string[] | null }) {
 }
 
 function NumberedList({ items }: { items: string[] | null }) {
-  if (!items || items.length === 0) {
+  const normalized = splitLearningOutcomeItems(items);
+  if (normalized.length === 0) {
     return null;
   }
 
   return (
     <ol className="list-decimal space-y-1 pl-5 text-sm">
-      {items.map((item, index) => (
+      {normalized.map((item, index) => (
         <li key={`${item}-${index}`}>{item}</li>
       ))}
     </ol>
@@ -233,7 +234,7 @@ export default async function SharedActivityPage({
                       <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                         Deelnemers & Regels
                       </h4>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm whitespace-pre-line text-muted-foreground">
                         {activity.deelnemers_regels || "-"}
                       </p>
                     </div>
@@ -241,7 +242,7 @@ export default async function SharedActivityPage({
                       <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                         Plaatje & Praatje
                       </h4>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm whitespace-pre-line text-muted-foreground">
                         {activity.plaatje_praatje || "-"}
                       </p>
                     </div>
@@ -249,7 +250,7 @@ export default async function SharedActivityPage({
                       <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                         Aandachtspunten
                       </h4>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm whitespace-pre-line text-muted-foreground">
                         {activity.aandachtspunten || "-"}
                       </p>
                     </div>
@@ -269,7 +270,7 @@ export default async function SharedActivityPage({
               <CardContent className="space-y-4 pt-6">
                 <div>
                   <h3 className="mb-1 text-sm font-medium">Veldafmetingen & Veldopstelling</h3>
-                  <p className="text-sm text-muted-foreground">{activity.arrangement || "-"}</p>
+                  <p className="text-sm whitespace-pre-line text-muted-foreground">{activity.arrangement || "-"}</p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>

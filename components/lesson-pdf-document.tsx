@@ -1,6 +1,6 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
-import { formatDate } from "@/lib/format";
+import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import {
   DIDACTIC_CATEGORIES,
   DIDACTIC_CATEGORY_LABELS,
@@ -120,13 +120,14 @@ function TextList({ items }: { items: string[] | null }) {
 }
 
 function NumberedList({ items }: { items: string[] | null }) {
-  if (!items || items.length === 0) {
+  const normalized = splitLearningOutcomeItems(items);
+  if (normalized.length === 0) {
     return null;
   }
 
   return (
     <>
-      {items.map((item, index) => (
+      {normalized.map((item, index) => (
         <Text key={index} style={styles.listItem}>
           {index + 1}. {item}
         </Text>
