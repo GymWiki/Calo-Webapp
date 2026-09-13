@@ -76,7 +76,13 @@ export function ActivityImportUploadCard({
       onExtracted(result.activity);
     } catch (cause) {
       console.error("ActivityImportUploadCard: onverwachte fout:", cause);
-      toast.error("Verwerken van dit bestand is mislukt. Probeer het opnieuw.");
+      // Tijdelijk (debug): ondanks de overstap naar een Server Action bleef
+      // dezelfde generieke fout optreden, wéér zonder dat er ook maar iets in
+      // Vercel's logs verscheen — dus opnieuw de ruwe fout tonen i.p.v. te
+      // gokken wat hem veroorzaakt (zie STAP 3 van eerdere iteraties).
+      const detail =
+        cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+      toast.error(`Verwerken van dit bestand is mislukt. (${detail})`);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
