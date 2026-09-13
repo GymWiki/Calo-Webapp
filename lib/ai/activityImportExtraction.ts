@@ -62,10 +62,10 @@ export type ExtractActivityResult = {
 /**
  * Losstaande AI-extractie/mapping-service: zet ruwe documenttekst (uit
  * lib/ai/documentText.ts) om naar de GymWiki-activiteitenstructuur. Bewust
- * hier geïsoleerd van app/api/ai/extract-activity/route.ts zodat dezelfde
- * mapping later voor andere import-functionaliteit hergebruikt kan worden.
- * Geeft ook de token-usage terug zodat de aanroepende route dit als echte
- * AI-kosten kan loggen (zie lib/ai/usageTracking.ts).
+ * hier geïsoleerd van actions/activityImport.ts zodat dezelfde mapping later
+ * voor andere import-functionaliteit hergebruikt kan worden. Geeft ook de
+ * token-usage terug zodat de aanroeper dit als echte AI-kosten kan loggen
+ * (zie lib/ai/usageTracking.ts).
  */
 export async function extractActivityFromText(
   sourceText: string,
