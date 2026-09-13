@@ -24,9 +24,11 @@ function slugify(value: string, fallback: string) {
 export function ActivityPdfButton({
   activity,
   className,
+  size,
 }: {
   activity: Activity;
   className?: string;
+  size?: "default" | "sm";
 }) {
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -56,6 +58,7 @@ export function ActivityPdfButton({
     <Button
       type="button"
       variant="outline"
+      size={size}
       onClick={handleDownload}
       disabled={isGenerating}
       className={className}

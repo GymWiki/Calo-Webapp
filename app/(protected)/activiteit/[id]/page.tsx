@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft, Check, Lock, MapPin, Target, Users } from "lucide-react";
 
 import { AiLescoachButton } from "@/components/AiLescoachSheet";
 import { ActivityDetailActions } from "@/components/activity-detail-actions";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
+import { ActivityInfoStrip, type InfoStripItem } from "@/components/activity-info-strip";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { EmptyState } from "@/components/empty-state";
 import { GameBasedPedagogyMatrix } from "@/components/GameBasedPedagogyMatrix";
@@ -17,6 +18,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
+import {
+  parseActivityDescription,
+  splitIntoSteps,
+  summarizeFirstParagraph,
+} from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
 import { createClient } from "@/utils/supabase/server";
@@ -33,6 +39,14 @@ const LEERHULP_COLORS = {
   leeft: { border: "border-red-200", header: "bg-red-50 text-red-900" },
 } as const;
 
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="mb-2 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+      {children}
+    </h3>
+  );
+}
+
 function TextList({ items }: { items: string[] | null }) {
   if (!items || items.length === 0) {
     return <p className="text-sm text-muted-foreground">-</p>;
@@ -47,16 +61,63 @@ function TextList({ items }: { items: string[] | null }) {
   );
 }
 
-function NumberedList({ items }: { items: string[] | null }) {
+// Genummerde cirkels i.p.v. platte tekst-achter-elkaar (was het gerapporteerde
+// probleem) — puur visueel, de inhoud van elk item blijft woord voor woord
+// hetzelfde. Geen "titel + beschrijving"-opsplitsing: de echte data bestaat
+// uit complete zinnen zonder natuurlijke titel/beschrijving-breuk, dus dat
+// zou een niet-bestaande structuur suggereren i.p.v. de bestaande content
+// beter leesbaar maken.
+function LearningOutcomesList({ items }: { items: string[] | null }) {
   const normalized = splitLearningOutcomeItems(items);
-  if (normalized.length === 0) {
-    return null;
+  if (normalized.length === 0) return null;
+
+  return (
+    <ol className="list-none space-y-2.5 pl-0">
+      {normalized.map((item, index) => (
+        <li key={`${item}-${index}`} className="flex items-start gap-2.5 text-sm">
+          <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            {index + 1}
+          </span>
+          <span className="text-foreground">{item}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+// Checklist-stijl voor regels ("✓ ...") i.p.v. een platte bullet-lijst —
+// regels zijn dingen die een docent snel wil kunnen aftikken, zie brief.
+function RulesChecklist({ items }: { items: string[] | null }) {
+  if (!items || items.length === 0) {
+    return <p className="text-sm text-muted-foreground">Geen regels genoteerd.</p>;
   }
 
   return (
-    <ol className="list-decimal space-y-1 pl-5 text-sm">
-      {normalized.map((item, index) => (
-        <li key={`${item}-${index}`}>{item}</li>
+    <ul className="space-y-2">
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`} className="flex items-start gap-2.5 text-sm">
+          <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Genummerde stappen ("01/02/03") voor een spelbeschrijving die zich daar
+// natuurlijk voor leent (zie lib/activityDescription.ts's splitIntoSteps) —
+// valt de aanroeper terug op gewone doorlopende tekst wanneer dat niet zo
+// is, i.p.v. een stappenstructuur te forceren.
+function StepList({ steps }: { steps: string[] }) {
+  return (
+    <ol className="list-none space-y-4 pl-0">
+      {steps.map((step, index) => (
+        <li key={index} className="flex gap-3">
+          <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold text-primary">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <p className="text-sm whitespace-pre-line text-foreground">{step}</p>
+        </li>
       ))}
     </ol>
   );
@@ -160,6 +221,7 @@ export default async function ActiviteitDetailPage({
     .map((waarde) => DOELGROEP_LABELS[waarde])
     .filter((label): label is string => Boolean(label));
   const groepNiveauSummary = [
+    activity.categorie,
     activity.niveau !== null ? `Niveau ${activity.niveau}` : null,
     doelgroepLabels.length > 0 ? doelgroepLabels.join(", ") : null,
   ]
@@ -191,13 +253,47 @@ export default async function ActiviteitDetailPage({
     tacticalQuestions: activity.tactical_questions ?? undefined,
   };
 
+  // Stap 1 (data) → stap 7/10 (weergave): "Deelnemers:"-blok uit de vrije
+  // beschrijvingstekst lichten (alleen voor eenvoudige activiteiten — de
+  // wizard heeft hiervoor al de echte, structurele min/max-participantvelden
+  // hieronder). Zie lib/activityDescription.ts voor de onderbouwing op de
+  // volledige bibliotheek (203 activiteiten).
+  const { participantsSummary, participantsDetail, bodyText } = wizardActivity
+    ? { participantsSummary: null, participantsDetail: null, bodyText: "" }
+    : parseActivityDescription(activity.beschrijving);
+  const inKort = wizardActivity
+    ? summarizeFirstParagraph(activity.movement_problem)
+    : summarizeFirstParagraph(bodyText);
+  const speelStappen = wizardActivity ? null : splitIntoSteps(bodyText);
+
+  const infoStripItems: InfoStripItem[] = [];
+  if (wizardActivity) {
+    if (activity.min_participants !== null || activity.participants_bench !== null) {
+      const parts = [
+        activity.min_participants !== null ? `${activity.min_participants} in het veld` : null,
+        activity.participants_bench !== null ? `${activity.participants_bench} op de bank` : null,
+      ].filter(Boolean);
+      infoStripItems.push({ icon: Users, label: parts.join(" · ") });
+    }
+    if (activity.movement_problem) {
+      infoStripItems.push({ icon: Target, label: activity.movement_problem });
+    }
+  } else {
+    if (participantsSummary) {
+      infoStripItems.push({ icon: Users, label: participantsSummary });
+    }
+    if (activity.veld) {
+      infoStripItems.push({ icon: MapPin, label: activity.veld });
+    }
+  }
+
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 md:p-8 md:pb-8 print:max-w-none print:p-0">
+    <main className="mx-auto w-full max-w-4xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-8 print:max-w-none print:p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Button asChild variant="outline">
+        <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground">
           <Link href="/zoeken">
             <ArrowLeft className="size-4" />
-            Terug naar Bibliotheek
+            Bibliotheek
           </Link>
         </Button>
         {wizardActivity ? (
@@ -221,245 +317,263 @@ export default async function ActiviteitDetailPage({
         )}
       </div>
 
-      {/* Header — vast bovenaan */}
-      <Card className="animate-fade-up">
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2">
+      {/* Header — titel is het belangrijkste element, geen kaart-omlijning
+          nodig (zie components/page-header.tsx voor hetzelfde patroon elders
+          in de app: eyebrow + titel + meta, geen Card-wrapper). */}
+      <div className="animate-fade-up space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <p
               className={`font-mono text-xs font-semibold tracking-[0.14em] uppercase ${getCategoryColor(activity.categorie).text}`}
             >
-              {activity.categorie ?? "Activiteit"}
+              {activity.beweegthema || activity.categorie || "Activiteit"}
             </p>
-            {activity.is_public ? (
-              <SourceBadge source={activity.author_id ? "public" : "gymwiki"} />
-            ) : (
-              <SourceBadge source="gymwiki" />
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words">
+              {activity.titel}
+            </h1>
+            {groepNiveauSummary && (
+              <p className="mt-1 text-sm text-muted-foreground">{groepNiveauSummary}</p>
             )}
           </div>
-          <CardTitle className="mt-1 text-2xl">{activity.titel}</CardTitle>
-          {wizardActivity && (
-            <div className="mt-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              {authorName && (
-                <div>
-                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Docent
-                  </dt>
-                  <dd>{authorName}</dd>
-                </div>
-              )}
-              {activity.activity_date && (
-                <div>
-                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Datum
-                  </dt>
-                  <dd>{formatDate(activity.activity_date) ?? "-"}</dd>
-                </div>
-              )}
-              {activity.group_name && (
-                <div>
-                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Groep/klas
-                  </dt>
-                  <dd>{activity.group_name}</dd>
-                </div>
-              )}
-            </div>
+          {activity.is_public ? (
+            <SourceBadge source={activity.author_id ? "public" : "gymwiki"} className="mt-1 shrink-0" />
+          ) : (
+            <SourceBadge source="gymwiki" className="mt-1 shrink-0" />
           )}
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {activity.leerlijn && <Badge variant="secondary">{activity.leerlijn}</Badge>}
-            {activity.beweegthema && (
-              <Badge variant="outline">{activity.beweegthema}</Badge>
-            )}
-            {activity.niveau && <Badge variant="outline">Niveau {activity.niveau}</Badge>}
-            {doelgroepLabels.map((label) => (
-              <Badge key={label} variant="outline">
-                {label}
-              </Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Arrangement / plattegrond — vast bovenaan, boven de tab-balk */}
-      <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
-        <CardHeader>
-          <CardTitle>{wizardActivity ? "Plattegrond" : "Arrangement"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {wizardActivity ? (
-            activity.diagram_image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+        {wizardActivity && (
+          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            {authorName && (
+              <div>
+                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Docent
+                </dt>
+                <dd>{authorName}</dd>
+              </div>
+            )}
+            {activity.activity_date && (
+              <div>
+                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Datum
+                </dt>
+                <dd>{formatDate(activity.activity_date) ?? "-"}</dd>
+              </div>
+            )}
+            {activity.group_name && (
+              <div>
+                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Groep/klas
+                </dt>
+                <dd>{activity.group_name}</dd>
+              </div>
+            )}
+          </div>
+        )}
+
+        {infoStripItems.length > 0 && <ActivityInfoStrip items={infoStripItems} />}
+
+        <div className="flex flex-wrap gap-1.5">
+          {activity.leerlijn && <Badge variant="outline">{activity.leerlijn}</Badge>}
+          {wizardActivity && activity.beweegthema && (
+            <Badge variant="outline">{activity.beweegthema}</Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Arrangement staat vóór de tabs in de DOM — zo blijft de leesvolgorde
+          voor toetsenbord/screenreader-gebruikers gelijk aan de visuele
+          volgorde op mobiel (afbeelding boven de tabs). Op desktop plaatst
+          het grid 'm in een vaste linkerkolom naast de tabs, puur visueel —
+          geen `order`-trucs die leesvolgorde en visuele volgorde uit elkaar
+          zouden trekken. */}
+      <div className="grid gap-5 md:grid-cols-[20rem_1fr] md:items-start md:gap-6">
+        <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {wizardActivity ? "Plattegrond" : "Arrangement"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {wizardActivity ? (
+              <ActivityImageLightbox
                 src={activity.diagram_image_url}
                 alt="Plattegrond van het arrangement"
-                className="w-full max-w-xl rounded-lg border"
+                emptyLabel="Geen tekening toegevoegd."
               />
             ) : (
-              <p className="text-sm text-muted-foreground">Geen tekening toegevoegd.</p>
-            )
-          ) : (
-            <ActivityImageLightbox src={activity.afbeelding} alt={activity.titel} />
-          )}
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-        <TabsList className="grid h-auto w-full grid-cols-3 gap-1">
-          <TabsTrigger
-            value="lesinhoud"
-            className="px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Lesinhoud & Regels
-          </TabsTrigger>
-          <TabsTrigger
-            value="veld"
-            className="px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Veld & Materiaal
-          </TabsTrigger>
-          <TabsTrigger
-            value="leerhulp"
-            className="px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Leerhulp
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Tab 1: Lesinhoud & Regels */}
-        <TabsContent value="lesinhoud" className="space-y-4">
-          <Card>
-            <CardContent className="space-y-4 pt-6">
-              <div>
-                <h3 className="mb-1 text-sm font-medium">Beginsituatie & Doelgroep</h3>
-                {wizardActivity ? (
-                  <p className="text-sm text-muted-foreground">
-                    Aantal deelnemers — in het veld: {activity.min_participants ?? "-"} · op de
-                    bank: {activity.participants_bench ?? "-"}
-                  </p>
-                ) : (
-                  <>
-                    {groepNiveauSummary && (
-                      <p className="text-sm text-muted-foreground">{groepNiveauSummary}</p>
-                    )}
-                    <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">
-                      {activity.beginsituatie || "-"}
-                    </p>
-                  </>
-                )}
-              </div>
-              <div>
-                <h3 className="mb-1 text-sm font-medium">Doelstelling</h3>
-                <p className="text-sm text-muted-foreground">{activity.doel || "-"}</p>
-              </div>
-              {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
-                <div>
-                  <h3 className="mb-1 text-sm font-medium">Leermogelijkheden / Leeruitkomsten</h3>
-                  <NumberedList items={activity.learning_outcomes} />
-                </div>
-              )}
-              {wizardActivity ? (
-                <div>
-                  <h3 className="mb-2 text-sm font-medium">Beschrijving</h3>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                        Deelnemers & Regels
-                      </h4>
-                      <p className="text-sm whitespace-pre-line text-muted-foreground">
-                        {activity.deelnemers_regels || "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                        Plaatje & Praatje
-                      </h4>
-                      <p className="text-sm whitespace-pre-line text-muted-foreground">
-                        {activity.plaatje_praatje || "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                        Aandachtspunten
-                      </h4>
-                      <p className="text-sm whitespace-pre-line text-muted-foreground">
-                        {activity.aandachtspunten || "-"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <h3 className="mb-1 text-sm font-medium">Beschrijving</h3>
-                  <p className="text-sm whitespace-pre-line text-muted-foreground">
-                    {activity.beschrijving || "-"}
-                  </p>
-                </div>
-              )}
-              <div>
-                <h3 className="mb-2 text-sm font-medium">Regels</h3>
-                <TextList items={activity.regels} />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tab 2: Veld & Materiaal */}
-        <TabsContent value="veld" className="space-y-4">
-          <Card>
-            <CardContent className="space-y-4 pt-6">
-              <div>
-                <h3 className="mb-1 text-sm font-medium">
-                  {wizardActivity ? "Veldafmetingen & Veldopstelling" : "Veldafmetingen & Opstelling"}
-                </h3>
-                <p className="text-sm whitespace-pre-line text-muted-foreground">
-                  {wizardActivity ? activity.arrangement || "-" : activity.veld || "-"}
-                </p>
-              </div>
-              {wizardActivity ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <h3 className="mb-2 text-sm font-medium">Basismateriaal</h3>
-                    <BadgeList items={activity.base_materials} />
-                  </div>
-                  <div>
-                    <h3 className="mb-2 text-sm font-medium">Regelmateriaal</h3>
-                    <BadgeList items={activity.rule_materials} />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <h3 className="mb-2 text-sm font-medium">Materiaallijst</h3>
-                  <BadgeList items={activity.materiaal} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tab 3: Leerhulp (3 L'en) */}
-        <TabsContent value="leerhulp" className="space-y-4">
-          {wizardActivity ? (
-            <>
-              <GameBasedPedagogyMatrix
-                category={activity.game_category}
-                dimensions={activity.game_dimensions}
-                tacticalQuestions={activity.tactical_questions}
+              <ActivityImageLightbox
+                src={activity.afbeelding}
+                alt={activity.titel}
+                emptyLabel="Geen arrangement-afbeelding beschikbaar."
               />
-              <DidacticsMatrix items={didacticItems} />
-            </>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-3">
-              <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
-              <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
-              <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+            )}
+          </CardContent>
+        </Card>
 
-      <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-4 shadow-brand-lg md:hidden print:hidden">
+        <div className="min-w-0 space-y-5 md:space-y-6">
+          <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+            <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
+              <TabsTrigger
+                value="lesinhoud"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Lesinhoud
+              </TabsTrigger>
+              <TabsTrigger
+                value="materiaal"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Materiaal
+              </TabsTrigger>
+              <TabsTrigger
+                value="leerhulp"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Leerhulp
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Tab 1: Lesinhoud */}
+            <TabsContent value="lesinhoud" className="space-y-4">
+              {inKort && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <SectionHeading>In het kort</SectionHeading>
+                    <p className="text-sm text-foreground">{inKort}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card>
+                <CardContent className="space-y-5 pt-6">
+                  {activity.doel && (
+                    <div>
+                      <SectionHeading>Doel</SectionHeading>
+                      <p className="text-sm whitespace-pre-line text-foreground">{activity.doel}</p>
+                    </div>
+                  )}
+
+                  {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
+                    <div>
+                      <SectionHeading>Leeruitkomsten</SectionHeading>
+                      <LearningOutcomesList items={activity.learning_outcomes} />
+                    </div>
+                  )}
+
+                  {!wizardActivity && participantsDetail && (
+                    <div>
+                      <SectionHeading>Deelnemers</SectionHeading>
+                      <TextList items={participantsDetail} />
+                    </div>
+                  )}
+
+                  {!wizardActivity && (
+                    <div>
+                      <SectionHeading>Zo speel je</SectionHeading>
+                      {speelStappen ? (
+                        <StepList steps={speelStappen} />
+                      ) : (
+                        <p className="text-sm whitespace-pre-line text-foreground">
+                          {bodyText || "-"}
+                        </p>
+                      )}
+                      {activity.beginsituatie && (
+                        <p className="mt-3 text-sm whitespace-pre-line text-muted-foreground">
+                          {activity.beginsituatie}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {wizardActivity && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <SectionHeading>Deelnemers &amp; Regels</SectionHeading>
+                        <p className="text-sm whitespace-pre-line text-foreground">
+                          {activity.deelnemers_regels || "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <SectionHeading>Plaatje &amp; Praatje</SectionHeading>
+                        <p className="text-sm whitespace-pre-line text-foreground">
+                          {activity.plaatje_praatje || "-"}
+                        </p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <SectionHeading>Aandachtspunten</SectionHeading>
+                        <p className="text-sm whitespace-pre-line text-foreground">
+                          {activity.aandachtspunten || "-"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <SectionHeading>Regels</SectionHeading>
+                    <RulesChecklist items={activity.regels} />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab 2: Materiaal (incl. veld/opstelling) */}
+            <TabsContent value="materiaal" className="space-y-4">
+              <Card>
+                <CardContent className="space-y-5 pt-6">
+                  <div>
+                    <SectionHeading>
+                      {wizardActivity ? "Veldafmetingen & opstelling" : "Veld & opstelling"}
+                    </SectionHeading>
+                    <p className="text-sm whitespace-pre-line text-foreground">
+                      {wizardActivity ? activity.arrangement || "-" : activity.veld || "-"}
+                    </p>
+                  </div>
+                  {wizardActivity ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <SectionHeading>Basismateriaal</SectionHeading>
+                        <BadgeList items={activity.base_materials} />
+                      </div>
+                      <div>
+                        <SectionHeading>Regelmateriaal</SectionHeading>
+                        <BadgeList items={activity.rule_materials} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <SectionHeading>Materiaallijst</SectionHeading>
+                      <BadgeList items={activity.materiaal} />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab 3: Leerhulp (3 L'en) */}
+            <TabsContent value="leerhulp" className="space-y-4">
+              {wizardActivity ? (
+                <>
+                  <GameBasedPedagogyMatrix
+                    category={activity.game_category}
+                    dimensions={activity.game_dimensions}
+                    tacticalQuestions={activity.tactical_questions}
+                  />
+                  <DidacticsMatrix items={didacticItems} />
+                </>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
+                  <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
+                  <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg md:hidden print:hidden">
         {wizardActivity ? (
           <>
             <AiLescoachButton payload={analyzePayload} className="flex-1" />

@@ -75,10 +75,12 @@ export function LessonPdfButton({
   activity,
   authorName,
   className,
+  size,
 }: {
   activity: Activity;
   authorName: string | null;
   className?: string;
+  size?: "default" | "sm";
 }) {
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -111,6 +113,7 @@ export function LessonPdfButton({
   return (
     <Button
       type="button"
+      size={size}
       onClick={handleDownload}
       disabled={isGenerating}
       className={className}

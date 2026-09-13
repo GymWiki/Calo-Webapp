@@ -35,9 +35,10 @@ export function ActivityDetailActions({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-4 shadow-brand-lg md:static md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+    <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg md:static md:border-0 md:bg-transparent md:p-0 md:shadow-none">
       <Button
         variant="outline"
+        size="sm"
         className="flex-1"
         aria-pressed={saved}
         disabled={pending}
@@ -50,13 +51,14 @@ export function ActivityDetailActions({
         )}
         {saved ? "Opgeslagen" : "Bewaren"}
       </Button>
-      <Button asChild className="flex-1">
+      <Button asChild size="sm" className="flex-[1.4]">
         <Link href={`/les-maken?vanuit=${activityId}`}>
           <Copy className="size-4" />
-          Kopieer & bewerk
+          <span className="hidden sm:inline">Kopieer &amp; bewerk</span>
+          <span className="sm:hidden">Kopiëren</span>
         </Link>
       </Button>
-      <ActivityPdfButton activity={activity} className="flex-1" />
+      <ActivityPdfButton activity={activity} className="flex-1" size="sm" />
     </div>
   );
 }
