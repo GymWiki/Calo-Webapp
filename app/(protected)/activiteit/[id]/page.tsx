@@ -124,10 +124,10 @@ export default async function ActiviteitDetailPage({
         <EmptyState
           icon={Lock}
           title="Bibliotheektoegang beperkt"
-          description="Je hebt de maandelijkse bijdrage-eis niet gehaald, dus zie je alleen je eigen bijdragen. Voeg deze maand nieuwe activiteiten toe of neem het betaalde abonnement voor volledige toegang."
+          description="Je hebt de maandelijkse bijdrage-eis niet gehaald, dus zie je alleen je eigen bijdragen. Maak en publiceer deze maand een les via de wizard, of neem het betaalde abonnement voor volledige toegang."
           action={
             <Button asChild>
-              <Link href="/les-maken?mode=add-activity">Activiteit toevoegen</Link>
+              <Link href="/les-maken">Naar de les-maken wizard</Link>
             </Button>
           }
         />

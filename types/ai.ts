@@ -99,12 +99,6 @@ export type GeneratedLessonWithIds = Omit<GeneratedLesson, "didacticItems"> & {
 // form when LesMakenFlow switches views, without threading it through props.
 export const AI_GENERATED_LESSON_STORAGE_KEY = "gymbase-ai-generated-lesson";
 
-// Zelfde handoff-patroon, maar voor de "Activiteit uploaden uit bestand"-
-// stap op /les-maken: die schakelt de wizard door naar de "Activiteit
-// toevoegen"-stap en geeft de geëxtraheerde activiteit via sessionStorage
-// mee zodat AddActivityStep zichzelf daarmee voorvult.
-export const AI_EXTRACTED_ACTIVITY_STORAGE_KEY = "gymbase-ai-extracted-activity";
-
 // Losse key naast AI_GENERATED_LESSON_STORAGE_KEY: de bron-attributie
 // ("Gebaseerd op: eigen kennisbank (3), Athletic Skills Model (2)") bij een
 // AI-generatie — apart gehouden i.p.v. in de les zelf, zodat

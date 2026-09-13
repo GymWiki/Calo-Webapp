@@ -1,11 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FileEdit, ListPlus } from "lucide-react";
+import { FileEdit } from "lucide-react";
 
 import { ActivityDraftsList } from "@/components/profile/ActivityDraftsList";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { getActivityDrafts } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
@@ -26,19 +24,7 @@ export default async function ProfielConceptenPage() {
         description="Volledig ingevulde, nog niet ingediende activiteiten — dien ze in wanneer je klaar bent."
       />
       {drafts.length === 0 ? (
-        <EmptyState
-          icon={FileEdit}
-          title="Geen concepten"
-          description="Bewaar een activiteit als concept vanuit het toevoeg-formulier om 'm hier terug te vinden."
-          action={
-            <Button asChild>
-              <Link href="/les-maken?mode=add-activity">
-                <ListPlus className="size-4" />
-                Activiteit toevoegen
-              </Link>
-            </Button>
-          }
-        />
+        <EmptyState icon={FileEdit} title="Geen concepten" description="Je hebt geen openstaande concepten." />
       ) : (
         <ActivityDraftsList drafts={drafts} />
       )}

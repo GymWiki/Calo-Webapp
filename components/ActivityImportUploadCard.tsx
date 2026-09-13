@@ -19,10 +19,10 @@ const ACCEPT =
   ".pdf,.docx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain";
 
 /**
- * Alternatieve invoerroute voor "Activiteit toevoegen": laat de gebruiker
- * een bestaande lesvoorbereiding uploaden i.p.v. alles handmatig over te
- * typen. Geen eigen formulier — geeft de geëxtraheerde data terug aan de
- * ouder, die daarmee het bestaande AddActivityStep-formulier vult.
+ * Laat de gebruiker een bestaande lesvoorbereiding uploaden i.p.v. alles
+ * handmatig over te typen. Geen eigen formulier — geeft de geëxtraheerde
+ * data terug aan de ouder (activity-upload-step.tsx), die daarmee het
+ * gewone lesformulier (LessonForm) vult.
  *
  * VIERDE herbouw van deze upload-flow. Eerdere pogingen (fetch() met
  * FormData, dezelfde aanroep via een Server Action, alleen de bestands-

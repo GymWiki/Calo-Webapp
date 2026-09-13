@@ -57,7 +57,7 @@ export function ContributionStatusCard({
           </div>
           <div className="flex shrink-0 gap-2">
             <Button asChild size="sm">
-              <Link href="/les-maken">Activiteit toevoegen</Link>
+              <Link href="/les-maken">Les maken</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href="/pro">Abonnement</Link>
@@ -97,7 +97,7 @@ export function ContributionStatusCard({
         </div>
         {!met && (
           <Button asChild size="sm" className="shrink-0">
-            <Link href="/les-maken">Activiteit toevoegen</Link>
+            <Link href="/les-maken">Les maken</Link>
           </Button>
         )}
       </CardContent>

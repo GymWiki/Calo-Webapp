@@ -5,8 +5,9 @@ import { OfficeParser } from "officeparser";
 // Gedeelde tekstextractie voor elke plek waar een gebruiker een document
 // uploadt dat als platte tekst verder verwerkt moet worden — nu de
 // Kennisbank (lib/ai/knowledgeProcessor.ts), de Standaardbibliotheek
-// (lib/ai/knowledgePackageProcessor.ts) en de "Activiteit toevoegen"-
-// bestandsimport (lib/ai/activityImportProcessor.ts). Eén plek zodat een
+// (lib/ai/knowledgePackageProcessor.ts) en de "Upload een bestaande
+// lesvoorbereiding"-stap op /les-maken (lib/ai/activityImportProcessor.ts).
+// Eén plek zodat een
 // nieuw ondersteund bestandstype niet op meerdere plekken los bijgehouden
 // hoeft te worden.
 //

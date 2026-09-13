@@ -2,18 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FileUp, ListPlus, Lock, NotebookPen, Sparkles, type LucideIcon } from "lucide-react";
+import { FileUp, Lock, NotebookPen, Sparkles, type LucideIcon } from "lucide-react";
 
 import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { cn } from "@/lib/utils";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { ActivityUploadStep } from "./activity-upload-step";
-import { AddActivityStep } from "./add-activity-step";
 import { AiLessonWizard } from "./ai-lesson-wizard";
 import { LessonForm } from "./lesson-form";
 
 type TabValue = "context" | "organisatie" | "didactiek" | "voorbereiding";
-type Mode = "choice" | "ai-wizard" | "form" | "upload-activity" | "add-activity";
+type Mode = "choice" | "ai-wizard" | "form" | "upload-activity";
 
 function ChoiceCard({
   icon: Icon,
@@ -80,18 +79,19 @@ function ChoiceCard({
 
 /**
  * Orchestrates /les-maken's states: the choice screen, the AI wizard, the
- * (shared, unmodified) LessonForm, uploading an existing lesvoorbereiding,
- * and adding a standalone activiteit to the library. This is the ONE place
- * to create new content — there used to be a separate /activiteit-toevoegen
- * page/route for the last one, but that's folded in here as "add-activity"
- * so there's a single entry point instead of two.
+ * (shared, unmodified) LessonForm, and uploading an existing
+ * lesvoorbereiding. This is the ONE place to create new content — there
+ * used to also be a separate, standalone "Activiteit toevoegen" flow (its
+ * own page, plus cards on the dashboard and here) creating individual
+ * library activiteiten through its own storage path. That's removed: every
+ * remaining way to add content (this wizard, the AI generator, and
+ * uploading a file) now goes through the same `createLesson` action, so a
+ * lesson only counts toward the monthly contribution requirement once
+ * (see lesson_contribution_tracking.sql), regardless of how it was created.
  * `skipChoice` — set when the page already has an active les-concept
  * (activiteit-prefill via ?vanuit, of a tab deep-link like
  * /les-maken?tab=voorbereiding) — goes straight to the form, per the brief's
  * "wanneer er nog geen actieve les-concept gekozen is" condition.
- * `initialMode` — set via ?mode=add-activity (see page.tsx) so external
- * links (dashboard, activiteit-detail, concepten) can deep-link straight
- * into the add-activity step instead of the choice screen.
  */
 export function LesMakenFlow({
   authorName,
@@ -100,7 +100,6 @@ export function LesMakenFlow({
   activeSourceCount,
   lessonGeneratorAccess,
   skipChoice,
-  initialMode,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -108,9 +107,11 @@ export function LesMakenFlow({
   activeSourceCount?: number;
   lessonGeneratorAccess: LessonGeneratorAccess;
   skipChoice: boolean;
-  initialMode?: Extract<Mode, "add-activity">;
 }) {
-  const [mode, setMode] = useState<Mode>(initialMode ?? (skipChoice ? "form" : "choice"));
+  const [mode, setMode] = useState<Mode>(skipChoice ? "form" : "choice");
+  const [uploadedValues, setUploadedValues] = useState<Partial<CreateLessonFormInput> | null>(
+    null,
+  );
 
   if (mode === "choice") {
     const locked = !lessonGeneratorAccess.allowed;
@@ -123,7 +124,7 @@ export function LesMakenFlow({
         : `${lessonGeneratorAccess.remaining} van ${lessonGeneratorAccess.limit} lesgeneraties deze maand over.`;
 
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <ChoiceCard
           icon={isNotSubscriber ? Lock : Sparkles}
           title="Genereer een les op maat met AI"
@@ -145,19 +146,11 @@ export function LesMakenFlow({
         />
         <ChoiceCard
           icon={FileUp}
-          title="Activiteit uploaden uit bestand"
-          description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een GymWiki-activiteit."
+          title="Upload een bestaande lesvoorbereiding"
+          description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een ingevuld lesformulier."
           actionLabel="Uploaden →"
           accent="neutral"
           onClick={() => setMode("upload-activity")}
-        />
-        <ChoiceCard
-          icon={ListPlus}
-          title="Activiteit toevoegen aan bibliotheek"
-          description="Draag een losse activiteit bij aan de gedeelde bibliotheek — telt mee voor je maandelijkse bijdrage."
-          actionLabel="Toevoegen →"
-          accent="neutral"
-          onClick={() => setMode("add-activity")}
         />
       </div>
     );
@@ -178,19 +171,18 @@ export function LesMakenFlow({
     return (
       <ActivityUploadStep
         onCancel={() => setMode("choice")}
-        onExtracted={() => setMode("add-activity")}
+        onExtracted={(values) => {
+          setUploadedValues(values);
+          setMode("form");
+        }}
       />
     );
-  }
-
-  if (mode === "add-activity") {
-    return <AddActivityStep onCancel={() => setMode("choice")} />;
   }
 
   return (
     <LessonForm
       authorName={authorName}
-      initialValues={initialValues}
+      initialValues={uploadedValues ?? initialValues}
       initialTab={initialTab}
       activeSourceCount={activeSourceCount}
     />

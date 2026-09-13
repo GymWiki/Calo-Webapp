@@ -3,7 +3,6 @@ import { ListPlus } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ACTIVITY_STATUS_STYLES } from "@/lib/constants/activityStatus";
 import type { Activity } from "@/types/activity";
 
@@ -11,37 +10,35 @@ import type { Activity } from "@/types/activity";
  * Dashboard-overzicht van eigen toegevoegde activiteiten met status per
  * stuk — zodat "toegevoegd, wordt gecontroleerd" geen black box is: de
  * gebruiker ziet hier altijd of iets meetelt voor de maandelijkse bijdrage
- * of aangepast moet worden.
+ * of aangepast moet worden. Puur een statusoverzicht — er bestaat geen
+ * losse "activiteit toevoegen"-invoerroute meer (verwijderd, zie
+ * lesson-flow.tsx): nieuwe bijdragen ontstaan nu altijd via een les die in
+ * de les-maken wizard wordt afgerond en openbaar gemaakt.
  */
 export function OwnActivitiesSection({ activities }: { activities: Activity[] }) {
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-semibold">Mijn activiteiten</h2>
-          <p className="text-sm text-muted-foreground">
-            Status per toegevoegde activiteit — alleen goedgekeurde tellen mee voor je
-            maandelijkse bijdrage.
-          </p>
-        </div>
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/les-maken?mode=add-activity">
-            <ListPlus className="size-4" />
-            Activiteit toevoegen
-          </Link>
-        </Button>
+      <div>
+        <h2 className="text-lg font-semibold">Mijn activiteiten</h2>
+        <p className="text-sm text-muted-foreground">
+          Status per toegevoegde activiteit — alleen goedgekeurde tellen mee voor je
+          maandelijkse bijdrage.
+        </p>
       </div>
 
       {activities.length === 0 ? (
         <EmptyState
           icon={ListPlus}
           title="Nog geen activiteiten toegevoegd"
-          description="Voeg een activiteit toe aan de bibliotheek — je ziet de status meteen na het toevoegen."
+          description="Maak en publiceer een les via de les-maken wizard om bij te dragen aan de bibliotheek."
           className="mt-4"
           action={
-            <Button asChild>
-              <Link href="/les-maken?mode=add-activity">Activiteit toevoegen</Link>
-            </Button>
+            <Link
+              href="/les-maken"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Naar de les-maken wizard →
+            </Link>
           }
         />
       ) : (

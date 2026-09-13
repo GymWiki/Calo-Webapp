@@ -51,7 +51,7 @@ function parseInitialTab(value: string | undefined) {
 export default async function LesMakenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vanuit?: string; tab?: string; mode?: string }>;
+  searchParams: Promise<{ vanuit?: string; tab?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
 
@@ -59,8 +59,7 @@ export default async function LesMakenPage({
     redirect("/login");
   }
 
-  const { vanuit, tab, mode } = await searchParams;
-  const initialMode = mode === "add-activity" ? "add-activity" : undefined;
+  const { vanuit, tab } = await searchParams;
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const [activity, activeSourceCount, lessonGeneratorAccess] = await Promise.all([
@@ -91,7 +90,6 @@ export default async function LesMakenPage({
         activeSourceCount={activeSourceCount}
         lessonGeneratorAccess={lessonGeneratorAccess}
         skipChoice={skipChoice}
-        initialMode={initialMode}
       />
     </main>
   );

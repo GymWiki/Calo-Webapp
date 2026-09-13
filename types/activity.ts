@@ -24,8 +24,11 @@ export type Activity = {
   // voor de meeste rijen een lege array; alleen tonen als er items in staan.
   learning_outcomes: string[] | null;
   // null voor de oorspronkelijk geïmporteerde bibliotheek-activiteiten —
-  // die hebben geen indiener. Alles wat via de "Activiteit toevoegen"-stap
-  // op /les-maken binnenkomt heeft een author_id.
+  // die hebben geen indiener. Bestaande, door gebruikers ingediende rijen
+  // (via het inmiddels verwijderde "Activiteit toevoegen"-formulier) hebben
+  // een author_id; er is geen entry-point meer om hier nieuwe rijen aan toe
+  // te voegen — nieuwe bijdragen lopen sindsdien via de "lessons"-tabel
+  // (zie lesson_contribution_tracking.sql).
   author_id: string | null;
   status: ActivityReviewStatus;
   rejection_reason: string | null;
