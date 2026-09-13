@@ -107,7 +107,7 @@ export function ActivityImportUploadCard({
       <CardHeader>
         <div className="flex items-center gap-2">
           <FileUp className="size-4 text-primary" aria-hidden="true" />
-          <CardTitle className="text-base">Upload een bestaande lesvoorbereiding</CardTitle>
+          <CardTitle className="text-base">Upload een bestaande activiteit</CardTitle>
         </div>
         <CardDescription>{description}</CardDescription>
       </CardHeader>

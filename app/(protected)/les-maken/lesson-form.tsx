@@ -198,7 +198,7 @@ export function LessonForm({
               .join(", ")}.`
           : "";
       toast.success(
-        `AI-gegenereerde lesvoorbereiding geladen — controleer en vul aan.${sourcesText}`,
+        `AI-gegenereerde activiteit geladen — controleer en vul aan.${sourcesText}`,
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,8 +233,8 @@ export function LessonForm({
     // Herkomst is bepaald bij het openen van dit formulier (stashedGenerated
     // hierboven) en blijft vastliggen, ook als de velden hierna handmatig
     // zijn aangepast — telt daarom nooit mee voor de maandelijkse
-    // bijdrage-eis zodra deze les openbaar wordt gemaakt (zie
-    // lesson_contribution_tracking.sql).
+    // bijdrage-eis zodra deze activiteit openbaar wordt gemaakt (zie
+    // consolidate_lessons_into_activiteiten.sql).
     const result = await createLesson(payload, diagram, stashedGenerated !== null);
 
     if ("error" in result) {
@@ -242,7 +242,7 @@ export function LessonForm({
       return;
     }
 
-    toast.success("Les opgeslagen!");
+    toast.success("Activiteit opgeslagen!");
     router.push("/dashboard");
     router.refresh();
   }

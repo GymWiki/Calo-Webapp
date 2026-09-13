@@ -6,8 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserPermissions } from "@/lib/permissions";
-import { getAllActivities, getOwnSubmissions } from "@/lib/services/activities";
-import { getPublicLessons } from "@/lib/services/lessons";
+import { getAllActivities, getOwnSubmissions, getPublicActivities } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { LibrarySearchClient } from "./library-search-client";
 
@@ -24,8 +23,8 @@ export default async function ZoekenPage() {
     <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
       <PageHeader
         eyebrow="Bibliotheek"
-        title="Ontdek activiteiten & lessen"
-        description="GymWiki-activiteiten uit de gezamenlijke bibliotheek en publiek gedeelde lesvoorbereidingen, in één doorzoekbaar overzicht."
+        title="Ontdek activiteiten"
+        description="GymWiki-activiteiten uit de gezamenlijke bibliotheek en publiek gedeelde activiteiten, in één doorzoekbaar overzicht."
       />
 
       {!hasFullLibraryAccess && (
@@ -34,9 +33,10 @@ export default async function ZoekenPage() {
             <Lock className="mt-0.5 size-5 shrink-0 text-destructive" />
             <p className="text-sm">
               Je hebt de maandelijkse bijdrage-eis niet gehaald, dus zie je bij
-              GymWiki-activiteiten hieronder alleen je eigen bijdragen. Publiek gedeelde lessen
-              blijven wel gewoon zichtbaar. Dien deze maand nieuwe activiteiten in of neem het
-              betaalde abonnement voor volledige toegang tot de activiteitenbibliotheek.
+              GymWiki-activiteiten hieronder alleen je eigen bijdragen. Publiek gedeelde
+              activiteiten blijven wel gewoon zichtbaar. Maak en publiceer deze maand een nieuwe
+              activiteit of neem het betaalde abonnement voor volledige toegang tot de
+              activiteitenbibliotheek.
             </p>
           </CardContent>
         </Card>
@@ -56,10 +56,10 @@ async function ZoekenContent({
   userId: string;
   hasFullLibraryAccess: boolean;
 }) {
-  const [activities, lessons] = await Promise.all([
+  const [activities, publicActivities] = await Promise.all([
     hasFullLibraryAccess ? getAllActivities() : getOwnSubmissions(userId),
-    getPublicLessons(),
+    getPublicActivities(),
   ]);
 
-  return <LibrarySearchClient activities={activities} lessons={lessons} />;
+  return <LibrarySearchClient activities={activities} publicActivities={publicActivities} />;
 }

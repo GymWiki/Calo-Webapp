@@ -85,10 +85,12 @@ function ChoiceCard({
  * own page, plus cards on the dashboard and here) creating individual
  * library activiteiten through its own storage path. That's removed: every
  * remaining way to add content (this wizard, the AI generator, and
- * uploading a file) now goes through the same `createLesson` action, so a
- * lesson only counts toward the monthly contribution requirement once
- * (see lesson_contribution_tracking.sql), regardless of how it was created.
- * `skipChoice` — set when the page already has an active les-concept
+ * uploading a file) now goes through the same `createLesson` action, which
+ * writes straight into `activiteiten` (see
+ * supabase/migrations/consolidate_lessons_into_activiteiten.sql), so an
+ * activiteit only counts toward the monthly contribution requirement once,
+ * regardless of how it was created.
+ * `skipChoice` — set when the page already has an active activiteit-concept
  * (activiteit-prefill via ?vanuit, of a tab deep-link like
  * /les-maken?tab=voorbereiding) — goes straight to the form, per the brief's
  * "wanneer er nog geen actieve les-concept gekozen is" condition.
@@ -127,8 +129,8 @@ export function LesMakenFlow({
       <div className="grid gap-4 sm:grid-cols-3">
         <ChoiceCard
           icon={isNotSubscriber ? Lock : Sparkles}
-          title="Genereer een les op maat met AI"
-          description="Kies een leerlijn en doelgroep. De AI stelt een volledige lesvoorbereiding samen op basis van de Kennisbank."
+          title="Genereer een activiteit op maat met AI"
+          description="Kies een leerlijn en doelgroep. De AI stelt een volledige activiteit samen op basis van de Kennisbank."
           caption={aiCaption}
           actionLabel={isNotSubscriber ? "Upgrade →" : locked ? "Niet beschikbaar" : "Genereren →"}
           accent="primary"
@@ -138,16 +140,16 @@ export function LesMakenFlow({
         />
         <ChoiceCard
           icon={NotebookPen}
-          title="Zelf een les samenstellen"
-          description="Bouw je les vanaf nul op met de plattegrond-tekenaar, 3 L'en en lesblokken."
+          title="Zelf een activiteit samenstellen"
+          description="Bouw je activiteit vanaf nul op met de plattegrond-tekenaar, 3 L'en en lesblokken."
           actionLabel="Beginnen →"
           accent="neutral"
           onClick={() => setMode("form")}
         />
         <ChoiceCard
           icon={FileUp}
-          title="Upload een bestaande lesvoorbereiding"
-          description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een ingevuld lesformulier."
+          title="Upload een bestaande activiteit"
+          description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een ingevulde activiteit."
           actionLabel="Uploaden →"
           accent="neutral"
           onClick={() => setMode("upload-activity")}

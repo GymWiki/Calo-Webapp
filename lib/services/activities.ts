@@ -3,7 +3,8 @@ import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
 
 const ACTIVITY_SELECT =
-  "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at";
+  "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, " +
+  "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, is_public, public_since";
 
 async function getServerClient() {
   const cookieStore = await cookies();
@@ -23,7 +24,8 @@ export async function getAllActivities(): Promise<Activity[]> {
     .from("activiteiten")
     .select(ACTIVITY_SELECT)
     .eq("status", "approved")
-    .order("titel", { ascending: true });
+    .order("titel", { ascending: true })
+    .returns<Activity[]>();
 
   if (error) {
     throw new Error(`Kon activiteiten niet ophalen: ${error.message}`);
@@ -46,7 +48,8 @@ export async function getOwnSubmissions(authorId: string): Promise<Activity[]> {
     .select(ACTIVITY_SELECT)
     .eq("author_id", authorId)
     .neq("status", "draft")
-    .order("submitted_at", { ascending: false });
+    .order("submitted_at", { ascending: false })
+    .returns<Activity[]>();
 
   if (error) {
     throw new Error(`Kon eigen bijdragen niet ophalen: ${error.message}`);
@@ -68,7 +71,8 @@ export async function getActivityDrafts(authorId: string): Promise<Activity[]> {
     .select(ACTIVITY_SELECT)
     .eq("author_id", authorId)
     .eq("status", "draft")
-    .order("submitted_at", { ascending: false });
+    .order("submitted_at", { ascending: false })
+    .returns<Activity[]>();
 
   if (error) {
     throw new Error(`Kon concepten niet ophalen: ${error.message}`);
@@ -86,13 +90,39 @@ export async function getActivityById(
     .from("activiteiten")
     .select(ACTIVITY_SELECT)
     .eq("id", activityId)
-    .maybeSingle();
+    .maybeSingle()
+    .returns<Activity>();
 
   if (error) {
     throw new Error(`Kon activiteit niet ophalen: ${error.message}`);
   }
 
   return data;
+}
+
+/**
+ * Recent publiek gemaakte, door gebruikers ingediende activiteiten — de
+ * dashboard-communitysectie en de "Publiek"-tab in /zoeken. Sluit de 203
+ * oorspronkelijke bibliotheek-activiteiten uit (author_id null): die horen
+ * bij de "GymWiki"-bron, niet bij "door medestudenten gedeeld", ook al zijn
+ * ze sinds de datamodel-consolidatie ook is_public=true.
+ */
+export async function getPublicActivities(): Promise<Activity[]> {
+  const supabase = await getServerClient();
+
+  const { data, error } = await supabase
+    .from("activiteiten")
+    .select(ACTIVITY_SELECT)
+    .eq("is_public", true)
+    .not("author_id", "is", null)
+    .order("public_since", { ascending: false })
+    .returns<Activity[]>();
+
+  if (error) {
+    throw new Error(`Kon publieke activiteiten niet ophalen: ${error.message}`);
+  }
+
+  return data ?? [];
 }
 
 export async function isActivitySaved(
@@ -157,7 +187,8 @@ export async function getSavedActivities(userId: string): Promise<Activity[]> {
   const { data: activities, error } = await supabase
     .from("activiteiten")
     .select(ACTIVITY_SELECT)
-    .in("id", orderedIds);
+    .in("id", orderedIds)
+    .returns<Activity[]>();
 
   if (error) {
     throw new Error(`Kon opgeslagen activiteiten niet ophalen: ${error.message}`);

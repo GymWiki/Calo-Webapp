@@ -58,7 +58,7 @@ export function AiLessonWizard({
       const data = await response.json();
 
       if (!response.ok || "error" in data) {
-        toast.error(data.error ?? "Genereren van de lesvoorbereiding is mislukt.");
+        toast.error(data.error ?? "Genereren van de activiteit is mislukt.");
         return;
       }
 
@@ -74,7 +74,7 @@ export function AiLessonWizard({
       }
       onGenerated();
     } catch {
-      toast.error("Genereren van de lesvoorbereiding is mislukt. Probeer het opnieuw.");
+      toast.error("Genereren van de activiteit is mislukt. Probeer het opnieuw.");
     } finally {
       setIsGenerating(false);
     }
@@ -115,7 +115,7 @@ export function AiLessonWizard({
         <div>
           <p className="font-semibold">AI Activiteiten Generator</p>
           <p className="text-sm text-muted-foreground">
-            Op basis van de Kennisbank stelt de AI een volledige lesvoorbereiding voor.
+            Op basis van de Kennisbank stelt de AI een volledige activiteit voor.
           </p>
         </div>
       </div>
@@ -217,7 +217,7 @@ export function AiLessonWizard({
             disabled={isGenerating || !lessonGeneratorAccess.allowed || activeSourceCount === 0}
           >
             <Sparkles className="size-4" />
-            {isGenerating ? "Bezig met genereren..." : "Genereer lesvoorbereiding"}
+            {isGenerating ? "Bezig met genereren..." : "Genereer activiteit"}
           </Button>
         )}
       </div>

@@ -15,7 +15,6 @@ import {
   getSavedActivityIds,
 } from "@/lib/services/activities";
 import { getAllKnowledgeDocuments } from "@/lib/services/knowledge";
-import { getUserLessons } from "@/lib/services/lessons";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
 
@@ -33,7 +32,6 @@ export default async function ProfielPage() {
     contributionStatus,
     ownSubmissions,
     savedIds,
-    lessons,
     drafts,
     knowledgeDocuments,
     communityStats,
@@ -41,7 +39,6 @@ export default async function ProfielPage() {
     getContributionStatus(supabase, profile.id, profile.subscription_status),
     getOwnSubmissions(profile.id),
     getSavedActivityIds(profile.id),
-    getUserLessons(profile.id),
     getActivityDrafts(profile.id),
     getAllKnowledgeDocuments(),
     getCommunityStats(profile.id),
@@ -67,10 +64,8 @@ export default async function ProfielPage() {
       />
 
       <ProfileNavGrid
-        activitiesCount={ownSubmissions.length}
+        activitiesCount={ownSubmissions.length + drafts.length}
         savedCount={savedIds.size}
-        lessonsCount={lessons.length}
-        draftsCount={drafts.length}
       />
 
       <KnowledgeBaseSummaryCard

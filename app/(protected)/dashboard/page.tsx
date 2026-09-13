@@ -1,26 +1,21 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { CalendarDays, NotebookPen, SquarePen, Trophy } from "lucide-react";
+import { CalendarDays, ListChecks, Trophy } from "lucide-react";
 
 import { CommunityLessonsSection } from "@/components/community-lessons-section";
 import { ContributionStatusCard } from "@/components/ContributionStatusCard";
-import { EmptyState } from "@/components/empty-state";
-import { LessonCard } from "@/components/lesson-card";
 import { OwnActivitiesSection } from "@/components/own-activities-section";
 import { PageHeader } from "@/components/page-header";
 import { QuickActionGrid } from "@/components/quick-action-grid";
 import { StatCard } from "@/components/stat-card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
 import { getContributionStatus } from "@/lib/services/contribution";
-import { getOwnSubmissions } from "@/lib/services/activities";
-import { getPublicLessons, getUserLessons } from "@/lib/services/lessons";
+import { getOwnSubmissions, getPublicActivities } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
-import type { LessonWithDetails } from "@/types/lesson";
+import type { Activity } from "@/types/activity";
 
 const COMMUNITY_LIMIT = 6;
 const OWN_ACTIVITIES_LIMIT = 5;
@@ -45,7 +40,7 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow="Dashboard"
         title={`Welkom terug, ${profile.first_name}`}
-        description="Hier vind je je snelle acties, je lesvoorbereidingen en wat er speelt in de community."
+        description="Hier vind je je snelle acties, je activiteiten en wat er speelt in de community."
       />
 
       <ContributionStatusCard
@@ -60,10 +55,10 @@ export default async function DashboardPage() {
   );
 }
 
-function countThisMonth(lessons: LessonWithDetails[]) {
+function countThisMonth(activities: Activity[]) {
   const now = new Date();
-  return lessons.filter((lesson) => {
-    const created = new Date(lesson.created_at);
+  return activities.filter((activity) => {
+    const created = new Date(activity.submitted_at);
     return (
       created.getMonth() === now.getMonth() &&
       created.getFullYear() === now.getFullYear()
@@ -72,35 +67,34 @@ function countThisMonth(lessons: LessonWithDetails[]) {
 }
 
 async function DashboardContent({ userId }: { userId: string }) {
-  const [lessons, publicLessons, ownActivities] = await Promise.all([
-    getUserLessons(userId),
-    getPublicLessons(),
+  const [ownActivities, publicActivities] = await Promise.all([
     getOwnSubmissions(userId),
+    getPublicActivities(),
   ]);
-  const latest = lessons[0];
-  const communityLessons = publicLessons.slice(0, COMMUNITY_LIMIT);
+  const latest = ownActivities[0];
+  const communityActivities = publicActivities.slice(0, COMMUNITY_LIMIT);
   const recentOwnActivities = ownActivities.slice(0, OWN_ACTIVITIES_LIMIT);
 
   return (
     <>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <StatCard
-          icon={NotebookPen}
-          label="Lessen gemaakt"
-          value={lessons.length}
+          icon={ListChecks}
+          label="Activiteiten gemaakt"
+          value={ownActivities.length}
           accent="cone"
         />
         <StatCard
           icon={CalendarDays}
           label="Deze maand"
-          value={countThisMonth(lessons)}
+          value={countThisMonth(ownActivities)}
           accent="blue"
         />
         <StatCard
           icon={Trophy}
-          label="Laatste les"
-          value={latest ? (formatDate(latest.created_at) ?? "-") : "-"}
-          meta={latest?.title}
+          label="Laatste activiteit"
+          value={latest ? (formatDate(latest.submitted_at) ?? "-") : "-"}
+          meta={latest?.titel}
           accent="yellow"
           className="col-span-2 sm:col-span-1"
         />
@@ -108,41 +102,9 @@ async function DashboardContent({ userId }: { userId: string }) {
 
       <QuickActionGrid />
 
-      <div>
-        <h2 className="text-lg font-semibold">Mijn lessen</h2>
-        {lessons.length === 0 ? (
-          <EmptyState
-            icon={NotebookPen}
-            title="Nog geen lessen gemaakt"
-            description="Zodra je een lesvoorbereiding aanmaakt, verschijnt hij hier — inclusief PDF-export, delen en plattegrond."
-            action={
-              <Button asChild>
-                <Link href="/les-maken">
-                  <SquarePen className="size-4" />
-                  Eerste les maken
-                </Link>
-              </Button>
-            }
-            className="mt-4"
-          />
-        ) : (
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {lessons.map((lesson, index) => (
-              <div
-                key={lesson.id}
-                className="animate-fade-up"
-                style={{ animationDelay: `${Math.min(index, 6) * 50}ms` }}
-              >
-                <LessonCard lesson={lesson} currentUserId={userId} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       <OwnActivitiesSection activities={recentOwnActivities} />
 
-      <CommunityLessonsSection lessons={communityLessons} currentUserId={userId} />
+      <CommunityLessonsSection activities={communityActivities} currentUserId={userId} />
     </>
   );
 }

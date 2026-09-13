@@ -1,20 +1,19 @@
 import Link from "next/link";
 import { BookOpen, Globe2, ImageOff, MapPinned } from "lucide-react";
 
-import { getCategoryForLearningLine } from "@/lib/constants/learningLines";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, type Activity } from "@/types/activity";
-import type { LessonWithDetails } from "@/types/lesson";
 
-// De samengevoegde bibliotheekpagina (/zoeken) toont twee verschillende
-// brondata-vormen (Activity uit de activiteiten-tabel, LessonWithDetails uit
-// de lessons-tabel) in één grid. `source` is de expliciete herkomst-marker
-// die de brief vraagt — vastgelegd hier i.p.v. afgeleid uit welk veld
-// aanwezig is, zodat het altijd ondubbelzinnig is.
-export type LibraryListItem =
-  | { source: "gymwiki"; id: string; activity: Activity }
-  | { source: "public"; id: string; lesson: LessonWithDetails };
+// "gymwiki" = de oorspronkelijk geïmporteerde bibliotheek (author_id null),
+// "public" = een door een gebruiker gedeelde activiteit (author_id gezet) —
+// beide komen sinds de datamodel-consolidatie uit dezelfde activiteiten-
+// tabel, zie supabase/migrations/consolidate_lessons_into_activiteiten.sql.
+export type LibraryListItem = {
+  source: "gymwiki" | "public";
+  id: string;
+  activity: Activity;
+};
 
 const TILE_CLASS =
   "flex flex-col overflow-hidden rounded-xl border border-l-4 bg-card shadow-brand-sm transition-transform duration-150 ease-brand active:scale-[0.98]";
@@ -66,14 +65,16 @@ export function SourceBadge({
   );
 }
 
-function ActivityTile({ activity }: { activity: Activity }) {
+function ActivityTile({ activity, source }: { activity: Activity; source: "gymwiki" | "public" }) {
   const doelgroepLabel = (activity.doelgroep ?? [])
     .map((waarde) => DOELGROEP_LABELS[waarde])
     .filter((label): label is string => Boolean(label))
     .join(", ");
-  const categorieLeerlijn = [activity.categorie, activity.leerlijn]
-    .filter(Boolean)
-    .join(" · ");
+  const subtitle =
+    source === "public"
+      ? [activity.leerlijn, activity.group_name].filter(Boolean).join(" · ")
+      : [activity.categorie, activity.leerlijn].filter(Boolean).join(" · ");
+  const image = activity.afbeelding ?? activity.diagram_image_url;
 
   return (
     <Link
@@ -81,24 +82,19 @@ function ActivityTile({ activity }: { activity: Activity }) {
       className={cn(TILE_CLASS, getCategoryColor(activity.categorie).border)}
     >
       <div className="relative flex h-28 items-center justify-center bg-muted">
-        {activity.afbeelding ? (
+        {image ? (
           // eslint-disable-next-line @next/next/no-img-element -- external, unregistered hosts (Firebase/Supabase Storage)
-          <img
-            src={activity.afbeelding}
-            alt=""
-            className="size-full object-cover"
-            loading="lazy"
-          />
+          <img src={image} alt="" className="size-full object-cover" loading="lazy" />
+        ) : source === "public" ? (
+          <MapPinned className="size-6 text-muted-foreground" aria-hidden="true" />
         ) : (
           <ImageOff className="size-6 text-muted-foreground" aria-hidden="true" />
         )}
-        <SourceBadge source="gymwiki" className="absolute top-1.5 right-1.5" />
+        <SourceBadge source={source} className="absolute top-1.5 right-1.5" />
       </div>
       <div className="flex flex-1 flex-col gap-1 p-2.5">
         <p className="line-clamp-2 text-sm font-semibold">{activity.titel}</p>
-        {categorieLeerlijn && (
-          <p className="truncate text-xs text-muted-foreground">{categorieLeerlijn}</p>
-        )}
+        {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
         {doelgroepLabel && (
           <p className="truncate text-xs text-muted-foreground">{doelgroepLabel}</p>
         )}
@@ -107,45 +103,6 @@ function ActivityTile({ activity }: { activity: Activity }) {
   );
 }
 
-function LessonTile({ lesson }: { lesson: LessonWithDetails }) {
-  const subtitle = [lesson.learning_line, lesson.group_name].filter(Boolean).join(" · ");
-  const authorName = lesson.author
-    ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
-    : null;
-
-  const category = getCategoryForLearningLine(lesson.learning_line ?? "");
-
-  return (
-    <Link href={`/les/${lesson.id}`} className={cn(TILE_CLASS, getCategoryColor(category).border)}>
-      <div className="relative flex h-28 items-center justify-center bg-muted">
-        {lesson.diagram_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage-URL
-          <img
-            src={lesson.diagram_image_url}
-            alt=""
-            className="size-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <MapPinned className="size-6 text-muted-foreground" aria-hidden="true" />
-        )}
-        <SourceBadge source="public" className="absolute top-1.5 right-1.5" />
-      </div>
-      <div className="flex flex-1 flex-col gap-1 p-2.5">
-        <p className="line-clamp-2 text-sm font-semibold">{lesson.title}</p>
-        {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
-        {authorName && (
-          <p className="truncate text-xs text-muted-foreground">Door {authorName}</p>
-        )}
-      </div>
-    </Link>
-  );
-}
-
 export function LibraryItemCard({ item }: { item: LibraryListItem }) {
-  return item.source === "gymwiki" ? (
-    <ActivityTile activity={item.activity} />
-  ) : (
-    <LessonTile lesson={item.lesson} />
-  );
+  return <ActivityTile activity={item.activity} source={item.source} />;
 }

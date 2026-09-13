@@ -28,7 +28,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/zoeken", label: "Bibliotheek", icon: BookOpen },
-  { href: "/les-maken", label: "Les maken", icon: SquarePen },
+  { href: "/les-maken", label: "Activiteit maken", icon: SquarePen },
   { href: "/profiel", label: "Profiel", icon: UserIcon },
 ];
 

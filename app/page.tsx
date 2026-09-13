@@ -42,7 +42,7 @@ const FEATURES: Feature[] = [
   {
     tag: "Pijler 4",
     title: "Overzicht & continuïteit",
-    body: "Sla bewezen lesvoorbereidingen op, bewerk ze voor jouw specifieke groepen en exporteer direct naar een helder A4-overzicht voor in de zaal.",
+    body: "Sla bewezen activiteiten op, bewerk ze voor jouw specifieke groepen en exporteer direct naar een helder A4-overzicht voor in de zaal.",
     accent: "cone",
   },
 ];

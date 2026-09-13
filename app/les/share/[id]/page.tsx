@@ -11,16 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/format";
-import { getLessonById } from "@/lib/services/lessons";
+import { getActivityById } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
-import { LESSON_BLOCK_LABELS } from "@/types/lesson";
-
-// Zie de toelichting bij dezelfde constante in app/(protected)/les/[id]/page.tsx.
-const LEERHULP_COLORS = {
-  loopt_het: { border: "border-blue-200", header: "bg-blue-50 text-blue-900", emoji: "🔵" },
-  lukt_het: { border: "border-green-200", header: "bg-green-50 text-green-900", emoji: "🟢" },
-  leeft_het: { border: "border-red-200", header: "bg-red-50 text-red-900", emoji: "🔴" },
-} as const;
+import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
+import type { DidacticItem } from "@/types/lesson";
 
 function TextList({ items }: { items: string[] | null }) {
   if (!items || items.length === 0) {
@@ -77,25 +72,25 @@ function HeaderField({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function SharedLessonPage({
+export default async function SharedActivityPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
 
-  const [lesson, profile] = await Promise.all([
-    getLessonById(id),
+  const [activity, profile] = await Promise.all([
+    getActivityById(id),
     getCurrentUserProfile(),
   ]);
 
-  if (!lesson || !lesson.is_public) {
+  if (!activity || !activity.is_public || activity.arrangement === null) {
     return (
       <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-4 text-center">
         <EmptyState
           icon={EyeOff}
-          title="Deze les is niet (meer) beschikbaar"
-          description="De link is verlopen of de les wordt niet langer openbaar gedeeld."
+          title="Deze activiteit is niet (meer) beschikbaar"
+          description="De link is verlopen of de activiteit wordt niet langer openbaar gedeeld."
           action={
             <Button asChild>
               <Link href="/">Naar GymWiki</Link>
@@ -106,22 +101,29 @@ export default async function SharedLessonPage({
     );
   }
 
-  const authorName = lesson.author
-    ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
-    : "Een GymWiki-gebruiker";
-  const blocksByType = new Map(
-    lesson.lesson_blocks.map((block) => [block.block_type, block.content]),
-  );
+  let authorName = "Een GymWiki-gebruiker";
+  if (activity.author_id) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data: author } = await supabase
+      .from("users")
+      .select("first_name, last_name")
+      .eq("id", activity.author_id)
+      .maybeSingle();
+    if (author) authorName = `${author.first_name} ${author.last_name}`.trim();
+  }
+
+  const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
   const analyzePayload = {
-    title: lesson.title,
-    learningLine: lesson.learning_line ?? undefined,
-    movementProblem: lesson.movement_problem ?? undefined,
-    movementTheme: lesson.movement_theme ?? undefined,
-    goals: lesson.goals ?? undefined,
-    didacticItems: lesson.lesson_didactics?.items ?? [],
-    gameCategory: lesson.game_category ?? undefined,
-    gameDimensions: lesson.game_dimensions ?? undefined,
-    tacticalQuestions: lesson.tactical_questions ?? undefined,
+    title: activity.titel,
+    learningLine: activity.leerlijn ?? undefined,
+    movementProblem: activity.movement_problem ?? undefined,
+    movementTheme: activity.beweegthema ?? undefined,
+    goals: activity.doel ?? undefined,
+    didacticItems,
+    gameCategory: activity.game_category ?? undefined,
+    gameDimensions: activity.game_dimensions ?? undefined,
+    tacticalQuestions: activity.tactical_questions ?? undefined,
   };
 
   return (
@@ -140,32 +142,32 @@ export default async function SharedLessonPage({
       <main className="mx-auto w-full max-w-4xl space-y-6 px-4 pb-16 sm:px-8 sm:pb-10">
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
           <Badge variant="secondary" className="mb-1.5">
-            Gedeelde lesvoorbereiding
+            Gedeelde activiteit
           </Badge>
           <p className="text-sm text-muted-foreground">
-            Je bekijkt een openbaar gedeelde les van {authorName} op GymWiki.
+            Je bekijkt een openbaar gedeelde activiteit van {authorName} op GymWiki.
           </p>
         </div>
 
         <Card className="animate-fade-up">
           <CardHeader>
             <p className="font-mono text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-              Lesvoorbereiding
+              Activiteit
             </p>
-            <CardTitle className="mt-1 text-2xl">{lesson.title}</CardTitle>
-            {lesson.learning_line && (
+            <CardTitle className="mt-1 text-2xl">{activity.titel}</CardTitle>
+            {activity.leerlijn && (
               <div className="mt-2 flex flex-wrap gap-2">
-                <Badge variant="secondary">{lesson.learning_line}</Badge>
+                <Badge variant="secondary">{activity.leerlijn}</Badge>
               </div>
             )}
           </CardHeader>
           <CardContent>
             <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <HeaderField label="Studentnaam" value={authorName} />
-              <HeaderField label="Datum" value={formatDate(lesson.lesson_date) ?? "-"} />
-              <HeaderField label="Groep/klas" value={lesson.group_name ?? "-"} />
-              <HeaderField label="Bewegingsprobleem" value={lesson.movement_problem ?? "-"} />
-              <HeaderField label="Bewegingsthema" value={lesson.movement_theme ?? "-"} />
+              <HeaderField label="Docent" value={authorName} />
+              <HeaderField label="Datum" value={formatDate(activity.activity_date) ?? "-"} />
+              <HeaderField label="Groep/klas" value={activity.group_name ?? "-"} />
+              <HeaderField label="Bewegingsprobleem" value={activity.movement_problem ?? "-"} />
+              <HeaderField label="Bewegingsthema" value={activity.beweegthema ?? "-"} />
             </dl>
           </CardContent>
         </Card>
@@ -176,17 +178,17 @@ export default async function SharedLessonPage({
             <CardTitle>Plattegrond</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {lesson.diagram_image_url ? (
+            {activity.diagram_image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={lesson.diagram_image_url}
+                src={activity.diagram_image_url}
                 alt="Plattegrond van het arrangement"
                 className="w-full max-w-xl rounded-lg border"
               />
             ) : (
               <p className="text-sm text-muted-foreground">Geen tekening toegevoegd.</p>
             )}
-            <LessonPdfButton lesson={lesson} />
+            <LessonPdfButton activity={activity} authorName={authorName} />
           </CardContent>
         </Card>
 
@@ -198,52 +200,64 @@ export default async function SharedLessonPage({
 
         <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
           <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3">
-            <TabsTrigger value="lesinhoud">Lesinhoud & Regels</TabsTrigger>
+            <TabsTrigger value="lesinhoud">Inhoud & Regels</TabsTrigger>
             <TabsTrigger value="veld">Veld & Materiaal</TabsTrigger>
             <TabsTrigger value="leerhulp">Leerhulp</TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Lesinhoud & Regels */}
+          {/* Tab 1: Inhoud & Regels */}
           <TabsContent value="lesinhoud" className="space-y-4">
             <Card>
               <CardContent className="space-y-4 pt-6">
                 <div>
                   <h3 className="mb-1 text-sm font-medium">Beginsituatie & Doelgroep</h3>
                   <p className="text-sm text-muted-foreground">
-                    Aantal deelnemers — in het veld: {lesson.min_participants ?? "-"} · op de
-                    bank: {lesson.participants_bench ?? "-"}
+                    Aantal deelnemers — in het veld: {activity.min_participants ?? "-"} · op de
+                    bank: {activity.participants_bench ?? "-"}
                   </p>
                 </div>
                 <div>
                   <h3 className="mb-1 text-sm font-medium">Doelstelling</h3>
-                  <p className="text-sm text-muted-foreground">{lesson.goals ?? "-"}</p>
+                  <p className="text-sm text-muted-foreground">{activity.doel ?? "-"}</p>
                 </div>
-                {lesson.learning_outcomes && lesson.learning_outcomes.length > 0 && (
+                {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
                   <div>
                     <h3 className="mb-1 text-sm font-medium">Leeruitkomsten</h3>
-                    <NumberedList items={lesson.learning_outcomes} />
+                    <NumberedList items={activity.learning_outcomes} />
                   </div>
                 )}
                 <div>
                   <h3 className="mb-2 text-sm font-medium">Beschrijving</h3>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {(["deelnemers_regels", "plaatje_praatje", "aandachtspunten"] as const).map(
-                      (type) => (
-                        <div key={type}>
-                          <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                            {LESSON_BLOCK_LABELS[type]}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {blocksByType.get(type) || "-"}
-                          </p>
-                        </div>
-                      ),
-                    )}
+                    <div>
+                      <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                        Deelnemers & Regels
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {activity.deelnemers_regels || "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                        Plaatje & Praatje
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {activity.plaatje_praatje || "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                        Aandachtspunten
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {activity.aandachtspunten || "-"}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <div>
                   <h3 className="mb-2 text-sm font-medium">Regels</h3>
-                  <TextList items={lesson.rules} />
+                  <TextList items={activity.regels} />
                 </div>
               </CardContent>
             </Card>
@@ -255,18 +269,16 @@ export default async function SharedLessonPage({
               <CardContent className="space-y-4 pt-6">
                 <div>
                   <h3 className="mb-1 text-sm font-medium">Veldafmetingen & Veldopstelling</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {blocksByType.get("arrangement") || "-"}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{activity.arrangement || "-"}</p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <h3 className="mb-2 text-sm font-medium">Basismateriaal</h3>
-                    <BadgeList items={lesson.base_materials} />
+                    <BadgeList items={activity.base_materials} />
                   </div>
                   <div>
                     <h3 className="mb-2 text-sm font-medium">Regelmateriaal</h3>
-                    <BadgeList items={lesson.rule_materials} />
+                    <BadgeList items={activity.rule_materials} />
                   </div>
                 </div>
               </CardContent>
@@ -276,14 +288,11 @@ export default async function SharedLessonPage({
           {/* Tab 3: Leerhulp (3 L'en) */}
           <TabsContent value="leerhulp" className="space-y-4">
             <GameBasedPedagogyMatrix
-              category={lesson.game_category}
-              dimensions={lesson.game_dimensions}
-              tacticalQuestions={lesson.tactical_questions}
+              category={activity.game_category}
+              dimensions={activity.game_dimensions}
+              tacticalQuestions={activity.tactical_questions}
             />
-            <DidacticsMatrix
-              items={lesson.lesson_didactics?.items ?? []}
-              styleOverrides={LEERHULP_COLORS}
-            />
+            <DidacticsMatrix items={didacticItems} />
           </TabsContent>
         </Tabs>
 
@@ -291,15 +300,13 @@ export default async function SharedLessonPage({
           <Card className="animate-fade-up border-primary/40 bg-primary/5">
             <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
               <Sparkles className="size-6 text-primary" aria-hidden="true" />
-              <p className="text-lg font-semibold">
-                Maak zelf ook lesvoorbereidingen zoals deze
-              </p>
+              <p className="text-lg font-semibold">Maak zelf ook activiteiten zoals deze</p>
               <p className="max-w-md text-sm text-muted-foreground">
-                Sla deze les op &amp; maak je eigen lesvoorbereidingen op
-                GymWiki — gratis voor CALO-studenten en vakdocenten.
+                Sla deze activiteit op &amp; maak je eigen activiteiten op GymWiki — gratis
+                voor CALO-studenten en vakdocenten.
               </p>
               <Button asChild size="lg" className="w-full sm:w-auto">
-                <Link href="/register">Sla deze les op &amp; begin gratis</Link>
+                <Link href="/register">Sla deze activiteit op &amp; begin gratis</Link>
               </Button>
             </CardContent>
           </Card>

@@ -33,6 +33,38 @@ export type Activity = {
   status: ActivityReviewStatus;
   rejection_reason: string | null;
   submitted_at: string;
+
+  // ---- Wizard-velden (voorheen de aparte "lessons"-tabel) ----------------
+  // Alleen gevuld voor activiteiten die via de les-maken wizard zijn
+  // aangemaakt (met plattegrond, lesblokken, 3L's-analyse) — null voor de
+  // eenvoudige, oorspronkelijke bibliotheek-activiteiten. Zie
+  // supabase/migrations/consolidate_lessons_into_activiteiten.sql.
+  group_name: string | null;
+  activity_date: string | null;
+  movement_problem: string | null;
+  min_participants: number | null;
+  participants_bench: number | null;
+  base_materials: string[] | null;
+  rule_materials: string[] | null;
+  diagram_data: unknown | null;
+  diagram_image_url: string | null;
+  game_category: string | null;
+  game_dimensions: { space: string; equipment: string; people: string; rules: string } | null;
+  tactical_questions: string[] | null;
+  didactic_items: unknown[] | null;
+  arrangement: string | null;
+  deelnemers_regels: string | null;
+  plaatje_praatje: string | null;
+  aandachtspunten: string | null;
+  // Bepaalt of deze activiteit meetelt voor de maandelijkse bijdrage-eis en
+  // zichtbaar is voor anderen: alleen publieke, niet-AI-gegenereerde
+  // activiteiten tellen mee. `public_since` bepaalt in welke kalendermaand.
+  // De 203 oorspronkelijke bibliotheek-activiteiten zijn bij de migratie
+  // met terugwerkende kracht op is_public=true gezet (waren altijd al voor
+  // iedereen zichtbaar, vóór dit concept bestond).
+  is_ai_generated: boolean;
+  is_public: boolean;
+  public_since: string | null;
 };
 
 // `doelgroep` isn't a school-year number — it's a fixed 1-6 bucket code

@@ -21,8 +21,8 @@ type QuickAction = {
 const ACTIONS: QuickAction[] = [
   {
     href: "/les-maken",
-    label: "Nieuwe les maken",
-    description: "Bouw een volledige lesvoorbereiding stap voor stap op.",
+    label: "Nieuwe activiteit maken",
+    description: "Bouw een volledige activiteit stap voor stap op.",
     icon: SquarePen,
     accent: "cone",
     primary: true,

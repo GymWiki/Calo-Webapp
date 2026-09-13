@@ -126,7 +126,7 @@ export function AiLescoachSheet({
               AI Lescoach
             </SheetTitle>
             <SheetDescription>
-              Feedback op je lesvoorbereiding, gebaseerd op de Kennisbank.
+              Feedback op je activiteit, gebaseerd op de Kennisbank.
             </SheetDescription>
           </SheetHeader>
 

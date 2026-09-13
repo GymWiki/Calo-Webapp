@@ -67,7 +67,7 @@ export function ShareLessonButton({
       try {
         await navigator.share({
           title: lessonTitle,
-          text: `Bekijk deze lesvoorbereiding op GymWiki: ${lessonTitle}`,
+          text: `Bekijk deze activiteit op GymWiki: ${lessonTitle}`,
           url: shareUrl,
         });
         return;
@@ -97,7 +97,7 @@ export function ShareLessonButton({
         return;
       }
       toast.success(
-        next ? "Les is nu openbaar in de bibliotheek." : "Les is weer privé.",
+        next ? "Activiteit is nu openbaar in de bibliotheek." : "Activiteit is weer privé.",
       );
     });
   }
@@ -117,7 +117,7 @@ export function ShareLessonButton({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Les delen</DialogTitle>
+            <DialogTitle>Activiteit delen</DialogTitle>
             <DialogDescription>
               Deel &quot;{lessonTitle}&quot; via een unieke link, of maak
               &apos;m openbaar in de bibliotheek.
@@ -162,10 +162,10 @@ export function ShareLessonButton({
                       Openbaar in bibliotheek
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Andere docenten en studenten kunnen deze les vinden en
+                      Andere docenten en studenten kunnen deze activiteit vinden en
                       kopiëren.
                       {isAiGenerated &&
-                        " Let op: AI-gegenereerde lessen tellen niet mee voor je maandelijkse bijdrage-eis."}
+                        " Let op: AI-gegenereerde activiteiten tellen niet mee voor je maandelijkse bijdrage-eis."}
                     </p>
                   </div>
                 </div>

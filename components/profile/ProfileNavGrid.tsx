@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { Bookmark, FileEdit, ListChecks, NotebookPen, type LucideIcon } from "lucide-react";
+import { Bookmark, ListChecks, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const ACCENTS = {
   cone: "bg-primary/10 text-primary",
   blue: "bg-line-blue/10 text-line-blue",
-  yellow: "bg-court-yellow/20 text-court-yellow",
 } as const;
 
 type NavCard = {
@@ -18,22 +17,23 @@ type NavCard = {
   count: number;
 };
 
+// Voorheen vier losse blokken (activiteiten/lessen/opgeslagen/concepten) —
+// "lessen" en "activiteiten" zijn nu hetzelfde concept (zie
+// supabase/migrations/consolidate_lessons_into_activiteiten.sql), en de
+// status van een concept staat gewoon per item in "Mijn activiteiten"
+// zichtbaar, dus die twee blokken zijn niet langer apart nodig.
 export function ProfileNavGrid({
   activitiesCount,
   savedCount,
-  lessonsCount,
-  draftsCount,
 }: {
   activitiesCount: number;
   savedCount: number;
-  lessonsCount: number;
-  draftsCount: number;
 }) {
   const cards: NavCard[] = [
     {
       href: "/profiel/activiteiten",
       label: "Mijn activiteiten",
-      description: "Eigen ingediende activiteiten met status.",
+      description: "Al je activiteiten — inclusief concepten, met status per item.",
       icon: ListChecks,
       accent: "cone",
       count: activitiesCount,
@@ -46,28 +46,12 @@ export function ProfileNavGrid({
       accent: "blue",
       count: savedCount,
     },
-    {
-      href: "/profiel/lessen",
-      label: "Mijn lessen",
-      description: "Lesvoorbereidingen uit de canvas-editor.",
-      icon: NotebookPen,
-      accent: "yellow",
-      count: lessonsCount,
-    },
-    {
-      href: "/profiel/concepten",
-      label: "Concepten",
-      description: "Nog niet ingediende activiteiten.",
-      icon: FileEdit,
-      accent: "cone",
-      count: draftsCount,
-    },
   ];
 
   return (
     <div>
       <h2 className="text-lg font-semibold">Overzicht</h2>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {cards.map((card) => {
           const Icon = card.icon;
           return (

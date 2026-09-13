@@ -50,14 +50,14 @@ export function ContributionStatusCard({
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Vorige maand had je niet genoeg bijdragen ({status.approvedCount}/
                 {status.requiredCount}). Draag deze maand {status.requiredCount} nieuwe
-                activiteiten of zelfgemaakte lessen bij, of neem het betaalde abonnement voor
+                activiteiten bij, of neem het betaalde abonnement voor
                 onbeperkte toegang.
               </p>
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
             <Button asChild size="sm">
-              <Link href="/les-maken">Les maken</Link>
+              <Link href="/les-maken">Activiteit maken</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link href="/pro">Abonnement</Link>
@@ -97,7 +97,7 @@ export function ContributionStatusCard({
         </div>
         {!met && (
           <Button asChild size="sm" className="shrink-0">
-            <Link href="/les-maken">Les maken</Link>
+            <Link href="/les-maken">Activiteit maken</Link>
           </Button>
         )}
       </CardContent>

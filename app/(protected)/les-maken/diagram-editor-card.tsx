@@ -52,7 +52,7 @@ export function DiagramEditorCard({
         <CardTitle>Tekening van het arrangement</CardTitle>
         <CardDescription>
           Bouw de opstelling van de gymzaal en exporteer &apos;m naar je
-          lesvoorbereiding.
+          activiteit.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -60,12 +60,12 @@ export function DiagramEditorCard({
         <div className="flex items-center gap-3">
           <Button type="button" onClick={handleExport}>
             <MapPinned className="size-4" />
-            Exporteer plattegrond naar les
+            Exporteer plattegrond naar activiteit
           </Button>
           {exported && (
             <span className="flex items-center gap-1 text-sm text-muted-foreground">
               <Check className="size-4" />
-              Toegevoegd aan de lesvoorbereiding
+              Toegevoegd aan de activiteit
             </span>
           )}
         </div>

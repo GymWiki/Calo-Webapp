@@ -73,13 +73,13 @@ export default async function LesMakenPage({
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10">
       <PageHeader
-        eyebrow="Les maken"
-        title="Nieuwe lesvoorbereiding"
+        eyebrow="Activiteit maken"
+        title="Nieuwe activiteit"
         description={
           activity
             ? `Gebaseerd op "${activity.titel}" — vul de ontbrekende velden aan.`
             : skipChoice
-              ? "Bouw je activiteitvoorbereiding stap voor stap op."
+              ? "Bouw je activiteit stap voor stap op."
               : "Kies hoe je wilt beginnen."
         }
       />

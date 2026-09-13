@@ -10,8 +10,17 @@ import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 
 type ActionResult = { error: string } | { success: true };
 
-const GENERIC_ERROR = "Les opslaan is mislukt. Probeer het opnieuw.";
+const GENERIC_ERROR = "Activiteit opslaan is mislukt. Probeer het opnieuw.";
 
+/**
+ * Slaat een via de wizard samengestelde activiteit op — rechtstreeks in de
+ * `activiteiten`-tabel (voorheen een aparte "lessons"-tabel; zie
+ * supabase/migrations/consolidate_lessons_into_activiteiten.sql). Bewust
+ * GEEN AI-kwaliteitscheck (checkActivityQuality/find_similar_own_activities,
+ * zie actions/activity-submission.ts): dat gold nooit voor wizard-lessen —
+ * die konden nooit "afgekeurd" worden — en dat gedrag blijft zo na de
+ * consolidatie. Status staat dus altijd meteen op 'approved'.
+ */
 export async function createLesson(
   input: CreateLessonInput,
   diagram: { data: DiagramData; imageDataUrl: string } | null = null,
@@ -36,79 +45,50 @@ export async function createLesson(
     return { error: "Je bent niet ingelogd." };
   }
 
-  try {
-    const { data: lesson, error: lessonError } = await supabase
-      .from("lessons")
-      .insert({
-        author_id: user.id,
-        title: values.title,
-        lesson_date: values.lessonDate,
-        group_name: values.groupName,
-        learning_line: values.learningLine,
-        doelgroep: values.doelgroep,
-        movement_problem: values.movementProblem,
-        movement_theme: values.movementTheme,
-        base_materials: values.baseMaterials,
-        rule_materials: values.ruleMaterials,
-        min_participants: values.minParticipants ?? null,
-        participants_bench: values.participantsBench ?? null,
-        rules: values.rules,
-        goals: values.goals,
-        diagram_data: diagram?.data ?? null,
-        diagram_image_url: diagram?.imageDataUrl ?? null,
-        game_category: values.gameCategory || null,
-        game_dimensions: values.gameDimensions,
-        tactical_questions: values.tacticalQuestions,
-        is_ai_generated: isAiGenerated,
-      })
-      .select("id")
-      .single();
+  const { error } = await supabase.from("activiteiten").insert({
+    author_id: user.id,
+    titel: values.title,
+    activity_date: values.lessonDate,
+    group_name: values.groupName,
+    leerlijn: values.learningLine,
+    doelgroep: values.doelgroep,
+    movement_problem: values.movementProblem,
+    beweegthema: values.movementTheme,
+    base_materials: values.baseMaterials,
+    rule_materials: values.ruleMaterials,
+    min_participants: values.minParticipants ?? null,
+    participants_bench: values.participantsBench ?? null,
+    regels: values.rules,
+    doel: values.goals,
+    didactic_items: values.didacticItems,
+    game_category: values.gameCategory || null,
+    game_dimensions: values.gameDimensions,
+    tactical_questions: values.tacticalQuestions,
+    arrangement: values.arrangement,
+    deelnemers_regels: values.deelnemersRegels,
+    plaatje_praatje: values.plaatjePraatje,
+    aandachtspunten: values.aandachtspunten,
+    diagram_data: diagram?.data ?? null,
+    diagram_image_url: diagram?.imageDataUrl ?? null,
+    is_ai_generated: isAiGenerated,
+    status: "approved",
+    taalcode: "nl",
+  });
 
-    if (lessonError || !lesson) {
-      return { error: GENERIC_ERROR };
-    }
-
-    const { error: didacticsError } = await supabase
-      .from("lesson_didactics")
-      .insert({
-        lesson_id: lesson.id,
-        items: values.didacticItems,
-      });
-
-    const { error: blocksError } = await supabase.from("lesson_blocks").insert([
-      { lesson_id: lesson.id, block_type: "arrangement", content: values.arrangement },
-      {
-        lesson_id: lesson.id,
-        block_type: "deelnemers_regels",
-        content: values.deelnemersRegels,
-      },
-      {
-        lesson_id: lesson.id,
-        block_type: "plaatje_praatje",
-        content: values.plaatjePraatje,
-      },
-      {
-        lesson_id: lesson.id,
-        block_type: "aandachtspunten",
-        content: values.aandachtspunten,
-      },
-    ]);
-
-    if (didacticsError || blocksError) {
-      // Roll back the partially-created lesson (cascades to any rows
-      // that did get inserted above).
-      await supabase.from("lessons").delete().eq("id", lesson.id);
-      return { error: GENERIC_ERROR };
-    }
-
-    return { success: true };
-  } catch {
+  if (error) {
     return { error: GENERIC_ERROR };
   }
+
+  return { success: true };
 }
 
+/**
+ * Maakt een activiteit openbaar (of weer privé) — het moment waarop dit
+ * publiek gebeurt (`public_since`) bepaalt in welke kalendermaand de
+ * bijdrage meetelt (zie consolidate_lessons_into_activiteiten.sql).
+ */
 export async function setLessonPublic(
-  lessonId: string,
+  activityId: string,
   isPublic: boolean,
 ): Promise<ActionResult> {
   const cookieStore = await cookies();
@@ -122,27 +102,21 @@ export async function setLessonPublic(
     return { error: "Je bent niet ingelogd." };
   }
 
-  // RLS ("Eigenaren kunnen eigen lessen beheren") is de daadwerkelijke
-  // handhaving — een les die de aanroeper niet bezit matcht simpelweg niet
-  // en er wordt niets bijgewerkt. `public_since` wordt bij elke keer
-  // openbaar maken ververst — dat is het moment dat telt voor de
-  // maandelijkse bijdrage-eis (zie lesson_contribution_tracking.sql), niet
-  // het oorspronkelijke aanmaakmoment.
   const { error } = await supabase
-    .from("lessons")
+    .from("activiteiten")
     .update(
       isPublic
         ? { is_public: true, public_since: new Date().toISOString() }
         : { is_public: false },
     )
-    .eq("id", lessonId)
+    .eq("id", activityId)
     .eq("author_id", user.id);
 
   if (error) {
     return {
       error: isPublic
-        ? "Les openbaar maken is mislukt. Probeer het opnieuw."
-        : "Les privé maken is mislukt. Probeer het opnieuw.",
+        ? "Activiteit openbaar maken is mislukt. Probeer het opnieuw."
+        : "Activiteit privé maken is mislukt. Probeer het opnieuw.",
     };
   }
 

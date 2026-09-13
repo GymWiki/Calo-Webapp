@@ -19,7 +19,6 @@ import { getCategoryForLearningLine, LEARNING_LINE_CATEGORIES } from "@/lib/cons
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
-import type { LessonWithDetails } from "@/types/lesson";
 
 const PAGE_SIZE = 24;
 const WEINIG_MATERIAAL_MAX = 2;
@@ -256,55 +255,28 @@ function matchesActivityQuery(activity: Activity, query: string) {
   return haystack.includes(query.toLowerCase());
 }
 
-function matchesLessonQuery(lesson: LessonWithDetails, query: string) {
-  const doelgroepLabels = (lesson.doelgroep ?? [])
-    .map((code) => DOELGROEP_LABELS[code])
-    .filter(Boolean);
-
-  const haystack = [
-    lesson.title,
-    lesson.learning_line,
-    lesson.movement_problem,
-    lesson.movement_theme,
-    lesson.group_name,
-    ...doelgroepLabels,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return haystack.includes(query.toLowerCase());
-}
-
-// Normalizes an activity or lesson onto the shared categorie/leerlijn/
-// doelgroep/materiaal shape the filters operate on — a lesson has no
-// `categorie` column of its own, so it's derived from `learning_line` via
-// the reverse taxonomy lookup, and its "materiaal" is the combined base +
-// regelmateriaal arrays.
+// Normalizes an activity onto the shared categorie/leerlijn/doelgroep/
+// materiaal shape the filters operate on — een via de wizard aangemaakte
+// activiteit heeft geen eigen `categorie`-kolom, dus die wordt afgeleid uit
+// `leerlijn` via de reverse taxonomy lookup, en het materiaal is de
+// combinatie van basis- en regelmateriaal.
 function toFilterableFields(item: LibraryListItem): {
   categorie: string;
   leerlijn: string;
   doelgroep: number[];
   materiaalCount: number;
 } {
-  if (item.source === "gymwiki") {
-    const { activity } = item;
-    return {
-      categorie: activity.categorie ?? "",
-      leerlijn: activity.leerlijn ?? "",
-      doelgroep: activity.doelgroep ?? [],
-      materiaalCount: activity.materiaal?.length ?? 0,
-    };
-  }
+  const { activity } = item;
+  const leerlijn = activity.leerlijn ?? "";
+  const materiaalCount = activity.arrangement !== null
+    ? (activity.base_materials?.length ?? 0) + (activity.rule_materials?.length ?? 0)
+    : activity.materiaal?.length ?? 0;
 
-  const { lesson } = item;
-  const leerlijn = lesson.learning_line ?? "";
   return {
-    categorie: getCategoryForLearningLine(leerlijn) ?? "",
+    categorie: activity.categorie ?? getCategoryForLearningLine(leerlijn) ?? "",
     leerlijn,
-    doelgroep: lesson.doelgroep ?? [],
-    materiaalCount:
-      (lesson.base_materials?.length ?? 0) + (lesson.rule_materials?.length ?? 0),
+    doelgroep: activity.doelgroep ?? [],
+    materiaalCount,
   };
 }
 
@@ -388,10 +360,10 @@ type ActiveChip = {
 
 export function LibrarySearchClient({
   activities,
-  lessons,
+  publicActivities,
 }: {
   activities: Activity[];
-  lessons: LessonWithDetails[];
+  publicActivities: Activity[];
 }) {
   // Onthoud de laatst gekozen bron-tab per gebruiker (localStorage via de
   // module-level store hierboven) — geen server-round-trip nodig voor een
@@ -461,14 +433,14 @@ export function LibrarySearchClient({
       .filter((activity) => matchesActivityQuery(activity, trimmedQuery))
       .map((activity) => ({ source: "gymwiki" as const, id: activity.id, activity }));
 
-    const publicItems: LibraryListItem[] = lessons
-      .filter((lesson) => !trimmedQuery || matchesLessonQuery(lesson, trimmedQuery))
-      .map((lesson) => ({ source: "public" as const, id: lesson.id, lesson }));
+    const publicItems: LibraryListItem[] = publicActivities
+      .filter((activity) => matchesActivityQuery(activity, trimmedQuery))
+      .map((activity) => ({ source: "public" as const, id: activity.id, activity }));
 
     if (sourceFilter === "gymwiki") return gymwikiItems;
     if (sourceFilter === "public") return publicItems;
     return [...gymwikiItems, ...publicItems];
-  }, [activities, lessons, query, sourceFilter]);
+  }, [activities, publicActivities, query, sourceFilter]);
 
   // Hoeveel resultaten er per categorie in preFilterItems zitten — voedt de
   // tellingen naast elke categorie in de filter-sheet, zodat je vóór het
@@ -632,13 +604,13 @@ export function LibrarySearchClient({
         <EmptyState
           icon={SearchX}
           title={
-            activities.length === 0 && lessons.length === 0
-              ? "Nog geen activiteiten of lessen in de bibliotheek"
+            activities.length === 0 && publicActivities.length === 0
+              ? "Nog geen activiteiten in de bibliotheek"
               : "Niets gevonden"
           }
           description={
-            activities.length === 0 && lessons.length === 0
-              ? "Zodra er activiteiten of publiek gedeelde lessen zijn, kun je ze hier terugvinden."
+            activities.length === 0 && publicActivities.length === 0
+              ? "Zodra er activiteiten zijn, kun je ze hier terugvinden."
               : "Niets gevonden voor deze zoekterm/filters."
           }
           action={

@@ -4,13 +4,13 @@ import { Sparkles } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { LessonCard } from "@/components/lesson-card";
 import { Button } from "@/components/ui/button";
-import type { LessonWithDetails } from "@/types/lesson";
+import type { Activity } from "@/types/activity";
 
 export function CommunityLessonsSection({
-  lessons,
+  activities,
   currentUserId,
 }: {
-  lessons: LessonWithDetails[];
+  activities: Activity[];
   currentUserId?: string;
 }) {
   return (
@@ -19,7 +19,7 @@ export function CommunityLessonsSection({
         <div>
           <h2 className="text-lg font-semibold">Populair in de gymzaal</h2>
           <p className="text-sm text-muted-foreground">
-            Recent gedeelde lessen van medestudenten en vakdocenten.
+            Recent gedeelde activiteiten van medestudenten en vakdocenten.
           </p>
         </div>
         <Button asChild variant="ghost" size="sm">
@@ -27,22 +27,22 @@ export function CommunityLessonsSection({
         </Button>
       </div>
 
-      {lessons.length === 0 ? (
+      {activities.length === 0 ? (
         <EmptyState
           icon={Sparkles}
-          title="Nog geen openbare lessen"
-          description="Zodra iemand een lesvoorbereiding openbaar deelt, verschijnt die hier."
+          title="Nog geen openbare activiteiten"
+          description="Zodra iemand een activiteit openbaar deelt, verschijnt die hier."
           className="mt-4"
         />
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {lessons.map((lesson, index) => (
+          {activities.map((activity, index) => (
             <div
-              key={lesson.id}
+              key={activity.id}
               className="animate-fade-up"
               style={{ animationDelay: `${Math.min(index, 6) * 50}ms` }}
             >
-              <LessonCard lesson={lesson} currentUserId={currentUserId} />
+              <LessonCard activity={activity} currentUserId={currentUserId} />
             </div>
           ))}
         </div>
