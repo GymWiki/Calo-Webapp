@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState, type ChangeEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import { FileUp, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,43 +18,41 @@ import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
 const ACCEPT =
   ".pdf,.docx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain";
 
-type ActionState = { error: string } | { success: true; activity: ExtractedActivity } | null;
-
 /**
  * Alternatieve invoerroute voor "Activiteit toevoegen": laat de gebruiker
  * een bestaande lesvoorbereiding uploaden i.p.v. alles handmatig over te
  * typen. Geen eigen formulier — geeft de geëxtraheerde data terug aan de
  * ouder, die daarmee het bestaande AddActivityStep-formulier vult.
  *
- * DERDE herbouw van deze upload-flow. De eerste twee (rechtstreekse
- * fetch()-aanroep met FormData, en diezelfde aanroep via een Server Action)
- * faalden allebei identiek op Android Chrome met "TypeError: Failed to
- * fetch" — bevestigd via Vercel-logs dat de aanvraag nooit het netwerk
- * bereikte, op elke pagina die dit component gebruikt, met elk bestand,
- * ongeacht de servercode. Een derde poging (alleen de bestandskiezer-trigger
- * omzetten van een JS `ref.click()` naar een native `<label>`) loste het óók
- * niet op.
+ * VIERDE herbouw van deze upload-flow. Eerdere pogingen (fetch() met
+ * FormData, dezelfde aanroep via een Server Action, alleen de bestands-
+ * kiezer-trigger aangepast) faalden allemaal identiek op Android Chrome met
+ * "TypeError: Failed to fetch" — bevestigd dat de aanvraag nooit het
+ * netwerk bereikte, op elke pagina, met elk bestand, ongeacht de
+ * servercode.
  *
- * Wat nog overbleef als verschil met de wél altijd werkende Kennisbank-
- * upload (KnowledgeUploadForm): die roept de Server Action niet
- * programmatisch aan vanuit een `input[type=file]`-onChange-handler direct
- * na het sluiten van de systeem-bestandenkiezer — het bestand kiezen en het
- * daadwerkelijk versturen zijn daar twee gescheiden, expliciete
- * gebruikersacties (kies bestand, vul het formulier in, tik pas dán op
- * "Toevoegen"). Deze upload-kaart deed dat in ÉÉN stap: de network-call
- * startte automatisch, meteen zodra de onChange van het (verborgen) bestands-
- * veld afging — dus zonder een verse, aparte tik van de gebruiker ná het
- * terugkeren van de systeem-bestandenkiezer. Android Chrome kan een net-
- * teruggekeerde, kort geleden naar de achtergrond geweest tab beperken in
- * het meteen zelf starten van nieuw netwerkverkeer zonder een tussenliggende
- * verse gebruikersinteractie.
+ * Een poging om het interactiepatroon te laten matchen met de wél altijd
+ * werkende Kennisbank-upload (bestand kiezen en versturen als twee
+ * gescheiden acties) gebruikte `<form action={...}>` (React 19's
+ * useActionState) — dat gaf een ANDERE, veelzeggende fout: Chrome's eigen
+ * "This page couldn't load" netwerkfout-pagina, met de hele /les-maken-URL
+ * die probeerde te herladen. Dat betekent dat de formulier-indiening NIET
+ * door React onderschept werd en de browser een ECHTE, native, paginavolle
+ * form-POST deed — precies het gedrag dat je NOOIT wilt bij een Server
+ * Action-aanroep vanuit JS. `<form action={fn}>` leunt volledig op React om
+ * de submit te onderscheppen; als dat om wat voor reden dan ook niet gebeurt
+ * (bv. bij een net-teruggekeerde, kort geleden naar de achtergrond geweest
+ * tab, of een wankele verbinding), valt de browser terug op een gewone
+ * pagina-navigatie — die dan faalt zodra de verbinding niet perfect is.
  *
- * Nu herbouwd rond een ECHTE `<form action={...}>`-indiening (React 19's
- * useActionState, hetzelfde patroon als een klassieke formulier-POST i.p.v.
- * een handmatige FormData + async functie-aanroep) mét een aparte
- * "Uploaden"-knop: bestand kiezen vult alleen de bestandsnaam in, de
- * daadwerkelijke indiening gebeurt pas op een losse, verse tik — exact het
- * interactiepatroon van de Kennisbank-upload.
+ * Kennisbank's KnowledgeUploadForm loopt hier NOOIT tegenaan, want die roept
+ * `event.preventDefault()` synchroon aan in een gewone `onSubmit`-handler —
+ * dat blokkeert een native form-submissie altijd en onvoorwaardelijk, in
+ * tegenstelling tot het "action"-prop-mechanisme dat op React's eigen
+ * onderschepping vertrouwt. Dit bestand is nu teruggebracht naar exact dat
+ * bewezen patroon: een gewone `<form onSubmit>` met `preventDefault()`,
+ * gecombineerd met de gescheiden "kies bestand, tik dan pas op Uploaden"-
+ * interactie uit de vorige poging.
  */
 const DEFAULT_DESCRIPTION =
   "PDF, Word (.docx), PowerPoint (.pptx) of tekstbestand — de AI zet het om naar het " +
@@ -68,27 +66,40 @@ export function ActivityImportUploadCard({
   onExtracted: (activity: ExtractedActivity) => void;
   description?: string;
 }) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-
-  async function runExtraction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-    const result = await extractActivityFromUpload(formData);
-
-    if ("error" in result) {
-      toast.error(result.error);
-      return result;
-    }
-
-    onExtracted(result.activity);
-    setSelectedFileName(null);
-    formRef.current?.reset();
-    return result;
-  }
-
-  const [, formAction, isPending] = useActionState(runExtraction, null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    setSelectedFileName(event.target.files?.[0]?.name ?? null);
+    setSelectedFile(event.target.files?.[0] ?? null);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFile) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", selectedFile);
+
+      const result = await extractActivityFromUpload(formData);
+
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+
+      onExtracted(result.activity);
+      setSelectedFile(null);
+      event.currentTarget.reset();
+    } catch (cause) {
+      console.error("ActivityImportUploadCard: onverwachte fout:", cause);
+      const detail =
+        cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+      toast.error(`Verwerken van dit bestand is mislukt. (${detail})`);
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   return (
@@ -101,17 +112,19 @@ export function ActivityImportUploadCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form ref={formRef} action={formAction} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-3 sm:flex-row sm:items-center"
+        >
           <input
-            name="file"
             type="file"
             accept={ACCEPT}
             onChange={handleFileChange}
-            disabled={isPending}
+            disabled={isUploading}
             className="text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
           />
-          <Button type="submit" variant="outline" disabled={!selectedFileName || isPending}>
-            {isPending ? (
+          <Button type="submit" variant="outline" disabled={!selectedFile || isUploading}>
+            {isUploading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
                 Bestand wordt geanalyseerd...
