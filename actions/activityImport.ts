@@ -2,75 +2,41 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import { SUPPORTED_DOCUMENT_MIME_TYPES, extractDocumentText } from "@/lib/ai/documentText";
-import { extractActivityFromText, type ExtractedActivity } from "@/lib/ai/activityImportExtraction";
-import { CHECK_MODEL } from "@/lib/ai/openai-client";
+import { SUPPORTED_DOCUMENT_MIME_TYPES } from "@/lib/ai/documentTypes";
+import { processActivityImport } from "@/lib/ai/activityImportProcessor";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
-import { recordAiUsage } from "@/lib/ai/usageTracking";
+import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
 
 type ActionResult =
   | { error: string }
   | { success: true; activity: ExtractedActivity; remaining: number | null };
 
-// Was een fetch()-aanroep naar een eigen /api-route (Route Handler), maar dat
-// bleek op Android Chrome structureel te falen met "TypeError: Failed to
-// fetch" zodra de FormData een echt File-object bevatte — bevestigd doordat
-// eenzelfde fetch() zonder bestand (generate-activity) wél werkte, en een
-// FormData-upload mét bestand via een Server Action (Kennisbank, zie
-// actions/knowledge.ts) op hetzelfde toestel/netwerk ook wél werkte. fetch()
-// moet een geselecteerd bestand zelf (opnieuw) inlezen om de multipart-body
-// te bouwen; een Server Action-aanroep (React's eigen formulier-actie-
-// protocol) gebruikt de browser's oudere, robuustere native form-encoding
-// hiervoor. Vercel's logs bevestigden dit ook: er kwam voor deze route nooit
-// ook maar één binnenkomend request aan, terwijl gewone pagina-navigatie en
-// de niet-bestand-AI-aanroepen op hetzelfde moment gewoon succesvol waren.
-const EXTRACTION_ERROR =
-  "Kon geen tekst uit dit bestand halen. Probeer een ander bestand of vul de activiteit handmatig in.";
-const AI_MAPPING_ERROR =
-  "De AI kon de inhoud van dit bestand niet goed omzetten naar een activiteit. Probeer het opnieuw of vul de activiteit handmatig in.";
-
+// Was een fetch()-aanroep naar een eigen /api-route (Route Handler), toen een
+// Server Action die alle logica zelf bevatte, toen dezelfde Server Action
+// maar dan zonder een rechtstreekse "openai"-import — geen van die versies
+// loste de aanhoudende "TypeError: Failed to fetch" op (bevestigd: de
+// aanvraag bereikte nooit het netwerk, op elke pagina, met elk bestand, elke
+// grootte, zowel via fetch() als via een Server Action, zowel via een
+// programmatische aanroep als via een echte <form onSubmit>-indiening).
+//
+// De daadwerkelijke, build-bevestigde oorzaak: dit bestand importeerde
+// lib/ai/documentText.ts rechtstreeks — dat bestand bevat unpdf/mammoth/
+// officeparser, en officeparser/unpdf's dynamische requires gaven bij
+// `next build --webpack` expliciete "Critical dependency"-waarschuwingen
+// met een import-trace die eindigde bij DIT bestand. De structureel
+// vergelijkbare, altijd werkende Kennisbank-upload (actions/knowledge.ts)
+// importeert diezelfde tekstextractie nooit rechtstreeks — alleen via een
+// tussenliggende, gewone module (lib/ai/knowledgeProcessor.ts) — en gaf
+// daardoor nooit zo'n waarschuwing. Een "use server"-bestand dat zelf zo'n
+// module met kritieke/dynamische dependencies importeert, kan een kapotte
+// of onvolledige client-zichtbare actie-referentie opleveren: de browser
+// kan de actie dan nooit daadwerkelijk versturen, wat zich uit als precies
+// dit "Failed to fetch"-patroon.
+//
+// Nu, net als bij Kennisbank, volledig thin: alle zware logica (tekst-
+// extractie + AI-mapping) zit in lib/ai/activityImportProcessor.ts, een
+// gewone (niet "use server") module die dit bestand alleen aanroept.
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // 4 MB — ruim onder Vercel's harde 4,5MB request-limiet.
-
-// Duck-typing i.p.v. `cause instanceof OpenAI.APIError`: een "use server"-
-// bestand mag geen zware SDK's rechtstreeks op het top-level importeren — de
-// echte functie-implementatie hoort nooit in de client-bundel terecht te
-// komen, maar de OpenAI-package rechtstreeks hier importeren (i.p.v. alleen
-// via lib/ai/openai-client.ts, zoals de rest van de codebase al deed) bleek
-// hier de enige structurele afwijking t.o.v. actions/knowledge.ts, dat wél
-// altijd werkte met een vergelijkbare (grote) afhankelijkheidsketen.
-type OpenAiLikeError = { status?: number; type?: string; code?: string; message: string };
-
-function isOpenAiApiError(cause: unknown): cause is OpenAiLikeError {
-  return (
-    typeof cause === "object" &&
-    cause !== null &&
-    "message" in cause &&
-    ("status" in cause || "type" in cause || "code" in cause)
-  );
-}
-
-function logFailure(stage: string, cause: unknown) {
-  if (isOpenAiApiError(cause)) {
-    console.error(
-      `extractActivityFromUpload (${stage}): OpenAI API-fout (status ${cause.status ?? "onbekend"}, ` +
-        `type ${cause.type ?? "onbekend"}, code ${cause.code ?? "onbekend"}): ${cause.message}`,
-    );
-    return;
-  }
-  console.error(`extractActivityFromUpload (${stage}): onverwachte fout:`, cause);
-}
-
-function aiMappingUserMessage(cause: unknown): string {
-  if (isOpenAiApiError(cause)) {
-    if (cause.status === 429) {
-      return "De AI-service zit tijdelijk aan de limiet. Probeer het over een paar minuten opnieuw.";
-    }
-    if (cause.status && cause.status >= 500) {
-      return "De AI-service is momenteel niet bereikbaar. Probeer het opnieuw.";
-    }
-  }
-  return AI_MAPPING_ERROR;
-}
 
 export async function extractActivityFromUpload(formData: FormData): Promise<ActionResult> {
   const cookieStore = await cookies();
@@ -106,43 +72,11 @@ export async function extractActivityFromUpload(formData: FormData): Promise<Act
     };
   }
 
-  let text: string;
-  try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    text = await extractDocumentText(buffer, file.type);
-  } catch (cause) {
-    logFailure("tekstextractie", cause);
-    return { error: cause instanceof Error ? cause.message : EXTRACTION_ERROR };
+  const result = await processActivityImport(file, supabase, user.id);
+
+  if ("error" in result) {
+    return result;
   }
 
-  if (!text.trim()) {
-    return {
-      error:
-        "Er is geen leesbare tekst gevonden in dit bestand. Is het een gescand document zonder tekstlaag? Vul de activiteit dan handmatig in.",
-    };
-  }
-
-  try {
-    const { activity, inputTokens, outputTokens } = await extractActivityFromText(text);
-
-    await recordAiUsage(supabase, {
-      userId: user.id,
-      feature: "activity_import_extraction",
-      model: CHECK_MODEL,
-      inputTokens,
-      outputTokens,
-    });
-
-    if (!activity.isMovementActivity) {
-      return {
-        error:
-          "Dit document lijkt geen bewegingsactiviteit of lesvoorbereiding te bevatten. Controleer het bestand, of vul de activiteit handmatig in.",
-      };
-    }
-
-    return { success: true, activity, remaining: usage.remaining };
-  } catch (cause) {
-    logFailure("AI-mapping", cause);
-    return { error: aiMappingUserMessage(cause) };
-  }
+  return { success: true, activity: result.activity, remaining: usage.remaining };
 }

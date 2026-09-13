@@ -6,17 +6,17 @@ import { OfficeParser } from "officeparser";
 // uploadt dat als platte tekst verder verwerkt moet worden — nu de
 // Kennisbank (lib/ai/knowledgeProcessor.ts), de Standaardbibliotheek
 // (lib/ai/knowledgePackageProcessor.ts) en de "Activiteit toevoegen"-
-// bestandsimport (lib/ai/activityImportExtraction.ts). Eén plek zodat een
+// bestandsimport (lib/ai/activityImportProcessor.ts). Eén plek zodat een
 // nieuw ondersteund bestandstype niet op meerdere plekken los bijgehouden
 // hoeft te worden.
-export const SUPPORTED_DOCUMENT_MIME_TYPES = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "text/plain",
-] as const;
-
-export const DOCUMENT_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+//
+// De MIME-type/grootte-constanten staan bewust in het losse
+// lib/ai/documentTypes.ts (opnieuw geëxporteerd hier voor bestaande
+// aanroepers) — niet in dit bestand, dat unpdf/mammoth/officeparser
+// importeert. Code die alleen die constanten nodig heeft (met name "use
+// server"-actions) moet dit zware bestand niet rechtstreeks hoeven
+// importeren.
+export { SUPPORTED_DOCUMENT_MIME_TYPES, DOCUMENT_MAX_FILE_SIZE_BYTES } from "@/lib/ai/documentTypes";
 
 const PDF_EXTRACTION_ERROR =
   "Kon geen tekst uit dit PDF-bestand halen. Probeer een ander bestand of neem contact op.";
