@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { FileUp, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
-import { extractActivityFromUpload } from "@/actions/activityImport";
+import {
+  createActivityImportJob,
+  getActivityImportJobStatus,
+  processActivityImportJob,
+} from "@/actions/activityImport";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,52 +17,44 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DOCUMENT_MAX_FILE_SIZE_BYTES, SUPPORTED_DOCUMENT_MIME_TYPES } from "@/lib/ai/documentTypes";
+import { createClient } from "@/utils/supabase/client";
 import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
 
 const ACCEPT =
   ".pdf,.docx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain";
 
-/**
- * Laat de gebruiker een bestaande lesvoorbereiding uploaden i.p.v. alles
- * handmatig over te typen. Geen eigen formulier — geeft de geëxtraheerde
- * data terug aan de ouder (activity-upload-step.tsx), die daarmee het
- * gewone lesformulier (LessonForm) vult.
- *
- * VIERDE herbouw van deze upload-flow. Eerdere pogingen (fetch() met
- * FormData, dezelfde aanroep via een Server Action, alleen de bestands-
- * kiezer-trigger aangepast) faalden allemaal identiek op Android Chrome met
- * "TypeError: Failed to fetch" — bevestigd dat de aanvraag nooit het
- * netwerk bereikte, op elke pagina, met elk bestand, ongeacht de
- * servercode.
- *
- * Een poging om het interactiepatroon te laten matchen met de wél altijd
- * werkende Kennisbank-upload (bestand kiezen en versturen als twee
- * gescheiden acties) gebruikte `<form action={...}>` (React 19's
- * useActionState) — dat gaf een ANDERE, veelzeggende fout: Chrome's eigen
- * "This page couldn't load" netwerkfout-pagina, met de hele /les-maken-URL
- * die probeerde te herladen. Dat betekent dat de formulier-indiening NIET
- * door React onderschept werd en de browser een ECHTE, native, paginavolle
- * form-POST deed — precies het gedrag dat je NOOIT wilt bij een Server
- * Action-aanroep vanuit JS. `<form action={fn}>` leunt volledig op React om
- * de submit te onderscheppen; als dat om wat voor reden dan ook niet gebeurt
- * (bv. bij een net-teruggekeerde, kort geleden naar de achtergrond geweest
- * tab, of een wankele verbinding), valt de browser terug op een gewone
- * pagina-navigatie — die dan faalt zodra de verbinding niet perfect is.
- *
- * Kennisbank's KnowledgeUploadForm loopt hier NOOIT tegenaan, want die roept
- * `event.preventDefault()` synchroon aan in een gewone `onSubmit`-handler —
- * dat blokkeert een native form-submissie altijd en onvoorwaardelijk, in
- * tegenstelling tot het "action"-prop-mechanisme dat op React's eigen
- * onderschepping vertrouwt. Dit bestand is nu teruggebracht naar exact dat
- * bewezen patroon: een gewone `<form onSubmit>` met `preventDefault()`,
- * gecombineerd met de gescheiden "kies bestand, tik dan pas op Uploaden"-
- * interactie uit de vorige poging.
- */
+const BUCKET = "activity-imports";
+const POLL_INTERVAL_MS = 1500;
+const POLL_TIMEOUT_MS = 90_000;
+
 const DEFAULT_DESCRIPTION =
   "PDF, Word (.docx), PowerPoint (.pptx) of tekstbestand — de AI zet het om naar het " +
   "formulier hieronder, zodat je het alleen nog hoeft te controleren vóór je indient. " +
   "Liever alles zelf intypen? Dat kan ook gewoon, hieronder.";
 
+type Phase = "idle" | "uploading" | "processing";
+
+const PROCESSING_LABELS: Record<string, string> = {
+  uploaded: "Bestand wordt verwerkt...",
+  extracting: "Tekst wordt uitgelezen...",
+  mapping: "AI zet dit om naar een activiteit...",
+};
+
+function sanitizeFileName(name: string): string {
+  const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return cleaned.length > 100 ? cleaned.slice(-100) : cleaned;
+}
+
+/**
+ * Herbouwde upload-flow (zie actions/activityImport.ts voor de volledige
+ * uitleg van waarom): het bestand gaat rechtstreeks van de browser naar
+ * Supabase Storage — nooit meer als request-body naar een Vercel-functie —
+ * waarna een lichte server-actie alleen de storage-path krijgt om de
+ * verwerking (tekstextractie + AI-mapping) te starten. Verwerking gebeurt
+ * asynchroon; deze component pollt de jobstatus totdat die klaar (of
+ * mislukt) is.
+ */
 export function ActivityImportUploadCard({
   onExtracted,
   description = DEFAULT_DESCRIPTION,
@@ -67,40 +63,139 @@ export function ActivityImportUploadCard({
   description?: string;
 }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [statusLabel, setStatusLabel] = useState<string>("Bestand wordt geüpload...");
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, []);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     setSelectedFile(event.target.files?.[0] ?? null);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedFile) return;
+  async function pollJobStatus(jobId: string): Promise<void> {
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
 
-    setIsUploading(true);
-    try {
-      const formData = new FormData();
-      formData.set("file", selectedFile);
+    while (!cancelledRef.current) {
+      if (Date.now() > deadline) {
+        toast.error(
+          "Verwerken duurt langer dan verwacht. Probeer het opnieuw of vul de activiteit handmatig in.",
+        );
+        return;
+      }
 
-      const result = await extractActivityFromUpload(formData);
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      if (cancelledRef.current) return;
+
+      const result = await getActivityImportJobStatus(jobId);
 
       if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      onExtracted(result.activity);
-      setSelectedFile(null);
-      event.currentTarget.reset();
-    } catch (cause) {
-      console.error("ActivityImportUploadCard: onverwachte fout:", cause);
-      const detail =
-        cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
-      toast.error(`Verwerken van dit bestand is mislukt. (${detail})`);
-    } finally {
-      setIsUploading(false);
+      if (result.status === "done") {
+        if (result.result) {
+          onExtracted(result.result);
+        }
+        return;
+      }
+
+      if (result.status === "failed") {
+        toast.error(result.errorMessage ?? "Verwerken van dit bestand is mislukt.");
+        return;
+      }
+
+      setStatusLabel(PROCESSING_LABELS[result.status] ?? PROCESSING_LABELS.uploaded);
     }
   }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFile) return;
+
+    if (!(SUPPORTED_DOCUMENT_MIME_TYPES as readonly string[]).includes(selectedFile.type)) {
+      toast.error("Alleen PDF, Word (.docx), PowerPoint (.pptx) en tekstbestanden worden ondersteund.");
+      return;
+    }
+
+    if (selectedFile.size > DOCUMENT_MAX_FILE_SIZE_BYTES) {
+      toast.error(
+        `Bestand is te groot (max ${Math.round(DOCUMENT_MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB). ` +
+          "Verklein het bestand of vul de activiteit handmatig in.",
+      );
+      return;
+    }
+
+    const form = event.currentTarget;
+    setPhase("uploading");
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        toast.error("Je bent niet ingelogd.");
+        setPhase("idle");
+        return;
+      }
+
+      const storagePath = `${user.id}/${crypto.randomUUID()}-${sanitizeFileName(selectedFile.name)}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET)
+        .upload(storagePath, selectedFile, { contentType: selectedFile.type, upsert: false });
+
+      if (uploadError) {
+        console.error("ActivityImportUploadCard: upload naar Storage mislukt:", uploadError.message);
+        toast.error(
+          "Bestand kon niet worden geüpload, controleer je verbinding of probeer een kleiner bestand.",
+        );
+        setPhase("idle");
+        return;
+      }
+
+      const jobResult = await createActivityImportJob({
+        storagePath,
+        originalFilename: selectedFile.name,
+        mimeType: selectedFile.type,
+      });
+
+      if ("error" in jobResult) {
+        toast.error(jobResult.error);
+        await supabase.storage.from(BUCKET).remove([storagePath]);
+        setPhase("idle");
+        return;
+      }
+
+      setPhase("processing");
+      setStatusLabel(PROCESSING_LABELS.uploaded);
+      setSelectedFile(null);
+      form.reset();
+
+      processActivityImportJob(jobResult.jobId).catch((cause) => {
+        console.error("ActivityImportUploadCard: verwerking starten mislukt:", cause);
+      });
+
+      await pollJobStatus(jobResult.jobId);
+    } catch (cause) {
+      console.error("ActivityImportUploadCard: onverwachte fout:", cause);
+      const detail = cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+      toast.error(`Uploaden is mislukt. (${detail})`);
+    } finally {
+      if (!cancelledRef.current) {
+        setPhase("idle");
+      }
+    }
+  }
+
+  const isBusy = phase !== "idle";
 
   return (
     <Card className="border-dashed">
@@ -120,14 +215,19 @@ export function ActivityImportUploadCard({
             type="file"
             accept={ACCEPT}
             onChange={handleFileChange}
-            disabled={isUploading}
+            disabled={isBusy}
             className="text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
           />
-          <Button type="submit" variant="outline" disabled={!selectedFile || isUploading}>
-            {isUploading ? (
+          <Button type="submit" variant="outline" disabled={!selectedFile || isBusy}>
+            {phase === "uploading" ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Bestand wordt geanalyseerd...
+                Bestand wordt geüpload...
+              </>
+            ) : phase === "processing" ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                {statusLabel}
               </>
             ) : (
               <>

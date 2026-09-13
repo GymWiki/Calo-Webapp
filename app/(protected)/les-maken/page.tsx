@@ -10,6 +10,13 @@ import type { Activity } from "@/types/activity";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { LesMakenFlow } from "./lesson-flow";
 
+// Ruimere functie-timeout voor de server-acties die deze pagina aanroept —
+// met name processActivityImportJob (actions/activityImport.ts), dat
+// tekstextractie + AI-mapping synchroon uitvoert. De default is voor de
+// meeste documenten ruim genoeg, maar een grotere/tragere AI-respons mag
+// niet halverwege worden afgekapt.
+export const maxDuration = 60;
+
 // "Kopieer & bewerk" pre-fill (activiteiten-bibliotheek -> les-maken). Only
 // the fields with a reasonable source on `activiteiten` are mapped —
 // movementProblem/lessonDate/groupName have no equivalent and are left
