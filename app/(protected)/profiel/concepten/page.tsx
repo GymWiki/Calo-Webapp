@@ -32,7 +32,7 @@ export default async function ProfielConceptenPage() {
           description="Bewaar een activiteit als concept vanuit het toevoeg-formulier om 'm hier terug te vinden."
           action={
             <Button asChild>
-              <Link href="/activiteit-toevoegen">
+              <Link href="/les-maken?mode=add-activity">
                 <ListPlus className="size-4" />
                 Activiteit toevoegen
               </Link>

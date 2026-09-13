@@ -24,8 +24,8 @@ export type Activity = {
   // voor de meeste rijen een lege array; alleen tonen als er items in staan.
   learning_outcomes: string[] | null;
   // null voor de oorspronkelijk geïmporteerde bibliotheek-activiteiten —
-  // die hebben geen indiener. Alles wat via /activiteit-toevoegen binnenkomt
-  // heeft een author_id.
+  // die hebben geen indiener. Alles wat via de "Activiteit toevoegen"-stap
+  // op /les-maken binnenkomt heeft een author_id.
   author_id: string | null;
   status: ActivityReviewStatus;
   rejection_reason: string | null;

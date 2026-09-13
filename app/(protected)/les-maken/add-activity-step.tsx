@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, Loader2, Sparkles, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { addActivity, saveActivityDraft } from "@/actions/activity-submission";
@@ -93,12 +93,12 @@ function missingFieldLabels(extraction: ExtractedActivity): string[] {
 }
 
 // Leest een gestashte extractie (via de "Activiteit uploaden uit bestand"-
-// kaart op /les-maken) synchroon uit sessionStorage, vóór de eerste render —
-// zelfde lazy-useState-initializer-patroon als LessonForm's stashedGenerated,
-// zodat het formulier er meteen mee gevuld start i.p.v. via een effect na
-// mount (wat de react-hooks/set-state-in-effect-regel zou schenden en een
-// zichtbare flits van lege velden zou geven). Wist de key meteen na lezen
-// zodat een refresh niet opnieuw voorvult.
+// kaart, elders in deze wizard) synchroon uit sessionStorage, vóór de eerste
+// render — zelfde lazy-useState-initializer-patroon als LessonForm's
+// stashedGenerated, zodat het formulier er meteen mee gevuld start i.p.v.
+// via een effect na mount (wat de react-hooks/set-state-in-effect-regel zou
+// schenden en een zichtbare flits van lege velden zou geven). Wist de key
+// meteen na lezen zodat een refresh niet opnieuw voorvult.
 function readStashedExtraction(): ExtractedActivity | null {
   if (typeof window === "undefined") return null;
   const raw = sessionStorage.getItem(AI_EXTRACTED_ACTIVITY_STORAGE_KEY);
@@ -111,7 +111,15 @@ function readStashedExtraction(): ExtractedActivity | null {
   }
 }
 
-export function AddActivityForm() {
+/**
+ * "Activiteit toevoegen aan bibliotheek"-stap op /les-maken. Voorheen een
+ * losse pagina (/activiteit-toevoegen) — nu onderdeel van dezelfde wizard
+ * als lessen maken, zodat er nog maar één plek is om nieuwe content aan te
+ * maken. Ook het doel van de "Activiteit uploaden uit bestand"-stap
+ * (activity-upload-step.tsx): die stasht de extractie en schakelt hierheen
+ * i.p.v. te navigeren naar een apart route-segment.
+ */
+export function AddActivityStep({ onCancel }: { onCancel: () => void }) {
   const router = useRouter();
   const [stashedExtraction] = useState(readStashedExtraction);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -196,7 +204,16 @@ export function AddActivityForm() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="animate-fade-up space-y-6">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" />
+        Terug
+      </button>
+
       <ActivityImportUploadCard onExtracted={handleExtracted} />
 
       {missingFields && (

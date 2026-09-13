@@ -42,7 +42,7 @@ const ACTIONS: QuickAction[] = [
     accent: "blue",
   },
   {
-    href: "/activiteit-toevoegen",
+    href: "/les-maken?mode=add-activity",
     label: "Activiteit toevoegen",
     description: "Draag bij aan de bibliotheek en tel mee voor je maandquotum.",
     icon: ListPlus,

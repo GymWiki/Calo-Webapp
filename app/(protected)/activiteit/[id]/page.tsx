@@ -127,7 +127,7 @@ export default async function ActiviteitDetailPage({
           description="Je hebt de maandelijkse bijdrage-eis niet gehaald, dus zie je alleen je eigen bijdragen. Voeg deze maand nieuwe activiteiten toe of neem het betaalde abonnement voor volledige toegang."
           action={
             <Button asChild>
-              <Link href="/activiteit-toevoegen">Activiteit toevoegen</Link>
+              <Link href="/les-maken?mode=add-activity">Activiteit toevoegen</Link>
             </Button>
           }
         />

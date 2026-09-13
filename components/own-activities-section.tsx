@@ -25,7 +25,7 @@ export function OwnActivitiesSection({ activities }: { activities: Activity[] })
           </p>
         </div>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/activiteit-toevoegen">
+          <Link href="/les-maken?mode=add-activity">
             <ListPlus className="size-4" />
             Activiteit toevoegen
           </Link>
@@ -40,7 +40,7 @@ export function OwnActivitiesSection({ activities }: { activities: Activity[] })
           className="mt-4"
           action={
             <Button asChild>
-              <Link href="/activiteit-toevoegen">Activiteit toevoegen</Link>
+              <Link href="/les-maken?mode=add-activity">Activiteit toevoegen</Link>
             </Button>
           }
         />
