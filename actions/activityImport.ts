@@ -1,7 +1,6 @@
 "use server";
 
 import { cookies } from "next/headers";
-import OpenAI from "openai";
 import { createClient } from "@/utils/supabase/server";
 import { SUPPORTED_DOCUMENT_MIME_TYPES, extractDocumentText } from "@/lib/ai/documentText";
 import { extractActivityFromText, type ExtractedActivity } from "@/lib/ai/activityImportExtraction";
@@ -32,8 +31,26 @@ const AI_MAPPING_ERROR =
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // 4 MB — ruim onder Vercel's harde 4,5MB request-limiet.
 
+// Duck-typing i.p.v. `cause instanceof OpenAI.APIError`: een "use server"-
+// bestand mag geen zware SDK's rechtstreeks op het top-level importeren — de
+// echte functie-implementatie hoort nooit in de client-bundel terecht te
+// komen, maar de OpenAI-package rechtstreeks hier importeren (i.p.v. alleen
+// via lib/ai/openai-client.ts, zoals de rest van de codebase al deed) bleek
+// hier de enige structurele afwijking t.o.v. actions/knowledge.ts, dat wél
+// altijd werkte met een vergelijkbare (grote) afhankelijkheidsketen.
+type OpenAiLikeError = { status?: number; type?: string; code?: string; message: string };
+
+function isOpenAiApiError(cause: unknown): cause is OpenAiLikeError {
+  return (
+    typeof cause === "object" &&
+    cause !== null &&
+    "message" in cause &&
+    ("status" in cause || "type" in cause || "code" in cause)
+  );
+}
+
 function logFailure(stage: string, cause: unknown) {
-  if (cause instanceof OpenAI.APIError) {
+  if (isOpenAiApiError(cause)) {
     console.error(
       `extractActivityFromUpload (${stage}): OpenAI API-fout (status ${cause.status ?? "onbekend"}, ` +
         `type ${cause.type ?? "onbekend"}, code ${cause.code ?? "onbekend"}): ${cause.message}`,
@@ -44,7 +61,7 @@ function logFailure(stage: string, cause: unknown) {
 }
 
 function aiMappingUserMessage(cause: unknown): string {
-  if (cause instanceof OpenAI.APIError) {
+  if (isOpenAiApiError(cause)) {
     if (cause.status === 429) {
       return "De AI-service zit tijdelijk aan de limiet. Probeer het over een paar minuten opnieuw.";
     }
