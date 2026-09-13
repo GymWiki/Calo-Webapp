@@ -159,7 +159,7 @@ export async function runActivityImportJob(
   }
 
   try {
-    const { activity, inputTokens, outputTokens } = await extractActivityFromText(text);
+    const { activity, inputTokens, outputTokens } = await extractActivityFromText(text, jobId);
 
     await recordAiUsage(supabase, {
       userId,
@@ -177,6 +177,17 @@ export async function runActivityImportJob(
         "Dit document lijkt geen bewegingsactiviteit of lesvoorbereiding te bevatten. Controleer het bestand, of vul de activiteit handmatig in.",
       );
       return;
+    }
+
+    // Stap 4 van de brief: een leeg gebleven titel terwijl het document
+    // duidelijk substantiële inhoud had, is het duidelijkste signaal dat de
+    // AI iets miste (situatie a, geen bug in het document zelf) — apart
+    // loggen zodat dit patroon herkenbaar blijft voor toekomstige
+    // promptverfijning, los van de gewone jobstatus.
+    if (!activity.title && text.trim().length > 200) {
+      console.warn(
+        `activity-import[${jobId}]: AI-mapping gaf geen titel terug ondanks ${text.trim().length} tekens brontekst — mogelijk gemist veld, controleer de prompt.`,
+      );
     }
 
     console.log(`activity-import[${jobId}]: AI-mapping klaar`);

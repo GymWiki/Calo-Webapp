@@ -7,7 +7,7 @@ import { FileUp, Lock, NotebookPen, Sparkles, type LucideIcon } from "lucide-rea
 import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { cn } from "@/lib/utils";
 import type { CreateLessonFormInput } from "@/types/lesson";
-import { ActivityUploadStep } from "./activity-upload-step";
+import { ActivityUploadStep, type RequiredLessonFormField } from "./activity-upload-step";
 import { AiLessonWizard } from "./ai-lesson-wizard";
 import { LessonForm } from "./lesson-form";
 
@@ -114,6 +114,9 @@ export function LesMakenFlow({
   const [uploadedValues, setUploadedValues] = useState<Partial<CreateLessonFormInput> | null>(
     null,
   );
+  const [uploadedFlaggedFields, setUploadedFlaggedFields] = useState<
+    Set<RequiredLessonFormField> | undefined
+  >(undefined);
 
   if (mode === "choice") {
     const locked = !lessonGeneratorAccess.allowed;
@@ -173,8 +176,9 @@ export function LesMakenFlow({
     return (
       <ActivityUploadStep
         onCancel={() => setMode("choice")}
-        onExtracted={(values) => {
+        onExtracted={(values, flaggedEmptyFields) => {
           setUploadedValues(values);
+          setUploadedFlaggedFields(flaggedEmptyFields);
           setMode("form");
         }}
       />
@@ -187,6 +191,7 @@ export function LesMakenFlow({
       initialValues={uploadedValues ?? initialValues}
       initialTab={initialTab}
       activeSourceCount={activeSourceCount}
+      flaggedEmptyFields={uploadedValues ? uploadedFlaggedFields : undefined}
     />
   );
 }

@@ -49,8 +49,24 @@ import {
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
+import type { RequiredLessonFormField } from "./activity-upload-step";
 import { DiagramEditorCard } from "./diagram-editor-card";
 import { DynamicTextList } from "./dynamic-text-list";
+
+// Amber highlight voor velden die de "Upload een bestaande activiteit"-AI
+// leeg liet ondanks een geslaagde extractie (zie activity-upload-step.tsx's
+// computeFlaggedEmptyFields) — zodat de gebruiker bij het reviewen meteen
+// ziet welke velden extra aandacht nodig hebben, i.p.v. een onopvallend
+// leeg invoerveld dat net zo goed "hier hoort niks" kan betekenen.
+const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
+
+function ImportFlagHint() {
+  return (
+    <p className="mt-1 text-xs font-medium text-amber-600">
+      Kon niet automatisch worden ingevuld — controleer dit veld.
+    </p>
+  );
+}
 
 const TAB_ORDER = ["context", "organisatie", "didactiek", "voorbereiding"] as const;
 type TabValue = (typeof TAB_ORDER)[number];
@@ -97,11 +113,13 @@ export function LessonForm({
   initialValues,
   initialTab,
   activeSourceCount,
+  flaggedEmptyFields,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
   initialTab?: TabValue;
   activeSourceCount?: number;
+  flaggedEmptyFields?: Set<RequiredLessonFormField>;
 }) {
   const router = useRouter();
 
@@ -291,15 +309,23 @@ export function LessonForm({
                 <FormField
                   control={form.control}
                   name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Titel van activiteit</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Bijv. Keeperspelen" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const flagged = flaggedEmptyFields?.has("title") && !field.value;
+                    return (
+                      <FormItem>
+                        <FormLabel>Titel van activiteit</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Bijv. Keeperspelen"
+                            className={flagged ? IMPORT_FLAG_CLASS : undefined}
+                            {...field}
+                          />
+                        </FormControl>
+                        {flagged && <ImportFlagHint />}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -323,45 +349,57 @@ export function LessonForm({
                 <FormField
                   control={form.control}
                   name="groupName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Groep/klas</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Bijv. Groep 7/8 of Klas 1B" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const flagged = flaggedEmptyFields?.has("groupName") && !field.value;
+                    return (
+                      <FormItem>
+                        <FormLabel>Groep/klas</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Bijv. Groep 7/8 of Klas 1B"
+                            className={flagged ? IMPORT_FLAG_CLASS : undefined}
+                            {...field}
+                          />
+                        </FormControl>
+                        {flagged && <ImportFlagHint />}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
                 <FormField
                   control={form.control}
                   name="learningLine"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Leerlijn</FormLabel>
-                      <FormControl>
-                        <select
-                          value={field.value}
-                          onChange={(event) => field.onChange(event.target.value)}
-                          className={SELECT_CLASS}
-                        >
-                          <option value="" disabled>
-                            Kies een leerlijn
-                          </option>
-                          {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
-                            <optgroup key={category} label={category}>
-                              {lines.map((line) => (
-                                <option key={line} value={line}>
-                                  {line}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const flagged = flaggedEmptyFields?.has("learningLine") && !field.value;
+                    return (
+                      <FormItem>
+                        <FormLabel>Leerlijn</FormLabel>
+                        <FormControl>
+                          <select
+                            value={field.value}
+                            onChange={(event) => field.onChange(event.target.value)}
+                            className={cn(SELECT_CLASS, flagged && IMPORT_FLAG_CLASS)}
+                          >
+                            <option value="" disabled>
+                              Kies een leerlijn
+                            </option>
+                            {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
+                              <optgroup key={category} label={category}>
+                                {lines.map((line) => (
+                                  <option key={line} value={line}>
+                                    {line}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                        </FormControl>
+                        {flagged && <ImportFlagHint />}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
                 <div>
                   <Label>Doelgroep</Label>
@@ -393,28 +431,44 @@ export function LessonForm({
                 <FormField
                   control={form.control}
                   name="movementProblem"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bewegingsprobleem</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Bijv. Keeper verdedigen" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const flagged = flaggedEmptyFields?.has("movementProblem") && !field.value;
+                    return (
+                      <FormItem>
+                        <FormLabel>Bewegingsprobleem</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Bijv. Keeper verdedigen"
+                            className={flagged ? IMPORT_FLAG_CLASS : undefined}
+                            {...field}
+                          />
+                        </FormControl>
+                        {flagged && <ImportFlagHint />}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
                 <FormField
                   control={form.control}
                   name="movementTheme"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bewegingsthema</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Bijv. Keeperspelen" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const flagged = flaggedEmptyFields?.has("movementTheme") && !field.value;
+                    return (
+                      <FormItem>
+                        <FormLabel>Bewegingsthema</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Bijv. Keeperspelen"
+                            className={flagged ? IMPORT_FLAG_CLASS : undefined}
+                            {...field}
+                          />
+                        </FormControl>
+                        {flagged && <ImportFlagHint />}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </CardContent>
             </Card>
@@ -514,18 +568,23 @@ export function LessonForm({
                 <FormField
                   control={form.control}
                   name="goals"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Doelen (motorisch en sociaal)</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Bijv. Iedereen speelt eerlijk"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    const flagged = flaggedEmptyFields?.has("goals") && !field.value;
+                    return (
+                      <FormItem>
+                        <FormLabel>Doelen (motorisch en sociaal)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Bijv. Iedereen speelt eerlijk"
+                            className={flagged ? IMPORT_FLAG_CLASS : undefined}
+                            {...field}
+                          />
+                        </FormControl>
+                        {flagged && <ImportFlagHint />}
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </CardContent>
             </Card>
@@ -667,14 +726,21 @@ export function LessonForm({
                   <FormField
                     control={form.control}
                     name="arrangement"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Textarea className="min-h-32" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const flagged = flaggedEmptyFields?.has("arrangement") && !field.value;
+                      return (
+                        <FormItem>
+                          <FormControl>
+                            <Textarea
+                              className={cn("min-h-32", flagged && IMPORT_FLAG_CLASS)}
+                              {...field}
+                            />
+                          </FormControl>
+                          {flagged && <ImportFlagHint />}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </CardContent>
               </Card>
@@ -690,14 +756,21 @@ export function LessonForm({
                   <FormField
                     control={form.control}
                     name="deelnemersRegels"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Textarea className="min-h-32" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const flagged = flaggedEmptyFields?.has("deelnemersRegels") && !field.value;
+                      return (
+                        <FormItem>
+                          <FormControl>
+                            <Textarea
+                              className={cn("min-h-32", flagged && IMPORT_FLAG_CLASS)}
+                              {...field}
+                            />
+                          </FormControl>
+                          {flagged && <ImportFlagHint />}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </CardContent>
               </Card>
@@ -713,14 +786,21 @@ export function LessonForm({
                   <FormField
                     control={form.control}
                     name="plaatjePraatje"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Textarea className="min-h-32" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const flagged = flaggedEmptyFields?.has("plaatjePraatje") && !field.value;
+                      return (
+                        <FormItem>
+                          <FormControl>
+                            <Textarea
+                              className={cn("min-h-32", flagged && IMPORT_FLAG_CLASS)}
+                              {...field}
+                            />
+                          </FormControl>
+                          {flagged && <ImportFlagHint />}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </CardContent>
               </Card>
@@ -735,14 +815,21 @@ export function LessonForm({
                   <FormField
                     control={form.control}
                     name="aandachtspunten"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Textarea className="min-h-32" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const flagged = flaggedEmptyFields?.has("aandachtspunten") && !field.value;
+                      return (
+                        <FormItem>
+                          <FormControl>
+                            <Textarea
+                              className={cn("min-h-32", flagged && IMPORT_FLAG_CLASS)}
+                              {...field}
+                            />
+                          </FormControl>
+                          {flagged && <ImportFlagHint />}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </CardContent>
               </Card>

@@ -76,7 +76,19 @@ export async function extractDocumentText(buffer: Buffer, mimeType: string): Pro
   ) {
     try {
       const ast = await OfficeParser.parseOffice(buffer, { fileType: "pptx" });
-      return ast.toText();
+      // `ast.toText()` is officeparser's oude, synchrone renderer — die loopt
+      // alleen door `node.children` en slaat sprekersnotities (aan de slide
+      // gehangen via `node.notes`, niet als children) altijd stilzwijgend
+      // over, ongeacht ignoreNotes/renderNotes-config (bevestigd door de
+      // package's eigen @deprecated-documentatie op deze methode: "this
+      // method emits neither [notes nor image placeholders] and offers no
+      // way to ask for them"). `.to("text")` is de nieuwere, async renderer
+      // die notities WEL meeneemt (default `renderNotes: true`) — voor
+      // lesvoorbereidingen die als PowerPoint zijn aangeleverd staat
+      // relevante inhoud (aandachtspunten, planning) regelmatig juist in de
+      // sprekersnotities in plaats van op de dia zelf.
+      const { value } = await ast.to("text");
+      return value;
     } catch (cause) {
       console.error("extractDocumentText: PowerPoint-extractie mislukt:", cause);
       throw new Error(
