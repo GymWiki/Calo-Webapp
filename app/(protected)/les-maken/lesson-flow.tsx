@@ -98,6 +98,7 @@ function ChoiceCard({
 export function LesMakenFlow({
   authorName,
   initialValues,
+  initialActivityId,
   initialTab,
   activeSourceCount,
   lessonGeneratorAccess,
@@ -105,6 +106,9 @@ export function LesMakenFlow({
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
+  /** Gezet wanneer initialValues een eigen, nog niet ingediend concept is —
+   * zie les-maken/page.tsx. */
+  initialActivityId?: string;
   initialTab?: TabValue;
   activeSourceCount?: number;
   lessonGeneratorAccess: LessonGeneratorAccess;
@@ -189,7 +193,10 @@ export function LesMakenFlow({
     <LessonForm
       authorName={authorName}
       initialValues={uploadedValues ?? initialValues}
-      initialTab={initialTab}
+      // Een upload/AI-generatie start altijd een NIEUW concept — het
+      // hervat-id geldt alleen als er geen upload heeft plaatsgevonden.
+      initialActivityId={uploadedValues ? undefined : initialActivityId}
+      initialScrollTarget={initialTab === "voorbereiding" ? "materiaal" : undefined}
       activeSourceCount={activeSourceCount}
       flaggedEmptyFields={uploadedValues ? uploadedFlaggedFields : undefined}
     />

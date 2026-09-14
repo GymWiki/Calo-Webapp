@@ -147,6 +147,9 @@ export const createLessonInputSchema = z.object({
   // Tab 3 — Didactische analyse (de 3 L'en, Walinga & Koekoek 2021) +
   // Game-Based Pedagogy (Koekoek, Dokman & Walinga)
   goals: requiredText("Doelen zijn verplicht."),
+  // Kolom bestond al (learning_outcomes, zie het Lesson-type hieronder) maar
+  // had nog geen create/edit-UI — die komt er nu bij (zie lesson-form.tsx).
+  learningOutcomes: textList,
   didacticItems: z.array(didacticItemSchema),
   gameCategory: z.string().trim(),
   gameDimensions: gameDimensionsSchema,
@@ -181,6 +184,7 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   participantsBench: undefined,
   rules: [],
   goals: "",
+  learningOutcomes: [],
   didacticItems: [],
   gameCategory: "",
   gameDimensions: EMPTY_GAME_DIMENSIONS,
@@ -208,9 +212,6 @@ export type Lesson = {
   learning_line: string | null;
   doelgroep: number[] | null;
   goals: string | null;
-  // Genummerde leeruitkomsten, getoond in "Lesdoel & Beginsituatie" —
-  // nullable, geen create/edit UI (nog) om dit te vullen; zie de migratie
-  // add_lesson_learning_outcomes.sql voor waarom.
   learning_outcomes: string[] | null;
   points_of_attention: string | null;
   rules: string[] | null;

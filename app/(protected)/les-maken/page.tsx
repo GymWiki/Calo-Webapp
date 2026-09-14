@@ -7,7 +7,11 @@ import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
 import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
-import type { CreateLessonFormInput } from "@/types/lesson";
+import {
+  EMPTY_GAME_DIMENSIONS,
+  type CreateLessonFormInput,
+  type DidacticItem,
+} from "@/types/lesson";
 import { LesMakenFlow } from "./lesson-flow";
 
 // Ruimere functie-timeout voor de server-acties die deze pagina aanroept —
@@ -47,6 +51,39 @@ function mapActivityToLessonInput(
   };
 }
 
+// Hervat een eigen, nog niet ingediend wizard-concept (zie
+// actions/lesson.ts's saveLessonDraft) — het omgekeerde van hoe createLesson
+// een CreateLessonInput naar de `activiteiten`-rij vertaalt. Alleen relevant
+// voor `?vanuit=` waar dat concept vandaan komt (zie
+// own-activities-section.tsx), nooit voor de "Kopieer & bewerk"-link vanaf
+// de bibliotheek (die wijst altijd naar een eenvoudige activiteit).
+function mapWizardActivityToLessonInput(activity: Activity): Partial<CreateLessonFormInput> {
+  return {
+    title: activity.titel,
+    lessonDate: activity.activity_date ?? "",
+    groupName: activity.group_name ?? "",
+    learningLine: activity.leerlijn ?? "",
+    doelgroep: activity.doelgroep ?? [],
+    movementProblem: activity.movement_problem ?? "",
+    movementTheme: activity.beweegthema ?? "",
+    baseMaterials: activity.base_materials ?? [],
+    ruleMaterials: activity.rule_materials ?? [],
+    minParticipants: activity.min_participants ?? undefined,
+    participantsBench: activity.participants_bench ?? undefined,
+    rules: activity.regels ?? [],
+    goals: activity.doel ?? "",
+    learningOutcomes: activity.learning_outcomes ?? [],
+    didacticItems: (activity.didactic_items ?? []) as DidacticItem[],
+    gameCategory: activity.game_category ?? "",
+    gameDimensions: activity.game_dimensions ?? EMPTY_GAME_DIMENSIONS,
+    tacticalQuestions: activity.tactical_questions ?? [],
+    arrangement: activity.arrangement ?? "",
+    deelnemersRegels: activity.deelnemers_regels ?? "",
+    plaatjePraatje: activity.plaatje_praatje ?? "",
+    aandachtspunten: activity.aandachtspunten ?? "",
+  };
+}
+
 const TAB_VALUES = ["context", "organisatie", "didactiek", "voorbereiding"] as const;
 
 function parseInitialTab(value: string | undefined) {
@@ -77,22 +114,42 @@ export default async function LesMakenPage({
   const initialTab = parseInitialTab(tab);
   const skipChoice = Boolean(activity) || Boolean(initialTab);
 
+  // Een eigen, nog niet ingediend wizard-concept hervatten (link vanuit
+  // "Mijn activiteiten", zie own-activities-section.tsx) is iets anders dan
+  // de bestaande "Kopieer & bewerk"-prefill vanaf de bibliotheek: dat
+  // laatste kopieert een bestaande, andere activiteit naar een NIEUWE rij;
+  // dit werkt dezelfde rij verder bij.
+  const resumingOwnDraft =
+    activity !== null &&
+    activity.arrangement !== null &&
+    activity.author_id === profile.id &&
+    activity.status === "draft";
+
+  const initialValues = activity
+    ? resumingOwnDraft
+      ? mapWizardActivityToLessonInput(activity)
+      : mapActivityToLessonInput(activity)
+    : undefined;
+
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-5xl xl:max-w-6xl">
       <PageHeader
         eyebrow="Activiteit maken"
         title="Nieuwe activiteit"
         description={
-          activity
-            ? `Gebaseerd op "${activity.titel}" — vul de ontbrekende velden aan.`
-            : skipChoice
-              ? "Bouw je activiteit stap voor stap op."
-              : "Kies hoe je wilt beginnen."
+          resumingOwnDraft
+            ? `Concept "${activity.titel}" — ga verder waar je gebleven was.`
+            : activity
+              ? `Gebaseerd op "${activity.titel}" — vul de ontbrekende velden aan.`
+              : skipChoice
+                ? "Bouw je activiteit stap voor stap op."
+                : "Kies hoe je wilt beginnen."
         }
       />
       <LesMakenFlow
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
-        initialValues={activity ? mapActivityToLessonInput(activity) : undefined}
+        initialValues={initialValues}
+        initialActivityId={resumingOwnDraft ? activity.id : undefined}
         initialTab={initialTab}
         activeSourceCount={activeSourceCount}
         lessonGeneratorAccess={lessonGeneratorAccess}

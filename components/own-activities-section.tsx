@@ -46,10 +46,17 @@ export function OwnActivitiesSection({ activities }: { activities: Activity[] })
           {activities.map((activity) => {
             const style = ACTIVITY_STATUS_STYLES[activity.status];
             const Icon = style.icon;
+            // Een concept heeft niets te bekijken — het gaat verder waar je
+            // gebleven was, in dezelfde inline-editor die het opsloeg (zie
+            // actions/lesson.ts's saveLessonDraft + les-maken/page.tsx).
+            const href =
+              activity.status === "draft"
+                ? `/les-maken?vanuit=${activity.id}`
+                : `/activiteit/${activity.id}`;
             return (
               <Link
                 key={activity.id}
-                href={`/activiteit/${activity.id}`}
+                href={href}
                 className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 transition-colors duration-150 ease-brand hover:bg-accent"
               >
                 <div className="min-w-0">
