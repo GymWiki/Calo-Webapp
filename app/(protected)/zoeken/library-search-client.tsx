@@ -222,6 +222,88 @@ function CategorySwatch({ category, className }: { category: string; className?:
   );
 }
 
+// Gedeelde inhoud van het filterpaneel — gebruikt zowel in de mobiele/
+// tablet-Sheet (werkt op `draft`, met een expliciete "Toepassen"-stap) als in
+// de permanente sidebar op desktop (werkt direct op `filters`, instant
+// toegepast — de gangbare desktop-verwachting voor een altijd-zichtbaar
+// filterpaneel, in tegenstelling tot een drawer die je moet bevestigen).
+function FilterSections({
+  state,
+  categoryCounts,
+  onCategorieAlles,
+  onLeerlijnToggle,
+  onDoelgroepToggle,
+  onWeinigMateriaalToggle,
+}: {
+  state: FilterState;
+  categoryCounts: Map<string, number>;
+  onCategorieAlles: (category: string, lines: string[]) => void;
+  onLeerlijnToggle: (category: string, line: string) => void;
+  onDoelgroepToggle: (waarde: number) => void;
+  onWeinigMateriaalToggle: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-5">
+        <h3 className="text-sm font-semibold text-foreground">Categorie & Leerlijn</h3>
+        {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
+          <div key={category} className="space-y-2">
+            <h4 className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+              <CategorySwatch category={category} />
+              {category}
+              <span className="font-normal text-muted-foreground">
+                ({categoryCounts.get(category) ?? 0})
+              </span>
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              <FilterChip
+                active={state.categorie.has(category)}
+                onClick={() => onCategorieAlles(category, lines)}
+              >
+                <CategorySwatch category={category} className="mr-1.5" />
+                Alles ({category})
+              </FilterChip>
+              {lines.map((line) => (
+                <FilterChip
+                  key={line}
+                  active={state.leerlijn.has(line)}
+                  onClick={() => onLeerlijnToggle(category, line)}
+                >
+                  {line}
+                </FilterChip>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">Doelgroep & Groep</h3>
+        <div className="flex flex-wrap gap-2">
+          {DOELGROEP_WAARDEN.map((waarde) => (
+            <FilterChip
+              key={waarde}
+              active={state.doelgroep.has(waarde)}
+              onClick={() => onDoelgroepToggle(waarde)}
+            >
+              {DOELGROEP_LABELS[waarde]}
+            </FilterChip>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">Materiaal & Extra&apos;s</h3>
+        <div className="flex flex-wrap gap-2">
+          <FilterChip active={state.weinigMateriaal} onClick={onWeinigMateriaalToggle}>
+            Weinig materiaal
+          </FilterChip>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function toggle<T>(set: Set<T>, value: T): Set<T> {
   const next = new Set(set);
   if (next.has(value)) {
@@ -527,68 +609,17 @@ export function LibrarySearchClient({
   const hasActiveFilters = query.trim() !== "" || activeCount > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex overflow-hidden rounded-md border w-fit max-w-full">
-        {SOURCE_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            onClick={() => selectSourceFilter(tab.value)}
-            className={cn(
-              "min-h-9 px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-150 ease-brand first:border-l-0 border-l",
-              sourceFilter === tab.value
-                ? "bg-primary text-primary-foreground"
-                : "bg-background hover:bg-accent",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Zoek op trefwoord, bijv. trefbal, keeperspelen, groep 7…"
-            className="h-12 pl-10 text-base"
-            aria-label="Zoek in de bibliotheek"
-          />
-        </div>
-        <Button
-          variant="outline"
-          className="relative h-12 shrink-0 px-3"
-          onClick={openSheet}
-          aria-label={activeCount > 0 ? `Filters, ${activeCount} actief` : "Filters"}
-        >
-          <SlidersHorizontal className="size-4" />
-          Filters
+    <div className="lg:grid lg:grid-cols-[17rem_1fr] lg:items-start lg:gap-6">
+      {/* Permanente filter-sidebar — alleen vanaf lg. Onder lg blijft de
+          Sheet-drawer (zie return verder naar onder) de enige weergave; een
+          altijd-open paneel zou daar te veel ruimte inpikken naast de
+          resultaten. Werkt direct op `filters` (instant toepassen, geen
+          "Toepassen"-stap) — dat is wat je van een permanent zichtbaar
+          desktop-paneel verwacht. */}
+      <aside className="hidden lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:bg-card lg:p-5">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-foreground">Filters</h2>
           {activeCount > 0 && (
-            <Badge className="absolute -top-2 -right-2 size-5 justify-center rounded-full p-0">
-              {activeCount}
-            </Badge>
-          )}
-        </Button>
-      </div>
-
-      {activeChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {activeChips.map((chip) => (
-            <button
-              key={chip.key}
-              type="button"
-              onClick={chip.onRemove}
-              aria-label={`Verwijder filter ${chip.label}`}
-              className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 py-1 pr-1.5 pl-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-            >
-              {chip.category && <CategorySwatch category={chip.category} />}
-              {chip.label}
-              <X className="size-3.5" aria-hidden="true" />
-            </button>
-          ))}
-          {activeChips.length > 1 && (
             <button
               type="button"
               onClick={clearAll}
@@ -598,59 +629,149 @@ export function LibrarySearchClient({
             </button>
           )}
         </div>
-      )}
-
-      {filteredItems.length === 0 ? (
-        <EmptyState
-          icon={SearchX}
-          title={
-            activities.length === 0 && publicActivities.length === 0
-              ? "Nog geen activiteiten in de bibliotheek"
-              : "Niets gevonden"
+        <FilterSections
+          state={filters}
+          categoryCounts={categoryCounts}
+          onCategorieAlles={(category, lines) =>
+            commitFilters(applyCategorieAlles(filters, category, lines))
           }
-          description={
-            activities.length === 0 && publicActivities.length === 0
-              ? "Zodra er activiteiten zijn, kun je ze hier terugvinden."
-              : "Niets gevonden voor deze zoekterm/filters."
+          onLeerlijnToggle={(category, line) =>
+            commitFilters(applyLeerlijnToggle(filters, category, line))
           }
-          action={
-            hasActiveFilters ? (
-              <Button variant="outline" onClick={clearAll}>
-                Wis filters
-              </Button>
-            ) : undefined
+          onDoelgroepToggle={(waarde) =>
+            commitFilters({ ...filters, doelgroep: toggle(filters.doelgroep, waarde) })
+          }
+          onWeinigMateriaalToggle={() =>
+            commitFilters({ ...filters, weinigMateriaal: !filters.weinigMateriaal })
           }
         />
-      ) : (
-        <>
-          <p className="text-sm text-muted-foreground">
-            {preFilterItems.length === filteredItems.length
-              ? `${filteredItems.length} ${filteredItems.length === 1 ? "resultaat" : "resultaten"} gevonden`
-              : `${filteredItems.length} van ${preFilterItems.length} resultaten`}
-          </p>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-            {visible.map((item, index) => (
-              <div
-                key={`${item.source}-${item.id}`}
-                className="animate-fade-up"
-                style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
-              >
-                <LibraryItemCard item={item} />
-              </div>
-            ))}
+      </aside>
+
+      <div className="min-w-0 space-y-4">
+        <div className="flex overflow-hidden rounded-md border w-fit max-w-full">
+          {SOURCE_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => selectSourceFilter(tab.value)}
+              className={cn(
+                "min-h-9 px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-150 ease-brand first:border-l-0 border-l",
+                sourceFilter === tab.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background hover:bg-accent",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Zoek op trefwoord, bijv. trefbal, keeperspelen, groep 7…"
+              className="h-12 pl-10 text-base"
+              aria-label="Zoek in de bibliotheek"
+            />
           </div>
-          {visibleCount < filteredItems.length && (
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+          <Button
+            variant="outline"
+            className="relative h-12 shrink-0 px-3 lg:hidden"
+            onClick={openSheet}
+            aria-label={activeCount > 0 ? `Filters, ${activeCount} actief` : "Filters"}
+          >
+            <SlidersHorizontal className="size-4" />
+            Filters
+            {activeCount > 0 && (
+              <Badge className="absolute -top-2 -right-2 size-5 justify-center rounded-full p-0">
+                {activeCount}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
+        {activeChips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {activeChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.onRemove}
+                aria-label={`Verwijder filter ${chip.label}`}
+                className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 py-1 pr-1.5 pl-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
               >
-                Laad meer
-              </Button>
+                {chip.category && <CategorySwatch category={chip.category} />}
+                {chip.label}
+                <X className="size-3.5" aria-hidden="true" />
+              </button>
+            ))}
+            {activeChips.length > 1 && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline lg:hidden"
+              >
+                Wis alles
+              </button>
+            )}
+          </div>
+        )}
+
+        {filteredItems.length === 0 ? (
+          <EmptyState
+            icon={SearchX}
+            title={
+              activities.length === 0 && publicActivities.length === 0
+                ? "Nog geen activiteiten in de bibliotheek"
+                : "Niets gevonden"
+            }
+            description={
+              activities.length === 0 && publicActivities.length === 0
+                ? "Zodra er activiteiten zijn, kun je ze hier terugvinden."
+                : "Niets gevonden voor deze zoekterm/filters."
+            }
+            action={
+              hasActiveFilters ? (
+                <Button variant="outline" onClick={clearAll}>
+                  Wis filters
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {preFilterItems.length === filteredItems.length
+                ? `${filteredItems.length} ${filteredItems.length === 1 ? "resultaat" : "resultaten"} gevonden`
+                : `${filteredItems.length} van ${preFilterItems.length} resultaten`}
+            </p>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+              {visible.map((item, index) => (
+                <div
+                  key={`${item.source}-${item.id}`}
+                  className="animate-fade-up"
+                  style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
+                >
+                  <LibraryItemCard item={item} />
+                </div>
+              ))}
             </div>
-          )}
-        </>
-      )}
+            {visibleCount < filteredItems.length && (
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                >
+                  Laad meer
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side={isDesktop ? "right" : "bottom"} className="overflow-y-auto">
@@ -658,82 +779,23 @@ export function LibrarySearchClient({
             <SheetTitle>Filters</SheetTitle>
           </SheetHeader>
 
-          <div className="space-y-6 overflow-y-auto px-4">
-            <div className="space-y-5">
-              <h3 className="text-sm font-semibold text-foreground">
-                Categorie & Leerlijn
-              </h3>
-              {LEARNING_LINE_CATEGORIES.map(({ category, lines }) => (
-                <div key={category} className="space-y-2">
-                  <h4 className="flex items-center gap-1.5 text-sm font-bold text-foreground">
-                    <CategorySwatch category={category} />
-                    {category}
-                    <span className="font-normal text-muted-foreground">
-                      ({categoryCounts.get(category) ?? 0})
-                    </span>
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    <FilterChip
-                      active={draft.categorie.has(category)}
-                      onClick={() =>
-                        setDraft((prev) => applyCategorieAlles(prev, category, lines))
-                      }
-                    >
-                      <CategorySwatch category={category} className="mr-1.5" />
-                      Alles ({category})
-                    </FilterChip>
-                    {lines.map((line) => (
-                      <FilterChip
-                        key={line}
-                        active={draft.leerlijn.has(line)}
-                        onClick={() =>
-                          setDraft((prev) => applyLeerlijnToggle(prev, category, line))
-                        }
-                      >
-                        {line}
-                      </FilterChip>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Doelgroep & Groep</h3>
-              <div className="flex flex-wrap gap-2">
-                {DOELGROEP_WAARDEN.map((waarde) => (
-                  <FilterChip
-                    key={waarde}
-                    active={draft.doelgroep.has(waarde)}
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        doelgroep: toggle(prev.doelgroep, waarde),
-                      }))
-                    }
-                  >
-                    {DOELGROEP_LABELS[waarde]}
-                  </FilterChip>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Materiaal & Extra&apos;s</h3>
-              <div className="flex flex-wrap gap-2">
-                <FilterChip
-                  active={draft.weinigMateriaal}
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      weinigMateriaal: !prev.weinigMateriaal,
-                    }))
-                  }
-                >
-                  Weinig materiaal
-                </FilterChip>
-              </div>
-            </div>
+          <div className="overflow-y-auto px-4">
+            <FilterSections
+              state={draft}
+              categoryCounts={categoryCounts}
+              onCategorieAlles={(category, lines) =>
+                setDraft((prev) => applyCategorieAlles(prev, category, lines))
+              }
+              onLeerlijnToggle={(category, line) =>
+                setDraft((prev) => applyLeerlijnToggle(prev, category, line))
+              }
+              onDoelgroepToggle={(waarde) =>
+                setDraft((prev) => ({ ...prev, doelgroep: toggle(prev.doelgroep, waarde) }))
+              }
+              onWeinigMateriaalToggle={() =>
+                setDraft((prev) => ({ ...prev, weinigMateriaal: !prev.weinigMateriaal }))
+              }
+            />
           </div>
 
           <SheetFooter>

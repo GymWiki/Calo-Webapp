@@ -12,7 +12,7 @@ export default async function ToernooiPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-4xl xl:max-w-5xl">
       <PageHeader
         eyebrow="Toernooi Generator"
         title="Genereer een speelschema"

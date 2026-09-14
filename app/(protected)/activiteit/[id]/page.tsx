@@ -193,7 +193,7 @@ export default async function ActiviteitDetailPage({
 
   if (!hasFullLibraryAccess && !isOwnActivity && !activity.is_public) {
     return (
-      <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 md:p-8 md:pb-8">
+      <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 md:p-8 md:pb-8 lg:max-w-5xl">
         <Button asChild variant="outline">
           <Link href="/zoeken">
             <ArrowLeft className="size-4" />
@@ -288,7 +288,7 @@ export default async function ActiviteitDetailPage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-8 print:max-w-none print:p-0">
+    <main className="mx-auto w-full max-w-4xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-8 lg:max-w-5xl xl:max-w-6xl print:max-w-none print:p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground">
           <Link href="/zoeken">

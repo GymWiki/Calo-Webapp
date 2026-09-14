@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-6xl xl:max-w-[1360px]">
       <PageHeader
         eyebrow="Dashboard"
         title={`Welkom terug, ${profile.first_name}`}
@@ -102,9 +102,16 @@ async function DashboardContent({ userId }: { userId: string }) {
 
       <QuickActionGrid />
 
-      <OwnActivitiesSection activities={recentOwnActivities} />
-
-      <CommunityLessonsSection activities={communityActivities} currentUserId={userId} />
+      {/* Onder de xl-breakpoint blijven "Mijn activiteiten" (een compacte
+          lijst) en "Populair in de gymzaal" (een kaartengrid dat op zichzelf
+          al tot 3 kolommen breed gaat, zie CommunityLessonsSection) gestapeld
+          — pas vanaf xl is er, ook náást de sidebar, genoeg breedte om de
+          activiteitenlijst als vaste linkerkolom te tonen zonder de
+          kaartengrid rechts te verdrukken. */}
+      <div className="grid gap-8 xl:grid-cols-[20rem_1fr] xl:items-start">
+        <OwnActivitiesSection activities={recentOwnActivities} />
+        <CommunityLessonsSection activities={communityActivities} currentUserId={userId} />
+      </div>
     </>
   );
 }

@@ -22,7 +22,7 @@ export default async function ProfielOpgeslagenPage() {
   }));
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 xl:max-w-6xl">
       <PageHeader
         eyebrow="Profiel"
         title="Opgeslagen activiteiten"

@@ -25,7 +25,7 @@ export default async function KennisbankPage() {
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-5xl">
       <div className="flex items-start justify-between gap-3">
         <PageHeader
           eyebrow="Kennisbank"
@@ -49,9 +49,14 @@ export default async function KennisbankPage() {
           <TabsTrigger value="standaard">Standaardbibliotheek</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="eigen" className="space-y-8">
-          <KnowledgeUploadForm />
-          <KnowledgeDocumentList documents={documents} currentUserId={profile.id} />
+        <TabsContent value="eigen">
+          {/* Op mobiel/tablet gestapeld (formulier eerst, dan de lijst); vanaf
+              lg genoeg breedte voor het uploadformulier als vaste
+              linkerkolom naast de documentenlijst. */}
+          <div className="grid gap-6 lg:grid-cols-[26rem_1fr] lg:items-start lg:gap-8">
+            <KnowledgeUploadForm />
+            <KnowledgeDocumentList documents={documents} currentUserId={profile.id} />
+          </div>
         </TabsContent>
 
         <TabsContent value="standaard" className="space-y-4">

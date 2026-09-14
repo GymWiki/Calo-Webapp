@@ -78,7 +78,7 @@ export default async function LesMakenPage({
   const skipChoice = Boolean(activity) || Boolean(initialTab);
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-5xl xl:max-w-6xl">
       <PageHeader
         eyebrow="Activiteit maken"
         title="Nieuwe activiteit"

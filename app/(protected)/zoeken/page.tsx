@@ -20,7 +20,7 @@ export default async function ZoekenPage() {
   const { hasFullLibraryAccess } = getUserPermissions(profile);
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 xl:max-w-[1400px]">
       <PageHeader
         eyebrow="Bibliotheek"
         title="Ontdek activiteiten"
