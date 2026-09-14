@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/empty-state";
 import { GameBasedPedagogyMatrix } from "@/components/GameBasedPedagogyMatrix";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
+import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -293,7 +294,7 @@ export default async function SharedActivityPage({
               dimensions={activity.game_dimensions}
               tacticalQuestions={activity.tactical_questions}
             />
-            <DidacticsMatrix items={didacticItems} />
+            <DidacticsMatrix items={didacticItems} styleOverrides={LEERHULP_DIDACTIC_STYLE_OVERRIDES} />
           </TabsContent>
         </Tabs>
 

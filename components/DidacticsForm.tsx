@@ -1,14 +1,19 @@
 "use client";
 
 import { DidacticsAddToList } from "@/components/DidacticsAddToList";
-import { DIDACTIC_CATEGORIES, type DidacticItem } from "@/types/lesson";
+import { DIDACTIC_CATEGORIES, type DidacticCategory, type DidacticItem } from "@/types/lesson";
 
 export function DidacticsForm({
   items,
   onChange,
+  styleOverrides,
 }: {
   items: DidacticItem[];
   onChange: (items: DidacticItem[]) => void;
+  /** Zie DidacticsMatrix/DidacticsAddToList — laat een pagina de
+   * kleuren/emoji per L overschrijven (bijv. dezelfde blauw/groen/rood-
+   * identiteit als de eenvoudige-activiteit-Leerhulp-kaarten). */
+  styleOverrides?: Partial<Record<DidacticCategory, { border: string; header: string; emoji?: string }>>;
 }) {
   function handleAdd(item: DidacticItem) {
     onChange([...items, item]);
@@ -32,6 +37,7 @@ export function DidacticsForm({
           onAdd={handleAdd}
           onUpdate={handleUpdate}
           onRemove={handleRemove}
+          styleOverride={styleOverrides?.[category]}
         />
       ))}
     </div>

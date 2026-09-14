@@ -27,19 +27,23 @@ export function DidacticsAddToList({
   onAdd,
   onUpdate,
   onRemove,
+  styleOverride,
 }: {
   category: DidacticCategory;
   items: DidacticItem[];
   onAdd: (item: DidacticItem) => void;
   onUpdate: (item: DidacticItem) => void;
   onRemove: (id: string) => void;
+  /** Zie DidacticsMatrix — laat een specifieke pagina de kleuren/emoji
+   * overschrijven zonder CATEGORY_STYLES zelf aan te passen. */
+  styleOverride?: { border: string; header: string; emoji?: string };
 }) {
   const [subTheme, setSubTheme] = useState("");
   const [observation, setObservation] = useState("");
   const [action, setAction] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const style = CATEGORY_STYLES[category];
+  const style = { ...CATEGORY_STYLES[category], ...styleOverride };
   const canSubmit = observation.trim().length > 0 && action.trim().length > 0;
 
   function resetForm() {

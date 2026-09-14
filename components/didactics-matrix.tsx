@@ -28,7 +28,7 @@ export function DidacticsMatrix({
   const grouped = groupDidacticItemsByCategory(items);
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
+    <div className="flex flex-col gap-4">
       {DIDACTIC_CATEGORIES.map((category) => {
         const style = { ...CATEGORY_STYLES[category], ...styleOverrides?.[category] };
         const categoryItems = grouped[category];

@@ -1,23 +1,20 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Check, Lock, MapPin, Target, Users } from "lucide-react";
+import { ArrowLeft, Check, Lock, MapPin, Users } from "lucide-react";
 
-import { AiLescoachButton } from "@/components/AiLescoachSheet";
 import { ActivityDetailActions } from "@/components/activity-detail-actions";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { ActivityInfoStrip, type InfoStripItem } from "@/components/activity-info-strip";
-import { DidacticsMatrix } from "@/components/didactics-matrix";
+import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { EmptyState } from "@/components/empty-state";
-import { GameBasedPedagogyMatrix } from "@/components/GameBasedPedagogyMatrix";
-import { LessonPdfButton } from "@/components/LessonPdfButton";
-import { ShareLessonButton } from "@/components/ShareLessonButton";
 import { SourceBadge } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
-import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
+import { LEERHULP_COLORS } from "@/lib/constants/leerhulpColors";
+import { splitLearningOutcomeItems } from "@/lib/format";
 import {
   parseActivityDescription,
   splitIntoSteps,
@@ -29,15 +26,7 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { DOELGROEP_LABELS, type Activity } from "@/types/activity";
-import type { DidacticItem } from "@/types/lesson";
-
-// Zelfde blauw/groen/rood-indeling voor de "3L's"/Leerhulp-weergave,
-// ongeacht of dit een eenvoudige of via de wizard aangemaakte activiteit is.
-const LEERHULP_COLORS = {
-  loopt: { border: "border-blue-200", header: "bg-blue-50 text-blue-900" },
-  lukt: { border: "border-green-200", header: "bg-green-50 text-green-900" },
-  leeft: { border: "border-red-200", header: "bg-red-50 text-red-900" },
-} as const;
+import { EMPTY_GAME_DIMENSIONS, type DidacticItem } from "@/types/lesson";
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -168,7 +157,10 @@ function LeerhulpCard({
 // 3L's-analyse) heeft `arrangement` gevuld — de eenvoudige, oorspronkelijke
 // bibliotheek-activiteiten hebben dat veld nooit. Die aanwezigheid bepaalt
 // welke weergave deze ene detailpagina toont; zie
-// supabase/migrations/consolidate_lessons_into_activiteiten.sql.
+// supabase/migrations/consolidate_lessons_into_activiteiten.sql. De
+// wizard-weergave zelf staat in components/activity-wizard-page.tsx — dat
+// is dezelfde component die "Zelf een activiteit maken" gebruikt in
+// mode="edit", zie app/(protected)/les-maken/lesson-form.tsx.
 function isWizardActivity(activity: Activity): boolean {
   return activity.arrangement !== null;
 }
@@ -221,6 +213,74 @@ export default async function ActiviteitDetailPage({
   const saved = await isActivitySaved(profile.id, activity.id);
   const wizardActivity = isWizardActivity(activity);
 
+  // Wizard-activiteiten delen hun volledige weergave met de inline-editor
+  // (zie components/activity-wizard-page.tsx: mode="view" hier, mode="edit"
+  // in de "Zelf een activiteit maken"-pagina) — vandaar de vroege return.
+  if (wizardActivity) {
+    let authorName: string | null = null;
+    if (activity.author_id) {
+      const cookieStore = await cookies();
+      const supabase = createClient(cookieStore);
+      const { data: author } = await supabase
+        .from("users")
+        .select("first_name, last_name")
+        .eq("id", activity.author_id)
+        .maybeSingle();
+      authorName = author ? `${author.first_name} ${author.last_name}`.trim() : null;
+    }
+
+    const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
+    const analyzePayload = {
+      title: activity.titel,
+      learningLine: activity.leerlijn ?? undefined,
+      movementProblem: activity.movement_problem ?? undefined,
+      movementTheme: activity.beweegthema ?? undefined,
+      goals: activity.doel ?? undefined,
+      didacticItems,
+      gameCategory: activity.game_category ?? undefined,
+      gameDimensions: activity.game_dimensions ?? undefined,
+      tacticalQuestions: activity.tactical_questions ?? undefined,
+    };
+
+    return (
+      <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
+        <ActivityWizardPage
+          mode="view"
+          activity={activity}
+          title={activity.titel}
+          learningLine={activity.leerlijn ?? ""}
+          movementTheme={activity.beweegthema ?? ""}
+          groupName={activity.group_name ?? ""}
+          activityDate={activity.activity_date ?? ""}
+          authorName={authorName}
+          doelgroep={activity.doelgroep ?? []}
+          minParticipants={activity.min_participants}
+          participantsBench={activity.participants_bench}
+          isPublic={activity.is_public}
+          isOwnActivity={isOwnActivity}
+          goals={activity.doel ?? ""}
+          movementProblem={activity.movement_problem ?? ""}
+          learningOutcomes={activity.learning_outcomes ?? []}
+          deelnemersRegels={activity.deelnemers_regels ?? ""}
+          plaatjePraatje={activity.plaatje_praatje ?? ""}
+          aandachtspunten={activity.aandachtspunten ?? ""}
+          regels={activity.regels ?? []}
+          arrangement={activity.arrangement ?? ""}
+          baseMaterials={activity.base_materials ?? []}
+          ruleMaterials={activity.rule_materials ?? []}
+          diagramImageUrl={activity.diagram_image_url}
+          gameCategory={activity.game_category ?? ""}
+          gameDimensions={activity.game_dimensions ?? EMPTY_GAME_DIMENSIONS}
+          tacticalQuestions={activity.tactical_questions ?? []}
+          didacticItems={didacticItems}
+          analyzePayload={analyzePayload}
+        />
+      </main>
+    );
+  }
+
+  // Vanaf hier: alleen nog de eenvoudige-activiteit-weergave (arrangement,
+  // beschrijving, loopt/lukt/leeft, ...).
   const doelgroepLabels = (activity.doelgroep ?? [])
     .map((waarde) => DOELGROEP_LABELS[waarde])
     .filter((label): label is string => Boolean(label));
@@ -232,73 +292,24 @@ export default async function ActiviteitDetailPage({
     .filter(Boolean)
     .join(" · ");
 
-  let authorName: string | null = null;
-  if (wizardActivity && activity.author_id) {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
-    const { data: author } = await supabase
-      .from("users")
-      .select("first_name, last_name")
-      .eq("id", activity.author_id)
-      .maybeSingle();
-    authorName = author ? `${author.first_name} ${author.last_name}`.trim() : null;
-  }
-
-  const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
-  const analyzePayload = {
-    title: activity.titel,
-    learningLine: activity.leerlijn ?? undefined,
-    movementProblem: activity.movement_problem ?? undefined,
-    movementTheme: activity.beweegthema ?? undefined,
-    goals: activity.doel ?? undefined,
-    didacticItems,
-    gameCategory: activity.game_category ?? undefined,
-    gameDimensions: activity.game_dimensions ?? undefined,
-    tacticalQuestions: activity.tactical_questions ?? undefined,
-  };
-
   // Stap 1 (data) → stap 7/10 (weergave): "Deelnemers:"-blok uit de vrije
-  // beschrijvingstekst lichten (alleen voor eenvoudige activiteiten — de
-  // wizard heeft hiervoor al de echte, structurele min/max-participantvelden
-  // hieronder). Zie lib/activityDescription.ts voor de onderbouwing op de
-  // volledige bibliotheek (203 activiteiten).
-  const { participantsSummary, participantsDetail, bodyText } = wizardActivity
-    ? { participantsSummary: null, participantsDetail: null, bodyText: "" }
-    : parseActivityDescription(activity.beschrijving);
-  // Wizard-activiteiten hebben geen eigen "In het kort" bron: hun enige
-  // context-veld (movement_problem) staat nu voluit in de nieuwe
-  // "Beginsituatie & Doelgroep"-sectie hieronder — dezelfde tekst nog eens
-  // samengevat tonen zou puur herhaling zijn.
-  const inKort = wizardActivity ? null : summarizeFirstParagraph(bodyText);
-  const speelStappen = wizardActivity ? null : splitIntoSteps(bodyText);
+  // beschrijvingstekst lichten. Zie lib/activityDescription.ts voor de
+  // onderbouwing op de volledige bibliotheek (203 activiteiten).
+  const { participantsSummary, participantsDetail, bodyText } = parseActivityDescription(
+    activity.beschrijving,
+  );
+  const inKort = summarizeFirstParagraph(bodyText);
+  const speelStappen = splitIntoSteps(bodyText);
 
-  // Stap 3 van de brief: "Beginsituatie & Doelgroep" als context ná het doel
-  // — voor eenvoudige activiteiten is dat het `beginsituatie`-veld, voor
-  // wizard-activiteiten (die geen apart beginsituatie-veld invullen, zie
-  // actions/lesson.ts) is `movement_problem` het dichtstbijzijnde bestaande
-  // equivalent.
-  const beginsituatieText = wizardActivity ? activity.movement_problem : activity.beginsituatie;
+  const beginsituatieText = activity.beginsituatie;
   const hasBeginsituatieSection = Boolean(beginsituatieText) || doelgroepLabels.length > 0;
 
   const infoStripItems: InfoStripItem[] = [];
-  if (wizardActivity) {
-    if (activity.min_participants !== null || activity.participants_bench !== null) {
-      const parts = [
-        activity.min_participants !== null ? `${activity.min_participants} in het veld` : null,
-        activity.participants_bench !== null ? `${activity.participants_bench} op de bank` : null,
-      ].filter(Boolean);
-      infoStripItems.push({ icon: Users, label: parts.join(" · ") });
-    }
-    if (activity.movement_problem) {
-      infoStripItems.push({ icon: Target, label: activity.movement_problem });
-    }
-  } else {
-    if (participantsSummary) {
-      infoStripItems.push({ icon: Users, label: participantsSummary });
-    }
-    if (activity.veld) {
-      infoStripItems.push({ icon: MapPin, label: activity.veld });
-    }
+  if (participantsSummary) {
+    infoStripItems.push({ icon: Users, label: participantsSummary });
+  }
+  if (activity.veld) {
+    infoStripItems.push({ icon: MapPin, label: activity.veld });
   }
 
   return (
@@ -345,42 +356,10 @@ export default async function ActiviteitDetailPage({
           <p className="text-base leading-relaxed text-foreground/80 sm:text-lg">{inKort}</p>
         )}
 
-        {wizardActivity && (
-          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            {authorName && (
-              <div>
-                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Docent
-                </dt>
-                <dd>{authorName}</dd>
-              </div>
-            )}
-            {activity.activity_date && (
-              <div>
-                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Datum
-                </dt>
-                <dd>{formatDate(activity.activity_date) ?? "-"}</dd>
-              </div>
-            )}
-            {activity.group_name && (
-              <div>
-                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Groep/klas
-                </dt>
-                <dd>{activity.group_name}</dd>
-              </div>
-            )}
-          </div>
-        )}
-
         {infoStripItems.length > 0 && <ActivityInfoStrip items={infoStripItems} />}
 
         <div className="flex flex-wrap gap-1.5">
           {activity.leerlijn && <Badge variant="outline">{activity.leerlijn}</Badge>}
-          {wizardActivity && activity.beweegthema && (
-            <Badge variant="outline">{activity.beweegthema}</Badge>
-          )}
         </div>
       </div>
 
@@ -395,23 +374,15 @@ export default async function ActiviteitDetailPage({
               className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
               aria-hidden="true"
             />
-            {wizardActivity ? "Plattegrond" : "Arrangement"}
+            Arrangement
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {wizardActivity ? (
-            <ActivityImageLightbox
-              src={activity.diagram_image_url}
-              alt="Plattegrond van het arrangement"
-              emptyLabel="Geen tekening toegevoegd."
-            />
-          ) : (
-            <ActivityImageLightbox
-              src={activity.afbeelding}
-              alt={activity.titel}
-              emptyLabel="Geen arrangement-afbeelding beschikbaar."
-            />
-          )}
+          <ActivityImageLightbox
+            src={activity.afbeelding}
+            alt={activity.titel}
+            emptyLabel="Geen arrangement-afbeelding beschikbaar."
+          />
         </CardContent>
       </Card>
 
@@ -479,7 +450,7 @@ export default async function ActiviteitDetailPage({
                 </div>
               )}
 
-              {!wizardActivity && participantsDetail && (
+              {participantsDetail && (
                 <div>
                   <SectionHeading>Deelnemers</SectionHeading>
                   <TextList items={participantsDetail} />
@@ -488,7 +459,7 @@ export default async function ActiviteitDetailPage({
 
               {/* Verborgen i.p.v. een lege "-" tonen wanneer er geen
                   beschrijving is ingevuld. */}
-              {!wizardActivity && bodyText && (
+              {bodyText && (
                 <div>
                   <SectionHeading>Zo speel je</SectionHeading>
                   {speelStappen ? (
@@ -496,29 +467,6 @@ export default async function ActiviteitDetailPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{bodyText}</p>
                   )}
-                </div>
-              )}
-
-              {wizardActivity && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <SectionHeading>Deelnemers &amp; Regels</SectionHeading>
-                    <p className="text-sm whitespace-pre-line text-foreground">
-                      {activity.deelnemers_regels || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <SectionHeading>Plaatje &amp; Praatje</SectionHeading>
-                    <p className="text-sm whitespace-pre-line text-foreground">
-                      {activity.plaatje_praatje || "-"}
-                    </p>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <SectionHeading>Aandachtspunten</SectionHeading>
-                    <p className="text-sm whitespace-pre-line text-foreground">
-                      {activity.aandachtspunten || "-"}
-                    </p>
-                  </div>
                 </div>
               )}
 
@@ -535,84 +483,36 @@ export default async function ActiviteitDetailPage({
           <Card>
             <CardContent className="space-y-5 pt-6">
               <div>
-                <SectionHeading>
-                  {wizardActivity ? "Veldafmetingen & opstelling" : "Veld & opstelling"}
-                </SectionHeading>
-                <p className="text-sm whitespace-pre-line text-foreground">
-                  {wizardActivity ? activity.arrangement || "-" : activity.veld || "-"}
-                </p>
+                <SectionHeading>Veld &amp; opstelling</SectionHeading>
+                <p className="text-sm whitespace-pre-line text-foreground">{activity.veld || "-"}</p>
               </div>
-              {wizardActivity ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <SectionHeading>Basismateriaal</SectionHeading>
-                    <BadgeList items={activity.base_materials} />
-                  </div>
-                  <div>
-                    <SectionHeading>Regelmateriaal</SectionHeading>
-                    <BadgeList items={activity.rule_materials} />
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <SectionHeading>Materiaallijst</SectionHeading>
-                  <BadgeList items={activity.materiaal} />
-                </div>
-              )}
+              <div>
+                <SectionHeading>Materiaallijst</SectionHeading>
+                <BadgeList items={activity.materiaal} />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Tab 3: Leerhulp (3 L'en) */}
+        {/* Tab 3: Leerhulp (3 L'en) — onder elkaar i.p.v. drie kolommen: bij
+            langere tips-lijsten waren de kolommen te smal en brak de tekst
+            ongemakkelijk af. Volle kaartbreedte binnen de pagina (die zelf
+            al op een leesbare max-w-3xl staat) i.p.v. een extra kolomsplit. */}
         <TabsContent value="leerhulp" className="space-y-4">
-          {wizardActivity ? (
-            <>
-              <GameBasedPedagogyMatrix
-                category={activity.game_category}
-                dimensions={activity.game_dimensions}
-                tacticalQuestions={activity.tactical_questions}
-              />
-              <DidacticsMatrix items={didacticItems} />
-            </>
-          ) : (
-            // Onder elkaar i.p.v. drie kolommen — bij dit soort langere
-            // tips-lijsten waren de kolommen te smal en brak de tekst
-            // ongemakkelijk af. Volle kaartbreedte binnen de pagina (die zelf
-            // al op een leesbare max-w-3xl staat) i.p.v. een extra kolomsplit.
-            <div className="flex flex-col gap-4">
-              <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
-              <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
-              <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
-            </div>
-          )}
+          <div className="flex flex-col gap-4">
+            <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
+            <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
+            <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
+          </div>
         </TabsContent>
       </Tabs>
 
       {/* Eén actiebalk, op elke breedte: vast onderaan het scherm,
-          safe-area-bewust. Geen aparte desktop-variant meer — minder
-          plekken waar dezelfde drie knoppen onderhouden moeten worden, en
-          altijd exact dezelfde, voorspelbare plek. bottom-16 blijft boven de
-          mobiele bottom-navigatie (md:hidden, zie components/app-layout.tsx),
+          safe-area-bewust. bottom-16 blijft boven de mobiele
+          bottom-navigatie (md:hidden, zie components/app-layout.tsx),
           md:bottom-0 daarna. */}
       <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg md:bottom-0 print:hidden">
-        {wizardActivity ? (
-          <>
-            <AiLescoachButton payload={analyzePayload} className="flex-1" />
-            <LessonPdfButton activity={activity} authorName={authorName} className="flex-1" />
-            {isOwnActivity && (
-              <ShareLessonButton
-                lessonId={activity.id}
-                lessonTitle={activity.titel}
-                isOwner
-                initialIsPublic={activity.is_public}
-                isAiGenerated={activity.is_ai_generated}
-                className="flex-1"
-              />
-            )}
-          </>
-        ) : (
-          <ActivityDetailActions activity={activity} initiallySaved={saved} />
-        )}
+        <ActivityDetailActions activity={activity} initiallySaved={saved} />
       </div>
     </main>
   );
