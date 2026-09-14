@@ -35,11 +35,14 @@ export function ActivityDetailActions({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg md:static md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+    // <lg: vaste onderbalk (rij, fixed-to-viewport). Vanaf lg: staat dit
+    // component in de sticky zijbalk van de detailpagina, als een kaart met
+    // de knoppen onder elkaar i.p.v. naast elkaar.
+    <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg lg:static lg:flex-col lg:rounded-2xl lg:border lg:p-4 lg:pb-4 lg:shadow-brand-sm">
       <Button
         variant="outline"
         size="sm"
-        className="flex-1"
+        className="flex-1 lg:w-full lg:flex-none"
         aria-pressed={saved}
         disabled={pending}
         onClick={handleToggleSave}
@@ -51,14 +54,14 @@ export function ActivityDetailActions({
         )}
         {saved ? "Opgeslagen" : "Bewaren"}
       </Button>
-      <Button asChild size="sm" className="flex-[1.4]">
+      <Button asChild size="sm" className="flex-[1.4] lg:w-full lg:flex-none">
         <Link href={`/les-maken?vanuit=${activityId}`}>
           <Copy className="size-4" />
           <span className="hidden sm:inline">Kopieer &amp; bewerk</span>
           <span className="sm:hidden">Kopiëren</span>
         </Link>
       </Button>
-      <ActivityPdfButton activity={activity} className="flex-1" size="sm" />
+      <ActivityPdfButton activity={activity} className="flex-1 lg:w-full lg:flex-none" size="sm" />
     </div>
   );
 }
