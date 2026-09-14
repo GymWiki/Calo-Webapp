@@ -193,7 +193,7 @@ export default async function ActiviteitDetailPage({
 
   if (!hasFullLibraryAccess && !isOwnActivity && !activity.is_public) {
     return (
-      <main className="mx-auto w-full max-w-4xl space-y-6 p-4 pb-28 md:p-8 md:pb-8 lg:max-w-5xl">
+      <main className="mx-auto w-full max-w-3xl space-y-6 p-4 pb-28 md:p-8 md:pb-8">
         <Button asChild variant="outline">
           <Link href="/zoeken">
             <ArrowLeft className="size-4" />
@@ -276,13 +276,6 @@ export default async function ActiviteitDetailPage({
   const beginsituatieText = wizardActivity ? activity.movement_problem : activity.beginsituatie;
   const hasBeginsituatieSection = Boolean(beginsituatieText) || doelgroepLabels.length > 0;
 
-  // Zijbalk-benodigdhedenlijst (stap "DESKTOP-LAYOUT VERBETEREN"): voor
-  // wizard-activiteiten is dat basis- + regelmateriaal samen, voor
-  // eenvoudige activiteiten de ene materiaallijst.
-  const sidebarMateriaal = wizardActivity
-    ? [...(activity.base_materials ?? []), ...(activity.rule_materials ?? [])]
-    : (activity.materiaal ?? []);
-
   const infoStripItems: InfoStripItem[] = [];
   if (wizardActivity) {
     if (activity.min_participants !== null || activity.participants_bench !== null) {
@@ -305,10 +298,7 @@ export default async function ActiviteitDetailPage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-8 lg:max-w-5xl xl:max-w-6xl print:max-w-none print:p-0">
-      {/* Actieknoppen staan niet meer in deze topbalk — op mobiel/tablet
-          zitten ze in de vaste onderbalk, op desktop (lg+) prominent
-          bovenaan de sticky zijbalk (zie het grid verderop). */}
+    <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
       <div className="print:hidden">
         <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground">
           <Link href="/zoeken">
@@ -320,7 +310,11 @@ export default async function ActiviteitDetailPage({
 
       {/* Header — titel is het belangrijkste element, geen kaart-omlijning
           nodig (zie components/page-header.tsx voor hetzelfde patroon elders
-          in de app: eyebrow + titel + meta, geen Card-wrapper). */}
+          in de app: eyebrow + titel + meta, geen Card-wrapper). "In het
+          kort" staat hier als dek (grotere, rustig lopende introductiezin)
+          direct onder de titel — dat is de plek waar een docent binnen een
+          paar seconden weet waar de activiteit over gaat, vóór er ook maar
+          een kaart of tab in beeld komt. */}
       <div className="animate-fade-up space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -329,7 +323,7 @@ export default async function ActiviteitDetailPage({
             >
               {activity.beweegthema || activity.categorie || "Activiteit"}
             </p>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words">
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words sm:text-3xl">
               {activity.titel}
             </h1>
             {groepNiveauSummary && (
@@ -342,6 +336,10 @@ export default async function ActiviteitDetailPage({
             <SourceBadge source="gymwiki" className="mt-1 shrink-0" />
           )}
         </div>
+
+        {inKort && (
+          <p className="text-base leading-relaxed text-foreground/80 sm:text-lg">{inKort}</p>
+        )}
 
         {wizardActivity && (
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -382,287 +380,213 @@ export default async function ActiviteitDetailPage({
         </div>
       </div>
 
-      {/* Twee kolommen vanaf lg: hoofdkolom (arrangement + tabs, leescontent)
-          links, vaste sticky zijbalk (metadata op een oogopslag + acties)
-          rechts. DOM-volgorde = hoofdkolom vóór zijbalk, dus leesvolgorde
-          voor toetsenbord/screenreader blijft gelijk aan de visuele volgorde
-          op elke breedte — geen `order`-trucs. */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-8">
-        {/* Arrangement staat vóór de tabs in de DOM — zo blijft de leesvolgorde
-            voor toetsenbord/screenreader-gebruikers gelijk aan de visuele
-            volgorde op mobiel (afbeelding boven de tabs). Op desktop plaatst
-            het grid 'm in een vaste linkerkolom naast de tabs, puur visueel —
-            geen `order`-trucs die leesvolgorde en visuele volgorde uit elkaar
-            zouden trekken. */}
-        <div className="grid gap-5 md:grid-cols-[20rem_1fr] md:items-start md:gap-6">
-          <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {wizardActivity ? "Plattegrond" : "Arrangement"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {wizardActivity ? (
-                <ActivityImageLightbox
-                  src={activity.diagram_image_url}
-                  alt="Plattegrond van het arrangement"
-                  emptyLabel="Geen tekening toegevoegd."
-                />
-              ) : (
-                <ActivityImageLightbox
-                  src={activity.afbeelding}
-                  alt={activity.titel}
-                  emptyLabel="Geen arrangement-afbeelding beschikbaar."
-                />
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="min-w-0 space-y-5 md:space-y-6">
-            <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-              <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
-                <TabsTrigger
-                  value="lesinhoud"
-                  className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-                >
-                  Lesinhoud
-                </TabsTrigger>
-                <TabsTrigger
-                  value="materiaal"
-                  className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-                >
-                  Materiaal
-                </TabsTrigger>
-                <TabsTrigger
-                  value="leerhulp"
-                  className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-                >
-                  Leerhulp
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Tab 1: Lesinhoud */}
-              <TabsContent value="lesinhoud" className="space-y-4">
-                {inKort && (
-                  <Card>
-                    <CardContent className="pt-6">
-                      <SectionHeading>In het kort</SectionHeading>
-                      <p className="text-sm text-foreground">{inKort}</p>
-                    </CardContent>
-                  </Card>
-                )}
-
-                <Card>
-                  <CardContent className="space-y-5 pt-6">
-                    {/* Volgorde bewust: eerst het "waarom" (Doel), dan de context
-                        waartegen dat doel staat (Beginsituatie & Doelgroep — voor
-                        wie is dit, wat wordt al verondersteld), dán pas de
-                        leeruitkomsten en de daadwerkelijke uitvoering. */}
-                    {activity.doel && (
-                      <div>
-                        <SectionHeading>Doel</SectionHeading>
-                        <p className="text-sm whitespace-pre-line text-foreground">{activity.doel}</p>
-                      </div>
-                    )}
-
-                    {hasBeginsituatieSection && (
-                      <div>
-                        <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
-                        {doelgroepLabels.length > 0 && (
-                          <div className={beginsituatieText ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
-                            {doelgroepLabels.map((label) => (
-                              <Badge key={label} variant="secondary">
-                                {label}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {beginsituatieText && (
-                          <p className="text-sm whitespace-pre-line text-foreground">
-                            {beginsituatieText}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
-                      <div>
-                        <SectionHeading>Leeruitkomsten</SectionHeading>
-                        <LearningOutcomesList items={activity.learning_outcomes} />
-                      </div>
-                    )}
-
-                    {!wizardActivity && participantsDetail && (
-                      <div>
-                        <SectionHeading>Deelnemers</SectionHeading>
-                        <TextList items={participantsDetail} />
-                      </div>
-                    )}
-
-                    {/* Verborgen i.p.v. een lege "-" tonen wanneer er geen
-                        beschrijving is ingevuld. */}
-                    {!wizardActivity && bodyText && (
-                      <div>
-                        <SectionHeading>Zo speel je</SectionHeading>
-                        {speelStappen ? (
-                          <StepList steps={speelStappen} />
-                        ) : (
-                          <p className="text-sm whitespace-pre-line text-foreground">{bodyText}</p>
-                        )}
-                      </div>
-                    )}
-
-                    {wizardActivity && (
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <SectionHeading>Deelnemers &amp; Regels</SectionHeading>
-                          <p className="text-sm whitespace-pre-line text-foreground">
-                            {activity.deelnemers_regels || "-"}
-                          </p>
-                        </div>
-                        <div>
-                          <SectionHeading>Plaatje &amp; Praatje</SectionHeading>
-                          <p className="text-sm whitespace-pre-line text-foreground">
-                            {activity.plaatje_praatje || "-"}
-                          </p>
-                        </div>
-                        <div className="sm:col-span-2">
-                          <SectionHeading>Aandachtspunten</SectionHeading>
-                          <p className="text-sm whitespace-pre-line text-foreground">
-                            {activity.aandachtspunten || "-"}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <SectionHeading>Regels</SectionHeading>
-                      <RulesChecklist items={activity.regels} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Tab 2: Materiaal (incl. veld/opstelling) */}
-              <TabsContent value="materiaal" className="space-y-4">
-                <Card>
-                  <CardContent className="space-y-5 pt-6">
-                    <div>
-                      <SectionHeading>
-                        {wizardActivity ? "Veldafmetingen & opstelling" : "Veld & opstelling"}
-                      </SectionHeading>
-                      <p className="text-sm whitespace-pre-line text-foreground">
-                        {wizardActivity ? activity.arrangement || "-" : activity.veld || "-"}
-                      </p>
-                    </div>
-                    {wizardActivity ? (
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <SectionHeading>Basismateriaal</SectionHeading>
-                          <BadgeList items={activity.base_materials} />
-                        </div>
-                        <div>
-                          <SectionHeading>Regelmateriaal</SectionHeading>
-                          <BadgeList items={activity.rule_materials} />
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <SectionHeading>Materiaallijst</SectionHeading>
-                        <BadgeList items={activity.materiaal} />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Tab 3: Leerhulp (3 L'en) */}
-              <TabsContent value="leerhulp" className="space-y-4">
-                {wizardActivity ? (
-                  <>
-                    <GameBasedPedagogyMatrix
-                      category={activity.game_category}
-                      dimensions={activity.game_dimensions}
-                      tacticalQuestions={activity.tactical_questions}
-                    />
-                    <DidacticsMatrix items={didacticItems} />
-                  </>
-                ) : (
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
-                    <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
-                    <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
-
-        {/* Zijbalk — alleen vanaf lg, sticky zodat metadata + acties bij het
-            scrollen door de (vaak langere) hoofdkolom in beeld blijven. Op
-            mobiel/tablet blijven dezelfde acties bereikbaar via de vaste
-            onderbalk verderop (lg:hidden). */}
-        <aside className="hidden lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:space-y-4 lg:overflow-y-auto lg:pb-2 print:hidden">
+      {/* Eén kolom, altijd: afbeelding vol op de breedte van de pagina, dan
+          de tabs eronder. Geen zijkolom en geen grid-split meer — op elke
+          breedte dezelfde, voorspelbare leesvolgorde van boven naar
+          beneden. */}
+      <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <span
+              className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
+              aria-hidden="true"
+            />
+            {wizardActivity ? "Plattegrond" : "Arrangement"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           {wizardActivity ? (
-            <div className="flex flex-col gap-2 rounded-2xl border bg-card p-4 shadow-brand-sm">
-              <AiLescoachButton payload={analyzePayload} className="w-full" />
-              <LessonPdfButton activity={activity} authorName={authorName} className="w-full" />
-              {isOwnActivity && (
-                <ShareLessonButton
-                  lessonId={activity.id}
-                  lessonTitle={activity.titel}
-                  isOwner
-                  initialIsPublic={activity.is_public}
-                  isAiGenerated={activity.is_ai_generated}
-                  className="w-full"
-                />
-              )}
-            </div>
+            <ActivityImageLightbox
+              src={activity.diagram_image_url}
+              alt="Plattegrond van het arrangement"
+              emptyLabel="Geen tekening toegevoegd."
+            />
           ) : (
-            <ActivityDetailActions activity={activity} initiallySaved={saved} />
+            <ActivityImageLightbox
+              src={activity.afbeelding}
+              alt={activity.titel}
+              emptyLabel="Geen arrangement-afbeelding beschikbaar."
+            />
           )}
+        </CardContent>
+      </Card>
 
+      <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+        <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
+          <TabsTrigger
+            value="lesinhoud"
+            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+          >
+            Lesinhoud
+          </TabsTrigger>
+          <TabsTrigger
+            value="materiaal"
+            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+          >
+            Materiaal
+          </TabsTrigger>
+          <TabsTrigger
+            value="leerhulp"
+            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+          >
+            Leerhulp
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Tab 1: Lesinhoud */}
+        <TabsContent value="lesinhoud" className="space-y-4">
           <Card>
-            <CardContent className="space-y-4 pt-6">
-              {activity.categorie && (
+            <CardContent className="space-y-5 pt-6">
+              {/* Volgorde bewust: eerst het "waarom" (Doel), dan de context
+                  waartegen dat doel staat (Beginsituatie & Doelgroep — voor
+                  wie is dit, wat wordt al verondersteld), dán pas de
+                  leeruitkomsten en de daadwerkelijke uitvoering. */}
+              {activity.doel && (
                 <div>
-                  <SectionHeading>Categorie</SectionHeading>
-                  <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <span
-                      className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
-                      aria-hidden="true"
-                    />
-                    {activity.categorie}
-                  </p>
+                  <SectionHeading>Doel</SectionHeading>
+                  <p className="text-sm whitespace-pre-line text-foreground">{activity.doel}</p>
                 </div>
               )}
 
-              {doelgroepLabels.length > 0 && (
+              {hasBeginsituatieSection && (
                 <div>
-                  <SectionHeading>Groep</SectionHeading>
-                  <div className="flex flex-wrap gap-1.5">
-                    {doelgroepLabels.map((label) => (
-                      <Badge key={label} variant="secondary">
-                        {label}
-                      </Badge>
-                    ))}
+                  <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
+                  {doelgroepLabels.length > 0 && (
+                    <div className={beginsituatieText ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
+                      {doelgroepLabels.map((label) => (
+                        <Badge key={label} variant="secondary">
+                          {label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {beginsituatieText && (
+                    <p className="text-sm whitespace-pre-line text-foreground">
+                      {beginsituatieText}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
+                <div>
+                  <SectionHeading>Leeruitkomsten</SectionHeading>
+                  <LearningOutcomesList items={activity.learning_outcomes} />
+                </div>
+              )}
+
+              {!wizardActivity && participantsDetail && (
+                <div>
+                  <SectionHeading>Deelnemers</SectionHeading>
+                  <TextList items={participantsDetail} />
+                </div>
+              )}
+
+              {/* Verborgen i.p.v. een lege "-" tonen wanneer er geen
+                  beschrijving is ingevuld. */}
+              {!wizardActivity && bodyText && (
+                <div>
+                  <SectionHeading>Zo speel je</SectionHeading>
+                  {speelStappen ? (
+                    <StepList steps={speelStappen} />
+                  ) : (
+                    <p className="text-sm whitespace-pre-line text-foreground">{bodyText}</p>
+                  )}
+                </div>
+              )}
+
+              {wizardActivity && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <SectionHeading>Deelnemers &amp; Regels</SectionHeading>
+                    <p className="text-sm whitespace-pre-line text-foreground">
+                      {activity.deelnemers_regels || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <SectionHeading>Plaatje &amp; Praatje</SectionHeading>
+                    <p className="text-sm whitespace-pre-line text-foreground">
+                      {activity.plaatje_praatje || "-"}
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <SectionHeading>Aandachtspunten</SectionHeading>
+                    <p className="text-sm whitespace-pre-line text-foreground">
+                      {activity.aandachtspunten || "-"}
+                    </p>
                   </div>
                 </div>
               )}
 
-              {sidebarMateriaal.length > 0 && (
+              <div>
+                <SectionHeading>Regels</SectionHeading>
+                <RulesChecklist items={activity.regels} />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 2: Materiaal (incl. veld/opstelling) */}
+        <TabsContent value="materiaal" className="space-y-4">
+          <Card>
+            <CardContent className="space-y-5 pt-6">
+              <div>
+                <SectionHeading>
+                  {wizardActivity ? "Veldafmetingen & opstelling" : "Veld & opstelling"}
+                </SectionHeading>
+                <p className="text-sm whitespace-pre-line text-foreground">
+                  {wizardActivity ? activity.arrangement || "-" : activity.veld || "-"}
+                </p>
+              </div>
+              {wizardActivity ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <SectionHeading>Basismateriaal</SectionHeading>
+                    <BadgeList items={activity.base_materials} />
+                  </div>
+                  <div>
+                    <SectionHeading>Regelmateriaal</SectionHeading>
+                    <BadgeList items={activity.rule_materials} />
+                  </div>
+                </div>
+              ) : (
                 <div>
-                  <SectionHeading>Benodigdheden</SectionHeading>
-                  <TextList items={sidebarMateriaal} />
+                  <SectionHeading>Materiaallijst</SectionHeading>
+                  <BadgeList items={activity.materiaal} />
                 </div>
               )}
             </CardContent>
           </Card>
-        </aside>
-      </div>
+        </TabsContent>
 
-      <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg lg:hidden print:hidden">
+        {/* Tab 3: Leerhulp (3 L'en) */}
+        <TabsContent value="leerhulp" className="space-y-4">
+          {wizardActivity ? (
+            <>
+              <GameBasedPedagogyMatrix
+                category={activity.game_category}
+                dimensions={activity.game_dimensions}
+                tacticalQuestions={activity.tactical_questions}
+              />
+              <DidacticsMatrix items={didacticItems} />
+            </>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
+              <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
+              <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Eén actiebalk, op elke breedte: vast onderaan het scherm,
+          safe-area-bewust. Geen aparte desktop-variant meer — minder
+          plekken waar dezelfde drie knoppen onderhouden moeten worden, en
+          altijd exact dezelfde, voorspelbare plek. bottom-16 blijft boven de
+          mobiele bottom-navigatie (md:hidden, zie components/app-layout.tsx),
+          md:bottom-0 daarna. */}
+      <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg md:bottom-0 print:hidden">
         {wizardActivity ? (
           <>
             <AiLescoachButton payload={analyzePayload} className="flex-1" />
