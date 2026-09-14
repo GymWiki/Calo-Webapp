@@ -139,6 +139,8 @@ function BadgeList({ items }: { items: string[] | null }) {
   );
 }
 
+// Verborgen i.p.v. een lege kaart met "-" tonen wanneer een activiteit voor
+// deze L geen tips heeft — zie validatie-eis "lege secties netjes verborgen".
 function LeerhulpCard({
   title,
   tips,
@@ -148,6 +150,8 @@ function LeerhulpCard({
   tips: string[] | null;
   colors: { border: string; header: string };
 }) {
+  if (!tips || tips.length === 0) return null;
+
   return (
     <Card className={colors.border}>
       <CardHeader className={`rounded-t-xl ${colors.header}`}>
@@ -571,7 +575,11 @@ export default async function ActiviteitDetailPage({
               <DidacticsMatrix items={didacticItems} />
             </>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-3">
+            // Onder elkaar i.p.v. drie kolommen — bij dit soort langere
+            // tips-lijsten waren de kolommen te smal en brak de tekst
+            // ongemakkelijk af. Volle kaartbreedte binnen de pagina (die zelf
+            // al op een leesbare max-w-3xl staat) i.p.v. een extra kolomsplit.
+            <div className="flex flex-col gap-4">
               <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
               <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
               <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
