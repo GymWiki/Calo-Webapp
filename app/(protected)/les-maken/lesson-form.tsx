@@ -114,7 +114,18 @@ export function LessonForm({
   // Concept-rij die auto-save aanmaakt/bijwerkt (zie saveLessonDraft) — als
   // dit formulier een bestaand concept hervat, is dat meteen die rij.
   const [activityId, setActivityId] = useState<string | null>(initialActivityId ?? null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const isSavingDraftRef = useRef(false);
+  // Een nieuwere wijziging kwam binnen terwijl er al een save liep — na
+  // afloop van die save meteen nóg één keer opslaan met de dan actuele
+  // waarden, in plaats van de tussentijdse wijziging te laten verdwijnen.
+  const pendingSaveRef = useRef(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Pas na een paar keer op rij mislukken een zichtbare foutmelding tonen —
+  // één incidentele mislukking (bijv. een kort netwerkhikje) hoeft de
+  // gebruiker niet te storen zolang de eerstvolgende save wél lukt.
+  const consecutiveFailuresRef = useRef(0);
+  const FAILURE_TOAST_THRESHOLD = 3;
 
   const form = useForm<CreateLessonFormInput, unknown, CreateLessonInput>({
     resolver: zodResolver(createLessonInputSchema),
@@ -161,13 +172,14 @@ export function LessonForm({
   }
 
   // Auto-save: slaat de huidige stand van het formulier op als concept
-  // (status 'draft'), aangeroepen bij het verlaten van een veld — niet per
-  // toetsaanslag. Stil bij succes (geen toast per veldwissel), zichtbaar bij
-  // een fout, zodat de gebruiker weet dat de laatste wijziging mogelijk niet
-  // bewaard is.
-  async function autosaveDraft() {
-    if (isSavingDraftRef.current) return;
+  // (status 'draft'). Eén save tegelijk — als er een nieuwere wijziging
+  // binnenkomt terwijl er al een save loopt, wordt die niet parallel
+  // verstuurd (dat zou op dezelfde rij kunnen botsen) maar gemarkeerd als
+  // "nog een keer opslaan zodra de huidige save klaar is", steeds met de op
+  // dat moment actuele formulierwaarden — nooit een verouderde snapshot.
+  async function performSave() {
     isSavingDraftRef.current = true;
+    setSaveStatus("saving");
     try {
       const values = form.getValues();
       const payload: CreateLessonFormInput = {
@@ -185,14 +197,54 @@ export function LessonForm({
         activityId,
       );
       if ("error" in result) {
-        toast.error("Concept opslaan is niet gelukt — je wijzigingen blijven zichtbaar in dit scherm.");
+        consecutiveFailuresRef.current += 1;
+        console.error(
+          `Concept autosave mislukt (poging ${consecutiveFailuresRef.current} op rij):`,
+          result.error,
+        );
+        if (consecutiveFailuresRef.current >= FAILURE_TOAST_THRESHOLD) {
+          setSaveStatus("error");
+          toast.error(
+            "Concept opslaan lukt herhaaldelijk niet — controleer je internetverbinding. Je wijzigingen blijven zichtbaar in dit scherm.",
+          );
+        } else {
+          setSaveStatus("idle");
+        }
         return;
       }
+      consecutiveFailuresRef.current = 0;
       setActivityId(result.activityId);
+      setSaveStatus("saved");
     } finally {
       isSavingDraftRef.current = false;
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        void performSave();
+      }
     }
   }
+
+  // Gedebouncet: pas ~1,3s na de laatste wijziging daadwerkelijk opslaan, in
+  // plaats van bij elke afzonderlijke veldwissel een eigen request te sturen
+  // — voorkomt de stortvloed aan (deels overlappende) autosave-requests die
+  // ontstond wanneer iemand snel meerdere velden achter elkaar invult.
+  function scheduleAutosave() {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      if (isSavingDraftRef.current) {
+        pendingSaveRef.current = true;
+        return;
+      }
+      void performSave();
+    }, 1300);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
 
   async function onSubmit(values: CreateLessonInput) {
     const payload: CreateLessonInput = {
@@ -255,7 +307,12 @@ export function LessonForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 md:space-y-6">
+      {/* pb-28/md:pb-24: dezelfde marge als de activiteit-detailpagina
+          gebruikt boven haar identieke vaste actiebalk (bottom-16/md:bottom-0)
+          — dit formulier miste die tot nu toe, waardoor het laatste veld
+          direct onder de balk zat. Padding van de scrollende pagina zelf,
+          geen vaste minimumhoogte, dus geen leeg gat bij weinig content. */}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 pb-28 md:space-y-6 md:pb-24">
         {activeSourceCount !== undefined && (
           <div className="flex justify-end">
             <KnowledgeSourceHint count={activeSourceCount} />
@@ -327,7 +384,8 @@ export function LessonForm({
           onDiagramExport={(data, imageDataUrl) => setDiagram({ data, imageDataUrl })}
           didacticItems={didacticItems}
           onDidacticItemsChange={setDidacticItems}
-          onCommit={() => void autosaveDraft()}
+          onCommit={scheduleAutosave}
+          saveStatus={saveStatus}
           analyzePayload={{
             title,
             learningLine: learningLine || undefined,

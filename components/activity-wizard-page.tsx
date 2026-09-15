@@ -29,6 +29,15 @@ import { DiagramEditorCard } from "@/app/(protected)/les-maken/diagram-editor-ca
 
 const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
 
+// Rustige, kleine tekst naast de voortgangsbalk — geen toast per commit; een
+// structureel falende autosave (meerdere mislukkingen op rij) krijgt wél een
+// aparte, zichtbare toast (zie lesson-form.tsx's FAILURE_TOAST_THRESHOLD).
+const SAVE_STATUS_LABELS: Record<"saving" | "saved" | "error", string> = {
+  saving: "Bezig met opslaan...",
+  saved: "Concept opgeslagen",
+  error: "Opslaan mislukt",
+};
+
 // Wizard-activiteiten hebben geen eigen `categorie`-kolom (die is alleen
 // gevuld voor eenvoudige activiteiten) — de eyebrow/plattegrond-stip vielen
 // daardoor altijd terug op de grijze "Overig"-kleur, in zowel de bestaande
@@ -117,6 +126,7 @@ export function ActivityWizardPage({
   onDidacticItemsChange,
 
   onCommit,
+  saveStatus,
   analyzePayload,
   isSubmitting,
   filledCount,
@@ -191,6 +201,11 @@ export function ActivityWizardPage({
    * wordt het hele concept opnieuw opgeslagen; welk veld het was, doet er
    * niet toe. Alleen relevant in mode="edit". */
   onCommit?: () => void;
+  /** Onopvallende concept-opslagstatus naast de voortgangsbalk — alleen
+   * relevant in mode="edit". Een structureel falende autosave krijgt een
+   * eigen toast (zie lesson-form.tsx); dit is puur de rustige "bezig.../
+   * opgeslagen"-indicatie voor het normale geval. */
+  saveStatus?: "idle" | "saving" | "saved" | "error";
   analyzePayload: AnalyzeLessonPayload;
   isSubmitting?: boolean;
   filledCount?: number;
@@ -416,6 +431,11 @@ export function ActivityWizardPage({
               />
             </div>
             {filledCount} van {sectionCount} secties ingevuld
+            {saveStatus && saveStatus !== "idle" && (
+              <span aria-live="polite" className="text-muted-foreground/70">
+                · {SAVE_STATUS_LABELS[saveStatus]}
+              </span>
+            )}
           </div>
         )}
       </div>

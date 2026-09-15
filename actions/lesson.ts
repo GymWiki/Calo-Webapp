@@ -14,13 +14,30 @@ type SaveDraftResult = { error: string } | { success: true; activityId: string }
 
 const GENERIC_ERROR = "Activiteit opslaan is mislukt. Probeer het opnieuw.";
 
+// Logt de daadwerkelijke Postgres/Supabase-foutdetails server-side (zichtbaar
+// in de Vercel function logs) vóórdat de generieke, gebruiksvriendelijke
+// melding teruggaat — zonder dit was een fout als de vroegere "invalid input
+// syntax for type date" onmogelijk te onderscheiden van elke andere
+// mislukte opslag vanuit de UI alleen.
+function logActivitiesRowError(context: "createLesson" | "saveLessonDraft", error: unknown) {
+  console.error(`${context}: opslaan naar activiteiten mislukt —`, error);
+}
+
 // Gedeeld tussen createLesson (insert/update, gevalideerd) en saveLessonDraft
 // (insert/update, ongevalideerd) — dezelfde kolommen, alleen `status` en of
 // de invoer eerst door het schema moet verschilt.
 function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
   return {
     titel: values.title,
-    activity_date: values.lessonDate,
+    // `activity_date` is een Postgres `date`-kolom — een lege string (de
+    // waarde zolang dit veld nog niet is ingevuld, wat bij een concept vaak
+    // lang zo blijft) is daar geen geldige waarde en liet vrijwel elke
+    // autosave van een net gestart concept mislukken met een Postgres-
+    // typefout ("invalid input syntax for type date"). createLesson's eigen
+    // schema dwingt hier al een niet-lege string af, dus dit `|| null`
+    // verandert daar niets — alleen saveLessonDraft (bewust ongevalideerd)
+    // kon deze lege string ooit doorsturen.
+    activity_date: values.lessonDate || null,
     group_name: values.groupName,
     leerlijn: values.learningLine,
     doelgroep: values.doelgroep,
@@ -106,6 +123,7 @@ export async function createLesson(
     : await supabase.from("activiteiten").insert({ ...row, author_id: user.id });
 
   if (error) {
+    logActivitiesRowError("createLesson", error);
     return { error: GENERIC_ERROR };
   }
 
@@ -160,6 +178,7 @@ export async function saveLessonDraft(
       .eq("status", "draft");
 
     if (error) {
+      logActivitiesRowError("saveLessonDraft", error);
       return { error: GENERIC_ERROR };
     }
 
@@ -173,6 +192,7 @@ export async function saveLessonDraft(
     .single();
 
   if (error || !data) {
+    logActivitiesRowError("saveLessonDraft", error ?? "geen rij teruggekregen na insert");
     return { error: GENERIC_ERROR };
   }
 
