@@ -69,7 +69,11 @@
   --line-blue: #6d8fff;
   --surface-2: #202327;
   --ink-muted: #a8a6a0;
-  --border-warm: #303338;
+  /* Was #303338 — tegen --card (#1b1d21) meet dat maar ~1.3:1 contrast,
+     ver onder de WCAG 1.4.11-norm van 3:1 voor randen van formulier-
+     velden/UI-componenten (velden waren in dark mode nauwelijks als
+     invoerveld te herkennen). #666b73 haalt ~3,1:1. */
+  --border-warm: #666b73;
   --success: #34b980;
   --danger: #ef6a6a;
 

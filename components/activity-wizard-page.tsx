@@ -54,6 +54,36 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Klein, consistent label BOVEN een veld (i.p.v. het te kleine/moeilijk
+// leesbare mono-labeltje dat de leerlijn-select eerder had) + optionele
+// helptekst eronder — zodat in één oogopslag duidelijk is wat een veld
+// verwacht, ongeacht of het een select, input of chip-rij is.
+function FieldLabel({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        {label}
+      </p>
+      {children}
+      {hint && <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+const SELECT_FIELD_CLASS =
+  "h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+
+const DOELGROEP_CHIP_CLASS =
+  "rounded-full border px-3 py-1.5 text-sm outline-none transition-[color,box-shadow,background-color,transform] duration-150 ease-brand focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.98]";
+
 // Één component, twee modi: `mode="view"` is de read-only
 // activiteit-detailweergave voor wizard-activiteiten, `mode="edit"` is
 // dezelfde lay-out/volgorde/kleuren maar dan met inline-bewerkbare velden —
@@ -219,11 +249,9 @@ export function ActivityWizardPage({
   // met het oude model) en valt de weergave terug op de leerlijn zelf.
   const themeOptions = BEWEGINGSTHEMAS[learningLine] ?? [];
   const doelgroepLabels = doelgroep.map((waarde) => DOELGROEP_LABELS[waarde]).filter(Boolean);
-  const groepNiveauSummary = [movementTheme, doelgroepLabels.length > 0 ? doelgroepLabels.join(", ") : null]
-    .filter(Boolean)
-    .join(" · ");
   const hasBeginsituatieSection = Boolean(movementProblem) || doelgroepLabels.length > 0;
   const normalizedLearningOutcomes = splitLearningOutcomeItems(learningOutcomes);
+  const showThemeField = isEdit ? themeOptions.length > 0 : Boolean(movementTheme);
 
   return (
     <>
@@ -236,42 +264,17 @@ export function ActivityWizardPage({
         </Button>
       </div>
 
-      {/* Header — zelfde patroon als de eenvoudige-activiteit-weergave:
-          eyebrow + titel + meta, geen kaart-omlijning. */}
+      {/* Header — eyebrow (alleen-lezen preview van leerlijn/thema) + titel
+          als een echt herkenbaar tekstveld (rand + achtergrond, i.p.v.
+          vrij-zwevende grote tekst). De leerlijn/thema zelf bewerk je
+          hieronder in "Basisgegevens" — niet meer via een piepklein label
+          hier, dat als dropdown nauwelijks te herkennen was. */}
       <div className="animate-fade-up space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            {isEdit ? (
-              <select
-                value={learningLine}
-                onChange={(event) => {
-                  onLearningLineChange?.(event.target.value);
-                  onCommit?.();
-                }}
-                className={cn(
-                  "h-auto border-none bg-transparent p-0 pr-6 font-mono text-xs font-semibold tracking-[0.14em] uppercase shadow-none",
-                  WIZARD_CATEGORY_COLOR.text,
-                  learningLineFlagged && "text-amber-600",
-                )}
-              >
-                <option value="" disabled>
-                  Kies een leerlijn
-                </option>
-                {LEARNING_LINE_CATEGORIES.map(({ category: cat, lines }) => (
-                  <optgroup key={cat} label={cat}>
-                    {lines.map((line) => (
-                      <option key={line} value={line}>
-                        {line}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            ) : (
-              <p className={cn("font-mono text-xs font-semibold tracking-[0.14em] uppercase", WIZARD_CATEGORY_COLOR.text)}>
-                {movementTheme || learningLine || "Activiteit"}
-              </p>
-            )}
+            <p className={cn("font-mono text-xs font-semibold tracking-[0.14em] uppercase", WIZARD_CATEGORY_COLOR.text)}>
+              {movementTheme || learningLine || "Activiteit"}
+            </p>
 
             {isEdit ? (
               <input
@@ -280,55 +283,12 @@ export function ActivityWizardPage({
                 onBlur={() => onCommit?.()}
                 placeholder="Titel van de activiteit"
                 className={cn(
-                  "mt-0.5 w-full border-none bg-transparent p-0 text-2xl font-bold tracking-tight break-words outline-none placeholder:font-normal placeholder:text-muted-foreground sm:text-3xl",
-                  titleFlagged && "text-amber-600",
+                  "mt-1.5 w-full rounded-lg border border-input bg-card px-3 py-2 text-2xl font-bold tracking-tight break-words shadow-xs outline-none placeholder:font-normal placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:text-3xl dark:bg-input/30",
+                  titleFlagged && IMPORT_FLAG_CLASS,
                 )}
               />
             ) : (
               <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words sm:text-3xl">{title}</h1>
-            )}
-
-            {isEdit ? (
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                {themeOptions.length > 0 && (
-                  <select
-                    value={themeOptions.includes(movementTheme) ? movementTheme : ""}
-                    onChange={(event) => {
-                      onMovementThemeChange?.(event.target.value);
-                      onCommit?.();
-                    }}
-                    className={cn(
-                      "border-input flex h-10 w-auto max-w-40 rounded-md border bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                      movementThemeFlagged && IMPORT_FLAG_CLASS,
-                    )}
-                  >
-                    <option value="" disabled>
-                      Bewegingsthema
-                    </option>
-                    {themeOptions.map((theme) => (
-                      <option key={theme} value={theme}>
-                        {theme}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <Input
-                  value={groupName}
-                  onChange={(event) => onGroupNameChange?.(event.target.value)}
-                  onBlur={() => onCommit?.()}
-                  placeholder="Groep/klas"
-                  className={cn("h-10 w-auto max-w-36 text-sm", groupNameFlagged && IMPORT_FLAG_CLASS)}
-                />
-                <Input
-                  type="date"
-                  value={activityDate}
-                  onChange={(event) => onActivityDateChange?.(event.target.value)}
-                  onBlur={() => onCommit?.()}
-                  className="h-10 w-auto text-sm"
-                />
-              </div>
-            ) : (
-              groepNiveauSummary && <p className="mt-1 text-sm text-muted-foreground">{groepNiveauSummary}</p>
             )}
           </div>
           {!isEdit && (
@@ -336,23 +296,182 @@ export function ActivityWizardPage({
           )}
         </div>
 
-        {(isEdit || authorName || activityDate || minParticipants !== null || participantsBench !== null) && (
-          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            {(isEdit || authorName) && (
-              <div>
-                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Docent</dt>
-                <dd>{authorName ?? "-"}</dd>
-              </div>
+        {/* Voortgang — direct onder de titel, altijd op dezelfde plek,
+            dikkere/duidelijker gekleurde balk i.p.v. de vorige 1,5px-lijn. */}
+        {isEdit && typeof filledCount === "number" && typeof sectionCount === "number" && (
+          <div className="rounded-lg border bg-card p-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs font-medium text-muted-foreground">
+              <span>
+                {filledCount} van {sectionCount} secties ingevuld
+              </span>
+              {saveStatus && saveStatus !== "idle" && (
+                <span aria-live="polite">{SAVE_STATUS_LABELS[saveStatus]}</span>
+              )}
+            </div>
+            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300 ease-brand"
+                style={{ width: `${(filledCount / sectionCount) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Basisgegevens — leerlijn/thema, groep/klas (vrije klasnaam, bijv.
+          "Klas 2C" — voor eigen overzicht) vs. doelgroep (vaste
+          bibliotheekfilter-categorieën) zijn bewust twee verschillende
+          dingen, geen dubbeling: elk krijgt hier een eigen label + korte
+          uitleg i.p.v. naast elkaar te staan zonder duidelijke relatie. */}
+      <Card className="animate-fade-up" style={{ animationDelay: "20ms" }}>
+        <CardHeader>
+          <CardTitle className="text-base">Basisgegevens</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FieldLabel label="Leerlijn">
+              {isEdit ? (
+                <select
+                  value={learningLine}
+                  onChange={(event) => {
+                    onLearningLineChange?.(event.target.value);
+                    onCommit?.();
+                  }}
+                  className={cn(SELECT_FIELD_CLASS, learningLineFlagged && IMPORT_FLAG_CLASS)}
+                >
+                  <option value="" disabled>
+                    Kies een leerlijn
+                  </option>
+                  {LEARNING_LINE_CATEGORIES.map(({ category: cat, lines }) => (
+                    <optgroup key={cat} label={cat}>
+                      {lines.map((line) => (
+                        <option key={line} value={line}>
+                          {line}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-sm">{learningLine || "-"}</p>
+              )}
+            </FieldLabel>
+
+            {showThemeField && (
+              <FieldLabel label="Bewegingsthema">
+                {isEdit ? (
+                  <select
+                    value={themeOptions.includes(movementTheme) ? movementTheme : ""}
+                    onChange={(event) => {
+                      onMovementThemeChange?.(event.target.value);
+                      onCommit?.();
+                    }}
+                    className={cn(SELECT_FIELD_CLASS, movementThemeFlagged && IMPORT_FLAG_CLASS)}
+                  >
+                    <option value="" disabled>
+                      Kies een bewegingsthema
+                    </option>
+                    {themeOptions.map((theme) => (
+                      <option key={theme} value={theme}>
+                        {theme}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-sm">{movementTheme}</p>
+                )}
+              </FieldLabel>
             )}
-            {!isEdit && activityDate && (
-              <div>
-                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Datum</dt>
-                <dd>{formatDate(activityDate) ?? "-"}</dd>
-              </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FieldLabel label="Groep/klas" hint="De naam zoals jij 'm noemt, voor je eigen overzicht — bijv. 'Klas 2C'.">
+              {isEdit ? (
+                <Input
+                  value={groupName}
+                  onChange={(event) => onGroupNameChange?.(event.target.value)}
+                  onBlur={() => onCommit?.()}
+                  placeholder="Bijv. Klas 2C"
+                  className={cn(groupNameFlagged && IMPORT_FLAG_CLASS)}
+                />
+              ) : (
+                <p className="text-sm">{groupName || "-"}</p>
+              )}
+            </FieldLabel>
+
+            {(isEdit || activityDate) && (
+              <FieldLabel label="Datum">
+                {isEdit ? (
+                  <Input
+                    type="date"
+                    value={activityDate}
+                    onChange={(event) => onActivityDateChange?.(event.target.value)}
+                    onBlur={() => onCommit?.()}
+                  />
+                ) : (
+                  <p className="text-sm">{formatDate(activityDate) ?? "-"}</p>
+                )}
+              </FieldLabel>
             )}
-            {(isEdit || minParticipants !== null) && (
-              <div>
-                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">In het veld</dt>
+          </div>
+
+          {(isEdit || doelgroepLabels.length > 0) && (
+            <FieldLabel
+              label="Doelgroep"
+              hint="Voor welke groepen is deze activiteit geschikt? Bepaalt de filters in de bibliotheek."
+            >
+              <div className="flex flex-wrap gap-1.5">
+                {isEdit
+                  ? DOELGROEP_WAARDEN.map((waarde) => {
+                      const active = doelgroep.includes(waarde);
+                      return (
+                        <button
+                          key={waarde}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => {
+                            onToggleDoelgroep?.(waarde);
+                            onCommit?.();
+                          }}
+                          className={cn(
+                            DOELGROEP_CHIP_CLASS,
+                            active
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input bg-background text-muted-foreground hover:bg-accent",
+                          )}
+                        >
+                          {DOELGROEP_LABELS[waarde]}
+                        </button>
+                      );
+                    })
+                  : doelgroepLabels.map((label) => (
+                      <Badge key={label} variant="secondary">
+                        {label}
+                      </Badge>
+                    ))}
+              </div>
+            </FieldLabel>
+          )}
+
+          {(isEdit || authorName) && (
+            <FieldLabel label="Docent">
+              <p className="text-sm">{authorName ?? "-"}</p>
+            </FieldLabel>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Groepsgrootte — twee losse getalvelden zonder uitleg was niet
+          duidelijk of dit aantal leerlingen, materialen of iets anders
+          betrof; nu met expliciete helptekst per veld. */}
+      {(isEdit || minParticipants !== null || participantsBench !== null) && (
+        <Card className="animate-fade-up" style={{ animationDelay: "30ms" }}>
+          <CardHeader>
+            <CardTitle className="text-base">Groepsgrootte</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <FieldLabel label="In het veld" hint="Aantal leerlingen dat actief meedoet.">
                 {isEdit ? (
                   <Input
                     type="number"
@@ -362,16 +481,12 @@ export function ActivityWizardPage({
                       onMinParticipantsChange?.(event.target.value === "" ? undefined : Number(event.target.value))
                     }
                     onBlur={() => onCommit?.()}
-                    className="mt-0.5 h-10 w-20 text-sm"
                   />
                 ) : (
-                  <dd>{minParticipants ?? "-"}</dd>
+                  <p className="text-sm">{minParticipants ?? "-"}</p>
                 )}
-              </div>
-            )}
-            {(isEdit || participantsBench !== null) && (
-              <div>
-                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Op de bank</dt>
+              </FieldLabel>
+              <FieldLabel label="Op de bank" hint="Aantal leerlingen dat wacht of observeert.">
                 {isEdit ? (
                   <Input
                     type="number"
@@ -381,64 +496,15 @@ export function ActivityWizardPage({
                       onParticipantsBenchChange?.(event.target.value === "" ? undefined : Number(event.target.value))
                     }
                     onBlur={() => onCommit?.()}
-                    className="mt-0.5 h-10 w-20 text-sm"
                   />
                 ) : (
-                  <dd>{participantsBench ?? "-"}</dd>
+                  <p className="text-sm">{participantsBench ?? "-"}</p>
                 )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {(isEdit || doelgroepLabels.length > 0) && (
-          <div className="flex flex-wrap gap-1.5">
-            {isEdit
-              ? DOELGROEP_WAARDEN.map((waarde) => {
-                  const active = doelgroep.includes(waarde);
-                  return (
-                    <button
-                      key={waarde}
-                      type="button"
-                      onClick={() => {
-                        onToggleDoelgroep?.(waarde);
-                        onCommit?.();
-                      }}
-                      className={
-                        active
-                          ? "rounded-full border border-primary bg-primary px-3 py-1.5 text-sm text-primary-foreground"
-                          : "rounded-full border px-3 py-1.5 text-sm text-muted-foreground"
-                      }
-                    >
-                      {DOELGROEP_LABELS[waarde]}
-                    </button>
-                  );
-                })
-              : doelgroepLabels.map((label) => (
-                  <Badge key={label} variant="secondary">
-                    {label}
-                  </Badge>
-                ))}
-          </div>
-        )}
-
-        {isEdit && typeof filledCount === "number" && typeof sectionCount === "number" && (
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-300 ease-brand"
-                style={{ width: `${(filledCount / sectionCount) * 100}%` }}
-              />
+              </FieldLabel>
             </div>
-            {filledCount} van {sectionCount} secties ingevuld
-            {saveStatus && saveStatus !== "idle" && (
-              <span aria-live="polite" className="text-muted-foreground/70">
-                · {SAVE_STATUS_LABELS[saveStatus]}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Plattegrond — vaste kaart, zelfde positie in beide modi: in
           mode="view" de geëxporteerde afbeelding, in mode="edit" de
