@@ -16,7 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { matchDidacticCategory, type LescoachFeedback } from "@/types/ai";
-import type { DidacticItem, GameDimensions } from "@/types/lesson";
+import type { DidacticItem } from "@/types/lesson";
 import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
 
 export type AnalyzeLessonPayload = {
@@ -26,9 +26,6 @@ export type AnalyzeLessonPayload = {
   movementTheme?: string;
   goals?: string;
   didacticItems?: DidacticItem[];
-  gameCategory?: string;
-  gameDimensions?: Partial<GameDimensions>;
-  tacticalQuestions?: string[];
 };
 
 function createId() {

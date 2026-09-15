@@ -3,7 +3,6 @@ import { EyeOff, Sparkles } from "lucide-react";
 
 import { AiLescoachButton } from "@/components/AiLescoachSheet";
 import { EmptyState } from "@/components/empty-state";
-import { GameBasedPedagogyMatrix } from "@/components/GameBasedPedagogyMatrix";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";
@@ -123,9 +122,6 @@ export default async function SharedActivityPage({
     movementTheme: activity.beweegthema ?? undefined,
     goals: activity.doel ?? undefined,
     didacticItems,
-    gameCategory: activity.game_category ?? undefined,
-    gameDimensions: activity.game_dimensions ?? undefined,
-    tacticalQuestions: activity.tactical_questions ?? undefined,
   };
 
   return (
@@ -289,11 +285,6 @@ export default async function SharedActivityPage({
 
           {/* Tab 3: Leerhulp (3 L'en) */}
           <TabsContent value="leerhulp" className="space-y-4">
-            <GameBasedPedagogyMatrix
-              category={activity.game_category}
-              dimensions={activity.game_dimensions}
-              tacticalQuestions={activity.tactical_questions}
-            />
             <DidacticsMatrix items={didacticItems} styleOverrides={LEERHULP_DIDACTIC_STYLE_OVERRIDES} />
           </TabsContent>
         </Tabs>

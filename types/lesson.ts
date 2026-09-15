@@ -91,35 +91,6 @@ export const didacticItemSchema = z.object({
 });
 export type DidacticItem = z.infer<typeof didacticItemSchema>;
 
-// ----------------------------------------------------------------------------
-// Game-Based Pedagogy — Koekoek, Dokman & Walinga
-// ----------------------------------------------------------------------------
-
-export const GAME_CATEGORIES = [
-  "Invasion Games",
-  "Net/Wall Games",
-  "Striking/Fielding Games",
-  "Target Games",
-  "Overig",
-] as const;
-export const gameCategorySchema = z.enum(GAME_CATEGORIES);
-export type GameCategory = z.infer<typeof gameCategorySchema>;
-
-export const gameDimensionsSchema = z.object({
-  space: z.string().trim(),
-  equipment: z.string().trim(),
-  people: z.string().trim(),
-  rules: z.string().trim(),
-});
-export type GameDimensions = z.infer<typeof gameDimensionsSchema>;
-
-export const EMPTY_GAME_DIMENSIONS: GameDimensions = {
-  space: "",
-  equipment: "",
-  people: "",
-  rules: "",
-};
-
 /**
  * Full lesvoorbereiding form: validated identically on the client
  * (react-hook-form + zodResolver) and on the server (createLesson action).
@@ -135,7 +106,11 @@ export const createLessonInputSchema = z.object({
   // over beide brontypes heen.
   doelgroep: z.array(z.number().int()),
   movementProblem: requiredText("Bewegingsprobleem is verplicht."),
-  movementTheme: requiredText("Bewegingsthema is verplicht."),
+  // Niet .min(1): een bewegingsthema bestaat alleen als vaste select
+  // wanneer BEWEGINGSTHEMAS een lijst heeft voor de gekozen leerlijn (zie
+  // lib/constants/learningLines.ts) — anders blijft dit veld leeg en valt
+  // toActivitiesRow() terug op de leerlijn zelf.
+  movementTheme: z.string().trim(),
 
   // Tab 2 — Organisatie & Materialen
   baseMaterials: textList,
@@ -144,16 +119,12 @@ export const createLessonInputSchema = z.object({
   participantsBench: optionalCount,
   rules: textList,
 
-  // Tab 3 — Didactische analyse (de 3 L'en, Walinga & Koekoek 2021) +
-  // Game-Based Pedagogy (Koekoek, Dokman & Walinga)
+  // Tab 3 — Didactische analyse (de 3 L'en, Walinga & Koekoek 2021)
   goals: requiredText("Doelen zijn verplicht."),
   // Kolom bestond al (learning_outcomes, zie het Lesson-type hieronder) maar
   // had nog geen create/edit-UI — die komt er nu bij (zie lesson-form.tsx).
   learningOutcomes: textList,
   didacticItems: z.array(didacticItemSchema),
-  gameCategory: z.string().trim(),
-  gameDimensions: gameDimensionsSchema,
-  tacticalQuestions: textList,
 
   // Tab 4 — Activiteitsvoorbereiding (de 4 kernelementen)
   arrangement: requiredText("Arrangement is verplicht."),
@@ -186,9 +157,6 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   goals: "",
   learningOutcomes: [],
   didacticItems: [],
-  gameCategory: "",
-  gameDimensions: EMPTY_GAME_DIMENSIONS,
-  tacticalQuestions: [],
   arrangement: "",
   deelnemersRegels: "",
   plaatjePraatje: "",
@@ -223,8 +191,13 @@ export type Lesson = {
   // components/canvas/gym-canvas-types.ts's DiagramData.
   diagram_data: unknown | null;
   diagram_image_url: string | null;
+  // Legacy "Game-Based Pedagogy"-velden (spelcategorie/speldimensies) —
+  // niet meer geschreven of getoond sinds de vervanging door de
+  // Basisdocument-gebaseerde bewegingsthema/leerlijn-koppeling (zie
+  // lib/constants/learningLines.ts), maar read-only bewaard voor bestaande
+  // activiteiten die deze data nog hebben.
   game_category: string | null;
-  game_dimensions: GameDimensions | null;
+  game_dimensions: { space: string; equipment: string; people: string; rules: string } | null;
   tactical_questions: string[] | null;
   // Bepaalt of deze les meetelt voor de maandelijkse bijdrage-eis (zie
   // supabase/migrations/lesson_contribution_tracking.sql): alleen publieke,

@@ -68,9 +68,25 @@ export const LEARNING_LINE_CATEGORIES: LearningLineCategory[] = [
   },
 ];
 
-export const isGameDomain = (learningLine: string): boolean => {
-  const gameCategory = LEARNING_LINE_CATEGORIES.find((c) => c.domain === "spel");
-  return gameCategory ? gameCategory.lines.includes(learningLine) : false;
+// Bewegingsthema's — de fijnmazigere onderverdeling BINNEN een leerlijn,
+// zoals het Basisdocument Bewegingsonderwijs (SLO/KVLO) die hanteert. Alleen
+// leerlijnen opnemen die met meerdere onafhankelijke bronnen zijn
+// gecorroboreerd; de rest bewust leeg laten in plaats van te gokken.
+//
+// Bewust GEEN nieuwe leerlijn-namen toevoegen of bestaande hernoemen: zie
+// supabase/migrations/update_learning_lines.sql, waar een eerdere poging om
+// letterlijke Basisdocument-namen ("Hardlopen", "Doelspelen", "Racketspelen
+// / Honk- en loopspelen", ...) als leerlijn te gebruiken is teruggedraaid
+// omdat die "fabricated" bleek — vervangen door de hierboven staande,
+// tegen de echte Kennisbank/activiteiten-data geverifieerde lijst. Deze
+// bewegingsthema-laag bouwt daarom uitsluitend additief voort op die
+// bestaande, geverifieerde leerlijn-namen (als sleutel hieronder) i.p.v. een
+// parallelle, opnieuw onbevestigde taxonomie te introduceren.
+export const BEWEGINGSTHEMAS: Record<string, string[]> = {
+  Balanceren: ["Balanceren", "Rijden", "Glijden", "Acrobatiek"],
+  Zwaaien: ["Schommelen", "Hangend zwaaien", "Steunend zwaaien"],
+  Springen: ["Loopspringen", "Touwtjespringen"],
+  Lopen: ["Sprinten", "Duurlopen", "Hordelopen", "Estafette"],
 };
 
 // Flat convenience list — every valid leerlijn value across all categories.

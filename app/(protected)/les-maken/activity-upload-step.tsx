@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { ActivityImportUploadCard } from "@/components/ActivityImportUploadCard";
 import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
-import { EMPTY_GAME_DIMENSIONS, type CreateLessonFormInput } from "@/types/lesson";
+import type { CreateLessonFormInput } from "@/types/lesson";
 
 // De verplichte tekstvelden van het wizardformulier (zie createLessonInputSchema
 // in types/lesson.ts) waarvoor deze upload-stap daadwerkelijk een waarde
@@ -53,9 +53,6 @@ function mapExtractedActivityToLessonInput(
     participantsBench: extraction.participantsBench ?? undefined,
     rules: extraction.rules ?? [],
     goals: extraction.goals ?? "",
-    gameCategory: extraction.gameCategory ?? "",
-    gameDimensions: extraction.gameDimensions ?? EMPTY_GAME_DIMENSIONS,
-    tacticalQuestions: extraction.tacticalQuestions ?? [],
     arrangement: extraction.arrangement ?? "",
     deelnemersRegels: extraction.deelnemersRegels ?? "",
     plaatjePraatje: extraction.plaatjePraatje ?? "",

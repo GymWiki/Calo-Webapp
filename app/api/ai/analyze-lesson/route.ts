@@ -9,24 +9,16 @@ import {
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
-import { isGameDomain } from "@/lib/constants/learningLines";
+import { BEWEGINGSTHEMAS } from "@/lib/constants/learningLines";
 import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
 import { analyzeLessonInputSchema, lescoachFeedbackSchema } from "@/types/ai";
 
 const SYSTEM_PROMPT =
   "Je bent een strenge maar opbouwende ALO/CALO Stagebegeleider. Analyseer onderstaande " +
   "lesvoorbereiding uitsluitend aan de hand van de meegeleverde vakliteratuur-fragmenten. " +
-  "Controleer of het bewegingsprobleem aansluit bij de leerlijn en of de 3 L'en concrete " +
-  "'Wat zie je?' / 'Wat doe je?' acties bevatten.";
-
-const GAME_DOMAIN_ANALYSIS_INSTRUCTION =
-  "Deze leerlijn valt onder het domein 'Spel': controleer expliciet of er sprake is van " +
-  "een rijke leeromgeving volgens Game-Based Pedagogy — zijn de speldimensies (Space, " +
-  "Equipment, People, Rules) en de tactische reflectievragen concreet en aanwezig?";
-
-const NON_GAME_DOMAIN_ANALYSIS_INSTRUCTION =
-  "Deze leerlijn valt niet onder het spel-domein: Game-Based Pedagogy is hier niet van " +
-  "toepassing, dus beoordeel daar niet op.";
+  "Controleer of het bewegingsprobleem aansluit bij de leerlijn en of het bewegingsthema " +
+  "daadwerkelijk een verfijning van die leerlijn is (Basisdocument Bewegingsonderwijs, " +
+  "SLO/KVLO), en of de 3 L'en concrete 'Wat zie je?' / 'Wat doe je?' acties bevatten.";
 
 const JSON_FORMAT_INSTRUCTION =
   "Antwoord uitsluitend met geldige JSON in dit exacte formaat, zonder extra tekst of " +
@@ -111,22 +103,18 @@ export async function POST(request: Request) {
     }
 
     const lesson = parsed.data;
-    const isGame = isGameDomain(lesson.learningLine ?? "");
 
-    const queryParts = [
-      lesson.title,
-      lesson.learningLine,
-      lesson.movementProblem,
-      lesson.movementTheme,
-      lesson.goals,
-      ...(lesson.didacticItems ?? []).flatMap((item) => [item.observation, item.action]),
-    ].filter(Boolean);
-    if (isGame) {
-      queryParts.push(
-        "Game-Based Pedagogy speldimensies Space Equipment People Rules tactische reflectievragen",
-      );
-    }
-    const query = queryParts.join(". ") || "lesvoorbereiding bewegingsonderwijs";
+    const query =
+      [
+        lesson.title,
+        lesson.learningLine,
+        lesson.movementProblem,
+        lesson.movementTheme,
+        lesson.goals,
+        ...(lesson.didacticItems ?? []).flatMap((item) => [item.observation, item.action]),
+      ]
+        .filter(Boolean)
+        .join(". ") || "lesvoorbereiding bewegingsonderwijs";
 
     let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
     try {
@@ -137,9 +125,14 @@ export async function POST(request: Request) {
       console.error("AI Lescoach: Kennisbank-retrieval mislukt:", cause);
     }
 
-    const domainInstruction = isGame
-      ? GAME_DOMAIN_ANALYSIS_INSTRUCTION
-      : NON_GAME_DOMAIN_ANALYSIS_INSTRUCTION;
+    const learningLine = lesson.learningLine ?? "";
+    const themeOptions = BEWEGINGSTHEMAS[learningLine];
+    const domainInstruction =
+      themeOptions && themeOptions.length > 0
+        ? `Voor de leerlijn "${learningLine}" hoort het bewegingsthema één van deze te zijn: ` +
+          `${themeOptions.join(", ")}. Vlag het als "movementTheme" hier niet bij past.`
+        : "Er is voor deze leerlijn geen vaste bewegingsthema-lijst — beoordeel alleen of het " +
+          "opgegeven bewegingsthema logisch bij de leerlijn aansluit, niet tegen een vaste lijst.";
     const systemPrompt =
       `${SYSTEM_PROMPT}\n\n${domainInstruction}\n\n` +
       `${buildKnowledgePromptSection(matches)}\n\n${JSON_FORMAT_INSTRUCTION}`;

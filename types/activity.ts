@@ -81,6 +81,32 @@ export const DOELGROEP_LABELS: Record<number, string> = {
 
 export const DOELGROEP_WAARDEN = [1, 2, 3, 4, 5, 6] as const;
 
+// Onderbouw (5) dekt dezelfde leeftijdsgroep als Groep 1/2 + Groep 3/4 (1, 2);
+// Bovenbouw (6) dekt Groep 5/6 + Groep 7/8 (3, 4) — dezelfde twee-bouwen-
+// indeling die DOELGROEP_LABELS zelf al hanteert. Voorkomt dat één
+// activiteit tegenstrijdig zowel "Onderbouw" als "Groep 3/4" krijgt: het
+// kiezen van de ene kant sluit de overlappende kant van de andere uit.
+const ONDERBOUW_GROEPEN = [1, 2];
+const BOVENBOUW_GROEPEN = [3, 4];
+
+export function applyDoelgroepToggle(current: number[], waarde: number): number[] {
+  if (current.includes(waarde)) {
+    return current.filter((code) => code !== waarde);
+  }
+
+  let next = [...current, waarde];
+  if (waarde === 5) {
+    next = next.filter((code) => !ONDERBOUW_GROEPEN.includes(code));
+  } else if (waarde === 6) {
+    next = next.filter((code) => !BOVENBOUW_GROEPEN.includes(code));
+  } else if (ONDERBOUW_GROEPEN.includes(waarde)) {
+    next = next.filter((code) => code !== 5);
+  } else if (BOVENBOUW_GROEPEN.includes(waarde)) {
+    next = next.filter((code) => code !== 6);
+  }
+  return next;
+}
+
 export const CATEGORIE_WAARDEN = [
   "Atletiek",
   "Spel",

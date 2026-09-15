@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
+import { BEWEGINGSTHEMAS, ALL_LEARNING_LINES } from "@/lib/constants/learningLines";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN } from "@/types/activity";
-import { DIDACTIC_CATEGORIES, DIDACTIC_SUBTHEMES, GAME_CATEGORIES } from "@/types/lesson";
+import { DIDACTIC_CATEGORIES, DIDACTIC_SUBTHEMES } from "@/types/lesson";
 
 // De doelvelden zijn nu een (bijna) 1-op-1 spiegel van CreateLessonFormInput
 // (types/lesson.ts) — vóór deze herziening had ExtractedActivity maar ~10
@@ -11,15 +12,8 @@ import { DIDACTIC_CATEGORIES, DIDACTIC_SUBTHEMES, GAME_CATEGORIES } from "@/type
 // structurele gat was de daadwerkelijke oorzaak van "het document bevat dit
 // wel, maar het veld blijft leeg": de AI had voor groupName, movementTheme,
 // ruleMaterials, minParticipants/participantsBench, aandachtspunten,
-// didacticItems, gameCategory/gameDimensions/tacticalQuestions letterlijk
-// geen plek om iets in te zetten, ongeacht hoe goed de brontekst was.
-const gameDimensionsExtractionSchema = z.object({
-  space: z.string().trim().nullable(),
-  equipment: z.string().trim().nullable(),
-  people: z.string().trim().nullable(),
-  rules: z.string().trim().nullable(),
-});
-
+// didacticItems letterlijk geen plek om iets in te zetten, ongeacht hoe goed
+// de brontekst was.
 const didacticItemExtractionSchema = z.object({
   category: z.enum(DIDACTIC_CATEGORIES),
   subTheme: z.string().trim().nullable(),
@@ -41,9 +35,6 @@ const rawExtractionSchema = z.object({
   participantsBench: z.number().int().nullable(),
   rules: z.array(z.string().trim()).nullable(),
   goals: z.string().trim().nullable(),
-  gameCategory: z.string().trim().nullable(),
-  gameDimensions: gameDimensionsExtractionSchema.nullable(),
-  tacticalQuestions: z.array(z.string().trim()).nullable(),
   arrangement: z.string().trim().nullable(),
   deelnemersRegels: z.string().trim().nullable(),
   plaatjePraatje: z.string().trim().nullable(),
@@ -65,9 +56,6 @@ export type ExtractedActivity = {
   participantsBench: number | null;
   rules: string[] | null;
   goals: string | null;
-  gameCategory: (typeof GAME_CATEGORIES)[number] | null;
-  gameDimensions: { space: string; equipment: string; people: string; rules: string } | null;
-  tacticalQuestions: string[] | null;
   arrangement: string | null;
   deelnemersRegels: string | null;
   plaatjePraatje: string | null;
@@ -95,19 +83,20 @@ const FIELD_DESCRIPTIONS = `
 Vul dit exacte veldenschema in — gebruik voor ELK veld null (of [] voor lijsten) als het écht niet in het document staat, maar laat NOOIT een key weg uit je JSON-antwoord:
 - "title": titel van de activiteit — een korte, herkenbare naam.
 - "groupName": groep/klas in vrije tekst zoals in het document genoemd, bijv. "Groep 7/8" of "Klas 2 VMBO".
-- "learningLine": de leerlijn/het vakgebied (bijv. Doelspelen, Turnen, Atletiek, Vechtspelen, Bewegen op muziek) — vrije tekst, zo dicht mogelijk bij wat het document zelf noemt.
+- "learningLine": de leerlijn/het vakgebied. Kies bij voorkeur EXACT één van de bestaande leerlijnen die GymWiki al gebruikt: ${ALL_LEARNING_LINES.join(", ")}. Staat er in het document een vergelijkbare maar net anders geformuleerde naam (bijv. "Hardlopen" i.p.v. "Lopen", "Vechtspelen" i.p.v. "Stoeispelen"/"Trefspelen"), kies dan de dichtstbijzijnde uit deze lijst in plaats van de letterlijke documenttekst over te nemen — verzin nooit een leerlijn die niet in deze lijst staat.
 - "doelgroep": array met codes uit ${DOELGROEP_WAARDEN.map((code) => `${code}=${DOELGROEP_LABELS[code]}`).join(", ")} — alleen invullen als het document dit ondubbelzinnig aangeeft.
 - "movementProblem": het bewegingsprobleem/de kernvraag die leerlingen moeten oplossen.
-- "movementTheme": het overkoepelende bewegingsthema van de les.
+- "movementTheme": het bewegingsthema van de les — een verfijning BINNEN de gekozen "learningLine", geen los begrip ernaast. Sommige leerlijnen hebben een vaste thema-lijst: ${Object.entries(
+  BEWEGINGSTHEMAS,
+)
+  .map(([line, themes]) => `${line} -> ${themes.join("/")}`)
+  .join("; ")}. Valt "learningLine" onder een leerlijn met zo'n lijst, kies dan exact één daaruit. Anders: zet "movementTheme" gelijk aan "learningLine", of een korte, specifieke variant die duidelijk BIJ die leerlijn hoort — verzin geen nieuwe, losstaande themanaam.
 - "baseMaterials": array met basismateriaal (bijv. "8 kleine doeltjes", "4 ballen") — doorzoek het HELE document hiervoor, dit staat soms verspreid over een inleiding én een aparte materialenlijst; combineer alles wat je vindt in één lijst zonder dubbele items.
 - "ruleMaterials": materiaal specifiek voor afbakening/regelhandhaving (bijv. pionnen voor een middengebied) — laat leeg ([]) als het document geen apart onderscheid met basismateriaal maakt.
 - "minParticipants": aantal leerlingen dat tegelijk actief meedoet (getal, of null).
 - "participantsBench": aantal wisselspelers/leerlingen op de bank (getal, of null).
 - "rules": array met spelregels.
 - "goals": motorische en/of sociale leerdoelen, als lopende tekst.
-- "gameCategory": ALLEEN bij een duidelijk spelgebaseerde activiteit, exact één van: ${GAME_CATEGORIES.join(", ")} — anders null.
-- "gameDimensions": ALLEEN bij een spelgebaseerde activiteit, object {"space", "equipment", "people", "rules"} — korte omschrijving van resp. de ruimte, het materiaal, de aantallen en de regels van het spel (Game-Based Pedagogy); anders null.
-- "tacticalQuestions": array met 2-3 tactische reflectievragen voor leerlingen, ALLEEN als deze expliciet in het document staan.
 - "arrangement": de fysieke opstelling/het speelveld.
 - "deelnemersRegels": rolverdeling, teamindeling, wisselregels — let op: dit is vaak uitgebreidere, beschrijvende tekst en niet hetzelfde als de losse "rules"-lijst hierboven.
 - "plaatjePraatje": hoe de instructie visueel getoond en mondeling uitgelegd wordt, wisselafspraken.
@@ -121,7 +110,7 @@ Vul dit exacte veldenschema in — gebruik voor ELK veld null (of [] voor lijste
 const FEW_SHOT_EXAMPLES: Array<{ user: string; assistant: Record<string, unknown> }> = [
   {
     user:
-      "Chaosdoelenspel\n\nGroep 7/8. Leerlijn: Doelspelen.\n" +
+      "Chaosdoelenspel\n\nGroep 7/8. Leerlijn: Doelspelen (aanvallen/verdedigen op meerdere doelen).\n" +
       "Bewegingsprobleem: overzicht houden en kiezen tussen aanvallen en verdedigen in wisselende spelsituaties.\n" +
       "Bewegingsthema: doelen maken en verdedigen in chaos.\n\n" +
       "Inleiding: we spelen op een veld van 20x20m met 8 kleine doeltjes verspreid over het veld, in twee kleurgroepen " +
@@ -138,7 +127,11 @@ const FEW_SHOT_EXAMPLES: Array<{ user: string; assistant: Record<string, unknown
       isMovementActivity: true,
       title: "Chaosdoelenspel",
       groupName: "Groep 7/8",
-      learningLine: "Doelspelen",
+      // Document noemt "Doelspelen", maar dat staat niet in GymWiki's eigen
+      // leerlijnlijst — "Passeren en onderscheppen" (Spel) is de
+      // dichtstbijzijnde bestaande leerlijn voor dit aanvallen/verdedigen-op-
+      // meerdere-doelen-spel.
+      learningLine: "Passeren en onderscheppen",
       doelgroep: [4],
       movementProblem:
         "Overzicht houden en kiezen tussen aanvallen en verdedigen in wisselende spelsituaties",
@@ -150,14 +143,6 @@ const FEW_SHOT_EXAMPLES: Array<{ user: string; assistant: Record<string, unknown
       rules: ["Elk doelpunt telt 1 punt", "Niet hard op de keeper schieten"],
       goals:
         "Motorisch: leerlingen kunnen doelpogingen op meerdere doelen afwisselen. Sociaal: leerlingen spelen samen zonder ruzie over de telling.",
-      gameCategory: "Target Games",
-      gameDimensions: {
-        space: "Veld van 20x20m met 8 kleine doeltjes verspreid over het veld",
-        equipment: "4 ballen, 8 kleine doeltjes, hesjes in 2 kleuren",
-        people: "Twee teams van 4-6 spelers",
-        rules: "Elk doelpunt telt 1 punt, niet hard op de keeper schieten",
-      },
-      tacticalQuestions: [],
       arrangement:
         "Speelveld van ongeveer 20x20m met 8 kleine doeltjes verspreid over het veld, in twee kleurgroepen (4 rood, 4 blauw).",
       deelnemersRegels:
@@ -192,9 +177,6 @@ const FEW_SHOT_EXAMPLES: Array<{ user: string; assistant: Record<string, unknown
       participantsBench: null,
       rules: ["Getikte spelers zitten tot een medespeler ze bevrijdt"],
       goals: null,
-      gameCategory: null,
-      gameDimensions: null,
-      tacticalQuestions: [],
       arrangement: null,
       deelnemersRegels: "2 tikkers tikken de rest van de groep.",
       plaatjePraatje: null,
@@ -281,20 +263,6 @@ export async function extractActivityFromText(
     (DOELGROEP_WAARDEN as readonly number[]).includes(code),
   );
 
-  const gameCategory =
-    parsed.gameCategory && (GAME_CATEGORIES as readonly string[]).includes(parsed.gameCategory)
-      ? (parsed.gameCategory as (typeof GAME_CATEGORIES)[number])
-      : null;
-
-  const gameDimensions = parsed.gameDimensions
-    ? {
-        space: parsed.gameDimensions.space ?? "",
-        equipment: parsed.gameDimensions.equipment ?? "",
-        people: parsed.gameDimensions.people ?? "",
-        rules: parsed.gameDimensions.rules ?? "",
-      }
-    : null;
-
   const didacticItems = (parsed.didacticItems ?? [])
     .filter((item) => item.observation && item.action)
     .map((item) => ({
@@ -322,10 +290,6 @@ export async function extractActivityFromText(
       participantsBench: parsed.participantsBench ?? null,
       rules: parsed.rules && parsed.rules.length > 0 ? parsed.rules : null,
       goals: parsed.goals || null,
-      gameCategory,
-      gameDimensions,
-      tacticalQuestions:
-        parsed.tacticalQuestions && parsed.tacticalQuestions.length > 0 ? parsed.tacticalQuestions : null,
       arrangement: parsed.arrangement || null,
       deelnemersRegels: parsed.deelnemersRegels || null,
       plaatjePraatje: parsed.plaatjePraatje || null,

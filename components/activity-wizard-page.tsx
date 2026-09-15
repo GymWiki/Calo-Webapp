@@ -8,7 +8,6 @@ import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { DidacticsForm } from "@/components/DidacticsForm";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { EditableList } from "@/components/editable-list";
-import { GameBasedPedagogyMatrix } from "@/components/GameBasedPedagogyMatrix";
 import { InlineEditText } from "@/components/inline-edit-text";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { SourceBadge } from "@/components/library-item-card";
@@ -20,16 +19,13 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
-import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
+import { BEWEGINGSTHEMAS, LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
-import { GAME_CATEGORIES, type DidacticItem, type GameDimensions } from "@/types/lesson";
+import type { DidacticItem } from "@/types/lesson";
 import { DiagramEditorCard } from "@/app/(protected)/les-maken/diagram-editor-card";
-
-const SELECT_CLASS =
-  "border-input flex h-9 w-auto rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
 
 const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
 
@@ -48,13 +44,6 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
     </h3>
   );
 }
-
-const GAME_DIMENSION_FIELDS = [
-  ["space", "Ruimte (Space)", "Bijv. Half veld, drie zones"],
-  ["equipment", "Materiaal (Equipment)", "Bijv. Grote, zachte bal"],
-  ["people", "Aantallen (People)", "Bijv. 3 tegen 2"],
-  ["rules", "Regels (Rules)", "Bijv. Alleen onderhands passen"],
-] as const;
 
 // Één component, twee modi: `mode="view"` is de read-only
 // activiteit-detailweergave voor wizard-activiteiten, `mode="edit"` is
@@ -124,12 +113,6 @@ export function ActivityWizardPage({
   diagramImageUrl,
   onDiagramExport,
 
-  gameCategory,
-  onGameCategoryChange,
-  gameDimensions,
-  onGameDimensionsChange,
-  tacticalQuestions,
-  onTacticalQuestionsChange,
   didacticItems,
   onDidacticItemsChange,
 
@@ -201,12 +184,6 @@ export function ActivityWizardPage({
   diagramImageUrl: string | null;
   onDiagramExport?: (data: DiagramData, imageDataUrl: string) => void;
 
-  gameCategory: string;
-  onGameCategoryChange?: (value: string) => void;
-  gameDimensions: GameDimensions;
-  onGameDimensionsChange?: (dimensions: GameDimensions) => void;
-  tacticalQuestions: string[];
-  onTacticalQuestionsChange?: (items: string[]) => void;
   didacticItems: DidacticItem[];
   onDidacticItemsChange?: (items: DidacticItem[]) => void;
 
@@ -220,6 +197,12 @@ export function ActivityWizardPage({
   sectionCount?: number;
 }) {
   const isEdit = mode === "edit";
+  // Bewegingsthema is een verfijning BINNEN de gekozen leerlijn (zie
+  // lib/constants/learningLines.ts) — alleen tonen als een select wanneer er
+  // voor deze leerlijn een gecorroboreerde thema-lijst bestaat; anders is er
+  // geen apart, los invulbaar tekstveld meer (dat was precies het probleem
+  // met het oude model) en valt de weergave terug op de leerlijn zelf.
+  const themeOptions = BEWEGINGSTHEMAS[learningLine] ?? [];
   const doelgroepLabels = doelgroep.map((waarde) => DOELGROEP_LABELS[waarde]).filter(Boolean);
   const groepNiveauSummary = [movementTheme, doelgroepLabels.length > 0 ? doelgroepLabels.join(", ") : null]
     .filter(Boolean)
@@ -292,13 +275,28 @@ export function ActivityWizardPage({
 
             {isEdit ? (
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Input
-                  value={movementTheme}
-                  onChange={(event) => onMovementThemeChange?.(event.target.value)}
-                  onBlur={() => onCommit?.()}
-                  placeholder="Bewegingsthema"
-                  className={cn("h-8 w-auto max-w-40 text-sm", movementThemeFlagged && IMPORT_FLAG_CLASS)}
-                />
+                {themeOptions.length > 0 && (
+                  <select
+                    value={themeOptions.includes(movementTheme) ? movementTheme : ""}
+                    onChange={(event) => {
+                      onMovementThemeChange?.(event.target.value);
+                      onCommit?.();
+                    }}
+                    className={cn(
+                      "border-input flex h-8 w-auto max-w-40 rounded-md border bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                      movementThemeFlagged && IMPORT_FLAG_CLASS,
+                    )}
+                  >
+                    <option value="" disabled>
+                      Bewegingsthema
+                    </option>
+                    {themeOptions.map((theme) => (
+                      <option key={theme} value={theme}>
+                        {theme}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <Input
                   value={groupName}
                   onChange={(event) => onGroupNameChange?.(event.target.value)}
@@ -705,77 +703,10 @@ export function ActivityWizardPage({
           </Card>
         </TabsContent>
 
-        {/* Tab 3: Leerhulp — Game-Based Pedagogy + de didactische 3L's-analyse,
-            in dezelfde blauw/groen/rood-identiteit als de
-            eenvoudige-activiteit-Leerhulp-kaarten (zie
-            lib/constants/leerhulpColors.ts). */}
+        {/* Tab 3: Leerhulp — de didactische 3L's-analyse, in dezelfde
+            blauw/groen/rood-identiteit als de eenvoudige-activiteit-
+            Leerhulp-kaarten (zie lib/constants/leerhulpColors.ts). */}
         <TabsContent value="leerhulp" className="space-y-4">
-          {isEdit ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Game-Based Pedagogy</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h3 className="mb-1.5 text-sm font-medium">Spelcategorie</h3>
-                  <select
-                    value={gameCategory}
-                    onChange={(event) => {
-                      onGameCategoryChange?.(event.target.value);
-                      onCommit?.();
-                    }}
-                    className={SELECT_CLASS}
-                  >
-                    <option value="">Kies een spelcategorie</option>
-                    {GAME_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <h3 className="mb-2 text-sm font-medium">Speldimensies</h3>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {GAME_DIMENSION_FIELDS.map(([key, label, placeholder]) => (
-                      <div key={key} className="rounded-lg border p-2.5">
-                        <p className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                          {label}
-                        </p>
-                        <Input
-                          value={gameDimensions[key]}
-                          onChange={(event) =>
-                            onGameDimensionsChange?.({ ...gameDimensions, [key]: event.target.value })
-                          }
-                          onBlur={() => onCommit?.()}
-                          placeholder={placeholder}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h3 className="mb-1.5 text-sm font-medium">Tactische reflectievragen</h3>
-                  <EditableList
-                    items={tacticalQuestions}
-                    onChange={(items) => onTacticalQuestionsChange?.(items)}
-                    onCommit={onCommit}
-                    itemPlaceholder="Bijv. Wanneer kies je voor een korte in plaats van lange pass?"
-                    addLabel="Voeg vraag toe"
-                    emptyHint="Nog geen tactische reflectievragen."
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <GameBasedPedagogyMatrix
-              category={gameCategory || null}
-              dimensions={gameDimensions}
-              tacticalQuestions={tacticalQuestions}
-            />
-          )}
-
           {isEdit ? (
             <DidacticsForm
               items={didacticItems}

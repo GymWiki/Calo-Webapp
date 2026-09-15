@@ -25,7 +25,16 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
     leerlijn: values.learningLine,
     doelgroep: values.doelgroep,
     movement_problem: values.movementProblem,
-    beweegthema: values.movementTheme,
+    // Bewegingsthema is een verfijning binnen de leerlijn (zie
+    // lib/constants/learningLines.ts) — valt terug op de leerlijn zelf
+    // wanneer er voor die leerlijn geen thema-select is (dus geen los,
+    // onafhankelijk vrij tekstveld meer). Geen game_category/game_dimensions/
+    // tactical_questions meer: dat Engelstalige "Game-Based Pedagogy"-model
+    // is vervangen door deze leerlijn/bewegingsthema-koppeling. De kolommen
+    // zelf blijven ongewijzigd staan (niet in dit object opgenomen = niet
+    // overschreven bij een update) zodat bestaande activiteiten hun oude
+    // data read-only behouden.
+    beweegthema: values.movementTheme || values.learningLine,
     base_materials: values.baseMaterials,
     rule_materials: values.ruleMaterials,
     min_participants: values.minParticipants ? Number(values.minParticipants) : null,
@@ -34,9 +43,6 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
     doel: values.goals,
     learning_outcomes: values.learningOutcomes,
     didactic_items: values.didacticItems,
-    game_category: values.gameCategory || null,
-    game_dimensions: values.gameDimensions,
-    tactical_questions: values.tacticalQuestions,
     arrangement: values.arrangement,
     deelnemers_regels: values.deelnemersRegels,
     plaatje_praatje: values.plaatjePraatje,

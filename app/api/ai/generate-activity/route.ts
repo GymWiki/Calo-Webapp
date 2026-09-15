@@ -9,7 +9,7 @@ import {
 import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
-import { isGameDomain } from "@/lib/constants/learningLines";
+import { BEWEGINGSTHEMAS } from "@/lib/constants/learningLines";
 import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
 import {
   generateActivityInputSchema,
@@ -19,20 +19,29 @@ import {
 import type { DidacticItem } from "@/types/lesson";
 
 const SYSTEM_PROMPT_BASE =
-  "Je bent een ervaren ontwerper van lesvoorbereidingen bewegingsonderwijs, gespecialiseerd " +
-  "in Game-Based Pedagogy (Koekoek, Dokman & Walinga) en het Basisdocument Bewegingsonderwijs. " +
+  "Je bent een ervaren ontwerper van lesvoorbereidingen bewegingsonderwijs, werkend volgens " +
+  "de Nederlandse bewegingsonderwijs-praktijk (Basisdocument Bewegingsonderwijs, SLO/KVLO). " +
   "Genereer een kant-en-klare, direct bruikbare lesvoorbereiding op basis van de gevraagde " +
   "leerlijn en doelgroep, gebaseerd op de meegeleverde vakliteratuur-fragmenten.";
 
-const GAME_DOMAIN_INSTRUCTION =
-  "Deze leerlijn valt onder het domein 'Spel': baseer de Game-Based Pedagogy-dimensies " +
-  "(gameDimensions: Space, Equipment, People, Rules) en de tactische reflectievragen " +
-  "expliciet op de meegeleverde Game-Based Pedagogy-richtlijnen uit de Kennisbank.";
-
-const NON_GAME_DOMAIN_INSTRUCTION =
-  "Deze leerlijn valt niet onder het spel-domein: Game-Based Pedagogy is hier niet van " +
-  "toepassing. Laat gameCategory, gameDimensions en tacticalQuestions leeg (lege " +
-  "strings/lege array) in plaats van iets te verzinnen.";
+// `movementTheme` is een verfijning BINNEN de gekozen leerlijn, geen los
+// begrip ernaast — zie lib/constants/learningLines.ts (BEWEGINGSTHEMAS).
+function buildMovementThemeInstruction(learningLine: string): string {
+  const themeOptions = BEWEGINGSTHEMAS[learningLine];
+  if (themeOptions && themeOptions.length > 0) {
+    return (
+      `Voor de leerlijn "${learningLine}" is "movementTheme" een van deze bewegingsthema's: ` +
+      `${themeOptions.join(", ")}. Kies er exact één, verzin geen andere.`
+    );
+  }
+  return (
+    `Voor de leerlijn "${learningLine}" bestaat geen vaste bewegingsthema-lijst: zet ` +
+    '"movementTheme" gelijk aan de leerlijn zelf ("' +
+    learningLine +
+    '"), of een korte, specifieke variant daarvan — verzin geen nieuwe leerlijn- of ' +
+    "themanaam die niet uit de opgegeven leerlijn zelf volgt."
+  );
+}
 
 const JSON_FORMAT_INSTRUCTION =
   "Antwoord uitsluitend met geldige JSON in dit exacte formaat, zonder extra tekst of " +
@@ -42,9 +51,7 @@ const JSON_FORMAT_INSTRUCTION =
   '"doelgroep": number[] (leid dit af uit de opgegeven doelgroep — kies 1 of meer codes ' +
   "uit deze lijst die het beste passen: 1 = Groep 1/2, 2 = Groep 3/4, 3 = Groep 5/6, " +
   "4 = Groep 7/8, 5 = Onderbouw, 6 = Bovenbouw), " +
-  '"goals": string, "gameCategory": string, ' +
-  '"gameDimensions": {"space": string, "equipment": string, "people": string, "rules": string}, ' +
-  '"tacticalQuestions": string[] (2 tot 3 tactische reflectievragen), ' +
+  '"goals": string, ' +
   '"didacticItems": [{"category": "loopt_het" | "lukt_het" | "leeft_het", ' +
   '"subTheme": string of null, "observation": string ("Wat zie je?"), ' +
   '"action": string ("Wat doe je?")}] (minimaal 1 item per categorie), ' +
@@ -169,15 +176,7 @@ export async function POST(request: Request) {
     }
 
     const input = parsed.data;
-    const isGame = isGameDomain(input.learningLine);
-
-    const queryParts = [input.learningLine, input.targetGroup];
-    if (isGame) {
-      queryParts.push(
-        "Game-Based Pedagogy speldimensies Space Equipment People Rules tactische reflectievragen",
-      );
-    }
-    const query = queryParts.join(". ");
+    const query = [input.learningLine, input.targetGroup].join(". ");
 
     let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
     try {
@@ -189,7 +188,7 @@ export async function POST(request: Request) {
       console.error("AI Activiteiten Generator: Kennisbank-retrieval mislukt:", cause);
     }
 
-    const domainInstruction = isGame ? GAME_DOMAIN_INSTRUCTION : NON_GAME_DOMAIN_INSTRUCTION;
+    const domainInstruction = buildMovementThemeInstruction(input.learningLine);
     // Statische instructies eerst, de per-aanroep opgehaalde Kennisbank-
     // fragmenten laatst: OpenAI cachet automatisch een identiek prompt-
     // prefix tussen aanroepen (geen aparte cache-API nodig, in tegenstelling

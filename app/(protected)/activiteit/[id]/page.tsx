@@ -26,7 +26,7 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { DOELGROEP_LABELS, type Activity } from "@/types/activity";
-import { EMPTY_GAME_DIMENSIONS, type DidacticItem } from "@/types/lesson";
+import type { DidacticItem } from "@/types/lesson";
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -237,9 +237,6 @@ export default async function ActiviteitDetailPage({
       movementTheme: activity.beweegthema ?? undefined,
       goals: activity.doel ?? undefined,
       didacticItems,
-      gameCategory: activity.game_category ?? undefined,
-      gameDimensions: activity.game_dimensions ?? undefined,
-      tacticalQuestions: activity.tactical_questions ?? undefined,
     };
 
     return (
@@ -269,9 +266,6 @@ export default async function ActiviteitDetailPage({
           baseMaterials={activity.base_materials ?? []}
           ruleMaterials={activity.rule_materials ?? []}
           diagramImageUrl={activity.diagram_image_url}
-          gameCategory={activity.game_category ?? ""}
-          gameDimensions={activity.game_dimensions ?? EMPTY_GAME_DIMENSIONS}
-          tacticalQuestions={activity.tactical_questions ?? []}
           didacticItems={didacticItems}
           analyzePayload={analyzePayload}
         />

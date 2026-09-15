@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-import {
-  didacticItemSchema,
-  gameDimensionsSchema,
-  type DidacticItem,
-} from "@/types/lesson";
+import { didacticItemSchema, type DidacticItem } from "@/types/lesson";
 
 // ----------------------------------------------------------------------------
 // AI Lescoach — POST /api/ai/analyze-lesson
@@ -19,9 +15,6 @@ export const analyzeLessonInputSchema = z.object({
   movementTheme: z.string().trim().optional(),
   goals: z.string().trim().optional(),
   didacticItems: z.array(didacticItemSchema).optional(),
-  gameCategory: z.string().trim().optional(),
-  gameDimensions: gameDimensionsSchema.partial().optional(),
-  tacticalQuestions: z.array(z.string()).optional(),
 });
 export type AnalyzeLessonInput = z.infer<typeof analyzeLessonInputSchema>;
 
@@ -56,8 +49,6 @@ export function matchDidacticCategory(
 // AI Activiteiten Generator — POST /api/ai/generate-activity
 // ----------------------------------------------------------------------------
 
-// No user-facing spelcategorie field — the server derives whether
-// Game-Based Pedagogy applies from `learningLine` via isGameDomain().
 export const generateActivityInputSchema = z.object({
   learningLine: z.string().trim().min(1, "Kies een leerlijn."),
   targetGroup: z.string().trim().min(1, "Vul een doelgroep in."),
@@ -74,9 +65,6 @@ export const generatedLessonSchema = z.object({
   groupName: z.string().optional().default(""),
   doelgroep: z.array(z.number().int()).optional().default([]),
   goals: z.string(),
-  gameCategory: z.string().optional().default(""),
-  gameDimensions: gameDimensionsSchema.partial().optional(),
-  tacticalQuestions: z.array(z.string()).optional().default([]),
   didacticItems: z.array(didacticItemSchema.omit({ id: true })).optional().default([]),
   baseMaterials: z.array(z.string()).optional().default([]),
   ruleMaterials: z.array(z.string()).optional().default([]),

@@ -7,11 +7,7 @@ import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
 import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
-import {
-  EMPTY_GAME_DIMENSIONS,
-  type CreateLessonFormInput,
-  type DidacticItem,
-} from "@/types/lesson";
+import type { CreateLessonFormInput, DidacticItem } from "@/types/lesson";
 import { LesMakenFlow } from "./lesson-flow";
 
 // Ruimere functie-timeout voor de server-acties die deze pagina aanroept —
@@ -74,9 +70,6 @@ function mapWizardActivityToLessonInput(activity: Activity): Partial<CreateLesso
     goals: activity.doel ?? "",
     learningOutcomes: activity.learning_outcomes ?? [],
     didacticItems: (activity.didactic_items ?? []) as DidacticItem[],
-    gameCategory: activity.game_category ?? "",
-    gameDimensions: activity.game_dimensions ?? EMPTY_GAME_DIMENSIONS,
-    tacticalQuestions: activity.tactical_questions ?? [],
     arrangement: activity.arrangement ?? "",
     deelnemersRegels: activity.deelnemers_regels ?? "",
     plaatjePraatje: activity.plaatje_praatje ?? "",

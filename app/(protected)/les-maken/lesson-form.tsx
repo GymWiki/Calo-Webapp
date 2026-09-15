@@ -10,6 +10,8 @@ import { createLesson, saveLessonDraft } from "@/actions/lesson";
 import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
 import { Form } from "@/components/ui/form";
+import { BEWEGINGSTHEMAS } from "@/lib/constants/learningLines";
+import { applyDoelgroepToggle } from "@/types/activity";
 import {
   AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
   AI_GENERATED_LESSON_STORAGE_KEY,
@@ -17,7 +19,6 @@ import {
 } from "@/types/ai";
 import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
 import {
-  EMPTY_GAME_DIMENSIONS,
   createLessonDefaultValues,
   createLessonInputSchema,
   type CreateLessonFormInput,
@@ -105,9 +106,6 @@ export function LessonForm({
   const [didacticItems, setDidacticItems] = useState<DidacticItem[]>(
     stashedGenerated?.didacticItems ?? initialValues?.didacticItems ?? [],
   );
-  const [tacticalQuestions, setTacticalQuestions] = useState<string[]>(
-    stashedGenerated?.tacticalQuestions ?? initialValues?.tacticalQuestions ?? [],
-  );
   const [diagram, setDiagram] = useState<{
     data: DiagramData;
     imageDataUrl: string;
@@ -132,11 +130,6 @@ export function LessonForm({
             groupName: stashedGenerated.groupName || "",
             doelgroep: stashedGenerated.doelgroep ?? [],
             goals: stashedGenerated.goals,
-            gameCategory: stashedGenerated.gameCategory || "",
-            gameDimensions: {
-              ...EMPTY_GAME_DIMENSIONS,
-              ...stashedGenerated.gameDimensions,
-            },
             arrangement: stashedGenerated.arrangement || "",
             deelnemersRegels: stashedGenerated.deelnemersRegels || "",
             plaatjePraatje: stashedGenerated.plaatjePraatje || "",
@@ -164,13 +157,7 @@ export function LessonForm({
   }, []);
 
   function toggleDoelgroep(waarde: number) {
-    const current = form.getValues("doelgroep");
-    form.setValue(
-      "doelgroep",
-      current.includes(waarde)
-        ? current.filter((v) => v !== waarde)
-        : [...current, waarde],
-    );
+    form.setValue("doelgroep", applyDoelgroepToggle(form.getValues("doelgroep"), waarde));
   }
 
   // Auto-save: slaat de huidige stand van het formulier op als concept
@@ -190,7 +177,6 @@ export function LessonForm({
         rules,
         learningOutcomes,
         didacticItems,
-        tacticalQuestions,
       };
       const result = await saveLessonDraft(
         payload,
@@ -216,7 +202,6 @@ export function LessonForm({
       rules,
       learningOutcomes,
       didacticItems,
-      tacticalQuestions,
     };
 
     // Herkomst is bepaald bij het openen van dit formulier (stashedGenerated
@@ -252,8 +237,6 @@ export function LessonForm({
   const deelnemersRegels = form.watch("deelnemersRegels");
   const plaatjePraatje = form.watch("plaatjePraatje");
   const aandachtspunten = form.watch("aandachtspunten");
-  const gameCategory = form.watch("gameCategory");
-  const gameDimensions = form.watch("gameDimensions");
 
   const sectionsComplete = {
     doel: goals.trim().length > 0,
@@ -264,7 +247,7 @@ export function LessonForm({
       plaatjePraatje.trim().length > 0 ||
       aandachtspunten.trim().length > 0,
     materiaal: arrangement.trim().length > 0 || baseMaterials.length > 0 || ruleMaterials.length > 0,
-    leerhulp: didacticItems.length > 0 || gameCategory.trim().length > 0,
+    leerhulp: didacticItems.length > 0,
   };
   const filledCount =
     (title.trim().length > 0 ? 1 : 0) +
@@ -286,7 +269,16 @@ export function LessonForm({
           onTitleChange={(value) => form.setValue("title", value)}
           titleFlagged={flaggedEmptyFields?.has("title") && !title}
           learningLine={learningLine}
-          onLearningLineChange={(value) => form.setValue("learningLine", value)}
+          onLearningLineChange={(value) => {
+            form.setValue("learningLine", value);
+            // Bewegingsthema hoort BIJ de leerlijn (zie BEWEGINGSTHEMAS) — bij
+            // een nieuwe leerlijn een thema uit de vorige leerlijn laten staan
+            // zou de twee weer los van elkaar laten drijven.
+            const themeOptions = BEWEGINGSTHEMAS[value] ?? [];
+            if (!themeOptions.includes(movementTheme)) {
+              form.setValue("movementTheme", themeOptions.length > 0 ? "" : value);
+            }
+          }}
           learningLineFlagged={flaggedEmptyFields?.has("learningLine") && !learningLine}
           movementTheme={movementTheme}
           onMovementThemeChange={(value) => form.setValue("movementTheme", value)}
@@ -333,12 +325,6 @@ export function LessonForm({
           onRuleMaterialsChange={setRuleMaterials}
           diagramImageUrl={diagram?.imageDataUrl ?? null}
           onDiagramExport={(data, imageDataUrl) => setDiagram({ data, imageDataUrl })}
-          gameCategory={gameCategory}
-          onGameCategoryChange={(value) => form.setValue("gameCategory", value)}
-          gameDimensions={gameDimensions}
-          onGameDimensionsChange={(dimensions) => form.setValue("gameDimensions", dimensions)}
-          tacticalQuestions={tacticalQuestions}
-          onTacticalQuestionsChange={setTacticalQuestions}
           didacticItems={didacticItems}
           onDidacticItemsChange={setDidacticItems}
           onCommit={() => void autosaveDraft()}
@@ -349,9 +335,6 @@ export function LessonForm({
             movementTheme: movementTheme || undefined,
             goals: goals || undefined,
             didacticItems,
-            gameCategory: gameCategory || undefined,
-            gameDimensions,
-            tacticalQuestions,
           }}
           isSubmitting={form.formState.isSubmitting}
           filledCount={filledCount}
