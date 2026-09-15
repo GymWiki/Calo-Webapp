@@ -175,6 +175,12 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Tailwind's Preflight does NOT set cursor:pointer on <button> (browsers
+     default unstyled buttons to the normal arrow cursor, not a hand) — one
+     app-wide rule instead of adding cursor-pointer per component. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 @layer utilities {

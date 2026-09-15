@@ -23,7 +23,12 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-11 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-9 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        // 36px visible height stays (compact toolbars rely on it), but the
+        // real tap target is expanded to the 44px accessibility minimum via
+        // an invisible ::before — a 4px hit-slop on every side, matching
+        // this size's usual gap-2 (8px) sibling spacing so expanded zones
+        // meet without overlapping into a neighboring button.
+        sm: "h-9 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 relative before:absolute before:-inset-1 before:content-['']",
         lg: "h-12 rounded-md px-6 has-[>svg]:px-4",
         icon: "size-11",
       },

@@ -27,12 +27,22 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
 };
 
+// Zet de `dark`-class op <html> vóórdat de pagina schildert (voorkomt een
+// lichte flits bij het laden in dark mode) — moet hier als kale inline
+// <script> staan omdat React zelf pas ná hydratie kan aanpassen, wat
+// zichtbaar te laat is. Voorkeur: localStorage ("theme"), anders het
+// systeemvoorkeur; zie ThemeToggle voor waar "theme" geschreven wordt.
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("theme");var d=t?t==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d);}catch(e){}})();`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="en"
+      lang="nl"
       className={`${geistSans.variable} ${geistMono.variable} ${anton.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col overflow-x-hidden">
         {children}
         <Toaster />

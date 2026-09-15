@@ -298,7 +298,7 @@ export function ActivityWizardPage({
                       onCommit?.();
                     }}
                     className={cn(
-                      "border-input flex h-8 w-auto max-w-40 rounded-md border bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                      "border-input flex h-10 w-auto max-w-40 rounded-md border bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
                       movementThemeFlagged && IMPORT_FLAG_CLASS,
                     )}
                   >
@@ -317,14 +317,14 @@ export function ActivityWizardPage({
                   onChange={(event) => onGroupNameChange?.(event.target.value)}
                   onBlur={() => onCommit?.()}
                   placeholder="Groep/klas"
-                  className={cn("h-8 w-auto max-w-36 text-sm", groupNameFlagged && IMPORT_FLAG_CLASS)}
+                  className={cn("h-10 w-auto max-w-36 text-sm", groupNameFlagged && IMPORT_FLAG_CLASS)}
                 />
                 <Input
                   type="date"
                   value={activityDate}
                   onChange={(event) => onActivityDateChange?.(event.target.value)}
                   onBlur={() => onCommit?.()}
-                  className="h-8 w-auto text-sm"
+                  className="h-10 w-auto text-sm"
                 />
               </div>
             ) : (
@@ -362,7 +362,7 @@ export function ActivityWizardPage({
                       onMinParticipantsChange?.(event.target.value === "" ? undefined : Number(event.target.value))
                     }
                     onBlur={() => onCommit?.()}
-                    className="mt-0.5 h-8 w-20 text-sm"
+                    className="mt-0.5 h-10 w-20 text-sm"
                   />
                 ) : (
                   <dd>{minParticipants ?? "-"}</dd>
@@ -381,7 +381,7 @@ export function ActivityWizardPage({
                       onParticipantsBenchChange?.(event.target.value === "" ? undefined : Number(event.target.value))
                     }
                     onBlur={() => onCommit?.()}
-                    className="mt-0.5 h-8 w-20 text-sm"
+                    className="mt-0.5 h-10 w-20 text-sm"
                   />
                 ) : (
                   <dd>{participantsBench ?? "-"}</dd>

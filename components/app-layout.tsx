@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -8,12 +9,14 @@ import {
   Database,
   LayoutDashboard,
   LogOut,
+  MoreHorizontal,
   SquarePen,
   User as UserIcon,
 } from "lucide-react";
 
 import { logout } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -41,6 +44,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const navItems = NAV_ITEMS;
   const secondaryNavItems = SECONDARY_NAV_ITEMS;
+  const [moreOpen, setMoreOpen] = useState(false);
+  // Kennisbank/Abonnement zaten voorheen alleen in de desktop-zijbalk — op
+  // mobiel was er geen enkele weg naar die pagina's. "Meer" is de 5e (en
+  // laatste toegestane) bottom-nav-plek, opent een Sheet met de rest.
+  const isMoreActive = secondaryNavItems.some((item) => pathname.startsWith(item.href));
 
   function navLinkClass(isActive: boolean) {
     return cn(
@@ -134,7 +142,63 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+        {secondaryNavItems.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={moreOpen}
+            className={cn(
+              "flex flex-1 shrink-0 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-150 ease-brand",
+              isMoreActive ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <MoreHorizontal
+              className={cn(
+                "size-5 shrink-0 transition-transform duration-150 ease-brand",
+                isMoreActive && "-translate-y-0.5",
+              )}
+            />
+            <span className="shrink-0 leading-none whitespace-nowrap">Meer</span>
+          </button>
+        )}
       </nav>
+
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent side="bottom" className="md:hidden">
+          <SheetHeader>
+            <SheetTitle>Meer</SheetTitle>
+          </SheetHeader>
+          <nav className="flex flex-col gap-1 p-4 pt-0">
+            {secondaryNavItems.map((item) => {
+              const isActive = pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMoreOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors duration-150 ease-brand",
+                    isActive
+                      ? "bg-accent text-accent-foreground"
+                      : "text-foreground hover:bg-accent",
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+            <form action={logout} className="mt-2 border-t pt-3">
+              <Button type="submit" variant="ghost" className="w-full justify-start gap-3">
+                <LogOut className="size-4" />
+                Uitloggen
+              </Button>
+            </form>
+          </nav>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

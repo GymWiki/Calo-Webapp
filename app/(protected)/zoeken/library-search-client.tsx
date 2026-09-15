@@ -197,7 +197,11 @@ function FilterChip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+        // Zelfde focus-ring/press-feedback als components/ui/button.tsx,
+        // zodat deze los-gestylede pil-knoppen (geen shadcn-variant, i.v.m.
+        // de rounded-full toggle-vorm) zich hetzelfde gedragen als de rest
+        // van de app.
+        "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium outline-none transition-[color,box-shadow,background-color,transform] duration-150 ease-brand focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.98]",
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-input bg-background text-foreground hover:bg-accent",

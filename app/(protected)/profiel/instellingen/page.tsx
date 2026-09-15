@@ -3,6 +3,7 @@ import { Mail } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { AvailableForInternshipToggle } from "@/components/profile/AvailableForInternshipToggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
@@ -37,8 +38,9 @@ export default async function ProfielInstellingenPage() {
         <CardHeader>
           <CardTitle className="text-base">Voorkeuren</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <AvailableForInternshipToggle initialValue={profile.available_for_internship} />
+          <ThemeToggle />
         </CardContent>
       </Card>
     </main>
