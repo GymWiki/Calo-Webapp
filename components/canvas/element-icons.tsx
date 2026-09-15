@@ -17,6 +17,7 @@ import type {
   DiagramElement,
   ElementType,
   MaterialDiagramElement,
+  TextDiagramElement,
   ViewMode,
 } from "./gym-canvas-types";
 import { ELEMENT_DEFS } from "./gym-canvas-types";
@@ -182,6 +183,27 @@ function MaterialElementIcon({ element }: { element: MaterialDiagramElement }) {
   return <KonvaImage image={image} x={-iw / 2} y={-ih / 2} width={iw} height={ih} />;
 }
 
+// -- tekstvak -----------------------------------------------------------------
+
+/**
+ * `x`/`y` van een TextDiagramElement zijn de linkerbovenhoek (zie
+ * gym-canvas-types.ts) — de omringende `<Group>` in GymCanvas.tsx zet die al
+ * op de juiste plek, dus deze `<Text>` tekent op lokale (0,0) zonder verdere
+ * offset-berekening.
+ */
+function TextElementIcon({ element }: { element: TextDiagramElement }) {
+  return (
+    <Text
+      text={element.text}
+      fontSize={element.fontSize}
+      fill={element.fill}
+      fontStyle={element.fontStyle}
+      lineHeight={1.2}
+      wrap="word"
+    />
+  );
+}
+
 // -- element graphic per systeemtype -----------------------------------------
 
 function VectorIcon({
@@ -261,6 +283,15 @@ export function ElementIcon({
   if (element.kind === "material") {
     return <MaterialElementIcon element={element} />;
   }
+
+  if (element.kind === "text") {
+    return <TextElementIcon element={element} />;
+  }
+
+  // "line" wordt niet via dit pad getekend — zie LineElementNode in
+  // GymCanvas.tsx, dat lijnen/pijlen buiten de gedeelde Group/Transformer-
+  // schaling om rendert (zie de typecommentaar bij LineDiagramElement).
+  if (element.kind === "line") return null;
 
   return <VectorIcon type={element.type} viewMode={viewMode} />;
 }

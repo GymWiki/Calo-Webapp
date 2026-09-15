@@ -53,10 +53,18 @@ function MaterialButton({
     <button
       type="button"
       onClick={() => onSelect(material)}
-      className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border bg-background p-2 text-center transition-colors duration-150 ease-brand hover:bg-accent active:scale-95"
+      className="flex min-h-16 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg border bg-background p-2 text-center transition-colors duration-150 ease-brand hover:bg-accent active:scale-95"
     >
       <MaterialImage material={material} />
-      <span className="text-[11px] leading-tight font-medium">{material.name}</span>
+      {/* min-w-0 op de knop (hierboven) + w-full break-words hier: zonder
+          deze twee dwingt een lang, niet-afbreekbaar woord in de naam
+          (bijv. "Dweilen/theedoeken") de grid-cel breder dan zijn
+          minmax(0,1fr)-track, waardoor de cel buiten de sidebar-rand
+          schuift — een grid-item krijgt standaard `min-width: auto`
+          (content-breedte), ongeacht hoe smal de track zelf is. */}
+      <span className="w-full leading-tight font-medium text-[11px] break-words">
+        {material.name}
+      </span>
     </button>
   );
 }
