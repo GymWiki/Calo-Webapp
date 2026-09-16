@@ -141,6 +141,39 @@ export const createLessonInputSchema = z.object({
 export type CreateLessonFormInput = z.input<typeof createLessonInputSchema>;
 export type CreateLessonInput = z.output<typeof createLessonInputSchema>;
 
+// ----------------------------------------------------------------------------
+// Verplichte velden — UI-metadata (label + tabsectie) voor exact dezelfde 10
+// velden als de requiredText()-aanroepen hierboven. Eén bron voor de live
+// "nog niet ingevuld"-indicatie, de voortgangsbalk én de foutmelding bij een
+// mislukte "Activiteit opslaan"-poging (zie lesson-form.tsx en
+// activity-wizard-page.tsx) — zodat die drie elkaar nooit kunnen
+// tegenspreken. `section: null` betekent: staat altijd zichtbaar boven de
+// Tabs (Basisgegevens-kaart), geen tab-wissel nodig om ernaartoe te
+// scrollen. movementTheme/doelgroep/materiaal/leeruitkomsten/regels/leerhulp
+// zijn bewust optioneel/aanvullend, net als in het zod-schema hierboven.
+// `as const satisfies` i.p.v. een brede `{ field: keyof CreateLessonFormInput; ... }[]`-
+// annotatie: dat laatste zou elk `field` verbreden tot ALLE sleutels van
+// CreateLessonFormInput, waardoor bijv. `(typeof REQUIRED_LESSON_FIELDS)[number]["field"]`
+// elders (activity-wizard-page.tsx, lesson-form.tsx) niet meer de exacte 10
+// literals zou zijn maar elke veldnaam — `satisfies` valideert nog steeds dat
+// elk `field` een echte sleutel is, zonder die verbreding.
+export const REQUIRED_LESSON_FIELDS = [
+  { field: "title", label: "Titel", section: null },
+  { field: "learningLine", label: "Leerlijn", section: null },
+  { field: "groupName", label: "Groep/klas", section: null },
+  { field: "lessonDate", label: "Datum", section: null },
+  { field: "goals", label: "Doel", section: "lesinhoud" },
+  { field: "movementProblem", label: "Beginsituatie", section: "lesinhoud" },
+  { field: "deelnemersRegels", label: "Deelnemers & Regels", section: "lesinhoud" },
+  { field: "plaatjePraatje", label: "Plaatje & Praatje", section: "lesinhoud" },
+  { field: "aandachtspunten", label: "Aandachtspunten", section: "lesinhoud" },
+  { field: "arrangement", label: "Veldafmetingen & opstelling", section: "materiaal" },
+] as const satisfies readonly {
+  field: keyof CreateLessonFormInput;
+  label: string;
+  section: "lesinhoud" | "materiaal" | null;
+}[];
+
 export const createLessonDefaultValues: CreateLessonFormInput = {
   title: "",
   lessonDate: "",

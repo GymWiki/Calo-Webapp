@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
 
@@ -24,10 +25,17 @@ import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColor
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
-import type { DidacticItem } from "@/types/lesson";
+import { REQUIRED_LESSON_FIELDS, type DidacticItem } from "@/types/lesson";
 import { DiagramEditorCard } from "@/app/(protected)/les-maken/diagram-editor-card";
 
 const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
+
+type RequiredFieldKey = (typeof REQUIRED_LESSON_FIELDS)[number]["field"];
+
+// Opzoekbaar per veldnaam — REQUIRED_LESSON_FIELDS zelf is een array (voor
+// een voorspelbare volgorde in de missing-fields-lijst hieronder), maar
+// jumpToField hieronder heeft O(1)-opzoek nodig.
+const REQUIRED_FIELD_BY_KEY = new Map(REQUIRED_LESSON_FIELDS.map((entry) => [entry.field, entry]));
 
 // Rustige, kleine tekst naast de voortgangsbalk — geen toast per commit; een
 // structureel falende autosave (meerdere mislukkingen op rij) krijgt wél een
@@ -76,6 +84,15 @@ function FieldLabel({
       {hint && <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
+}
+
+// Zelfde amber-toon als IMPORT_FLAG_CLASS (de rand) en InlineEditText's
+// inline "Verplicht"-label — hier als apart tekstregeltje ONDER platte
+// input/select-velden, die zelf geen ingebouwde manier hebben om een hint
+// onder zich te tonen zoals InlineEditText dat al kan.
+function RequiredFieldHint({ show }: { show?: boolean }) {
+  if (!show) return null;
+  return <p className="mt-1.5 text-xs font-medium text-amber-600">Dit veld is verplicht.</p>;
 }
 
 const SELECT_FIELD_CLASS =
@@ -160,8 +177,8 @@ export function ActivityWizardPage({
   saveStatus,
   analyzePayload,
   isSubmitting,
-  filledCount,
-  sectionCount,
+  missingFields,
+  jumpToFieldTrigger,
 }: {
   mode: "view" | "edit";
   /** Alleen nodig in mode="view" — voor LessonPdfButton, dat de volledige rij verwacht. */
@@ -240,8 +257,16 @@ export function ActivityWizardPage({
   saveStatus?: "idle" | "saving" | "saved" | "error";
   analyzePayload: AnalyzeLessonPayload;
   isSubmitting?: boolean;
-  filledCount?: number;
-  sectionCount?: number;
+  /** Welke verplichte velden (zie REQUIRED_LESSON_FIELDS) op dit moment nog
+   * leeg zijn — live bijgewerkt terwijl de gebruiker typt. Drijft zowel de
+   * voortgangsbalk als de klikbare "nog niet ingevuld"-lijst eronder.
+   * Alleen relevant in mode="edit". */
+  missingFields?: RequiredFieldKey[];
+  /** Verandert (nieuwe requestId) elke keer dat een buiten dit component
+   * geïnitieerde submit-poging mislukte validatie tegenkomt — springt dan
+   * naar het genoemde veld (tab wisselen indien nodig + scrollen + focus),
+   * ook als het dezelfde veldnaam is als de vorige mislukte poging. */
+  jumpToFieldTrigger?: { field: RequiredFieldKey; requestId: number } | null;
 }) {
   const isEdit = mode === "edit";
   // Bewegingsthema is een verfijning BINNEN de gekozen leerlijn (zie
@@ -254,6 +279,63 @@ export function ActivityWizardPage({
   const hasBeginsituatieSection = Boolean(movementProblem) || doelgroepLabels.length > 0;
   const normalizedLearningOutcomes = splitLearningOutcomeItems(learningOutcomes);
   const showThemeField = isEdit ? themeOptions.length > 0 : Boolean(movementTheme);
+
+  // Gecontroleerd i.p.v. Tabs' eigen `defaultValue`-state, zodat jumpToField
+  // hieronder een tab kan omschakelen wanneer het gevraagde veld daarin
+  // staat — nodig voor zowel de klikbare missing-fields-lijst als een
+  // mislukte submit-poging elders (lesson-form.tsx's onInvalid).
+  const [activeTab, setActiveTab] = useState<"lesinhoud" | "materiaal" | "leerhulp">(defaultTab);
+
+  // Puur DOM-werk, geen setState — mag dus gewoon in een effect (zie
+  // hieronder) zonder de react-hooks/set-state-in-effect-regel te raken.
+  function scrollAndFocusField(field: RequiredFieldKey) {
+    const el = document.getElementById(`field-${field}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const focusTarget =
+      el instanceof HTMLInputElement || el instanceof HTMLSelectElement
+        ? el
+        : el.querySelector<HTMLElement>("input, select, textarea, button");
+    focusTarget?.focus({ preventScroll: true });
+  }
+
+  // Voor de klikbare missing-fields-lijst hieronder: een echte user-event-
+  // handler (button onClick), dus setActiveTab hier is prima — dit draait
+  // nooit binnen een effect-body.
+  function jumpToField(field: RequiredFieldKey) {
+    const meta = REQUIRED_FIELD_BY_KEY.get(field);
+    if (meta?.section) {
+      setActiveTab(meta.section);
+    }
+    // Eén frame wachten: bij een tab-wissel moet de nieuwe TabsContent eerst
+    // daadwerkelijk gemount zijn voordat het veld met dit id bestaat.
+    requestAnimationFrame(() => scrollAndFocusField(field));
+  }
+
+  // Reageert op een submit-poging die buiten dit component vandaan komt
+  // (lesson-form.tsx's onInvalid) — requestId zorgt dat dezelfde veldnaam
+  // twee keer achter elkaar ook een nieuwe sprong triggert. De tab-wissel
+  // gebeurt tijdens het renderen zelf (React's aanbevolen "state opslaan van
+  // vorige render"-patroon, met useState i.p.v. useRef — refs mogen niet
+  // gelezen/geschreven worden tijdens render) i.p.v. in een effect, want een
+  // effect mag geen setState synchroon aanroepen
+  // (react-hooks/set-state-in-effect) — alleen het echte DOM-werk
+  // (scrollen/focussen) staat hieronder in een effect, want dat heeft geen
+  // setState nodig.
+  const [handledJumpRequestId, setHandledJumpRequestId] = useState(0);
+  if (jumpToFieldTrigger && jumpToFieldTrigger.requestId !== handledJumpRequestId) {
+    setHandledJumpRequestId(jumpToFieldTrigger.requestId);
+    const meta = REQUIRED_FIELD_BY_KEY.get(jumpToFieldTrigger.field);
+    if (meta?.section && meta.section !== activeTab) {
+      setActiveTab(meta.section);
+    }
+  }
+
+  useEffect(() => {
+    if (!jumpToFieldTrigger) return;
+    const raf = requestAnimationFrame(() => scrollAndFocusField(jumpToFieldTrigger.field));
+    return () => cancelAnimationFrame(raf);
+  }, [jumpToFieldTrigger]);
 
   return (
     <>
@@ -279,16 +361,20 @@ export function ActivityWizardPage({
             </p>
 
             {isEdit ? (
-              <input
-                value={title}
-                onChange={(event) => onTitleChange?.(event.target.value)}
-                onBlur={() => onCommit?.()}
-                placeholder="Titel van de activiteit"
-                className={cn(
-                  "mt-1.5 w-full rounded-lg border border-input bg-card px-3 py-2 text-2xl font-bold tracking-tight break-words shadow-xs outline-none placeholder:font-normal placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:text-3xl dark:bg-input/30",
-                  titleFlagged && IMPORT_FLAG_CLASS,
-                )}
-              />
+              <>
+                <input
+                  id="field-title"
+                  value={title}
+                  onChange={(event) => onTitleChange?.(event.target.value)}
+                  onBlur={() => onCommit?.()}
+                  placeholder="Titel van de activiteit"
+                  className={cn(
+                    "mt-1.5 w-full rounded-lg border border-input bg-card px-3 py-2 text-2xl font-bold tracking-tight break-words shadow-xs outline-none placeholder:font-normal placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:text-3xl dark:bg-input/30",
+                    titleFlagged && IMPORT_FLAG_CLASS,
+                  )}
+                />
+                <RequiredFieldHint show={titleFlagged} />
+              </>
             ) : (
               <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words sm:text-3xl">{title}</h1>
             )}
@@ -299,12 +385,18 @@ export function ActivityWizardPage({
         </div>
 
         {/* Voortgang — direct onder de titel, altijd op dezelfde plek,
-            dikkere/duidelijker gekleurde balk i.p.v. de vorige 1,5px-lijn. */}
-        {isEdit && typeof filledCount === "number" && typeof sectionCount === "number" && (
+            dikkere/duidelijker gekleurde balk i.p.v. de vorige 1,5px-lijn.
+            Gebaseerd op REQUIRED_LESSON_FIELDS (dezelfde 10 velden die
+            "Activiteit opslaan" ook daadwerkelijk blokkeren) i.p.v. de
+            eerdere losse "7 secties"-heuristiek, die ook optionele
+            secties meetelde — dit telt nu precies wat er nog moet
+            gebeuren om te kunnen opslaan. */}
+        {isEdit && missingFields && (
           <div className="rounded-lg border bg-card p-3">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs font-medium text-muted-foreground">
               <span>
-                {filledCount} van {sectionCount} secties ingevuld
+                {REQUIRED_LESSON_FIELDS.length - missingFields.length} van {REQUIRED_LESSON_FIELDS.length}{" "}
+                verplichte velden ingevuld
               </span>
               {saveStatus && saveStatus !== "idle" && (
                 <span aria-live="polite">{SAVE_STATUS_LABELS[saveStatus]}</span>
@@ -313,9 +405,28 @@ export function ActivityWizardPage({
             <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-primary transition-all duration-300 ease-brand"
-                style={{ width: `${(filledCount / sectionCount) * 100}%` }}
+                style={{
+                  width: `${((REQUIRED_LESSON_FIELDS.length - missingFields.length) / REQUIRED_LESSON_FIELDS.length) * 100}%`,
+                }}
               />
             </div>
+            {missingFields.length > 0 && (
+              <div className="mt-2.5">
+                <p className="text-xs text-muted-foreground">Nog niet ingevuld:</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {missingFields.map((field) => (
+                    <button
+                      key={field}
+                      type="button"
+                      onClick={() => jumpToField(field)}
+                      className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300 dark:hover:bg-amber-400/20"
+                    >
+                      {REQUIRED_FIELD_BY_KEY.get(field)?.label ?? field}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -333,27 +444,31 @@ export function ActivityWizardPage({
           <div className="grid gap-4 sm:grid-cols-2">
             <FieldLabel label="Leerlijn">
               {isEdit ? (
-                <select
-                  value={learningLine}
-                  onChange={(event) => {
-                    onLearningLineChange?.(event.target.value);
-                    onCommit?.();
-                  }}
-                  className={cn(SELECT_FIELD_CLASS, learningLineFlagged && IMPORT_FLAG_CLASS)}
-                >
-                  <option value="" disabled>
-                    Kies een leerlijn
-                  </option>
-                  {LEARNING_LINE_CATEGORIES.map(({ category: cat, lines }) => (
-                    <optgroup key={cat} label={cat}>
-                      {lines.map((line) => (
-                        <option key={line} value={line}>
-                          {line}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                <>
+                  <select
+                    id="field-learningLine"
+                    value={learningLine}
+                    onChange={(event) => {
+                      onLearningLineChange?.(event.target.value);
+                      onCommit?.();
+                    }}
+                    className={cn(SELECT_FIELD_CLASS, learningLineFlagged && IMPORT_FLAG_CLASS)}
+                  >
+                    <option value="" disabled>
+                      Kies een leerlijn
+                    </option>
+                    {LEARNING_LINE_CATEGORIES.map(({ category: cat, lines }) => (
+                      <optgroup key={cat} label={cat}>
+                        {lines.map((line) => (
+                          <option key={line} value={line}>
+                            {line}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <RequiredFieldHint show={learningLineFlagged} />
+                </>
               ) : (
                 <p className="text-sm">{learningLine || "-"}</p>
               )}
@@ -389,13 +504,17 @@ export function ActivityWizardPage({
           <div className="grid gap-4 sm:grid-cols-2">
             <FieldLabel label="Groep/klas" hint="De naam zoals jij 'm noemt, voor je eigen overzicht — bijv. 'Klas 2C'.">
               {isEdit ? (
-                <Input
-                  value={groupName}
-                  onChange={(event) => onGroupNameChange?.(event.target.value)}
-                  onBlur={() => onCommit?.()}
-                  placeholder="Bijv. Klas 2C"
-                  className={cn(groupNameFlagged && IMPORT_FLAG_CLASS)}
-                />
+                <>
+                  <Input
+                    id="field-groupName"
+                    value={groupName}
+                    onChange={(event) => onGroupNameChange?.(event.target.value)}
+                    onBlur={() => onCommit?.()}
+                    placeholder="Bijv. Klas 2C"
+                    className={cn(groupNameFlagged && IMPORT_FLAG_CLASS)}
+                  />
+                  <RequiredFieldHint show={groupNameFlagged} />
+                </>
               ) : (
                 <p className="text-sm">{groupName || "-"}</p>
               )}
@@ -404,13 +523,17 @@ export function ActivityWizardPage({
             {(isEdit || activityDate) && (
               <FieldLabel label="Datum">
                 {isEdit ? (
-                  <Input
-                    type="date"
-                    value={activityDate}
-                    onChange={(event) => onActivityDateChange?.(event.target.value)}
-                    onBlur={() => onCommit?.()}
-                    className={cn(activityDateFlagged && IMPORT_FLAG_CLASS)}
-                  />
+                  <>
+                    <Input
+                      id="field-lessonDate"
+                      type="date"
+                      value={activityDate}
+                      onChange={(event) => onActivityDateChange?.(event.target.value)}
+                      onBlur={() => onCommit?.()}
+                      className={cn(activityDateFlagged && IMPORT_FLAG_CLASS)}
+                    />
+                    <RequiredFieldHint show={activityDateFlagged} />
+                  </>
                 ) : (
                   <p className="text-sm">{formatDate(activityDate) ?? "-"}</p>
                 )}
@@ -540,7 +663,12 @@ export function ActivityWizardPage({
         </CardContent>
       </Card>
 
-      <Tabs defaultValue={defaultTab} className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as "lesinhoud" | "materiaal" | "leerhulp")}
+        className="animate-fade-up"
+        style={{ animationDelay: "80ms" }}
+      >
         <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
           <TabsTrigger
             value="lesinhoud"
@@ -572,7 +700,7 @@ export function ActivityWizardPage({
           <Card>
             <CardContent className="space-y-5 pt-6">
               {(isEdit || goals) && (
-                <div>
+                <div id="field-goals">
                   <SectionHeading>Doel</SectionHeading>
                   {isEdit ? (
                     <InlineEditText
@@ -590,7 +718,7 @@ export function ActivityWizardPage({
               )}
 
               {(isEdit || hasBeginsituatieSection) && (
-                <div>
+                <div id="field-movementProblem">
                   <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
                   {doelgroepLabels.length > 0 && (
                     <div className={movementProblem || isEdit ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
@@ -646,7 +774,7 @@ export function ActivityWizardPage({
               )}
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div>
+                <div id="field-deelnemersRegels">
                   <SectionHeading>Deelnemers &amp; Regels</SectionHeading>
                   {isEdit ? (
                     <InlineEditText
@@ -661,7 +789,7 @@ export function ActivityWizardPage({
                     <p className="text-sm whitespace-pre-line text-foreground">{deelnemersRegels || "-"}</p>
                   )}
                 </div>
-                <div>
+                <div id="field-plaatjePraatje">
                   <SectionHeading>Plaatje &amp; Praatje</SectionHeading>
                   {isEdit ? (
                     <InlineEditText
@@ -676,7 +804,7 @@ export function ActivityWizardPage({
                     <p className="text-sm whitespace-pre-line text-foreground">{plaatjePraatje || "-"}</p>
                   )}
                 </div>
-                <div className="sm:col-span-2">
+                <div id="field-aandachtspunten" className="sm:col-span-2">
                   <SectionHeading>Aandachtspunten</SectionHeading>
                   {isEdit ? (
                     <InlineEditText
@@ -725,7 +853,7 @@ export function ActivityWizardPage({
         <TabsContent value="materiaal" className="space-y-4">
           <Card>
             <CardContent className="space-y-5 pt-6">
-              <div>
+              <div id="field-arrangement">
                 <SectionHeading>Veldafmetingen &amp; opstelling</SectionHeading>
                 {isEdit ? (
                   <InlineEditText

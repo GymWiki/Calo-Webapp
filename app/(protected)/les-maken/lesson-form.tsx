@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, type FieldErrors } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { createLesson, saveLessonDraft } from "@/actions/lesson";
@@ -21,6 +21,7 @@ import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
 import {
   createLessonDefaultValues,
   createLessonInputSchema,
+  REQUIRED_LESSON_FIELDS,
   type CreateLessonFormInput,
   type CreateLessonInput,
   type DidacticItem,
@@ -28,28 +29,11 @@ import {
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import type { RequiredLessonFormField } from "./activity-upload-step";
 
-// Zichtbare, niet-blokkerende voortgang i.p.v. een stappenteller — telt de
-// zeven secties die ActivityWizardPage ook zo groepeert.
-const SECTION_COUNT = 7;
-
-// Nederlandse labels voor de foutmelding bij een mislukte submit — dezelfde
-// velden als createLessonInputSchema's requiredText()-velden in
-// types/lesson.ts, zodat de toast exact noemt wat er nog ontbreekt i.p.v.
-// stilzwijgend niets te doen (wat vóór deze fix gebeurde: form.handleSubmit
-// riep onSubmit simpelweg niet aan bij een mislukte validatie, en nergens
-// werd formState.errors getoond).
-const REQUIRED_FIELD_LABELS: Partial<Record<keyof CreateLessonFormInput, string>> = {
-  title: "Titel",
-  lessonDate: "Datum",
-  groupName: "Groep/klas",
-  learningLine: "Leerlijn",
-  movementProblem: "Bewegingsprobleem",
-  goals: "Doelen",
-  arrangement: "Arrangement",
-  deelnemersRegels: "Deelnemers & regels",
-  plaatjePraatje: "Plaatje & praatje",
-  aandachtspunten: "Aandachtspunten",
-};
+// Zelfde smalle sleuteltype als components/activity-wizard-page.tsx afleidt
+// uit dezelfde REQUIRED_LESSON_FIELDS-import — hier lokaal herhaald i.p.v.
+// geëxporteerd vanuit die component, want dit bestand kent het al via zijn
+// eigen import van dezelfde const.
+type RequiredFieldKey = (typeof REQUIRED_LESSON_FIELDS)[number]["field"];
 
 // LessonForm is de "mode=edit"-aanroeper van components/activity-wizard-page.tsx
 // (dezelfde component die de wizard-activiteit-detailpagina in "mode=view"
@@ -298,23 +282,6 @@ export function LessonForm({
     }
   }
 
-  // Aangeroepen door react-hook-form zodra handleSubmit's zod-validatie
-  // mislukt — vóór deze fix gebeurde hier helemaal niets zichtbaars (geen
-  // toast, geen laadstatus, geen gemarkeerd veld), want ActivityWizardPage
-  // gebruikt losse value/onChange-props i.p.v. <FormField>/<FormMessage>,
-  // dus er was nergens een plek waar formState.errors landde.
-  function onInvalid(errors: FieldErrors<CreateLessonFormInput>) {
-    const missingLabels = Object.keys(errors)
-      .map((key) => REQUIRED_FIELD_LABELS[key as keyof CreateLessonFormInput])
-      .filter((label): label is string => Boolean(label));
-
-    toast.error(
-      missingLabels.length > 0
-        ? `Nog niet alles is ingevuld: ${missingLabels.join(", ")}. De ontbrekende velden zijn gemarkeerd.`
-        : "Controleer de gemarkeerde velden — niet alles is ingevuld.",
-    );
-  }
-
   // Watched values — ActivityWizardPage is een "domme" weergavecomponent die
   // gewone value/onChange-props verwacht, geen react-hook-form Controllers.
   const title = form.watch("title");
@@ -332,30 +299,63 @@ export function LessonForm({
   const plaatjePraatje = form.watch("plaatjePraatje");
   const aandachtspunten = form.watch("aandachtspunten");
 
-  const sectionsComplete = {
-    doel: goals.trim().length > 0,
-    beginsituatie: movementProblem.trim().length > 0 || doelgroep.length > 0,
-    leeruitkomsten: learningOutcomes.some((item) => item.trim().length > 0),
-    beschrijving:
-      deelnemersRegels.trim().length > 0 ||
-      plaatjePraatje.trim().length > 0 ||
-      aandachtspunten.trim().length > 0,
-    materiaal: arrangement.trim().length > 0 || baseMaterials.length > 0 || ruleMaterials.length > 0,
-    leerhulp: didacticItems.length > 0,
+  // Live, bij elke wijziging herberekend (niet pas na een mislukte
+  // submit-poging) — dezelfde REQUIRED_LESSON_FIELDS-bron als de
+  // voortgangskaart en de foutmelding hieronder gebruiken, zodat een
+  // gebruiker al tijdens het invullen ziet wat nog verplicht is, i.p.v. dat
+  // pas te ontdekken bij "Activiteit opslaan".
+  const requiredFieldValues: Record<RequiredFieldKey, string> = {
+    title,
+    learningLine,
+    groupName,
+    lessonDate,
+    goals,
+    movementProblem,
+    deelnemersRegels,
+    plaatjePraatje,
+    aandachtspunten,
+    arrangement,
   };
-  const filledCount =
-    (title.trim().length > 0 ? 1 : 0) +
-    Object.values(sectionsComplete).filter(Boolean).length;
+  const missingFields = REQUIRED_LESSON_FIELDS.filter(
+    ({ field }) => requiredFieldValues[field].trim().length === 0,
+  ).map(({ field }) => field);
+  const missingFieldSet = new Set(missingFields);
 
-  // Leeg tot de eerste mislukte submit-poging (RHF's standaard "onSubmit"-
-  // mode), daarna live bijgewerkt terwijl de gebruiker de ontbrekende
-  // velden invult. Samengevoegd met flaggedEmptyFields (de AI-import-hint,
-  // die al vóór een submit-poging zichtbaar is): zo krijgt ELK verplicht
-  // veld een zichtbare markering zodra het leeg is — niet alleen de velden
-  // die de AI-upload toevallig niet kon invullen.
-  const formErrors = form.formState.errors;
-  function isFieldFlagged(field: RequiredLessonFormField, value: string) {
-    return Boolean((flaggedEmptyFields?.has(field) && !value) || formErrors[field]);
+  // Combineert de live verplichte-veldencontrole hierboven met
+  // flaggedEmptyFields (de AI-import-hint voor bijv. movementTheme, dat geen
+  // save-blokkerend verplicht veld is maar wel een "AI kon dit niet
+  // invullen"-controle verdient) — zo krijgt elk veld waar de gebruiker nu
+  // iets aan moet doen dezelfde subtiele amber-markering.
+  function isFieldFlagged(field: RequiredLessonFormField | RequiredFieldKey): boolean {
+    return (
+      Boolean(flaggedEmptyFields?.has(field as RequiredLessonFormField)) ||
+      missingFieldSet.has(field as RequiredFieldKey)
+    );
+  }
+
+  // Bij een mislukte submit-poging: alle ontbrekende velden zijn al zichtbaar
+  // gemarkeerd via isFieldFlagged hierboven — dit voegt alleen een specifieke
+  // toast toe en laat ActivityWizardPage naar het EERSTE ontbrekende veld
+  // springen (tab wisselen + scrollen + focussen), zie jumpToFieldTrigger.
+  const jumpRequestIdRef = useRef(0);
+  const [jumpToFieldTrigger, setJumpToFieldTrigger] = useState<{
+    field: RequiredFieldKey;
+    requestId: number;
+  } | null>(null);
+
+  function onInvalid() {
+    if (missingFields.length === 0) {
+      toast.error("Controleer de gemarkeerde velden — niet alles is ingevuld.");
+      return;
+    }
+    const missingLabels = missingFields.map(
+      (field) => REQUIRED_LESSON_FIELDS.find((entry) => entry.field === field)?.label ?? field,
+    );
+    toast.error(
+      `Vul eerst '${missingLabels[0]}' in om op te slaan. Nog niet ingevuld: ${missingLabels.join(", ")}.`,
+    );
+    jumpRequestIdRef.current += 1;
+    setJumpToFieldTrigger({ field: missingFields[0], requestId: jumpRequestIdRef.current });
   }
 
   return (
@@ -377,7 +377,7 @@ export function LessonForm({
           defaultTab={initialScrollTarget}
           title={title}
           onTitleChange={(value) => form.setValue("title", value)}
-          titleFlagged={isFieldFlagged("title", title)}
+          titleFlagged={isFieldFlagged("title")}
           learningLine={learningLine}
           onLearningLineChange={(value) => {
             form.setValue("learningLine", value);
@@ -389,16 +389,16 @@ export function LessonForm({
               form.setValue("movementTheme", themeOptions.length > 0 ? "" : value);
             }
           }}
-          learningLineFlagged={isFieldFlagged("learningLine", learningLine)}
+          learningLineFlagged={isFieldFlagged("learningLine")}
           movementTheme={movementTheme}
           onMovementThemeChange={(value) => form.setValue("movementTheme", value)}
-          movementThemeFlagged={isFieldFlagged("movementTheme", movementTheme)}
+          movementThemeFlagged={isFieldFlagged("movementTheme")}
           groupName={groupName}
           onGroupNameChange={(value) => form.setValue("groupName", value)}
-          groupNameFlagged={isFieldFlagged("groupName", groupName)}
+          groupNameFlagged={isFieldFlagged("groupName")}
           activityDate={lessonDate}
           onActivityDateChange={(value) => form.setValue("lessonDate", value)}
-          activityDateFlagged={Boolean(formErrors.lessonDate)}
+          activityDateFlagged={isFieldFlagged("lessonDate")}
           authorName={authorName}
           doelgroep={doelgroep}
           onToggleDoelgroep={toggleDoelgroep}
@@ -410,26 +410,26 @@ export function LessonForm({
           isOwnActivity
           goals={goals}
           onGoalsChange={(value) => form.setValue("goals", value)}
-          goalsFlagged={isFieldFlagged("goals", goals)}
+          goalsFlagged={isFieldFlagged("goals")}
           movementProblem={movementProblem}
           onMovementProblemChange={(value) => form.setValue("movementProblem", value)}
-          movementProblemFlagged={isFieldFlagged("movementProblem", movementProblem)}
+          movementProblemFlagged={isFieldFlagged("movementProblem")}
           learningOutcomes={learningOutcomes}
           onLearningOutcomesChange={setLearningOutcomes}
           deelnemersRegels={deelnemersRegels}
           onDeelnemersRegelsChange={(value) => form.setValue("deelnemersRegels", value)}
-          deelnemersRegelsFlagged={isFieldFlagged("deelnemersRegels", deelnemersRegels)}
+          deelnemersRegelsFlagged={isFieldFlagged("deelnemersRegels")}
           plaatjePraatje={plaatjePraatje}
           onPlaatjePraatjeChange={(value) => form.setValue("plaatjePraatje", value)}
-          plaatjePraatjeFlagged={isFieldFlagged("plaatjePraatje", plaatjePraatje)}
+          plaatjePraatjeFlagged={isFieldFlagged("plaatjePraatje")}
           aandachtspunten={aandachtspunten}
           onAandachtspuntenChange={(value) => form.setValue("aandachtspunten", value)}
-          aandachtspuntenFlagged={isFieldFlagged("aandachtspunten", aandachtspunten)}
+          aandachtspuntenFlagged={isFieldFlagged("aandachtspunten")}
           regels={rules}
           onRegelsChange={setRules}
           arrangement={arrangement}
           onArrangementChange={(value) => form.setValue("arrangement", value)}
-          arrangementFlagged={isFieldFlagged("arrangement", arrangement)}
+          arrangementFlagged={isFieldFlagged("arrangement")}
           baseMaterials={baseMaterials}
           onBaseMaterialsChange={setBaseMaterials}
           ruleMaterials={ruleMaterials}
@@ -449,8 +449,8 @@ export function LessonForm({
             didacticItems,
           }}
           isSubmitting={form.formState.isSubmitting}
-          filledCount={filledCount}
-          sectionCount={SECTION_COUNT}
+          missingFields={missingFields}
+          jumpToFieldTrigger={jumpToFieldTrigger}
         />
       </form>
     </Form>
