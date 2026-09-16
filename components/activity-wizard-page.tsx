@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Loader2 } from "lucide-react";
 
 import { AiLescoachButton, type AnalyzeLessonPayload } from "@/components/AiLescoachSheet";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
@@ -112,6 +112,7 @@ export function ActivityWizardPage({
   groupNameFlagged,
   activityDate,
   onActivityDateChange,
+  activityDateFlagged,
   authorName,
   doelgroep,
   onToggleDoelgroep,
@@ -184,6 +185,7 @@ export function ActivityWizardPage({
   groupNameFlagged?: boolean;
   activityDate: string;
   onActivityDateChange?: (value: string) => void;
+  activityDateFlagged?: boolean;
   authorName: string | null;
   doelgroep: number[];
   onToggleDoelgroep?: (waarde: number) => void;
@@ -407,6 +409,7 @@ export function ActivityWizardPage({
                     value={activityDate}
                     onChange={(event) => onActivityDateChange?.(event.target.value)}
                     onBlur={() => onCommit?.()}
+                    className={cn(activityDateFlagged && IMPORT_FLAG_CLASS)}
                   />
                 ) : (
                   <p className="text-sm">{formatDate(activityDate) ?? "-"}</p>
@@ -818,7 +821,8 @@ export function ActivityWizardPage({
         {isEdit ? (
           <>
             <AiLescoachButton payload={analyzePayload} className="flex-1" />
-            <Button type="submit" disabled={isSubmitting} className="flex-[1.4]">
+            <Button type="submit" disabled={isSubmitting} className="flex-[1.4] gap-2">
+              {isSubmitting && <Loader2 className="size-4 animate-spin" />}
               {isSubmitting ? "Bezig met opslaan..." : "Activiteit opslaan"}
             </Button>
           </>
