@@ -67,12 +67,15 @@ import {
   type DiagramData,
   type DiagramElement,
   type ElementType,
+  type FieldPresetSport,
   type LineDiagramElement,
   type LineVariant,
+  type LocationType,
   type TextDiagramElement,
   type TextFontStyle,
   type ViewMode,
 } from "./gym-canvas-types";
+import { FIELD_PRESET_LABELS, FIELD_PRESET_SPORTS, FIELD_PRESETS } from "./field-presets";
 
 const BASE_WIDTH = 800;
 const BASE_HEIGHT = 560;
@@ -174,7 +177,32 @@ function useIsCoarsePointer() {
   );
 }
 
-function GymBackground({ viewMode }: { viewMode: ViewMode }) {
+// Grasmat-textuur voor de buiten-ondergrond — afwisselende maaistroken
+// (zoals op een echt gemaaid grasveld), een gangbare vectortruc om "gras" te
+// suggereren zonder een afbeelding te laden.
+function GrassStripes() {
+  const stripeCount = 10;
+  const stripeWidth = BASE_WIDTH / stripeCount;
+  return (
+    <>
+      {Array.from({ length: stripeCount }, (_, i) => (
+        <Rect
+          key={i}
+          x={i * stripeWidth}
+          y={0}
+          width={stripeWidth}
+          height={BASE_HEIGHT}
+          fill={i % 2 === 0 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}
+          listening={false}
+        />
+      ))}
+    </>
+  );
+}
+
+function GymBackground({ viewMode, locationType }: { viewMode: ViewMode; locationType: LocationType }) {
+  const outdoor = locationType === "outdoor";
+
   if (viewMode === "side") {
     const floorY = BASE_HEIGHT - 90;
     const rungCount = 8;
@@ -182,22 +210,26 @@ function GymBackground({ viewMode }: { viewMode: ViewMode }) {
 
     return (
       <>
-        <Rect x={0} y={0} width={BASE_WIDTH} height={floorY} fill="#eef2f6" listening={false} />
-        <Rect x={0} y={floorY} width={BASE_WIDTH} height={BASE_HEIGHT - floorY} fill="#e4dcc8" listening={false} />
+        <Rect x={0} y={0} width={BASE_WIDTH} height={floorY} fill={outdoor ? "#dceefb" : "#eef2f6"} listening={false} />
+        <Rect x={0} y={floorY} width={BASE_WIDTH} height={BASE_HEIGHT - floorY} fill={outdoor ? "#7bab52" : "#e4dcc8"} listening={false} />
         <Line points={[0, floorY, BASE_WIDTH, floorY]} stroke="#adb5bd" strokeWidth={3} listening={false} />
-        <Rect x={rackX} y={40} width={14} height={floorY - 60} fill="#c99a52" stroke="rgba(0,0,0,0.15)" strokeWidth={1} listening={false} />
-        {Array.from({ length: rungCount }, (_, i) => {
-          const ry = 50 + i * ((floorY - 80) / (rungCount - 1));
-          return (
-            <Line
-              key={i}
-              points={[rackX, ry, rackX - 14, ry]}
-              stroke="#8b5e34"
-              strokeWidth={2}
-              listening={false}
-            />
-          );
-        })}
+        {!outdoor && (
+          <>
+            <Rect x={rackX} y={40} width={14} height={floorY - 60} fill="#c99a52" stroke="rgba(0,0,0,0.15)" strokeWidth={1} listening={false} />
+            {Array.from({ length: rungCount }, (_, i) => {
+              const ry = 50 + i * ((floorY - 80) / (rungCount - 1));
+              return (
+                <Line
+                  key={i}
+                  points={[rackX, ry, rackX - 14, ry]}
+                  stroke="#8b5e34"
+                  strokeWidth={2}
+                  listening={false}
+                />
+              );
+            })}
+          </>
+        )}
       </>
     );
   }
@@ -218,11 +250,31 @@ function GymBackground({ viewMode }: { viewMode: ViewMode }) {
 
   return (
     <>
-      <Rect x={0} y={0} width={BASE_WIDTH} height={BASE_HEIGHT} fill="#fafaf9" listening={false} />
-      {gridLines}
-      <Rect x={30} y={30} width={BASE_WIDTH - 60} height={BASE_HEIGHT - 60} stroke="#d4d4d4" strokeWidth={2} listening={false} />
-      <Circle x={BASE_WIDTH / 2} y={BASE_HEIGHT / 2} radius={50} stroke="#d4d4d4" strokeWidth={2} listening={false} />
-      <Line points={[BASE_WIDTH / 2, 30, BASE_WIDTH / 2, BASE_HEIGHT - 30]} stroke="#d4d4d4" strokeWidth={2} listening={false} />
+      <Rect x={0} y={0} width={BASE_WIDTH} height={BASE_HEIGHT} fill={outdoor ? "#79ab55" : "#fafaf9"} listening={false} />
+      {outdoor ? <GrassStripes /> : gridLines}
+      <Rect
+        x={30}
+        y={30}
+        width={BASE_WIDTH - 60}
+        height={BASE_HEIGHT - 60}
+        stroke={outdoor ? "#f8f9fa" : "#d4d4d4"}
+        strokeWidth={2}
+        listening={false}
+      />
+      <Circle
+        x={BASE_WIDTH / 2}
+        y={BASE_HEIGHT / 2}
+        radius={50}
+        stroke={outdoor ? "#f8f9fa" : "#d4d4d4"}
+        strokeWidth={2}
+        listening={false}
+      />
+      <Line
+        points={[BASE_WIDTH / 2, 30, BASE_WIDTH / 2, BASE_HEIGHT - 30]}
+        stroke={outdoor ? "#f8f9fa" : "#d4d4d4"}
+        strokeWidth={2}
+        listening={false}
+      />
     </>
   );
 }
@@ -431,6 +483,13 @@ function getElementBounds(element: DiagramElement): {
     return { x: element.x - width / 2, y: element.y - height / 2, width, height };
   }
 
+  if (element.kind === "field_preset") {
+    const geometry = FIELD_PRESETS[element.sport];
+    const width = geometry.width * geometry.initialScale * element.scaleX;
+    const height = geometry.height * geometry.initialScale * element.scaleY;
+    return { x: element.x - width / 2, y: element.y - height / 2, width, height };
+  }
+
   const def = ELEMENT_DEFS[element.type];
   const width = def.width * element.scaleX;
   const height = def.height * element.scaleY;
@@ -447,6 +506,9 @@ export const GymCanvas = forwardRef<
   const [history, setHistory] = useState<DiagramElement[][]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>(
     initialData?.viewMode ?? "top",
+  );
+  const [locationType, setLocationType] = useState<LocationType>(
+    initialData?.locationType ?? "indoor",
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -592,7 +654,7 @@ export const GymCanvas = forwardRef<
         : "";
 
       return {
-        data: { width: BASE_WIDTH, height: BASE_HEIGHT, viewMode, elements },
+        data: { width: BASE_WIDTH, height: BASE_HEIGHT, viewMode, locationType, elements },
         imageDataUrl,
       };
     },
@@ -649,6 +711,22 @@ export const GymCanvas = forwardRef<
     withHistory((prev) => [...prev, newElement]);
     setSelectedId(newElement.id);
     void incrementMaterialUsage(createClient(), material.id);
+  }
+
+  function addFieldPresetElement(sport: FieldPresetSport) {
+    const { x, y } = staggeredCenter();
+    const newElement: DiagramElement = {
+      id: createId(),
+      kind: "field_preset",
+      sport,
+      x,
+      y,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    };
+    withHistory((prev) => [...prev, newElement]);
+    setSelectedId(newElement.id);
   }
 
   // Eén geschiedenis-snapshot bij het BEGIN van een doorlopend sleepgebaar
@@ -1072,9 +1150,36 @@ export const GymCanvas = forwardRef<
                     <TabsTrigger value="systeem" className="min-h-9 flex-1 text-xs">
                       Spelers & lijnen
                     </TabsTrigger>
+                    <TabsTrigger value="veldpresets" className="min-h-9 flex-1 text-xs">
+                      Veldpresets
+                    </TabsTrigger>
                   </TabsList>
                   <TabsContent value="materiaal" className="mt-3">
                     <MaterialPicker onSelect={addMaterialElement} />
+                  </TabsContent>
+                  <TabsContent value="veldpresets" className="mt-3">
+                    <p className="mb-2 text-sm font-semibold">Sportvelden</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {FIELD_PRESET_SPORTS.map((sport) => (
+                        <button
+                          key={sport}
+                          type="button"
+                          onClick={() => {
+                            addFieldPresetElement(sport);
+                            setPickerOpen(false);
+                          }}
+                          className="flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-medium transition-colors duration-150 ease-brand hover:bg-accent"
+                        >
+                          <span
+                            className="flex size-10 items-center justify-center rounded-md text-[10px] font-semibold text-white"
+                            style={{ backgroundColor: "#5f8a3f" }}
+                          >
+                            {FIELD_PRESET_LABELS[sport].slice(0, 2).toUpperCase()}
+                          </span>
+                          {FIELD_PRESET_LABELS[sport]}
+                        </button>
+                      ))}
+                    </div>
                   </TabsContent>
                   <TabsContent value="systeem" className="mt-3 space-y-4">
                     {ELEMENT_CATEGORIES.map((category) => (
@@ -1150,6 +1255,33 @@ export const GymCanvas = forwardRef<
               )}
             >
               Zijaanzicht
+            </button>
+          </div>
+
+          <div className="flex overflow-hidden rounded-md border">
+            <button
+              type="button"
+              onClick={() => setLocationType("indoor")}
+              className={cn(
+                "min-h-9 px-3 py-2 text-xs font-medium transition-colors duration-150 ease-brand",
+                locationType === "indoor"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background hover:bg-accent",
+              )}
+            >
+              Binnen
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocationType("outdoor")}
+              className={cn(
+                "min-h-9 border-l px-3 py-2 text-xs font-medium transition-colors duration-150 ease-brand",
+                locationType === "outdoor"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background hover:bg-accent",
+              )}
+            >
+              Buiten
             </button>
           </div>
         </div>
@@ -1327,7 +1459,7 @@ export const GymCanvas = forwardRef<
               }}
             >
               <Layer>
-                <GymBackground viewMode={viewMode} />
+                <GymBackground viewMode={viewMode} locationType={locationType} />
               </Layer>
               <Layer>
                 {elements.map((el) => {

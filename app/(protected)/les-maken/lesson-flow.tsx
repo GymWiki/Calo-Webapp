@@ -6,6 +6,7 @@ import { FileUp, Lock, NotebookPen, Sparkles, type LucideIcon } from "lucide-rea
 
 import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { cn } from "@/lib/utils";
+import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { ActivityUploadStep, type RequiredLessonFormField } from "./activity-upload-step";
 import { AiLessonWizard } from "./ai-lesson-wizard";
@@ -99,6 +100,7 @@ export function LesMakenFlow({
   authorName,
   initialValues,
   initialActivityId,
+  initialDiagram,
   isEditingSavedActivity,
   initialTab,
   activeSourceCount,
@@ -110,6 +112,9 @@ export function LesMakenFlow({
   /** Gezet wanneer initialValues een eigen, nog niet ingediend concept is —
    * zie les-maken/page.tsx. */
   initialActivityId?: string;
+  /** Zie de gelijknamige prop op LessonForm — enkel gezet wanneer die eigen
+   * activiteit al een opgeslagen arrangement had. */
+  initialDiagram?: { data: DiagramData; imageDataUrl: string };
   /** True wanneer initialActivityId een AL opgeslagen (niet-concept)
    * activiteit is die bewerkt wordt — dan is er geen "concept" om
    * automatisch bij te werken (saveLessonDraft update alleen status='draft'-
@@ -203,6 +208,7 @@ export function LesMakenFlow({
       // Een upload/AI-generatie start altijd een NIEUW concept — het
       // hervat-id geldt alleen als er geen upload heeft plaatsgevonden.
       initialActivityId={uploadedValues ? undefined : initialActivityId}
+      initialDiagram={uploadedValues ? undefined : initialDiagram}
       isEditingSavedActivity={uploadedValues ? false : isEditingSavedActivity}
       initialScrollTarget={initialTab === "voorbereiding" ? "materiaal" : undefined}
       activeSourceCount={activeSourceCount}

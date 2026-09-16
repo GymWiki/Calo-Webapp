@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, Pencil } from "lucide-react";
+import { ArrowLeft, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
 
 import { AiLescoachButton, type AnalyzeLessonPayload } from "@/components/AiLescoachSheet";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
@@ -28,7 +28,7 @@ import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import { REQUIRED_LESSON_FIELDS, type DidacticItem } from "@/types/lesson";
-import { DiagramEditorCard } from "@/app/(protected)/les-maken/diagram-editor-card";
+import { FullscreenDiagramEditor } from "@/components/canvas/FullscreenDiagramEditor";
 
 const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
 
@@ -171,6 +171,7 @@ export function ActivityWizardPage({
   onBaseMaterialsChange,
   ruleMaterials,
   onRuleMaterialsChange,
+  diagramData,
   diagramImageUrl,
   onDiagramExport,
 
@@ -249,6 +250,11 @@ export function ActivityWizardPage({
   onBaseMaterialsChange?: (items: string[]) => void;
   ruleMaterials: string[];
   onRuleMaterialsChange?: (items: string[]) => void;
+  /** Ruwe canvas-state — nodig om de volledig-scherm editor te heropenen
+   * met het bestaande arrangement (zie FullscreenDiagramEditor). Alleen
+   * relevant in mode="edit"; in mode="view" wordt enkel diagramImageUrl
+   * getoond. */
+  diagramData?: DiagramData | null;
   diagramImageUrl: string | null;
   onDiagramExport?: (data: DiagramData, imageDataUrl: string) => void;
 
@@ -294,6 +300,10 @@ export function ActivityWizardPage({
   // staat — nodig voor zowel de klikbare missing-fields-lijst als een
   // mislukte submit-poging elders (lesson-form.tsx's onInvalid).
   const [activeTab, setActiveTab] = useState<"lesinhoud" | "materiaal" | "leerhulp">(defaultTab);
+  // Volledig-scherm canvas-editor (zie FullscreenDiagramEditor) — vervangt
+  // de vroegere altijd-ingebedde DiagramEditorCard; de kaart hieronder toont
+  // nu enkel nog een compacte preview + knop die dit opent.
+  const [diagramModalOpen, setDiagramModalOpen] = useState(false);
 
   // Puur DOM-werk, geen setState — mag dus gewoon in een effect (zie
   // hieronder) zonder de react-hooks/set-state-in-effect-regel te raken.
@@ -674,12 +684,41 @@ export function ActivityWizardPage({
         </CardHeader>
         <CardContent>
           {isEdit ? (
-            <DiagramEditorCard
-              onExport={(data, imageDataUrl) => {
-                onDiagramExport?.(data, imageDataUrl);
-                onCommit?.();
-              }}
-            />
+            <>
+              {diagramImageUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setDiagramModalOpen(true)}
+                  className="group relative block h-48 w-full overflow-hidden rounded-2xl border bg-muted"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- external, unregistered hosts (Firebase/Supabase Storage) */}
+                  <img
+                    src={diagramImageUrl}
+                    alt="Plattegrond van het arrangement"
+                    className="size-full object-contain transition-transform duration-200 ease-brand group-hover:scale-[1.01]"
+                  />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDiagramModalOpen(true)}
+                  className="flex h-48 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed text-muted-foreground transition-colors duration-150 ease-brand hover:border-primary/50 hover:text-foreground"
+                >
+                  <ImageOff className="size-6" aria-hidden="true" />
+                  <p className="text-sm">Nog geen plattegrond — maak er één</p>
+                </button>
+              )}
+              <Button type="button" className="mt-3 w-full sm:w-auto" onClick={() => setDiagramModalOpen(true)}>
+                <MapPinned className="size-4" />
+                Plattegrond bewerken
+              </Button>
+              <FullscreenDiagramEditor
+                open={diagramModalOpen}
+                onOpenChange={setDiagramModalOpen}
+                initialData={diagramData ?? null}
+                onSave={(data, imageDataUrl) => onDiagramExport?.(data, imageDataUrl)}
+              />
+            </>
           ) : (
             <ActivityImageLightbox
               src={diagramImageUrl}

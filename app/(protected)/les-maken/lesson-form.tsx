@@ -11,6 +11,7 @@ import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
 import { Form } from "@/components/ui/form";
 import { BEWEGINGSTHEMAS } from "@/lib/constants/learningLines";
+import { createClient } from "@/utils/supabase/client";
 import { applyDoelgroepToggle } from "@/types/activity";
 import {
   AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
@@ -44,6 +45,7 @@ export function LessonForm({
   authorName,
   initialValues,
   initialActivityId,
+  initialDiagram,
   isEditingSavedActivity,
   initialScrollTarget,
   activeSourceCount,
@@ -54,6 +56,12 @@ export function LessonForm({
   /** Gezet wanneer dit formulier een eerder opgeslagen concept hervat — dan
    * werkt auto-save/opslaan diezelfde rij bij i.p.v. een nieuwe aan te maken. */
   initialActivityId?: string;
+  /** Zaadt de lokale `diagram`-state met een al bestaand arrangement (zie
+   * les-maken/page.tsx) — zonder dit zou het hervatten van een activiteit
+   * met een al opgeslagen plattegrond die leeg tonen, en zou een
+   * eerstvolgende autosave 'm stilzwijgend wissen (zie het commentaar bij
+   * diagram_data in actions/lesson.ts). */
+  initialDiagram?: { data: DiagramData; imageDataUrl: string } | null;
   /** True wanneer initialActivityId een AL opgeslagen (niet-concept)
    * activiteit is: saveLessonDraft werkt alleen status='draft'-rijen bij, dus
    * concept-autosave zou hier stilzwijgend niets doen — beter helemaal uit,
@@ -118,7 +126,13 @@ export function LessonForm({
   const [diagram, setDiagram] = useState<{
     data: DiagramData;
     imageDataUrl: string;
-  } | null>(null);
+  } | null>(() => initialDiagram ?? null);
+  // Publieke Storage-URL van de laatst geüploade canvas-PNG (zie
+  // handleDiagramSave) — blijft `null` totdat de gebruiker deze sessie
+  // daadwerkelijk een arrangement opslaat, zodat een save vóór dat moment
+  // de bestaande `afbeelding`-kolom van een hervatte activiteit niet
+  // overschrijft (zie actions/lesson.ts's afbeeldingUrl-parameter).
+  const [afbeeldingUrl, setAfbeeldingUrl] = useState<string | null>(null);
 
   // Concept-rij die auto-save aanmaakt/bijwerkt (zie saveLessonDraft) — als
   // dit formulier een bestaand concept hervat, is dat meteen die rij.
@@ -204,6 +218,7 @@ export function LessonForm({
         diagram,
         stashedGenerated !== null,
         activityId,
+        afbeeldingUrl ?? undefined,
       );
       if ("error" in result) {
         consecutiveFailuresRef.current += 1;
@@ -223,6 +238,124 @@ export function LessonForm({
       }
       consecutiveFailuresRef.current = 0;
       setActivityId(result.activityId);
+      setSaveStatus("saved");
+    } finally {
+      isSavingDraftRef.current = false;
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        void performSave();
+      }
+    }
+  }
+
+  // Zet de net geëxporteerde canvas-PNG (data-URL) om naar een permanente
+  // Supabase Storage-URL — rechtstreeks vanuit de browser (buiten Vercel om,
+  // zelfde architectuurkeuze als de activity-imports-upload in
+  // activity_import_jobs.sql), op een stabiel pad per activiteit
+  // (`${userId}/${activityId}.png`, upsert:true) zodat elke nieuwe versie de
+  // vorige gewoon vervangt. Geeft `null` terug bij een fout — de aanroeper
+  // laat in dat geval simpelweg de bestaande `afbeelding` ongemoeid.
+  async function uploadDiagramImage(
+    imageDataUrl: string,
+    forActivityId: string,
+  ): Promise<string | null> {
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const blob = await (await fetch(imageDataUrl)).blob();
+      const path = `${user.id}/${forActivityId}.png`;
+      const { error } = await supabase.storage
+        .from("activiteit-afbeeldingen")
+        .upload(path, blob, { upsert: true, contentType: "image/png" });
+      if (error) {
+        console.error("Plattegrond-afbeelding uploaden mislukt:", error);
+        return null;
+      }
+
+      const { data } = supabase.storage.from("activiteit-afbeeldingen").getPublicUrl(path);
+      // Cache-buster: hetzelfde pad wordt bij elke wijziging overschreven
+      // (upsert), dus zonder query-param zou een CDN/browsercache de vorige
+      // afbeelding kunnen blijven tonen na een update.
+      return `${data.publicUrl}?v=${Date.now()}`;
+    } catch (error) {
+      console.error("Plattegrond-afbeelding uploaden mislukt:", error);
+      return null;
+    }
+  }
+
+  // Aangeroepen zodra de volledig-scherm canvas-editor sluit (zie
+  // activity-wizard-page.tsx's FullscreenDiagramEditor-gebruik): slaat de
+  // tekening direct op (niet via de gedebouncete scheduleAutosave — dat zou
+  // een net-gesloten plattegrond soms pas na de eerstvolgende veldwijziging
+  // écht opslaan) én genereert/vervangt de activiteit-hoofdafbeelding. Een
+  // activityId is nodig vóór de upload kan beginnen (stabiel Storage-pad),
+  // dus zonder concept wordt die eerst aangemaakt.
+  async function handleDiagramSave(data: DiagramData, imageDataUrl: string) {
+    setDiagram({ data, imageDataUrl });
+
+    if (isEditingSavedActivity) {
+      // Geen conceptrij om bij te werken (saveLessonDraft raakt alleen
+      // status='draft'-rijen aan) — "Activiteit opslaan" blijft de enige
+      // manier om dit daadwerkelijk vast te leggen. De afbeelding kan wel
+      // alvast geüpload worden (activityId ligt al vast), zodat de URL
+      // klaarstaat zodra de gebruiker opslaat.
+      if (activityId) {
+        const uploadedUrl = await uploadDiagramImage(imageDataUrl, activityId);
+        if (uploadedUrl) setAfbeeldingUrl(uploadedUrl);
+      }
+      return;
+    }
+
+    isSavingDraftRef.current = true;
+    setSaveStatus("saving");
+    try {
+      const values = form.getValues();
+      const payload: CreateLessonFormInput = {
+        ...values,
+        baseMaterials,
+        ruleMaterials,
+        rules,
+        learningOutcomes,
+        didacticItems,
+      };
+
+      let currentActivityId = activityId;
+      if (!currentActivityId) {
+        const created = await saveLessonDraft(
+          payload,
+          { data, imageDataUrl },
+          stashedGenerated !== null,
+          null,
+        );
+        if ("error" in created) {
+          toast.error("Plattegrond opslaan is mislukt. Probeer het opnieuw.");
+          return;
+        }
+        currentActivityId = created.activityId;
+        setActivityId(currentActivityId);
+      }
+
+      const uploadedUrl = await uploadDiagramImage(imageDataUrl, currentActivityId);
+      if (uploadedUrl) setAfbeeldingUrl(uploadedUrl);
+
+      const result = await saveLessonDraft(
+        payload,
+        { data, imageDataUrl },
+        stashedGenerated !== null,
+        currentActivityId,
+        uploadedUrl ?? undefined,
+      );
+      if ("error" in result) {
+        consecutiveFailuresRef.current += 1;
+        setSaveStatus(consecutiveFailuresRef.current >= FAILURE_TOAST_THRESHOLD ? "error" : "idle");
+        toast.error("Plattegrond opslaan is mislukt. Probeer het opnieuw.");
+        return;
+      }
+      consecutiveFailuresRef.current = 0;
       setSaveStatus("saved");
     } finally {
       isSavingDraftRef.current = false;
@@ -278,6 +411,7 @@ export function LessonForm({
         stashedGenerated !== null,
         activityId,
         values.isPublic,
+        afbeeldingUrl ?? undefined,
       );
 
       if ("error" in result) {
@@ -461,8 +595,9 @@ export function LessonForm({
           onBaseMaterialsChange={setBaseMaterials}
           ruleMaterials={ruleMaterials}
           onRuleMaterialsChange={setRuleMaterials}
+          diagramData={diagram?.data ?? null}
           diagramImageUrl={diagram?.imageDataUrl ?? null}
-          onDiagramExport={(data, imageDataUrl) => setDiagram({ data, imageDataUrl })}
+          onDiagramExport={(data, imageDataUrl) => void handleDiagramSave(data, imageDataUrl)}
           didacticItems={didacticItems}
           onDidacticItemsChange={setDidacticItems}
           onCommit={scheduleAutosave}

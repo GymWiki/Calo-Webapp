@@ -124,6 +124,13 @@ export async function createLesson(
   isAiGenerated = false,
   activityId: string | null = null,
   isPublic = true,
+  /** Publieke Storage-URL van de automatisch uit het canvas gegenereerde
+   * PNG (zie components/canvas/FullscreenDiagramEditor.tsx en
+   * les-maken/lesson-form.tsx's handleDiagramSave). `undefined` (de
+   * standaardwaarde) laat de bestaande `afbeelding`-kolom ongemoeid — alleen
+   * wanneer de gebruiker deze sessie daadwerkelijk een arrangement heeft
+   * opgeslagen, wordt hij hier expliciet meegegeven. */
+  afbeeldingUrl?: string,
 ): Promise<CreateLessonResult> {
   const parsed = createLessonInputSchema.safeParse(input);
 
@@ -160,8 +167,14 @@ export async function createLesson(
 
   const row = {
     ...toActivitiesRow(values),
-    diagram_data: diagram?.data ?? null,
-    diagram_image_url: diagram?.imageDataUrl ?? null,
+    // Alleen overschrijven wanneer deze sessie daadwerkelijk een tekening
+    // exporteerde — anders zou het hervatten van een al opgeslagen
+    // activiteit zonder de plattegrond aan te raken de bestaande
+    // diagram_data/diagram_image_url stilzwijgend op null zetten (de lokale
+    // `diagram`-state in lesson-form.tsx begint immers leeg totdat de
+    // gebruiker de canvas-editor daadwerkelijk opent).
+    ...(diagram ? { diagram_data: diagram.data, diagram_image_url: diagram.imageDataUrl } : {}),
+    ...(afbeeldingUrl !== undefined ? { afbeelding: afbeeldingUrl } : {}),
     is_ai_generated: isAiGenerated,
     status,
     rejection_reason: rejectionReason,
@@ -206,6 +219,9 @@ export async function saveLessonDraft(
   diagram: { data: DiagramData; imageDataUrl: string } | null,
   isAiGenerated: boolean,
   activityId: string | null,
+  /** Zie createLesson hierboven — zelfde "alleen zetten wanneer expliciet
+   * meegegeven"-conventie. */
+  afbeeldingUrl?: string,
 ): Promise<SaveDraftResult> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -223,8 +239,9 @@ export async function saveLessonDraft(
     // Nooit een titel-loze rij: een leeg concept is voor de "Mijn
     // activiteiten"-lijst niet identificeerbaar. Andere velden mogen leeg.
     titel: input.title || "Naamloos concept",
-    diagram_data: diagram?.data ?? null,
-    diagram_image_url: diagram?.imageDataUrl ?? null,
+    // Zie de gelijknamige toelichting in createLesson hierboven.
+    ...(diagram ? { diagram_data: diagram.data, diagram_image_url: diagram.imageDataUrl } : {}),
+    ...(afbeeldingUrl !== undefined ? { afbeelding: afbeeldingUrl } : {}),
     is_ai_generated: isAiGenerated,
     status: "draft" as const,
     taalcode: "nl",

@@ -8,6 +8,7 @@ import { getActivityById } from "@/lib/services/activities";
 import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
 import type { CreateLessonFormInput, DidacticItem } from "@/types/lesson";
+import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import { LesMakenFlow } from "./lesson-flow";
 
 // Ruimere functie-timeout voor de server-acties die deze pagina aanroept —
@@ -130,6 +131,17 @@ export default async function LesMakenPage({
       : mapActivityToLessonInput(activity)
     : undefined;
 
+  // Zaadt de fullscreen-canvas-editor met het al opgeslagen arrangement bij
+  // het hervatten van een eigen wizard-activiteit — zonder dit begint de
+  // tekening leeg (zie het commentaar bij initialDiagram in lesson-form.tsx).
+  const initialDiagram =
+    resumingOwnActivity && activity.diagram_data && activity.diagram_image_url
+      ? {
+          data: activity.diagram_data as DiagramData,
+          imageDataUrl: activity.diagram_image_url,
+        }
+      : undefined;
+
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-5xl xl:max-w-6xl">
       <PageHeader
@@ -151,6 +163,7 @@ export default async function LesMakenPage({
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
         initialValues={initialValues}
         initialActivityId={resumingOwnActivity ? activity.id : undefined}
+        initialDiagram={initialDiagram}
         isEditingSavedActivity={resumingOwnActivity && !isDraftResume}
         initialTab={initialTab}
         activeSourceCount={activeSourceCount}

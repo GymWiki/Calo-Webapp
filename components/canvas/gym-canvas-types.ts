@@ -150,11 +150,33 @@ export type TextDiagramElement = BaseElement & {
   fontStyle: TextFontStyle;
 };
 
+/**
+ * Veldpresets — kant-en-klare, correct geschaalde sportveldbelijning
+ * (Volleybal, Basketbal, Badminton, Handbal, Zaalvoetbal). Net als
+ * MaterialDiagramElement een BaseElement (x/y/rotation/scaleX/scaleY), zodat
+ * een geplaatst preset via dezelfde generieke Group+Transformer-flow
+ * verplaatst/geschaald/geroteerd kan worden als elk ander element — de
+ * belijning zelf komt uit FIELD_PRESETS (field-presets.ts) en wordt hier
+ * alleen met zijn sport-sleutel gerefereerd, niet gekopieerd.
+ */
+export type FieldPresetSport =
+  | "volleybal"
+  | "basketbal"
+  | "badminton"
+  | "handbal"
+  | "zaalvoetbal";
+
+export type FieldPresetDiagramElement = BaseElement & {
+  kind: "field_preset";
+  sport: FieldPresetSport;
+};
+
 export type DiagramElement =
   | SystemDiagramElement
   | MaterialDiagramElement
   | LineDiagramElement
-  | TextDiagramElement;
+  | TextDiagramElement
+  | FieldPresetDiagramElement;
 
 export function isMaterialElement(
   element: DiagramElement,
@@ -170,10 +192,21 @@ export function isTextElement(element: DiagramElement): element is TextDiagramEl
   return element.kind === "text";
 }
 
+export function isFieldPresetElement(
+  element: DiagramElement,
+): element is FieldPresetDiagramElement {
+  return element.kind === "field_preset";
+}
+
+/** Ondergrond van het canvas — stuurt alleen de achtergrond, nooit de geplaatste elementen. */
+export type LocationType = "indoor" | "outdoor";
+
 export type DiagramData = {
   width: number;
   height: number;
   /** Absent on older saved diagrams — treat as "top". */
   viewMode?: ViewMode;
+  /** Absent op oudere tekeningen — behandel als "indoor" (bestaande zaalvloer). */
+  locationType?: LocationType;
   elements: DiagramElement[];
 };
