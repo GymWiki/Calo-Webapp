@@ -66,11 +66,28 @@ function countThisMonth(activities: Activity[]) {
   }).length;
 }
 
+// Promise.allSettled i.p.v. Promise.all: getOwnSubmissions/getPublicActivities
+// (lib/services/activities.ts) gooien allebei een Error bij elke Supabase-
+// foutmelding (netwerkhikje, een tijdelijke RLS-hik, ...) — met Promise.all
+// zou zo'n falende query het HELE dashboard laten crashen (en zonder een
+// error.tsx zou dat zelfs de navigatiebalk meeslepen, zie app/(protected)/
+// error.tsx). Eén sectie die leeg blijft bij een mislukte query is een veel
+// kleinere impact dan de hele pagina onbereikbaar maken.
 async function DashboardContent({ userId }: { userId: string }) {
-  const [ownActivities, publicActivities] = await Promise.all([
+  const [ownResult, publicResult] = await Promise.allSettled([
     getOwnSubmissions(userId),
     getPublicActivities(),
   ]);
+
+  if (ownResult.status === "rejected") {
+    console.error("Dashboard: eigen activiteiten ophalen mislukt —", ownResult.reason);
+  }
+  if (publicResult.status === "rejected") {
+    console.error("Dashboard: publieke activiteiten ophalen mislukt —", publicResult.reason);
+  }
+
+  const ownActivities = ownResult.status === "fulfilled" ? ownResult.value : [];
+  const publicActivities = publicResult.status === "fulfilled" ? publicResult.value : [];
   const latest = ownActivities[0];
   const communityActivities = publicActivities.slice(0, COMMUNITY_LIMIT);
   const recentOwnActivities = ownActivities.slice(0, OWN_ACTIVITIES_LIMIT);
