@@ -972,7 +972,7 @@ export function ActivityWizardPage({
           (een echte submit-knop, binnen het <form> van de aanroeper) —
           dezelfde plek/omlijning, andere knoppen omdat er in edit-modus nog
           geen opgeslagen activiteit-rij is om te delen of te exporteren. */}
-      <div className="fixed inset-x-0 bottom-16 z-40 flex items-center gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg md:bottom-0 print:hidden">
+      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-2 border-t bg-card p-2.5 shadow-brand-lg md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))] print:hidden">
         {isEdit ? (
           <>
             <AiLescoachButton payload={analyzePayload} className="flex-1" />

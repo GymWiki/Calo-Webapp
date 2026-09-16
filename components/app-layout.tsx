@@ -40,6 +40,17 @@ const SECONDARY_NAV_ITEMS: NavItem[] = [
   { href: "/pro", label: "Abonnement", icon: Crown },
 ];
 
+// Exacte-of-subroute-match i.p.v. kale pathname.startsWith(item.href): met
+// startsWith alleen matchte "/profiel" ook per ongeluk tegen href "/pro"
+// (Abonnement) — "/profiel".startsWith("/pro") is true, dus die tab kleurde
+// ook actief mee terwijl je op je profiel zat. Deze helper staat wél toe dat
+// een subroute (bijv. "/profiel/activiteiten", zie de Concepten/Activiteiten-
+// tabbladen) zijn ouder-tab "Profiel" als actief aanmerkt, want die begint
+// met "/profiel/" — een exacte prefix-grens i.p.v. een losse tekst-match.
+function isNavItemActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const navItems = NAV_ITEMS;
@@ -48,7 +59,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // Kennisbank/Abonnement zaten voorheen alleen in de desktop-zijbalk — op
   // mobiel was er geen enkele weg naar die pagina's. "Meer" is de 5e (en
   // laatste toegestane) bottom-nav-plek, opent een Sheet met de rest.
-  const isMoreActive = secondaryNavItems.some((item) => pathname.startsWith(item.href));
+  const isMoreActive = secondaryNavItems.some((item) => isNavItemActive(pathname, item.href));
 
   function navLinkClass(isActive: boolean) {
     return cn(
@@ -67,7 +78,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {navItems.map((item) => {
-            const isActive = pathname.startsWith(item.href);
+            const isActive = isNavItemActive(pathname, item.href);
             const Icon = item.icon;
             return (
               <Link
@@ -87,7 +98,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 Meer
               </p>
               {secondaryNavItems.map((item) => {
-                const isActive = pathname.startsWith(item.href);
+                const isActive = isNavItemActive(pathname, item.href);
                 const Icon = item.icon;
                 return (
                   <Link
@@ -115,20 +126,33 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </form>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0 print:pb-0">
+      {/* pb-16 was een vaste 4rem — precies de hoogte van de bottom-nav
+          hieronder zolang die zelf geen safe-area-padding had. Nu die balk
+          op toestellen met een gebarenbalk (iOS/Android) env(safe-area-
+          inset-bottom) extra hoogte krijgt, moet de content-padding daarin
+          meegroeien, anders verdwijnt het laatste stukje content er alsnog
+          achter. */}
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 print:pb-0">
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex h-16 shrink-0 transform-gpu border-t bg-background/95 backdrop-blur-sm md:hidden print:hidden">
+      {/* Geen h-16 meer op de nav zelf — pb-[env(safe-area-inset-bottom)]
+          voegt onderin extra ruimte toe die met de balk meegroeit i.p.v. 'm
+          in een vaste 64px te persen (waardoor de iconen/labels op
+          toestellen met een gebarenbalk té laag, deels achter die balk,
+          zouden komen te staan). Elke tab krijgt zelf h-16 zodat het
+          klikbare oppervlak exact hetzelfde blijft als voorheen — de
+          safe-area-ruimte is puur onklikbare buffer eronder. */}
+      <nav className="fixed inset-x-0 bottom-0 z-50 flex shrink-0 transform-gpu border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden print:hidden">
         {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
+          const isActive = isNavItemActive(pathname, item.href);
           const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-1 shrink-0 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-150 ease-brand",
+                "flex h-16 flex-1 shrink-0 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-150 ease-brand",
                 isActive ? "text-primary" : "text-muted-foreground",
               )}
             >
@@ -149,7 +173,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
             className={cn(
-              "flex flex-1 shrink-0 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-150 ease-brand",
+              "flex h-16 flex-1 shrink-0 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-150 ease-brand",
               isMoreActive ? "text-primary" : "text-muted-foreground",
             )}
           >
@@ -171,7 +195,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </SheetHeader>
           <nav className="flex flex-col gap-1 p-4 pt-0">
             {secondaryNavItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
+              const isActive = isNavItemActive(pathname, item.href);
               const Icon = item.icon;
               return (
                 <Link

@@ -670,7 +670,7 @@ export function TournamentClient() {
         </TabsContent>
       </Tabs>
 
-      <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-4 shadow-brand-lg md:hidden">
+      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex gap-2 border-t bg-card p-4 shadow-brand-lg md:hidden">
         <TournamentPdfButton
           schedule={schedule}
           scores={scores}

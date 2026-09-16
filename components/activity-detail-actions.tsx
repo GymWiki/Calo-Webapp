@@ -36,9 +36,13 @@ export function ActivityDetailActions({
 
   return (
     // Eén vaste onderbalk, op elke breedte — geen aparte desktop-variant.
-    // bottom-16 op mobiel om boven de bottom-navigatie te blijven (die is
-    // md:hidden, zie components/app-layout.tsx), md:bottom-0 daarna.
-    <div className="fixed inset-x-0 bottom-16 z-40 flex gap-2 border-t bg-card p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-brand-lg md:bottom-0">
+    // bottom-[calc(4rem+env(safe-area-inset-bottom))] op mobiel om boven de
+    // bottom-navigatie te blijven (die is md:hidden en zelf ook
+    // safe-area-bewust, zie components/app-layout.tsx), md:bottom-0 daarna
+    // — op mobiel reserveert de nav er al onder al de veilige zone, dus
+    // deze balk heeft daar zelf geen extra pb voor nodig; op desktop, waar
+    // 'm wél de echte schermrand raakt, wel.
+    <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex gap-2 border-t bg-card p-2.5 shadow-brand-lg md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
       <Button
         variant="outline"
         size="sm"
