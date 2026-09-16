@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import type Konva from "konva";
 import {
@@ -23,13 +24,22 @@ import {
   ArrowLeftRight,
   ArrowRight,
   Bold,
+  BringToFront,
+  Copy,
   Eraser,
   Italic,
   Minus,
+  MoreHorizontal,
+  Move,
   Plus,
   RotateCcw,
+  RotateCw,
+  SendToBack,
   Trash2,
   Type,
+  X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -56,7 +66,6 @@ import {
   LINE_VARIANT_LABELS,
   type DiagramData,
   type DiagramElement,
-  type ElementTransform,
   type ElementType,
   type LineDiagramElement,
   type LineVariant,
@@ -86,11 +95,31 @@ const LINE_POINTER_WIDTH = 12;
 const DEFAULT_TEXT_FONT_SIZE = 22;
 const DEFAULT_TEXT_COLOR = "#1b1d21";
 
+// Pan/zoom — los van `scale` (de "pas-in-container-breedte"-factor
+// hieronder), zie effectiveScale verderop. MIN/MAX in "keer scale", dus
+// zoom=1 betekent altijd "de responsive fit-breedte", niet "100% van
+// BASE_WIDTH".
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
+const ZOOM_BUTTON_STEP = 1.25;
+const WHEEL_ZOOM_STEP = 1.06;
+
+// Zwevende-controls-afmetingen (canvas-container-relatieve pixels, niet
+// canvas-eenheden) — gebruikt om de actiebalk/rotate-move-knoppen boven of
+// onder de selectie te positioneren.
+const FLOATING_TOOLBAR_HEIGHT = 44;
+const FLOATING_GAP = 10;
+const HANDLE_SIZE = 44;
+
 function toFontStyle(bold: boolean, italic: boolean): TextFontStyle {
   if (bold && italic) return "bold italic";
   if (bold) return "bold";
   if (italic) return "italic";
   return "normal";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 export type GymCanvasHandle = {
@@ -117,6 +146,31 @@ function useIsDesktop() {
     subscribeToDesktopQuery,
     getIsDesktopSnapshot,
     getIsDesktopServerSnapshot,
+  );
+}
+
+// Los van useIsDesktop hierboven (dat is schermbreedte, voor de
+// materiaal-Sheet die als drawer vs. zijpaneel opent) — dit is het echte
+// "vinger vs. muis"-signaal uit de brief, gebruikt om de losse rotate/move-
+// knoppen en de grotere handle-maten alleen op aanraakschermen te tonen. Een
+// breed touchscreen (bijv. tablet in landscape) hoort nog steeds de
+// touch-controls te krijgen, ook al zou useIsDesktop daar "desktop" zeggen.
+function subscribeToCoarsePointerQuery(callback: () => void) {
+  const mql = window.matchMedia("(pointer: coarse)");
+  mql.addEventListener("change", callback);
+  return () => mql.removeEventListener("change", callback);
+}
+function getIsCoarsePointerSnapshot() {
+  return window.matchMedia("(pointer: coarse)").matches;
+}
+function getIsCoarsePointerServerSnapshot() {
+  return false;
+}
+function useIsCoarsePointer() {
+  return useSyncExternalStore(
+    subscribeToCoarsePointerQuery,
+    getIsCoarsePointerSnapshot,
+    getIsCoarsePointerServerSnapshot,
   );
 }
 
@@ -246,21 +300,27 @@ function LineVariantPickerButton({
  * draggable eindpunt-handles waarmee de lengte verandert door `points` zelf
  * bij te werken, in plaats van via een schalende resize-handle. Zo blijven
  * strokeWidth en de Arrow-pijlpunt (pointerLength/pointerWidth) altijd
- * constant, ongeacht de lijnlengte.
+ * constant, ongeacht de lijnlengte. `handleRadius` groter op coarse-pointer-
+ * apparaten (zie useIsCoarsePointer) — een 14px-hit-target (de oorspronkelijke
+ * radius=7) is te klein om precies met een vinger te raken.
  */
 function LineElementNode({
   element,
   selected,
+  handleRadius,
   onSelect,
-  onDragStart,
+  onInteractionStart,
+  onInteractionEnd,
   onWholeMove,
   onPointMove,
   registerHandle,
 }: {
   element: LineDiagramElement;
   selected: boolean;
+  handleRadius: number;
   onSelect: () => void;
-  onDragStart: () => void;
+  onInteractionStart: () => void;
+  onInteractionEnd: () => void;
   onWholeMove: (points: [number, number, number, number]) => void;
   onPointMove: (index: 0 | 1, x: number, y: number) => void;
   registerHandle: (key: string, node: Konva.Circle | null) => void;
@@ -279,13 +339,14 @@ function LineElementNode({
       draggable
       onClick={onSelect}
       onTap={onSelect}
-      onDragStart={onDragStart}
+      onDragStart={onInteractionStart}
       onDragEnd={(e) => {
         const node = e.target;
         const dx = node.x();
         const dy = node.y();
         node.position({ x: 0, y: 0 });
         onWholeMove([x1 + dx, y1 + dy, x2 + dx, y2 + dy]);
+        onInteractionEnd();
       }}
     >
       {element.variant === "line" ? (
@@ -306,30 +367,74 @@ function LineElementNode({
             ref={(node) => registerHandle(`${element.id}-0`, node)}
             x={x1}
             y={y1}
-            radius={7}
+            radius={handleRadius}
             fill="#ffffff"
             stroke={element.stroke}
             strokeWidth={2}
             draggable
-            onDragStart={onDragStart}
+            onDragStart={onInteractionStart}
             onDragMove={(e) => onPointMove(0, e.target.x(), e.target.y())}
+            onDragEnd={onInteractionEnd}
           />
           <Circle
             ref={(node) => registerHandle(`${element.id}-1`, node)}
             x={x2}
             y={y2}
-            radius={7}
+            radius={handleRadius}
             fill="#ffffff"
             stroke={element.stroke}
             strokeWidth={2}
             draggable
-            onDragStart={onDragStart}
+            onDragStart={onInteractionStart}
             onDragMove={(e) => onPointMove(1, e.target.x(), e.target.y())}
+            onDragEnd={onInteractionEnd}
           />
         </>
       )}
     </Group>
   );
+}
+
+/**
+ * Axis-aligned selectiebox in canvas-eenheden (BASE_WIDTH/BASE_HEIGHT-
+ * ruimte), per elementsoort — negeert rotatie bewust (net als de meeste
+ * ontwerptools de zwevende actiebalk gewoon op de niet-geroteerde
+ * begrenzing laten meebewegen i.p.v. een exacte, geroteerde omtrek te
+ * berekenen). Gebruikt om de zwevende actiebalk en de rotate/move-knoppen
+ * te positioneren — een kleine benadering hier is visueel niet merkbaar.
+ */
+function getElementBounds(element: DiagramElement): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  if (element.kind === "line") {
+    const [x1, y1, x2, y2] = element.points;
+    return {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      width: Math.max(Math.abs(x2 - x1), 4),
+      height: Math.max(Math.abs(y2 - y1), 4),
+    };
+  }
+
+  if (element.kind === "text") {
+    const width = Math.max(100, element.fontSize * 7) * element.scaleX;
+    const height = element.fontSize * 1.4 * element.scaleY;
+    return { x: element.x, y: element.y, width, height };
+  }
+
+  if (element.kind === "material") {
+    const width = element.width * element.scaleX;
+    const height = element.height * element.scaleY;
+    return { x: element.x - width / 2, y: element.y - height / 2, width, height };
+  }
+
+  const def = ELEMENT_DEFS[element.type];
+  const width = def.width * element.scaleX;
+  const height = def.height * element.scaleY;
+  return { x: element.x - width / 2, y: element.y - height / 2, width, height };
 }
 
 export const GymCanvas = forwardRef<
@@ -345,7 +450,26 @@ export const GymCanvas = forwardRef<
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [stageWidth, setStageWidth] = useState(BASE_WIDTH);
+  // Pan/zoom-viewport — los van `scale` hieronder (de "pas in
+  // containerbreedte"-fit-factor). `zoom` is de extra, door de gebruiker
+  // bediende in-/uitzoomfactor (pinch, wieltje, +/- knoppen); `stagePos` is
+  // de bijbehorende pan-verschuiving in canvas-containerpixels.
+  const [zoom, setZoom] = useState(1);
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+  // Uit tijdens een actief 2-vinger-pinchgebaar — anders vecht Konva's eigen
+  // 1-vinger-sleep-pan (Stage `draggable`) met de pinch-zoom-berekening
+  // hieronder, allebei op de eerste vinger. `draggable` staat hier bewust
+  // als losse state (i.p.v. imperatief `stage.draggable(false)`) omdat elke
+  // zoom/pan-herrender via React anders de imperatieve waarde weer zou
+  // overschrijven met de altijd-`true` JSX-prop.
+  const [stageDraggable, setStageDraggable] = useState(true);
+  // True tijdens een actief sleep-/roteer-/schaalgebaar (native Konva-drag,
+  // Transformer, of de losse rotate/move-knoppen hieronder) — de zwevende
+  // actiebalk en rotate/move-knoppen verbergen zich dan (net als in Canva),
+  // en verschijnen weer zodra het gebaar stopt, op de nieuwe positie.
+  const [isInteracting, setIsInteracting] = useState(false);
   // Welk tekstvak op dit moment via de <textarea>-overlay bewerkt wordt —
   // zie de rendering verderop. De onderliggende Konva-Text blijft altijd
   // zichtbaar en live-gesynchroniseerd (setTextLive), dus een export tijdens
@@ -353,6 +477,7 @@ export const GymCanvas = forwardRef<
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   const isDesktop = useIsDesktop();
+  const isCoarsePointer = useIsCoarsePointer();
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -362,6 +487,10 @@ export const GymCanvas = forwardRef<
   // worden vóór het exporteren (zie exportDiagram hieronder), net als de
   // Transformer zelf.
   const lineHandleRefs = useRef<Map<string, Konva.Circle>>(new Map());
+  // Pinch-to-zoom-gebaar-status — bewaart de vorige frame-afstand/middelpunt
+  // tussen de twee vingers, zodat elke touchmove alleen het VERSCHIL sinds
+  // de vorige frame hoeft te verwerken. null = geen 2-vinger-gebaar bezig.
+  const lastPinchRef = useRef<{ distance: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     function updateSize() {
@@ -396,6 +525,18 @@ export const GymCanvas = forwardRef<
       transformer.getLayer()?.batchDraw();
     }
   }, [selectedId, elements]);
+
+  // De "meer opties"-popover hoort bij één specifiek geselecteerd element —
+  // sluit 'm zodra de selectie wisselt, anders blijft hij zichtbaar boven
+  // een ander (of geen) element. Aangepast tijdens het renderen zelf
+  // (React's aanbevolen patroon voor "state aanpassen in reactie op een
+  // prop/state-wijziging") i.p.v. in een effect, want een effect mag geen
+  // setState synchroon aanroepen (react-hooks/set-state-in-effect).
+  const [lastSelectedIdForMenu, setLastSelectedIdForMenu] = useState(selectedId);
+  if (selectedId !== lastSelectedIdForMenu) {
+    setLastSelectedIdForMenu(selectedId);
+    setMoreMenuOpen(false);
+  }
 
   // Backspace/Delete verwijdert het geselecteerde element — zelfde actie als
   // de "Verwijderen"-knop. Genegeerd terwijl een tekstveld elders op de
@@ -435,11 +576,18 @@ export const GymCanvas = forwardRef<
       setSelectedId(null);
 
       const stage = stageRef.current;
-      const currentScale = stage?.scaleX() || 1;
+      // Export altijd op de "pas in containerbreedte"-schaal, ongeacht de
+      // huidige pan/zoom-viewport-stand — anders zou heen-en-weer inzoomen
+      // vóór het opslaan de geëxporteerde plattegrond-afbeelding beïnvloeden.
+      const currentScale = scale;
       const imageDataUrl = stage
         ? stage.toDataURL({
             mimeType: "image/png",
             pixelRatio: 1 / currentScale,
+            x: 0,
+            y: 0,
+            width: BASE_WIDTH * scale,
+            height: BASE_HEIGHT * scale,
           })
         : "";
 
@@ -503,18 +651,22 @@ export const GymCanvas = forwardRef<
     void incrementMaterialUsage(createClient(), material.id);
   }
 
-  function updateElement(id: string, changes: Partial<ElementTransform>) {
-    withHistory((prev) =>
-      prev.map((el) => (el.id === id ? { ...el, ...changes } : el)),
-    );
-  }
-
   // Eén geschiedenis-snapshot bij het BEGIN van een doorlopend sleepgebaar
-  // (lijn-eindpunt of tekstbewerking) — de tussentijdse updates lopen
-  // daarna via setElements (geen history), zodat undo dat hele gebaar als
-  // één stap terugdraait i.p.v. één stap per pixel/toetsaanslag.
+  // (lijn-eindpunt, tekstbewerking, of de losse rotate/move-knoppen
+  // hieronder) — de tussentijdse updates lopen daarna via setElements (geen
+  // history), zodat undo dat hele gebaar als één stap terugdraait i.p.v. één
+  // stap per pixel/toetsaanslag.
   function beginElementEdit() {
     setHistory((prev) => [...prev.slice(-(MAX_HISTORY - 1)), elements]);
+  }
+
+  function startInteraction() {
+    setIsInteracting(true);
+    beginElementEdit();
+  }
+
+  function endInteraction() {
+    setIsInteracting(false);
   }
 
   function setLinePointsLive(id: string, points: [number, number, number, number]) {
@@ -614,6 +766,65 @@ export const GymCanvas = forwardRef<
     setSelectedId(null);
   }
 
+  // Kopieert het geselecteerde element, licht verschoven zodat de kopie
+  // zichtbaar een apart element is i.p.v. exact overlappend met het
+  // origineel — zelfde offset-idee als staggeredCenter hierboven.
+  function duplicateSelected() {
+    const original = elements.find((el) => el.id === selectedId);
+    if (!original) return;
+
+    const offset = 20;
+    let clone: DiagramElement;
+    if (original.kind === "line") {
+      const [x1, y1, x2, y2] = original.points;
+      clone = {
+        ...original,
+        id: createId(),
+        points: [x1 + offset, y1 + offset, x2 + offset, y2 + offset] as [
+          number,
+          number,
+          number,
+          number,
+        ],
+      };
+    } else {
+      clone = { ...original, id: createId(), x: original.x + offset, y: original.y + offset };
+    }
+
+    withHistory((prev) => [...prev, clone]);
+    setSelectedId(clone.id);
+    setMoreMenuOpen(false);
+  }
+
+  // Laagvolgorde = volgorde in `elements` (later in de array = boven-op,
+  // zie de render-loop verderop) — naar voren/achteren sturen verplaatst het
+  // element dus simpelweg naar het eind/begin van diezelfde array.
+  function bringSelectedToFront() {
+    if (!selectedId) return;
+    withHistory((prev) => {
+      const index = prev.findIndex((el) => el.id === selectedId);
+      if (index === -1 || index === prev.length - 1) return prev;
+      const next = [...prev];
+      const [item] = next.splice(index, 1);
+      next.push(item);
+      return next;
+    });
+    setMoreMenuOpen(false);
+  }
+
+  function sendSelectedToBack() {
+    if (!selectedId) return;
+    withHistory((prev) => {
+      const index = prev.findIndex((el) => el.id === selectedId);
+      if (index <= 0) return prev;
+      const next = [...prev];
+      const [item] = next.splice(index, 1);
+      next.unshift(item);
+      return next;
+    });
+    setMoreMenuOpen(false);
+  }
+
   function clearCanvas() {
     if (elements.length === 0) return;
     withHistory(() => []);
@@ -629,6 +840,12 @@ export const GymCanvas = forwardRef<
   }
 
   const scale = stageWidth / BASE_WIDTH;
+  // De daadwerkelijke schaal waarop de Stage getekend wordt: de responsive
+  // "pas in containerbreedte"-factor vermenigvuldigd met de door de
+  // gebruiker gekozen zoomstand. Alle omrekeningen tussen canvas-eenheden en
+  // scherm-/containerpixels (zwevende controls, tekst-overlay) gebruiken
+  // deze ene waarde, zodat pan/zoom die nooit uit de pas laat lopen.
+  const effectiveScale = scale * zoom;
   const selectedElement = elements.find((el) => el.id === selectedId) ?? null;
   const editingTextElement =
     editingTextId !== null
@@ -636,6 +853,197 @@ export const GymCanvas = forwardRef<
           | TextDiagramElement
           | undefined) ?? null)
       : null;
+
+  function zoomAround(nextZoom: number, pointer: { x: number; y: number }) {
+    const clamped = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+    const oldEffective = effectiveScale;
+    const newEffective = scale * clamped;
+    // Houdt het canvaspunt onder `pointer` op dezelfde schermpositie tijdens
+    // het zoomen (i.p.v. altijd rond de canvas-linkerbovenhoek), hetzelfde
+    // idee als Konva's eigen "zoom relative to pointer"-voorbeeld.
+    const canvasPoint = {
+      x: (pointer.x - stagePos.x) / oldEffective,
+      y: (pointer.y - stagePos.y) / oldEffective,
+    };
+    setZoom(clamped);
+    setStagePos({
+      x: pointer.x - canvasPoint.x * newEffective,
+      y: pointer.y - canvasPoint.y * newEffective,
+    });
+  }
+
+  function zoomByButton(factor: number) {
+    // Rond het midden van de zichtbare canvas-viewport — de knoppen kennen
+    // geen aanwijzerpositie zoals wiel-/pinch-zoomen dat wel hebben.
+    zoomAround(zoom * factor, { x: (BASE_WIDTH * scale) / 2, y: (BASE_HEIGHT * scale) / 2 });
+  }
+
+  function handleWheel(e: Konva.KonvaEventObject<WheelEvent>) {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    const pointer = stage?.getPointerPosition();
+    if (!pointer) return;
+    const direction = e.evt.deltaY > 0 ? -1 : 1;
+    const nextZoom = direction > 0 ? zoom * WHEEL_ZOOM_STEP : zoom / WHEEL_ZOOM_STEP;
+    zoomAround(nextZoom, pointer);
+  }
+
+  function getTouchDistance(a: Touch, b: Touch) {
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  }
+
+  // Pinch-to-zoom: alleen actief bij precies 2 vingers, zodat 1-vinger-
+  // slepen (pannen via Stage's eigen `draggable`, of een object verslepen)
+  // hier niets mee te maken heeft. lastPinchRef bewaart alleen de vorige
+  // frame — elke touchmove verwerkt dus het VERSCHIL sinds daarnet, niet
+  // sinds de start van het hele gebaar.
+  function handleStageTouchMove(e: Konva.KonvaEventObject<TouchEvent>) {
+    const touches = e.evt.touches;
+    if (touches.length !== 2) {
+      lastPinchRef.current = null;
+      setStageDraggable(true);
+      return;
+    }
+    e.evt.preventDefault();
+
+    const stage = stageRef.current;
+    const container = stage?.container();
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const [t1, t2] = [touches[0], touches[1]];
+    const distance = getTouchDistance(t1, t2);
+    const center = {
+      x: (t1.clientX + t2.clientX) / 2 - rect.left,
+      y: (t1.clientY + t2.clientY) / 2 - rect.top,
+    };
+
+    const last = lastPinchRef.current;
+    if (!last) {
+      lastPinchRef.current = { distance, x: center.x, y: center.y };
+      setStageDraggable(false);
+      return;
+    }
+
+    const scaleBy = distance / last.distance;
+    zoomAround(zoom * scaleBy, center);
+    lastPinchRef.current = { distance, x: center.x, y: center.y };
+  }
+
+  function handleStageTouchEnd(e: Konva.KonvaEventObject<TouchEvent>) {
+    if (e.evt.touches.length < 2) {
+      lastPinchRef.current = null;
+      setStageDraggable(true);
+    }
+  }
+
+  // Rotate-knop (alleen coarse-pointer, zie useIsCoarsePointer): draait het
+  // element met de vinger om zijn eigen middelpunt, losstaand van Konva's
+  // eigen Transformer-rotatiehandle (die op mobiel uitstaat, zie
+  // rotateEnabled hieronder) — vergelijkbaar met Canva's ronde draai-knop
+  // onder de selectie i.p.v. een klein hoekhandvat.
+  function startRotateGesture(event: ReactPointerEvent) {
+    const element = selectedElement;
+    if (!element || element.kind === "line") return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const bounds = getElementBounds(element);
+    // Middelpunt van het element, omgerekend van canvas-eenheden naar
+    // absolute schermpixels — dezelfde stagePos/effectiveScale-omrekening
+    // als overal elders, plus de container's eigen positie op de pagina
+    // (event.clientX/Y zijn viewport-relatief, niet container-relatief).
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) return;
+    const centerScreenX =
+      containerRect.left + stagePos.x + (bounds.x + bounds.width / 2) * effectiveScale;
+    const centerScreenY =
+      containerRect.top + stagePos.y + (bounds.y + bounds.height / 2) * effectiveScale;
+
+    const startAngle = Math.atan2(event.clientY - centerScreenY, event.clientX - centerScreenX);
+    const startRotation = element.rotation;
+    const elementId = element.id;
+
+    startInteraction();
+
+    function onMove(moveEvent: PointerEvent) {
+      const angle = Math.atan2(moveEvent.clientY - centerScreenY, moveEvent.clientX - centerScreenX);
+      const deltaDeg = ((angle - startAngle) * 180) / Math.PI;
+      setElements((prev) =>
+        prev.map((item) =>
+          item.id === elementId && item.kind !== "line"
+            ? { ...item, rotation: startRotation + deltaDeg }
+            : item,
+        ),
+      );
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      endInteraction();
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  // Move-knop (alleen coarse-pointer): expliciete, los aantikbare manier om
+  // te verslepen — lost het bekende mobiele conflict op waarbij direct op
+  // een klein object slepen soms als canvas-pan/scroll wordt geïnterpreteerd
+  // in plaats van als object-verplaatsing.
+  function startMoveGesture(event: ReactPointerEvent) {
+    const element = selectedElement;
+    if (!element || element.kind === "line") return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const originX = element.x;
+    const originY = element.y;
+    const elementId = element.id;
+
+    startInteraction();
+
+    function onMove(moveEvent: PointerEvent) {
+      const dx = (moveEvent.clientX - startClientX) / effectiveScale;
+      const dy = (moveEvent.clientY - startClientY) / effectiveScale;
+      setElements((prev) =>
+        prev.map((item) =>
+          item.id === elementId && item.kind !== "line"
+            ? { ...item, x: originX + dx, y: originY + dy }
+            : item,
+        ),
+      );
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      endInteraction();
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  // Zwevende-controls-positie (containerpixels, niet canvaseenheden) — recht
+  // boven de selectie, of eronder wanneer erboven geen ruimte meer is (te
+  // dicht bij de bovenrand van de canvas-container). Simplificatie: getoetst
+  // aan de canvas-container zelf, niet aan het volledige browserviewport
+  // (zie ook de code-commentaar bij getElementBounds hierboven).
+  const selectedBounds = selectedElement ? getElementBounds(selectedElement) : null;
+  const floatingControlsVisible =
+    selectedBounds !== null && !isInteracting && editingTextId === null;
+  let toolbarLeft = 0;
+  let toolbarTop = 0;
+  let toolbarBelow = false;
+  let handlesTop = 0;
+  if (selectedBounds) {
+    const boxTop = stagePos.y + selectedBounds.y * effectiveScale;
+    const boxBottom = stagePos.y + (selectedBounds.y + selectedBounds.height) * effectiveScale;
+    const boxCenterX = stagePos.x + (selectedBounds.x + selectedBounds.width / 2) * effectiveScale;
+    toolbarBelow = boxTop < FLOATING_TOOLBAR_HEIGHT + FLOATING_GAP;
+    toolbarTop = toolbarBelow ? boxBottom + FLOATING_GAP : boxTop - FLOATING_TOOLBAR_HEIGHT - FLOATING_GAP;
+    toolbarLeft = boxCenterX;
+    handlesTop = boxBottom + FLOATING_GAP;
+  }
 
   return (
     <div className="space-y-3">
@@ -889,132 +1297,186 @@ export const GymCanvas = forwardRef<
       )}
 
       <div ref={containerRef} className="w-full">
-        <div className="relative inline-block touch-none overflow-hidden rounded-lg border">
-          <Stage
-            ref={stageRef}
-            width={BASE_WIDTH * scale}
-            height={BASE_HEIGHT * scale}
-            scaleX={scale}
-            scaleY={scale}
-            onMouseDown={(e) => {
-              if (e.target === e.target.getStage()) setSelectedId(null);
-            }}
-            onTouchStart={(e) => {
-              if (e.target === e.target.getStage()) setSelectedId(null);
-            }}
-          >
-            <Layer>
-              <GymBackground viewMode={viewMode} />
-            </Layer>
-            <Layer>
-              {elements.map((el) => {
-                if (el.kind === "line") {
-                  return (
-                    <LineElementNode
-                      key={el.id}
-                      element={el}
-                      selected={selectedId === el.id}
-                      onSelect={() => setSelectedId(el.id)}
-                      onDragStart={beginElementEdit}
-                      onWholeMove={(points) => setLinePointsLive(el.id, points)}
-                      onPointMove={(index, x, y) => {
-                        const next: [number, number, number, number] = [
-                          el.points[0],
-                          el.points[1],
-                          el.points[2],
-                          el.points[3],
-                        ];
-                        if (index === 0) {
-                          next[0] = x;
-                          next[1] = y;
-                        } else {
-                          next[2] = x;
-                          next[3] = y;
-                        }
-                        setLinePointsLive(el.id, next);
-                      }}
-                      registerHandle={(key, node) => {
-                        if (node) lineHandleRefs.current.set(key, node);
-                        else lineHandleRefs.current.delete(key);
-                      }}
-                    />
-                  );
-                }
+        {/* Buiten de overflow-hidden canvas-box hieronder (die is puur voor
+            de Stage zelf) — de zwevende actiebalk/rotate-move-knoppen/
+            zoomknoppen mogen desnoods net over de canvasrand heen steken
+            zonder afgesneden te worden. */}
+        <div className="relative">
+          <div className="touch-none overflow-hidden rounded-lg border">
+            <Stage
+              ref={stageRef}
+              width={BASE_WIDTH * scale}
+              height={BASE_HEIGHT * scale}
+              scaleX={effectiveScale}
+              scaleY={effectiveScale}
+              x={stagePos.x}
+              y={stagePos.y}
+              draggable={stageDraggable}
+              onDragMove={(e) => {
+                if (e.target !== e.target.getStage()) return;
+                setStagePos({ x: e.target.x(), y: e.target.y() });
+              }}
+              onWheel={handleWheel}
+              onTouchMove={handleStageTouchMove}
+              onTouchEnd={handleStageTouchEnd}
+              onMouseDown={(e) => {
+                if (e.target === e.target.getStage()) setSelectedId(null);
+              }}
+              onTouchStart={(e) => {
+                if (e.target === e.target.getStage()) setSelectedId(null);
+              }}
+            >
+              <Layer>
+                <GymBackground viewMode={viewMode} />
+              </Layer>
+              <Layer>
+                {elements.map((el) => {
+                  if (el.kind === "line") {
+                    return (
+                      <LineElementNode
+                        key={el.id}
+                        element={el}
+                        selected={selectedId === el.id}
+                        handleRadius={isCoarsePointer ? 16 : 7}
+                        onSelect={() => setSelectedId(el.id)}
+                        onInteractionStart={startInteraction}
+                        onInteractionEnd={endInteraction}
+                        onWholeMove={(points) => setLinePointsLive(el.id, points)}
+                        onPointMove={(index, x, y) => {
+                          const next: [number, number, number, number] = [
+                            el.points[0],
+                            el.points[1],
+                            el.points[2],
+                            el.points[3],
+                          ];
+                          if (index === 0) {
+                            next[0] = x;
+                            next[1] = y;
+                          } else {
+                            next[2] = x;
+                            next[3] = y;
+                          }
+                          setLinePointsLive(el.id, next);
+                        }}
+                        registerHandle={(key, node) => {
+                          if (node) lineHandleRefs.current.set(key, node);
+                          else lineHandleRefs.current.delete(key);
+                        }}
+                      />
+                    );
+                  }
 
-                return (
-                  <Group
-                    key={el.id}
-                    ref={(node) => {
-                      if (node) nodeRefs.current.set(el.id, node);
-                      else nodeRefs.current.delete(el.id);
-                    }}
-                    x={el.x}
-                    y={el.y}
-                    rotation={el.rotation}
-                    scaleX={el.scaleX}
-                    scaleY={el.scaleY}
-                    draggable
-                    onClick={() => setSelectedId(el.id)}
-                    onTap={() => setSelectedId(el.id)}
-                    onDblClick={() => {
-                      if (el.kind === "text") startTextEdit(el.id);
-                    }}
-                    onDblTap={() => {
-                      if (el.kind === "text") startTextEdit(el.id);
-                    }}
-                    onDragEnd={(e) =>
-                      updateElement(el.id, { x: e.target.x(), y: e.target.y() })
-                    }
-                    onTransformEnd={(e) => {
-                      const node = e.target;
-                      // Tekst schaalt naar een nieuwe fontSize i.p.v. de
-                      // Group uit te rekken — anders wordt de tekst
-                      // vervormd/wazig in plaats van scherp groter/kleiner
-                      // (zie TextDiagramElement in gym-canvas-types.ts).
-                      if (el.kind === "text") {
-                        const newFontSize = Math.max(8, Math.round(el.fontSize * node.scaleY()));
-                        node.scaleX(1);
-                        node.scaleY(1);
-                        withHistory((prev) =>
+                  return (
+                    <Group
+                      key={el.id}
+                      ref={(node) => {
+                        if (node) nodeRefs.current.set(el.id, node);
+                        else nodeRefs.current.delete(el.id);
+                      }}
+                      x={el.x}
+                      y={el.y}
+                      rotation={el.rotation}
+                      scaleX={el.scaleX}
+                      scaleY={el.scaleY}
+                      draggable
+                      onClick={() => setSelectedId(el.id)}
+                      onTap={() => setSelectedId(el.id)}
+                      onDblClick={() => {
+                        if (el.kind === "text") startTextEdit(el.id);
+                      }}
+                      onDblTap={() => {
+                        if (el.kind === "text") startTextEdit(el.id);
+                      }}
+                      onDragStart={startInteraction}
+                      onDragMove={(e) => {
+                        const node = e.target;
+                        setElements((prev) =>
                           prev.map((item) =>
-                            item.id === el.id && item.kind === "text"
+                            item.id === el.id && item.kind !== "line"
+                              ? { ...item, x: node.x(), y: node.y() }
+                              : item,
+                          ),
+                        );
+                      }}
+                      onDragEnd={(e) => {
+                        setElements((prev) =>
+                          prev.map((item) =>
+                            item.id === el.id && item.kind !== "line"
+                              ? { ...item, x: e.target.x(), y: e.target.y() }
+                              : item,
+                          ),
+                        );
+                        endInteraction();
+                      }}
+                      onTransformStart={startInteraction}
+                      onTransformEnd={(e) => {
+                        const node = e.target;
+                        // Tekst schaalt naar een nieuwe fontSize i.p.v. de
+                        // Group uit te rekken — anders wordt de tekst
+                        // vervormd/wazig in plaats van scherp groter/kleiner
+                        // (zie TextDiagramElement in gym-canvas-types.ts).
+                        if (el.kind === "text") {
+                          const newFontSize = Math.max(8, Math.round(el.fontSize * node.scaleY()));
+                          node.scaleX(1);
+                          node.scaleY(1);
+                          setElements((prev) =>
+                            prev.map((item) =>
+                              item.id === el.id && item.kind === "text"
+                                ? {
+                                    ...item,
+                                    x: node.x(),
+                                    y: node.y(),
+                                    rotation: node.rotation(),
+                                    scaleX: 1,
+                                    scaleY: 1,
+                                    fontSize: newFontSize,
+                                  }
+                                : item,
+                            ),
+                          );
+                          endInteraction();
+                          return;
+                        }
+                        setElements((prev) =>
+                          prev.map((item) =>
+                            item.id === el.id && item.kind !== "line"
                               ? {
                                   ...item,
                                   x: node.x(),
                                   y: node.y(),
                                   rotation: node.rotation(),
-                                  scaleX: 1,
-                                  scaleY: 1,
-                                  fontSize: newFontSize,
+                                  scaleX: node.scaleX(),
+                                  scaleY: node.scaleY(),
                                 }
                               : item,
                           ),
                         );
-                        return;
-                      }
-                      updateElement(el.id, {
-                        x: node.x(),
-                        y: node.y(),
-                        rotation: node.rotation(),
-                        scaleX: node.scaleX(),
-                        scaleY: node.scaleY(),
-                      });
-                    }}
-                  >
-                    <ElementIcon element={el} viewMode={viewMode} />
-                  </Group>
-                );
-              })}
-              <Transformer
-                ref={transformerRef}
-                rotateEnabled
-                flipEnabled={false}
-                boundBoxFunc={(oldBox, newBox) =>
-                  newBox.width < 8 || newBox.height < 8 ? oldBox : newBox
-                }
-              />
-            </Layer>
-          </Stage>
+                        endInteraction();
+                      }}
+                    >
+                      <ElementIcon element={el} viewMode={viewMode} />
+                    </Group>
+                  );
+                })}
+                <Transformer
+                  ref={transformerRef}
+                  rotateEnabled={!isCoarsePointer}
+                  flipEnabled={false}
+                  enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+                  anchorSize={isCoarsePointer ? 26 : 12}
+                  anchorCornerRadius={999}
+                  anchorFill="#ffffff"
+                  anchorStroke="#7c3aed"
+                  anchorStrokeWidth={2}
+                  borderStroke="#7c3aed"
+                  borderStrokeWidth={2}
+                  boundBoxFunc={(oldBox, newBox) =>
+                    newBox.width < 8 || newBox.height < 8 ? oldBox : newBox
+                  }
+                />
+              </Layer>
+            </Stage>
+          </div>
 
           {editingTextElement && (
             <textarea
@@ -1031,10 +1493,10 @@ export const GymCanvas = forwardRef<
               placeholder="Tekst..."
               className="absolute z-10 rounded border border-primary bg-white/90 p-1 text-black outline-none"
               style={{
-                left: editingTextElement.x * scale,
-                top: editingTextElement.y * scale,
-                width: Math.max(100, editingTextElement.fontSize * 7) * scale,
-                fontSize: editingTextElement.fontSize * editingTextElement.scaleY * scale,
+                left: stagePos.x + editingTextElement.x * effectiveScale,
+                top: stagePos.y + editingTextElement.y * effectiveScale,
+                width: Math.max(100, editingTextElement.fontSize * 7) * effectiveScale,
+                fontSize: editingTextElement.fontSize * editingTextElement.scaleY * effectiveScale,
                 lineHeight: 1.2,
                 color: editingTextElement.fill,
                 fontWeight: editingTextElement.fontStyle.includes("bold") ? 700 : 400,
@@ -1045,6 +1507,147 @@ export const GymCanvas = forwardRef<
               }}
             />
           )}
+
+          {/* Zwevende actiebalk — dupliceren/verwijderen/meer, net als
+              Canva's mobiele objectbalk (zie screenshot in de brief). Op
+              elke apparaatsoort zichtbaar (puur additief, geen bestaande
+              muis-bediening verandert erdoor); verbergt zich tijdens een
+              actief sleep-/roteer-/schaalgebaar (isInteracting) en
+              verschijnt na afloop weer op de nieuwe positie i.p.v. continu
+              live mee te bewegen — zie het commentaar bij isInteracting. */}
+          {floatingControlsVisible && selectedElement && (
+            <div
+              className="absolute z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-card p-1 shadow-brand-lg"
+              style={{ left: toolbarLeft, top: toolbarTop, height: FLOATING_TOOLBAR_HEIGHT }}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 rounded-full"
+                aria-label="Dupliceren"
+                onClick={duplicateSelected}
+              >
+                <Copy className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 rounded-full text-destructive hover:text-destructive"
+                aria-label="Verwijderen"
+                onClick={removeSelected}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 rounded-full"
+                aria-label="Meer opties"
+                aria-expanded={moreMenuOpen}
+                onClick={() => setMoreMenuOpen((open) => !open)}
+              >
+                {moreMenuOpen ? <X className="size-4" /> : <MoreHorizontal className="size-4" />}
+              </Button>
+
+              {moreMenuOpen && (
+                <div
+                  className={cn(
+                    "absolute left-1/2 z-30 flex w-44 -translate-x-1/2 flex-col gap-0.5 rounded-lg border bg-card p-1.5 shadow-brand-lg",
+                    toolbarBelow ? "top-full mt-2" : "bottom-full mb-2",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={bringSelectedToFront}
+                    className="flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium transition-colors duration-150 ease-brand hover:bg-accent"
+                  >
+                    <BringToFront className="size-4" />
+                    Naar voren
+                  </button>
+                  <button
+                    type="button"
+                    onClick={sendSelectedToBack}
+                    className="flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium transition-colors duration-150 ease-brand hover:bg-accent"
+                  >
+                    <SendToBack className="size-4" />
+                    Naar achteren
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Losse rotate/move-knoppen onder de selectie — alleen op
+              aanraakschermen (useIsCoarsePointer): met een muis werken de
+              Transformer's eigen rotatiehandle en direct slepen prima, en
+              zou dit alleen maar in de weg zitten. Niet voor lijnen/pijlen:
+              die roteren/verplaatsen al via hun eigen eindpunt-handles/
+              lijn-slepen (zie LineElementNode) — losse rotate/move-knoppen
+              zouden daar een tegenstrijdig tweede bedieningsmodel naast
+              zetten. */}
+          {floatingControlsVisible &&
+            isCoarsePointer &&
+            selectedElement &&
+            selectedElement.kind !== "line" && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Roteren"
+                  onPointerDown={startRotateGesture}
+                  className="absolute z-20 flex touch-none items-center justify-center rounded-full border bg-card text-foreground shadow-brand-md active:scale-95"
+                  style={{
+                    left: toolbarLeft - HANDLE_SIZE - 8,
+                    top: handlesTop,
+                    width: HANDLE_SIZE,
+                    height: HANDLE_SIZE,
+                  }}
+                >
+                  <RotateCw className="size-5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Verplaatsen"
+                  onPointerDown={startMoveGesture}
+                  className="absolute z-20 flex touch-none items-center justify-center rounded-full border bg-card text-foreground shadow-brand-md active:scale-95"
+                  style={{
+                    left: toolbarLeft + 8,
+                    top: handlesTop,
+                    width: HANDLE_SIZE,
+                    height: HANDLE_SIZE,
+                  }}
+                >
+                  <Move className="size-5" />
+                </button>
+              </>
+            )}
+
+          {/* Zoomknoppen — altijd zichtbaar (niet afhankelijk van selectie),
+              voor wie liever tikt dan knijpt. Pinch (touch) en het
+              muiswieltje (desktop) werken los hiervan al via de
+              Stage-handlers hierboven. */}
+          <div className="absolute right-2 bottom-2 z-20 flex flex-col overflow-hidden rounded-lg border bg-card shadow-brand-md">
+            <button
+              type="button"
+              aria-label="Inzoomen"
+              onClick={() => zoomByButton(ZOOM_BUTTON_STEP)}
+              disabled={zoom >= MAX_ZOOM}
+              className="flex size-10 items-center justify-center border-b transition-colors duration-150 ease-brand hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ZoomIn className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Uitzoomen"
+              onClick={() => zoomByButton(1 / ZOOM_BUTTON_STEP)}
+              disabled={zoom <= MIN_ZOOM}
+              className="flex size-10 items-center justify-center transition-colors duration-150 ease-brand hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ZoomOut className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
@@ -1052,8 +1655,9 @@ export const GymCanvas = forwardRef<
         &quot;Tekst toevoegen&quot; voor een tekstvak. Versleep, roteer of
         schaal via de handgrepen — bij lijnen/pijlen versleep je de twee
         eindpunten om de lengte aan te passen, en dubbelklik op een
-        tekstvak om het te bewerken. Gebruik &quot;Verwijderen&quot; voor
-        het geselecteerde item.
+        tekstvak om het te bewerken. Knijp of gebruik de +/- knoppen om in
+        te zoomen, en sleep een leeg stuk canvas om te pannen. Gebruik
+        &quot;Verwijderen&quot; voor het geselecteerde item.
       </p>
     </div>
   );
