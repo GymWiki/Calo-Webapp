@@ -15,7 +15,11 @@ export type LibraryListItem = {
   activity: Activity;
 };
 
-const TILE_CLASS =
+// Geëxporteerd zodat components/my-activity-card.tsx ("Mijn activiteiten",
+// zie de brief "dezelfde kaartcomponent als de bibliotheek") exact dezelfde
+// tegel-omlijning/schaduw/radius deelt, i.p.v. een losse kopie die uit de
+// pas kan gaan lopen.
+export const TILE_CLASS =
   "flex flex-col overflow-hidden rounded-xl border border-l-4 bg-card shadow-brand-sm transition-transform duration-150 ease-brand active:scale-[0.98]";
 
 // Herkomst-badge is bewust grijstinten/inkt i.p.v. een kleur uit

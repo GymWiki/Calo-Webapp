@@ -5,9 +5,9 @@ import { CalendarDays, ListChecks, Trophy } from "lucide-react";
 
 import { CommunityLessonsSection } from "@/components/community-lessons-section";
 import { ContributionStatusCard } from "@/components/ContributionStatusCard";
-import { OwnActivitiesSection } from "@/components/own-activities-section";
 import { PageHeader } from "@/components/page-header";
 import { QuickActionGrid } from "@/components/quick-action-grid";
+import { RecentActivitiesList } from "@/components/recent-activities-list";
 import { StatCard } from "@/components/stat-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
@@ -109,7 +109,7 @@ async function DashboardContent({ userId }: { userId: string }) {
           activiteitenlijst als vaste linkerkolom te tonen zonder de
           kaartengrid rechts te verdrukken. */}
       <div className="grid gap-8 xl:grid-cols-[20rem_1fr] xl:items-start">
-        <OwnActivitiesSection activities={recentOwnActivities} />
+        <RecentActivitiesList activities={recentOwnActivities} />
         <CommunityLessonsSection activities={communityActivities} currentUserId={userId} />
       </div>
     </>

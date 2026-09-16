@@ -44,6 +44,7 @@ export function LessonForm({
   authorName,
   initialValues,
   initialActivityId,
+  isEditingSavedActivity,
   initialScrollTarget,
   activeSourceCount,
   flaggedEmptyFields,
@@ -53,6 +54,11 @@ export function LessonForm({
   /** Gezet wanneer dit formulier een eerder opgeslagen concept hervat — dan
    * werkt auto-save/opslaan diezelfde rij bij i.p.v. een nieuwe aan te maken. */
   initialActivityId?: string;
+  /** True wanneer initialActivityId een AL opgeslagen (niet-concept)
+   * activiteit is: saveLessonDraft werkt alleen status='draft'-rijen bij, dus
+   * concept-autosave zou hier stilzwijgend niets doen — beter helemaal uit,
+   * met "Activiteit opslaan" als enige, expliciete manier om op te slaan. */
+  isEditingSavedActivity?: boolean;
   /** Welke tab standaard open staat — gebruikt door de "Zaal-Plattegrond
    * Tekenen"-snelkoppeling op het dashboard. */
   initialScrollTarget?: "materiaal" | "leerhulp";
@@ -232,6 +238,7 @@ export function LessonForm({
   // — voorkomt de stortvloed aan (deels overlappende) autosave-requests die
   // ontstond wanneer iemand snel meerdere velden achter elkaar invult.
   function scheduleAutosave() {
+    if (isEditingSavedActivity) return;
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       debounceTimerRef.current = null;
@@ -265,14 +272,28 @@ export function LessonForm({
     // bijdrage-eis zodra deze activiteit openbaar wordt gemaakt (zie
     // consolidate_lessons_into_activiteiten.sql).
     try {
-      const result = await createLesson(payload, diagram, stashedGenerated !== null, activityId);
+      const result = await createLesson(
+        payload,
+        diagram,
+        stashedGenerated !== null,
+        activityId,
+        values.isPublic,
+      );
 
       if ("error" in result) {
         toast.error(result.error);
         return;
       }
 
-      toast.success("Activiteit opgeslagen!");
+      if (result.status === "rejected") {
+        // Geen fout: de activiteit staat gewoon opgeslagen (zichtbaar in
+        // "Mijn activiteiten" met de reden), alleen niet publiek gemaakt.
+        toast.error(`Niet gedeeld: ${result.reason} Je activiteit is wel opgeslagen.`);
+      } else {
+        toast.success(
+          values.isPublic ? "Activiteit opgeslagen en gedeeld!" : "Activiteit opgeslagen.",
+        );
+      }
       router.push("/dashboard");
       router.refresh();
     } catch {
@@ -290,6 +311,7 @@ export function LessonForm({
   const groupName = form.watch("groupName");
   const lessonDate = form.watch("lessonDate");
   const doelgroep = form.watch("doelgroep");
+  const isPublicToggle = form.watch("isPublic");
   const minParticipants = form.watch("minParticipants") as number | undefined;
   const participantsBench = form.watch("participantsBench") as number | undefined;
   const goals = form.watch("goals");
@@ -408,6 +430,11 @@ export function LessonForm({
           onParticipantsBenchChange={(value) => form.setValue("participantsBench", value)}
           isPublic={false}
           isOwnActivity
+          publishToggle={isPublicToggle}
+          onPublishToggleChange={(value) => {
+            form.setValue("isPublic", value);
+            scheduleAutosave();
+          }}
           goals={goals}
           onGoalsChange={(value) => form.setValue("goals", value)}
           goalsFlagged={isFieldFlagged("goals")}

@@ -1,81 +1,165 @@
+"use client";
+
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ListPlus } from "lucide-react";
+import { FileEdit, ListPlus, Search, SearchX } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { ACTIVITY_STATUS_STYLES } from "@/lib/constants/activityStatus";
+import { MyActivityCard } from "@/components/my-activity-card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Activity } from "@/types/activity";
 
-/**
- * Dashboard-overzicht van eigen toegevoegde activiteiten met status per
- * stuk — zodat "toegevoegd, wordt gecontroleerd" geen black box is: de
- * gebruiker ziet hier altijd of iets meetelt voor de maandelijkse bijdrage
- * of aangepast moet worden. Puur een statusoverzicht — er bestaat geen
- * losse "activiteit toevoegen"-invoerroute meer (verwijderd, zie
- * lesson-flow.tsx): nieuwe bijdragen ontstaan nu altijd via een les die in
- * de les-maken wizard wordt afgerond en openbaar gemaakt.
- */
-export function OwnActivitiesSection({ activities }: { activities: Activity[] }) {
-  return (
-    <div>
-      <div>
-        <h2 className="text-lg font-semibold">Mijn activiteiten</h2>
-        <p className="text-sm text-muted-foreground">
-          Status per toegevoegde activiteit — alleen goedgekeurde tellen mee voor je
-          maandelijkse bijdrage.
-        </p>
-      </div>
+function matchesQuery(activity: Activity, query: string): boolean {
+  const haystack = [activity.titel, activity.leerlijn, activity.group_name]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
 
-      {activities.length === 0 ? (
-        <EmptyState
-          icon={ListPlus}
-          title="Nog geen activiteiten toegevoegd"
-          description="Maak en publiceer een les via de les-maken wizard om bij te dragen aan de bibliotheek."
-          className="mt-4"
-          action={
-            <Link
-              href="/les-maken"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Naar de les-maken wizard →
-            </Link>
+function ActivitySearchBar({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative">
+      <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-11 pl-10"
+        aria-label={placeholder}
+      />
+    </div>
+  );
+}
+
+function ActivityGrid({
+  activities,
+  query,
+  emptyState,
+}: {
+  activities: Activity[];
+  query: string;
+  emptyState: ReactNode;
+}) {
+  const filtered = useMemo(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return activities;
+    return activities.filter((activity) => matchesQuery(activity, trimmed));
+  }, [activities, query]);
+
+  if (activities.length === 0) {
+    return emptyState;
+  }
+
+  if (filtered.length === 0) {
+    return (
+      <EmptyState
+        icon={SearchX}
+        title="Niets gevonden"
+        description="Niets gevonden voor deze zoekterm."
+        className="mt-4"
+      />
+    );
+  }
+
+  return (
+    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {filtered.map((activity) => (
+        <MyActivityCard key={activity.id} activity={activity} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * "Mijn activiteiten": twee tabbladen — Concepten (status 'draft', nog niet
+ * op "Activiteit opslaan" geklikt) en Activiteiten (daadwerkelijk opgeslagen,
+ * pending/approved/rejected, zowel privé als gedeeld) — consistent met het
+ * "Eigen documenten"/"Standaardbibliotheek"-tabbladpatroon op /kennisbank.
+ * Kaarten delen dezelfde bibliotheek-tegelstijl als /zoeken (zie
+ * MyActivityCard/TILE_CLASS), met status- en privé/gedeeld-badges i.p.v. een
+ * bron-badge.
+ */
+export function OwnActivitiesSection({
+  drafts,
+  submissions,
+}: {
+  drafts: Activity[];
+  submissions: Activity[];
+}) {
+  const [draftQuery, setDraftQuery] = useState("");
+  const [submissionQuery, setSubmissionQuery] = useState("");
+
+  return (
+    <Tabs defaultValue="concepten">
+      <TabsList>
+        <TabsTrigger value="concepten">Concepten ({drafts.length})</TabsTrigger>
+        <TabsTrigger value="activiteiten">Activiteiten ({submissions.length})</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="concepten" className="space-y-4">
+        {drafts.length > 0 && (
+          <ActivitySearchBar
+            value={draftQuery}
+            onChange={setDraftQuery}
+            placeholder="Zoek in je concepten..."
+          />
+        )}
+        <ActivityGrid
+          activities={drafts}
+          query={draftQuery}
+          emptyState={
+            <EmptyState
+              icon={FileEdit}
+              title="Nog geen concepten"
+              description="Begin een nieuwe activiteit — tussentijdse wijzigingen worden automatisch als concept opgeslagen."
+              className="mt-4"
+              action={
+                <Button asChild>
+                  <Link href="/les-maken">Nieuwe activiteit</Link>
+                </Button>
+              }
+            />
           }
         />
-      ) : (
-        <div className="mt-4 space-y-2">
-          {activities.map((activity) => {
-            const style = ACTIVITY_STATUS_STYLES[activity.status];
-            const Icon = style.icon;
-            // Een concept heeft niets te bekijken — het gaat verder waar je
-            // gebleven was, in dezelfde inline-editor die het opsloeg (zie
-            // actions/lesson.ts's saveLessonDraft + les-maken/page.tsx).
-            const href =
-              activity.status === "draft"
-                ? `/les-maken?vanuit=${activity.id}`
-                : `/activiteit/${activity.id}`;
-            return (
-              <Link
-                key={activity.id}
-                href={href}
-                className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 transition-colors duration-150 ease-brand hover:bg-accent"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{activity.titel}</p>
-                  {activity.status === "rejected" && activity.rejection_reason && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {activity.rejection_reason}
-                    </p>
-                  )}
-                </div>
-                <Badge variant={style.variant} className="shrink-0">
-                  <Icon className="size-3" />
-                  {style.label}
-                </Badge>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
+      </TabsContent>
+
+      <TabsContent value="activiteiten" className="space-y-4">
+        {submissions.length > 0 && (
+          <ActivitySearchBar
+            value={submissionQuery}
+            onChange={setSubmissionQuery}
+            placeholder="Zoek in je activiteiten..."
+          />
+        )}
+        <ActivityGrid
+          activities={submissions}
+          query={submissionQuery}
+          emptyState={
+            <EmptyState
+              icon={ListPlus}
+              title="Nog geen activiteiten opgeslagen"
+              description="Rond een concept af via 'Activiteit opslaan' om 'm hier terug te vinden."
+              className="mt-4"
+              action={
+                <Button asChild>
+                  <Link href="/les-maken">Naar de activiteit-maken wizard</Link>
+                </Button>
+              }
+            />
+          }
+        />
+      </TabsContent>
+    </Tabs>
   );
 }

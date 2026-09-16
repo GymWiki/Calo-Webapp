@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
 
 const ACTIVITY_SELECT =
-  "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, " +
+  "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
   "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, is_public, public_since";
 
 async function getServerClient() {
@@ -12,10 +12,18 @@ async function getServerClient() {
 }
 
 /**
- * De gedeelde, doorzoekbare bibliotheek — alleen goedgekeurde activiteiten.
- * Voor free_blocked-gebruikers (bijdrage-eis niet gehaald) filtert de
- * aanroepende pagina hier apart op via getOwnSubmissions, zie
- * lib/permissions.ts's hasFullLibraryAccess.
+ * De gedeelde, doorzoekbare bibliotheek — alleen goedgekeurde, publiek
+ * gedeelde activiteiten. Voor free_blocked-gebruikers (bijdrage-eis niet
+ * gehaald) filtert de aanroepende pagina hier apart op via
+ * getOwnSubmissions, zie lib/permissions.ts's hasFullLibraryAccess.
+ *
+ * `is_public=true` is hier bewust expliciet toegevoegd (naast
+ * `status='approved'`): sinds de "Delen in de gedeelde bibliotheek"-toggle
+ * (zie actions/lesson.ts's createLesson) kan een eigen activiteit
+ * goedgekeurd-maar-privé zijn — RLS voorkomt al dat zo'n rij van EEN ANDERE
+ * gebruiker hier binnenkomt (zie consolidate_lessons_into_activiteiten.sql),
+ * maar zonder deze filter zou een eigen privé-activiteit toch in de eigen
+ * "gedeelde bibliotheek"-weergave verschijnen, wat de toggle zou tegenspreken.
  */
 export async function getAllActivities(): Promise<Activity[]> {
   const supabase = await getServerClient();
@@ -24,6 +32,7 @@ export async function getAllActivities(): Promise<Activity[]> {
     .from("activiteiten")
     .select(ACTIVITY_SELECT)
     .eq("status", "approved")
+    .eq("is_public", true)
     .order("titel", { ascending: true })
     .returns<Activity[]>();
 
@@ -62,6 +71,12 @@ export async function getOwnSubmissions(authorId: string): Promise<Activity[]> {
  * Eigen concepten (status 'draft') — volledig ingevuld maar nog niet
  * ingediend, dus nog niet door de AI-kwaliteitscheck gegaan. Zie
  * submitActivityDraft/deleteActivityDraft in actions/activity-submission.ts.
+ *
+ * Sorteert op created_at (i.p.v. submitted_at, dat pas gezet wordt bij een
+ * echte indiening en dus voor elk concept nog leeg is — een sortering
+ * daarop was in de praktijk willekeurig) zodat meerdere naamloze concepten
+ * (zie components/my-activity-card.tsx) tenminste een voorspelbare,
+ * recent-eerst volgorde hebben.
  */
 export async function getActivityDrafts(authorId: string): Promise<Activity[]> {
   const supabase = await getServerClient();
@@ -71,7 +86,7 @@ export async function getActivityDrafts(authorId: string): Promise<Activity[]> {
     .select(ACTIVITY_SELECT)
     .eq("author_id", authorId)
     .eq("status", "draft")
-    .order("submitted_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .returns<Activity[]>();
 
   if (error) {

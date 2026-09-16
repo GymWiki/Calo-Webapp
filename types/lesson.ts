@@ -105,6 +105,15 @@ export const createLessonInputSchema = z.object({
   // zodat de samengevoegde bibliotheekpagina (/zoeken) hierop kan filteren
   // over beide brontypes heen.
   doelgroep: z.array(z.number().int()),
+  // Bewuste, expliciete keuze i.p.v. impliciet gedrag: bepaalt of createLesson
+  // (actions/lesson.ts) deze activiteit door de AI-kwaliteitscheck/
+  // duplicaatdetectie stuurt en — bij goedkeuring — publiek + meetellend voor
+  // de maandelijkse bijdrage maakt, of 'm direct alleen-voor-mezelf opslaat
+  // (geen check, niet publiek, telt niet mee). Los van `status`: die volgt
+  // hieruit, niet andersom. Default true (zie createLessonDefaultValues) —
+  // opt-out i.p.v. opt-in, want het freemium-model leunt op bijdragen; de
+  // toggle zelf maakt het wel altijd een bewuste, zichtbare keuze.
+  isPublic: z.boolean(),
   movementProblem: requiredText("Bewegingsprobleem is verplicht."),
   // Niet .min(1): een bewegingsthema bestaat alleen als vaste select
   // wanneer BEWEGINGSTHEMAS een lijst heeft voor de gekozen leerlijn (zie
@@ -180,6 +189,7 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   groupName: "",
   learningLine: "",
   doelgroep: [],
+  isPublic: true,
   movementProblem: "",
   movementTheme: "",
   baseMaterials: [],

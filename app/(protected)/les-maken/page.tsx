@@ -74,6 +74,11 @@ function mapWizardActivityToLessonInput(activity: Activity): Partial<CreateLesso
     deelnemersRegels: activity.deelnemers_regels ?? "",
     plaatjePraatje: activity.plaatje_praatje ?? "",
     aandachtspunten: activity.aandachtspunten ?? "",
+    // Bij een concept is dit altijd false (zie saveLessonDraft) — de vorige
+    // keuze van de gebruiker is dan niet bewaard, dus de toggle valt terug op
+    // de standaardwaarde (createLessonDefaultValues.isPublic). Bij een al
+    // afgeronde activiteit is dit wél de daadwerkelijke publicatiestatus.
+    isPublic: activity.status === "draft" ? true : activity.is_public,
   };
 }
 
@@ -107,19 +112,20 @@ export default async function LesMakenPage({
   const initialTab = parseInitialTab(tab);
   const skipChoice = Boolean(activity) || Boolean(initialTab);
 
-  // Een eigen, nog niet ingediend wizard-concept hervatten (link vanuit
-  // "Mijn activiteiten", zie own-activities-section.tsx) is iets anders dan
-  // de bestaande "Kopieer & bewerk"-prefill vanaf de bibliotheek: dat
-  // laatste kopieert een bestaande, andere activiteit naar een NIEUWE rij;
-  // dit werkt dezelfde rij verder bij.
-  const resumingOwnDraft =
-    activity !== null &&
-    activity.arrangement !== null &&
-    activity.author_id === profile.id &&
-    activity.status === "draft";
+  // Een eigen wizard-activiteit verder bewerken — hetzij een nog niet
+  // afgerond concept (link vanuit "Concepten"), hetzij een al opgeslagen
+  // activiteit (de "Bewerken"-knop op de detailpagina, zie
+  // components/activity-wizard-page.tsx) — is iets anders dan de bestaande
+  // "Kopieer & bewerk"-prefill vanaf de bibliotheek: dat laatste kopieert een
+  // bestaande, ANDERE activiteit naar een NIEUWE rij; dit werkt dezelfde rij
+  // verder bij (createLesson's update-pad kent geen statusfilter, dus dat
+  // werkt voor elke status). `isDraftResume` bepaalt alleen de koptekst.
+  const resumingOwnActivity =
+    activity !== null && activity.arrangement !== null && activity.author_id === profile.id;
+  const isDraftResume = resumingOwnActivity && activity.status === "draft";
 
   const initialValues = activity
-    ? resumingOwnDraft
+    ? resumingOwnActivity
       ? mapWizardActivityToLessonInput(activity)
       : mapActivityToLessonInput(activity)
     : undefined;
@@ -130,19 +136,22 @@ export default async function LesMakenPage({
         eyebrow="Activiteit maken"
         title="Nieuwe activiteit"
         description={
-          resumingOwnDraft
+          isDraftResume
             ? `Concept "${activity.titel}" — ga verder waar je gebleven was.`
-            : activity
-              ? `Gebaseerd op "${activity.titel}" — vul de ontbrekende velden aan.`
-              : skipChoice
-                ? "Bouw je activiteit stap voor stap op."
-                : "Kies hoe je wilt beginnen."
+            : resumingOwnActivity
+              ? `Activiteit "${activity.titel}" bewerken.`
+              : activity
+                ? `Gebaseerd op "${activity.titel}" — vul de ontbrekende velden aan.`
+                : skipChoice
+                  ? "Bouw je activiteit stap voor stap op."
+                  : "Kies hoe je wilt beginnen."
         }
       />
       <LesMakenFlow
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
         initialValues={initialValues}
-        initialActivityId={resumingOwnDraft ? activity.id : undefined}
+        initialActivityId={resumingOwnActivity ? activity.id : undefined}
+        isEditingSavedActivity={resumingOwnActivity && !isDraftResume}
         initialTab={initialTab}
         activeSourceCount={activeSourceCount}
         lessonGeneratorAccess={lessonGeneratorAccess}

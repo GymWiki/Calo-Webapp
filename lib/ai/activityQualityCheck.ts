@@ -3,7 +3,25 @@ import { z } from "zod";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
-import type { SubmitActivityInput } from "@/types/activity";
+
+// Lichter dan SubmitActivityInput (types/activity.ts, de oorspronkelijke
+// "eenvoudige activiteit"-vorm met een verplichte categorie-enum en
+// loopt/lukt/leeft) — deze check draait nu ook voor wizard-activiteiten
+// (actions/lesson.ts's createLesson, bij isPublic=true), die geen categorie
+// of 3L's-tekstvelden meer hebben (zie de Basisdocument-leerlijn/
+// bewegingsthema-koppeling). SubmitActivityInput voldoet hier structureel
+// nog steeds aan, dus activity-submission.ts blijft ongewijzigd werken.
+export type ActivityQualityCheckInput = {
+  titel: string;
+  leerlijn: string;
+  doel: string;
+  beschrijving: string;
+  categorie?: string;
+  beginsituatie?: string;
+  veld?: string;
+  materiaal?: string[];
+  regels?: string[];
+};
 
 // Drempelwaarde voor de duplicaatcheck (pg_trgm similarity, 0-1) — hoe hoger,
 // hoe strenger. Bewust hier als los getal (niet in de SQL-functie
@@ -32,17 +50,17 @@ const CONTENT_QUALITY_SYSTEM_PROMPT =
   'Antwoord uitsluitend met geldige JSON: {"acceptable": boolean, "reason": string} — ' +
   "reason is een korte, opbouwende Nederlandse toelichting (1-2 zinnen), ook bij goedkeuring.";
 
-function buildSubmissionSummary(input: SubmitActivityInput): string {
+function buildSubmissionSummary(input: ActivityQualityCheckInput): string {
   return [
     `Titel: ${input.titel}`,
-    `Categorie: ${input.categorie}`,
+    input.categorie ? `Categorie: ${input.categorie}` : null,
     `Leerlijn: ${input.leerlijn}`,
     `Doel: ${input.doel}`,
     input.beginsituatie ? `Beginsituatie: ${input.beginsituatie}` : null,
     `Beschrijving: ${input.beschrijving}`,
     input.veld ? `Veld: ${input.veld}` : null,
-    input.materiaal.length ? `Materiaal: ${input.materiaal.join(", ")}` : null,
-    input.regels.length ? `Regels: ${input.regels.join("; ")}` : null,
+    input.materiaal?.length ? `Materiaal: ${input.materiaal.join(", ")}` : null,
+    input.regels?.length ? `Regels: ${input.regels.join("; ")}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -51,7 +69,7 @@ function buildSubmissionSummary(input: SubmitActivityInput): string {
 async function checkContentQuality(
   supabase: SupabaseClient,
   authorId: string,
-  input: SubmitActivityInput,
+  input: ActivityQualityCheckInput,
 ): Promise<ActivityQualityResult> {
   try {
     const query = [input.titel, input.leerlijn, input.beschrijving].join(". ");
@@ -106,7 +124,7 @@ async function checkContentQuality(
 async function checkForDuplicate(
   supabase: SupabaseClient,
   authorId: string,
-  input: SubmitActivityInput,
+  input: ActivityQualityCheckInput,
 ): Promise<ActivityQualityResult> {
   const { data, error } = await supabase.rpc("find_similar_own_activities", {
     p_author_id: authorId,
@@ -145,7 +163,7 @@ async function checkForDuplicate(
 export async function checkActivityQuality(
   supabase: SupabaseClient,
   authorId: string,
-  input: SubmitActivityInput,
+  input: ActivityQualityCheckInput,
 ): Promise<ActivityQualityResult> {
   const duplicateResult = await checkForDuplicate(supabase, authorId, input);
   if (duplicateResult.status === "rejected") {

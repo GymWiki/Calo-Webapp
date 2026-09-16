@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { checkActivityQuality, type ActivityQualityCheckInput } from "@/lib/ai/activityQualityCheck";
 import {
   createLessonInputSchema,
   type CreateLessonFormInput,
@@ -9,8 +10,34 @@ import {
 } from "@/types/lesson";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 
+// Vertaalt een wizard-activiteit naar de generieke vorm die
+// checkActivityQuality verwacht (zie lib/ai/activityQualityCheck.ts) — de
+// wizard heeft geen eigen categorie-enum of loopt/lukt/leeft-tekstvelden
+// (vervangen door de leerlijn/bewegingsthema-koppeling en de 3L's-analyse
+// als losse didactic_items), dus "beschrijving" wordt hier samengesteld uit
+// de velden die samen daadwerkelijk beschrijven hoe de activiteit verloopt.
+function toQualityCheckInput(values: CreateLessonInput): ActivityQualityCheckInput {
+  return {
+    titel: values.title,
+    leerlijn: values.learningLine,
+    doel: values.goals,
+    beschrijving: [values.arrangement, values.deelnemersRegels, values.plaatjePraatje, values.aandachtspunten]
+      .filter(Boolean)
+      .join("\n\n"),
+    categorie: values.movementTheme || values.learningLine,
+    beginsituatie: values.movementProblem,
+    veld: values.arrangement,
+    materiaal: [...values.baseMaterials, ...values.ruleMaterials],
+    regels: values.rules,
+  };
+}
+
 type ActionResult = { error: string } | { success: true };
 type SaveDraftResult = { error: string } | { success: true; activityId: string };
+type CreateLessonResult =
+  | { error: string }
+  | { success: true; status: "approved" }
+  | { success: true; status: "rejected"; reason: string };
 
 const GENERIC_ERROR = "Activiteit opslaan is mislukt. Probeer het opnieuw.";
 
@@ -70,22 +97,34 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
 /**
  * Slaat een via de wizard samengestelde activiteit op — rechtstreeks in de
  * `activiteiten`-tabel (voorheen een aparte "lessons"-tabel; zie
- * supabase/migrations/consolidate_lessons_into_activiteiten.sql). Bewust
- * GEEN AI-kwaliteitscheck (checkActivityQuality/find_similar_own_activities,
- * zie actions/activity-submission.ts): dat gold nooit voor wizard-lessen —
- * die konden nooit "afgekeurd" worden — en dat gedrag blijft zo na de
- * consolidatie. Status staat dus altijd meteen op 'approved'.
+ * supabase/migrations/consolidate_lessons_into_activiteiten.sql).
+ *
+ * `isPublic` is de expliciete "Delen in de gedeelde bibliotheek"-toggle uit
+ * het formulier (zie components/activity-wizard-page.tsx) — bij true
+ * doorloopt de activiteit dezelfde AI-kwaliteitscheck/duplicaatdetectie als
+ * de oorspronkelijke eenvoudige-activiteit-flow (checkActivityQuality, zie
+ * actions/activity-submission.ts), en wordt ze bij goedkeuring publiek +
+ * meetellend voor de maandelijkse bijdrage (is_public/public_since, zie de
+ * trigger in consolidate_lessons_into_activiteiten.sql). Bij false wordt
+ * helemaal geen check uitgevoerd (niet nodig — de activiteit komt toch niet
+ * in de gedeelde bibliotheek) en blijft de rij altijd alleen-eigen-gebruik.
+ * Een afkeuring is geen fout: de activiteit blijft gewoon opgeslagen (zichtbaar
+ * in "Mijn activiteiten" met de reden), alleen niet publiek gemaakt.
  *
  * `activityId` is gezet wanneer de inline-editor onderweg al een concept had
  * opgeslagen (zie saveLessonDraft) — dan wordt diezelfde rij afgerond i.p.v.
- * een tweede, dubbele rij aan te maken.
+ * een tweede, dubbele rij aan te maken. Zonder statusfilter (in tegenstelling
+ * tot saveLessonDraft's `.eq("status","draft")`): dit dekt zowel een concept
+ * afronden als een reeds opgeslagen eigen activiteit opnieuw bewerken (zie
+ * les-maken/page.tsx's resumingOwnActivity).
  */
 export async function createLesson(
   input: CreateLessonInput,
   diagram: { data: DiagramData; imageDataUrl: string } | null = null,
   isAiGenerated = false,
   activityId: string | null = null,
-): Promise<ActionResult> {
+  isPublic = true,
+): Promise<CreateLessonResult> {
   const parsed = createLessonInputSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -105,12 +144,32 @@ export async function createLesson(
     return { error: "Je bent niet ingelogd." };
   }
 
+  let status: "approved" | "rejected" = "approved";
+  let rejectionReason: string | null = null;
+  let publicSince: string | null = null;
+
+  if (isPublic) {
+    const quality = await checkActivityQuality(supabase, user.id, toQualityCheckInput(values));
+    if (quality.status === "rejected") {
+      status = "rejected";
+      rejectionReason = quality.reason;
+    } else {
+      publicSince = new Date().toISOString();
+    }
+  }
+
   const row = {
     ...toActivitiesRow(values),
     diagram_data: diagram?.data ?? null,
     diagram_image_url: diagram?.imageDataUrl ?? null,
     is_ai_generated: isAiGenerated,
-    status: "approved" as const,
+    status,
+    rejection_reason: rejectionReason,
+    // Alleen daadwerkelijk publiek bij een geslaagde check — bij een
+    // afkeuring blijft de rij (met de gekozen isPublic-intentie) alsnog
+    // alleen-eigen-gebruik totdat de gebruiker 'm aanpast en opnieuw indient.
+    is_public: isPublic && status === "approved",
+    public_since: publicSince,
     taalcode: "nl",
   };
 
@@ -127,7 +186,9 @@ export async function createLesson(
     return { error: GENERIC_ERROR };
   }
 
-  return { success: true };
+  return status === "rejected"
+    ? { success: true, status: "rejected", reason: rejectionReason ?? GENERIC_ERROR }
+    : { success: true, status: "approved" };
 }
 
 /**

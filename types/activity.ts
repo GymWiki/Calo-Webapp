@@ -33,6 +33,12 @@ export type Activity = {
   status: ActivityReviewStatus;
   rejection_reason: string | null;
   submitted_at: string;
+  // Alleen gebruikt om naamloze concepten in "Mijn activiteiten" van elkaar
+  // te onderscheiden (zie components/my-activity-card.tsx) — bewust
+  // created_at i.p.v. een "laatst bewerkt"-tijdstip: de tabel heeft geen
+  // updated_at-kolom, en de aanmaakdatum volstaat al om meerdere "Naamloos
+  // concept"-items uit elkaar te houden.
+  created_at: string;
 
   // ---- Wizard-velden (voorheen de aparte "lessons"-tabel) ----------------
   // Alleen gevuld voor activiteiten die via de les-maken wizard zijn

@@ -12,22 +12,22 @@ export default async function ProfielActiviteitenPage() {
     redirect("/login");
   }
 
-  // Concepten (status 'draft') horen nu gewoon bij "Mijn activiteiten" —
-  // hun status is al zichtbaar per item, dus een apart "Concepten"-blok is
-  // niet meer nodig (zie ProfileNavGrid).
+  // Concepten (status 'draft') en daadwerkelijk opgeslagen activiteiten
+  // staan in aparte tabbladen (zie OwnActivitiesSection) — consistent met
+  // het "Eigen documenten"/"Standaardbibliotheek"-patroon op /kennisbank.
   const [submissions, drafts] = await Promise.all([
     getOwnSubmissions(profile.id),
     getActivityDrafts(profile.id),
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
+    <main className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-5xl">
       <PageHeader
         eyebrow="Profiel"
         title="Activiteiten"
-        description="Al je activiteiten met status — alleen goedgekeurde, publieke activiteiten tellen mee voor je maandelijkse bijdrage."
+        description="Al je activiteiten met status — alleen gedeelde, goedgekeurde activiteiten tellen mee voor je maandelijkse bijdrage."
       />
-      <OwnActivitiesSection activities={[...drafts, ...submissions]} />
+      <OwnActivitiesSection drafts={drafts} submissions={submissions} />
     </main>
   );
 }

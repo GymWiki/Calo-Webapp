@@ -99,6 +99,7 @@ export function LesMakenFlow({
   authorName,
   initialValues,
   initialActivityId,
+  isEditingSavedActivity,
   initialTab,
   activeSourceCount,
   lessonGeneratorAccess,
@@ -109,6 +110,12 @@ export function LesMakenFlow({
   /** Gezet wanneer initialValues een eigen, nog niet ingediend concept is —
    * zie les-maken/page.tsx. */
   initialActivityId?: string;
+  /** True wanneer initialActivityId een AL opgeslagen (niet-concept)
+   * activiteit is die bewerkt wordt — dan is er geen "concept" om
+   * automatisch bij te werken (saveLessonDraft update alleen status='draft'-
+   * rijen), dus de concept-autosave/statusindicator blijft uit; "Activiteit
+   * opslaan" blijft de enige manier om de bewerking op te slaan. */
+  isEditingSavedActivity?: boolean;
   initialTab?: TabValue;
   activeSourceCount?: number;
   lessonGeneratorAccess: LessonGeneratorAccess;
@@ -196,6 +203,7 @@ export function LesMakenFlow({
       // Een upload/AI-generatie start altijd een NIEUW concept — het
       // hervat-id geldt alleen als er geen upload heeft plaatsgevonden.
       initialActivityId={uploadedValues ? undefined : initialActivityId}
+      isEditingSavedActivity={uploadedValues ? false : isEditingSavedActivity}
       initialScrollTarget={initialTab === "voorbereiding" ? "materiaal" : undefined}
       activeSourceCount={activeSourceCount}
       flaggedEmptyFields={uploadedValues ? uploadedFlaggedFields : undefined}
