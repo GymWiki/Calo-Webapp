@@ -62,7 +62,6 @@ export const generatedLessonSchema = z.object({
   learningLine: z.string(),
   movementProblem: z.string(),
   movementTheme: z.string(),
-  groupName: z.string().optional().default(""),
   doelgroep: z.array(z.number().int()).optional().default([]),
   goals: z.string(),
   didacticItems: z.array(didacticItemSchema.omit({ id: true })).optional().default([]),

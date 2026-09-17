@@ -65,7 +65,6 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
     // verandert daar niets — alleen saveLessonDraft (bewust ongevalideerd)
     // kon deze lege string ooit doorsturen.
     activity_date: values.lessonDate || null,
-    group_name: values.groupName,
     leerlijn: values.learningLine,
     doelgroep: values.doelgroep,
     movement_problem: values.movementProblem,

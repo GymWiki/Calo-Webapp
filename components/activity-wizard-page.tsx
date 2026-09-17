@@ -126,9 +126,6 @@ export function ActivityWizardPage({
   movementTheme,
   onMovementThemeChange,
   movementThemeFlagged,
-  groupName,
-  onGroupNameChange,
-  groupNameFlagged,
   activityDate,
   onActivityDateChange,
   activityDateFlagged,
@@ -202,9 +199,6 @@ export function ActivityWizardPage({
   movementTheme: string;
   onMovementThemeChange?: (value: string) => void;
   movementThemeFlagged?: boolean;
-  groupName: string;
-  onGroupNameChange?: (value: string) => void;
-  groupNameFlagged?: boolean;
   activityDate: string;
   onActivityDateChange?: (value: string) => void;
   activityDateFlagged?: boolean;
@@ -450,11 +444,10 @@ export function ActivityWizardPage({
         )}
       </div>
 
-      {/* Basisgegevens — leerlijn/thema, groep/klas (vrije klasnaam, bijv.
-          "Klas 2C" — voor eigen overzicht) vs. doelgroep (vaste
-          bibliotheekfilter-categorieën) zijn bewust twee verschillende
-          dingen, geen dubbeling: elk krijgt hier een eigen label + korte
-          uitleg i.p.v. naast elkaar te staan zonder duidelijke relatie. */}
+      {/* Basisgegevens — leerlijn/thema + datum; voor welke groepen de
+          activiteit bedoeld is, staat verderop bij de doelgroep-chips
+          hieronder (geen los vrij-tekst "Groep/klas"-veld meer — dat was een
+          dubbeling van diezelfde doelgroep-keuze). */}
       <Card className="animate-fade-up" style={{ animationDelay: "20ms" }}>
         <CardHeader>
           <CardTitle className="text-base">Basisgegevens</CardTitle>
@@ -520,45 +513,25 @@ export function ActivityWizardPage({
             )}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FieldLabel label="Groep/klas" hint="De naam zoals jij 'm noemt, voor je eigen overzicht — bijv. 'Klas 2C'.">
+          {(isEdit || activityDate) && (
+            <FieldLabel label="Datum">
               {isEdit ? (
                 <>
                   <Input
-                    id="field-groupName"
-                    value={groupName}
-                    onChange={(event) => onGroupNameChange?.(event.target.value)}
+                    id="field-lessonDate"
+                    type="date"
+                    value={activityDate}
+                    onChange={(event) => onActivityDateChange?.(event.target.value)}
                     onBlur={() => onCommit?.()}
-                    placeholder="Bijv. Klas 2C"
-                    className={cn(groupNameFlagged && IMPORT_FLAG_CLASS)}
+                    className={cn(activityDateFlagged && IMPORT_FLAG_CLASS)}
                   />
-                  <RequiredFieldHint show={groupNameFlagged} />
+                  <RequiredFieldHint show={activityDateFlagged} />
                 </>
               ) : (
-                <p className="text-sm">{groupName || "-"}</p>
+                <p className="text-sm">{formatDate(activityDate) ?? "-"}</p>
               )}
             </FieldLabel>
-
-            {(isEdit || activityDate) && (
-              <FieldLabel label="Datum">
-                {isEdit ? (
-                  <>
-                    <Input
-                      id="field-lessonDate"
-                      type="date"
-                      value={activityDate}
-                      onChange={(event) => onActivityDateChange?.(event.target.value)}
-                      onBlur={() => onCommit?.()}
-                      className={cn(activityDateFlagged && IMPORT_FLAG_CLASS)}
-                    />
-                    <RequiredFieldHint show={activityDateFlagged} />
-                  </>
-                ) : (
-                  <p className="text-sm">{formatDate(activityDate) ?? "-"}</p>
-                )}
-              </FieldLabel>
-            )}
-          </div>
+          )}
 
           {(isEdit || doelgroepLabels.length > 0) && (
             <FieldLabel

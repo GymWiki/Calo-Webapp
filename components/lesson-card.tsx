@@ -31,9 +31,6 @@ export function LessonCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
-          {activity.group_name && (
-            <Badge variant="secondary">{activity.group_name}</Badge>
-          )}
           {activity.leerlijn && (
             <Badge variant="outline">{activity.leerlijn}</Badge>
           )}

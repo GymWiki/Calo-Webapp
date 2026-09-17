@@ -47,7 +47,7 @@ const JSON_FORMAT_INSTRUCTION =
   "Antwoord uitsluitend met geldige JSON in dit exacte formaat, zonder extra tekst of " +
   "markdown-opmaak: " +
   '{"title": string, "learningLine": string, "movementProblem": string, ' +
-  '"movementTheme": string, "groupName": string, ' +
+  '"movementTheme": string, ' +
   '"doelgroep": number[] (leid dit af uit de opgegeven doelgroep — kies 1 of meer codes ' +
   "uit deze lijst die het beste passen: 1 = Groep 1/2, 2 = Groep 3/4, 3 = Groep 5/6, " +
   "4 = Groep 7/8, 5 = Onderbouw, 6 = Bovenbouw), " +

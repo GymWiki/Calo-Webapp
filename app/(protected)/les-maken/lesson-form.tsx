@@ -161,7 +161,6 @@ export function LessonForm({
             learningLine: stashedGenerated.learningLine,
             movementProblem: stashedGenerated.movementProblem,
             movementTheme: stashedGenerated.movementTheme,
-            groupName: stashedGenerated.groupName || "",
             doelgroep: stashedGenerated.doelgroep ?? [],
             goals: stashedGenerated.goals,
             arrangement: stashedGenerated.arrangement || "",
@@ -442,7 +441,6 @@ export function LessonForm({
   const title = form.watch("title");
   const learningLine = form.watch("learningLine");
   const movementTheme = form.watch("movementTheme");
-  const groupName = form.watch("groupName");
   const lessonDate = form.watch("lessonDate");
   const doelgroep = form.watch("doelgroep");
   const isPublicToggle = form.watch("isPublic");
@@ -463,7 +461,6 @@ export function LessonForm({
   const requiredFieldValues: Record<RequiredFieldKey, string> = {
     title,
     learningLine,
-    groupName,
     lessonDate,
     goals,
     movementProblem,
@@ -549,9 +546,6 @@ export function LessonForm({
           movementTheme={movementTheme}
           onMovementThemeChange={(value) => form.setValue("movementTheme", value)}
           movementThemeFlagged={isFieldFlagged("movementTheme")}
-          groupName={groupName}
-          onGroupNameChange={(value) => form.setValue("groupName", value)}
-          groupNameFlagged={isFieldFlagged("groupName")}
           activityDate={lessonDate}
           onActivityDateChange={(value) => form.setValue("lessonDate", value)}
           activityDateFlagged={isFieldFlagged("lessonDate")}

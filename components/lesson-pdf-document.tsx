@@ -156,7 +156,6 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
         <View style={styles.headerGrid} wrap={false}>
           <HeaderField label="Studentnaam" value={authorName} />
           <HeaderField label="Datum" value={formatDate(lesson.lesson_date) ?? "-"} />
-          <HeaderField label="Groep/klas" value={lesson.group_name ?? "-"} />
           <HeaderField label="Leerlijn" value={lesson.learning_line ?? "-"} />
           <HeaderField label="Bewegingsprobleem" value={lesson.movement_problem ?? "-"} />
           <HeaderField label="Bewegingsthema" value={lesson.movement_theme ?? "-"} />

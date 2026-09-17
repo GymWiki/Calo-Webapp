@@ -163,7 +163,6 @@ export default async function SharedActivityPage({
             <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <HeaderField label="Docent" value={authorName} />
               <HeaderField label="Datum" value={formatDate(activity.activity_date) ?? "-"} />
-              <HeaderField label="Groep/klas" value={activity.group_name ?? "-"} />
               <HeaderField label="Bewegingsprobleem" value={activity.movement_problem ?? "-"} />
               <HeaderField label="Bewegingsthema" value={activity.beweegthema ?? "-"} />
             </dl>

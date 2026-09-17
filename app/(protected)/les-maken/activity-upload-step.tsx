@@ -14,7 +14,6 @@ import type { CreateLessonFormInput } from "@/types/lesson";
 // als "gemist" gemarkeerd te worden.
 const REQUIRED_TEXT_FIELDS = [
   "title",
-  "groupName",
   "learningLine",
   "movementProblem",
   "movementTheme",
@@ -42,7 +41,6 @@ function mapExtractedActivityToLessonInput(
 ): Partial<CreateLessonFormInput> {
   return {
     title: extraction.title ?? "",
-    groupName: extraction.groupName ?? "",
     learningLine: extraction.learningLine ?? "",
     doelgroep: extraction.doelgroep ?? [],
     movementProblem: extraction.movementProblem ?? "",

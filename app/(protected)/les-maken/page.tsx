@@ -20,8 +20,8 @@ export const maxDuration = 60;
 
 // "Kopieer & bewerk" pre-fill (activiteiten-bibliotheek -> les-maken). Only
 // the fields with a reasonable source on `activiteiten` are mapped —
-// movementProblem/lessonDate/groupName have no equivalent and are left
-// blank for the user to fill in. See
+// movementProblem/lessonDate have no equivalent and are left blank for the
+// user to fill in. See
 // docs/superpowers/specs/2026-08-11-activiteiten-bibliotheek-design.md
 function mapActivityToLessonInput(
   activity: Activity,
@@ -58,7 +58,6 @@ function mapWizardActivityToLessonInput(activity: Activity): Partial<CreateLesso
   return {
     title: activity.titel,
     lessonDate: activity.activity_date ?? "",
-    groupName: activity.group_name ?? "",
     learningLine: activity.leerlijn ?? "",
     doelgroep: activity.doelgroep ?? [],
     movementProblem: activity.movement_problem ?? "",

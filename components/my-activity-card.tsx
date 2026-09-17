@@ -47,7 +47,7 @@ export function MyActivityCard({ activity }: { activity: Activity }) {
     .map((waarde) => DOELGROEP_LABELS[waarde])
     .filter((label): label is string => Boolean(label))
     .join(", ");
-  const subtitle = [activity.leerlijn, activity.group_name].filter(Boolean).join(" · ");
+  const subtitle = activity.leerlijn ?? "";
   const image = activity.afbeelding ?? activity.diagram_image_url;
   const href = isDraft ? `/les-maken?vanuit=${activity.id}` : `/activiteit/${activity.id}`;
 

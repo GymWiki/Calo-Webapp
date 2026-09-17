@@ -247,7 +247,6 @@ export default async function ActiviteitDetailPage({
           title={activity.titel}
           learningLine={activity.leerlijn ?? ""}
           movementTheme={activity.beweegthema ?? ""}
-          groupName={activity.group_name ?? ""}
           activityDate={activity.activity_date ?? ""}
           authorName={authorName}
           doelgroep={activity.doelgroep ?? []}

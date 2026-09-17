@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Activity } from "@/types/activity";
 
 function matchesQuery(activity: Activity, query: string): boolean {
-  const haystack = [activity.titel, activity.leerlijn, activity.group_name]
+  const haystack = [activity.titel, activity.leerlijn]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();

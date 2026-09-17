@@ -76,7 +76,7 @@ function ActivityTile({ activity, source }: { activity: Activity; source: "gymwi
     .join(", ");
   const subtitle =
     source === "public"
-      ? [activity.leerlijn, activity.group_name].filter(Boolean).join(" · ")
+      ? activity.leerlijn ?? ""
       : [activity.categorie, activity.leerlijn].filter(Boolean).join(" · ");
   const image = activity.afbeelding ?? activity.diagram_image_url;
 

@@ -99,7 +99,6 @@ export const createLessonInputSchema = z.object({
   // Tab 1 — Context & Thema
   title: requiredText("Titel is verplicht."),
   lessonDate: requiredText("Datum is verplicht."),
-  groupName: requiredText("Groep/klas is verplicht."),
   learningLine: requiredText("Leerlijn is verplicht."),
   // Zelfde 1-6 doelgroepcodes als activiteiten (types/activity.ts) — nodig
   // zodat de samengevoegde bibliotheekpagina (/zoeken) hierop kan filteren
@@ -169,7 +168,6 @@ export type CreateLessonInput = z.output<typeof createLessonInputSchema>;
 export const REQUIRED_LESSON_FIELDS = [
   { field: "title", label: "Titel", section: null },
   { field: "learningLine", label: "Leerlijn", section: null },
-  { field: "groupName", label: "Groep/klas", section: null },
   { field: "lessonDate", label: "Datum", section: null },
   { field: "goals", label: "Doel", section: "lesinhoud" },
   { field: "movementProblem", label: "Beginsituatie", section: "lesinhoud" },
@@ -186,7 +184,6 @@ export const REQUIRED_LESSON_FIELDS = [
 export const createLessonDefaultValues: CreateLessonFormInput = {
   title: "",
   lessonDate: "",
-  groupName: "",
   learningLine: "",
   doelgroep: [],
   isPublic: true,
@@ -217,6 +214,9 @@ export type Lesson = {
   description: string | null;
   is_public: boolean;
   lesson_date: string | null;
+  // Deprecated: vervangen door de doelgroep-chips (types/activity.ts's
+  // DOELGROEP_LABELS) — niet meer ingevuld of getoond, kolom blijft bestaan
+  // zodat bestaande activiteiten hun oude vrije-tekst-klasnaam behouden.
   group_name: string | null;
   movement_problem: string | null;
   movement_theme: string | null;

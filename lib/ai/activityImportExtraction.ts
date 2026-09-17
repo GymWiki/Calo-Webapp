@@ -10,7 +10,7 @@ import { DIDACTIC_CATEGORIES, DIDACTIC_SUBTHEMES } from "@/types/lesson";
 // velden terwijl het wizardformulier (de ENIGE plek waar een activiteit
 // wordt aangemaakt, zie les-maken/lesson-flow.tsx) er ~20 heeft. Dat
 // structurele gat was de daadwerkelijke oorzaak van "het document bevat dit
-// wel, maar het veld blijft leeg": de AI had voor groupName, movementTheme,
+// wel, maar het veld blijft leeg": de AI had voor movementTheme,
 // ruleMaterials, minParticipants/participantsBench, aandachtspunten,
 // didacticItems letterlijk geen plek om iets in te zetten, ongeacht hoe goed
 // de brontekst was.
@@ -24,7 +24,6 @@ const didacticItemExtractionSchema = z.object({
 const rawExtractionSchema = z.object({
   isMovementActivity: z.boolean(),
   title: z.string().trim().nullable(),
-  groupName: z.string().trim().nullable(),
   learningLine: z.string().trim().nullable(),
   doelgroep: z.array(z.number()).nullable(),
   movementProblem: z.string().trim().nullable(),
@@ -45,7 +44,6 @@ const rawExtractionSchema = z.object({
 export type ExtractedActivity = {
   isMovementActivity: boolean;
   title: string | null;
-  groupName: string | null;
   learningLine: string | null;
   doelgroep: number[] | null;
   movementProblem: string | null;
@@ -82,7 +80,6 @@ const MAX_SOURCE_CHARS = 60_000;
 const FIELD_DESCRIPTIONS = `
 Vul dit exacte veldenschema in — gebruik voor ELK veld null (of [] voor lijsten) als het écht niet in het document staat, maar laat NOOIT een key weg uit je JSON-antwoord:
 - "title": titel van de activiteit — een korte, herkenbare naam.
-- "groupName": groep/klas in vrije tekst zoals in het document genoemd, bijv. "Groep 7/8" of "Klas 2 VMBO".
 - "learningLine": de leerlijn/het vakgebied. Kies bij voorkeur EXACT één van de bestaande leerlijnen die GymWiki al gebruikt: ${ALL_LEARNING_LINES.join(", ")}. Staat er in het document een vergelijkbare maar net anders geformuleerde naam (bijv. "Hardlopen" i.p.v. "Lopen", "Vechtspelen" i.p.v. "Stoeispelen"/"Trefspelen"), kies dan de dichtstbijzijnde uit deze lijst in plaats van de letterlijke documenttekst over te nemen — verzin nooit een leerlijn die niet in deze lijst staat.
 - "doelgroep": array met codes uit ${DOELGROEP_WAARDEN.map((code) => `${code}=${DOELGROEP_LABELS[code]}`).join(", ")} — alleen invullen als het document dit ondubbelzinnig aangeeft.
 - "movementProblem": het bewegingsprobleem/de kernvraag die leerlingen moeten oplossen.
@@ -126,7 +123,6 @@ const FEW_SHOT_EXAMPLES: Array<{ user: string; assistant: Record<string, unknown
     assistant: {
       isMovementActivity: true,
       title: "Chaosdoelenspel",
-      groupName: "Groep 7/8",
       // Document noemt "Doelspelen", maar dat staat niet in GymWiki's eigen
       // leerlijnlijst — "Passeren en onderscheppen" (Spel) is de
       // dichtstbijzijnde bestaande leerlijn voor dit aanvallen/verdedigen-op-
@@ -166,7 +162,6 @@ const FEW_SHOT_EXAMPLES: Array<{ user: string; assistant: Record<string, unknown
     assistant: {
       isMovementActivity: true,
       title: "Tikspel opwarmer",
-      groupName: null,
       learningLine: null,
       doelgroep: null,
       movementProblem: null,
@@ -279,7 +274,6 @@ export async function extractActivityFromText(
     activity: {
       isMovementActivity: parsed.isMovementActivity,
       title: parsed.title || null,
-      groupName: parsed.groupName || null,
       learningLine: parsed.learningLine || null,
       doelgroep: geldigeDoelgroep.length > 0 ? geldigeDoelgroep : null,
       movementProblem: parsed.movementProblem || null,
