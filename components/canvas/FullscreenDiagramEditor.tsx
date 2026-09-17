@@ -55,7 +55,15 @@ export function FullscreenDiagramEditor({
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : handleDone())}>
       <DialogContent
         showCloseButton={false}
-        className="fixed inset-0 top-0 left-0 z-50 flex h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 p-0"
+        // De basis-DialogContent-classes (components/ui/dialog.tsx) zetten
+        // `sm:max-w-lg` (32rem) en `max-h-[90vh]` — allebei ONGEPREFIXTE
+        // tegenhangers missen hier bewust niet: `max-w-none` alleen
+        // overschrijft geen `sm:`-geprefixte klasse (andere Tailwind-
+        // conflictgroep), dus zonder `sm:max-w-none` bleef de dialoog vanaf
+        // 640px breed vastgeklikt op 512px — precies het gerapporteerde
+        // "smal paneel op desktop". `max-h-none` dekt dezelfde soort gat bij
+        // `max-h-[90vh]` (dat geen `h-*`-tegenhanger had).
+        className="fixed inset-0 top-0 left-0 z-50 flex h-[100dvh] max-h-none w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:max-w-none"
       >
         <DialogTitle className="sr-only">Plattegrond bewerken</DialogTitle>
         <div className="flex shrink-0 items-center justify-between gap-2 border-b bg-card px-3 py-2.5">

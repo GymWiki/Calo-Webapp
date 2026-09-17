@@ -79,6 +79,15 @@ import { FIELD_PRESET_LABELS, FIELD_PRESET_SPORTS, FIELD_PRESETS } from "./field
 
 const BASE_WIDTH = 800;
 const BASE_HEIGHT = 560;
+// Bovengrens voor de "pas in containerbreedte"-schaal (zie `scale`
+// verderop) — voorheen gelijk aan BASE_WIDTH, wat het canvas nooit groter
+// dan zijn eigen 800×560-canvaseenheden liet renderen, ook niet in een
+// brede desktop-kolom met veel meer beschikbare ruimte. GymCanvas draait nu
+// alleen nog binnen FullscreenDiagramEditor (volledig scherm), dus een
+// hogere bovengrens is hier veilig: 1200 geeft op desktop een merkbaar
+// groter, preciezer canvas (scale tot 1,5×) zonder op de meeste
+// schermformaten al buiten de zichtbare hoogte te vallen.
+const MAX_STAGE_WIDTH = 1200;
 const MAX_HISTORY = 30;
 const THUMB_BOX = 40;
 // Vaste weergavegrootte voor materiaal-elementen — de echte foto-
@@ -650,7 +659,7 @@ export const GymCanvas = forwardRef<
     function updateSize() {
       const container = containerRef.current;
       if (!container) return;
-      setStageWidth(Math.max(240, Math.min(container.clientWidth, BASE_WIDTH)));
+      setStageWidth(Math.max(240, Math.min(container.clientWidth, MAX_STAGE_WIDTH)));
     }
 
     updateSize();
@@ -1224,8 +1233,18 @@ export const GymCanvas = forwardRef<
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    // Mobiel/tablet: alles gestapeld (flex-col), zelfde volgorde als
+    // voorheen. Desktop (lg:, zie CLAUDE.md's breakpoint-afspraak): een
+    // smalle, vaste-breedte zijbalk met de toolbar/stijl-controls naast een
+    // canvas-kolom die de resterende ruimte krijgt — i.p.v. de toolbar
+    // gewoon breeduit over het hele scherm te laten lopen met een klein
+    // canvas ergens onder. `gap` i.p.v. het eerdere `space-y-3` op deze
+    // buitenste laag: dat blijft zo correct werken in zowel flex-col
+    // (mobiel) als flex-row (desktop) — `space-y-*`'s margin-top-truc zou
+    // in flex-row-stand de tweede kolom juist verkeerd naar onder duwen.
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:gap-4">
+      <div className="space-y-3 lg:w-72 lg:flex-none">
+        <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Sheet open={pickerOpen} onOpenChange={setPickerOpen}>
             <SheetTrigger asChild>
@@ -1527,7 +1546,9 @@ export const GymCanvas = forwardRef<
           )}
         </div>
       )}
+      </div>
 
+      <div className="min-w-0 space-y-3 lg:flex-1">
       <div ref={containerRef} className="w-full">
         {/* Buiten de overflow-hidden canvas-box hieronder (die is puur voor
             de Stage zelf) — de zwevende actiebalk/rotate-move-knoppen/
@@ -1994,6 +2015,7 @@ export const GymCanvas = forwardRef<
         te zoomen, en sleep een leeg stuk canvas om te pannen. Gebruik
         &quot;Verwijderen&quot; voor het geselecteerde item.
       </p>
+      </div>
     </div>
   );
 });
