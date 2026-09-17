@@ -11,6 +11,7 @@ import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { EditableList } from "@/components/editable-list";
 import { InlineEditText } from "@/components/inline-edit-text";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
+import { MaterialChecklist } from "@/components/material-checklist";
 import { SourceBadge } from "@/components/library-item-card";
 import { ShareLessonButton } from "@/components/ShareLessonButton";
 import { Badge } from "@/components/ui/badge";
@@ -919,16 +920,12 @@ export function ActivityWizardPage({
                       addLabel="Voeg materiaal toe"
                       emptyHint="Nog geen basismateriaal."
                     />
-                  ) : baseMaterials.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">-</p>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {baseMaterials.map((item, index) => (
-                        <Badge key={`${item}-${index}`} variant="secondary">
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
+                    <MaterialChecklist
+                      items={baseMaterials}
+                      storageKey={`materiaal-checklist:${activity?.id ?? ""}:basis`}
+                      emptyLabel="Geen materiaal nodig."
+                    />
                   )}
                 </div>
                 <div>
@@ -942,16 +939,12 @@ export function ActivityWizardPage({
                       addLabel="Voeg materiaal toe"
                       emptyHint="Nog geen regelmateriaal."
                     />
-                  ) : ruleMaterials.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">-</p>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {ruleMaterials.map((item, index) => (
-                        <Badge key={`${item}-${index}`} variant="secondary">
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
+                    <MaterialChecklist
+                      items={ruleMaterials}
+                      storageKey={`materiaal-checklist:${activity?.id ?? ""}:regel`}
+                      emptyLabel="Geen materiaal nodig."
+                    />
                   )}
                 </div>
               </div>
