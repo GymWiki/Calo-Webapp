@@ -107,6 +107,12 @@ const MAX_ZOOM = 4;
 const ZOOM_BUTTON_STEP = 1.25;
 const WHEEL_ZOOM_STEP = 1.06;
 
+// Smart alignment guides ("snap-lijnen", Canva-stijl) — 6 schermpixels,
+// omgerekend naar canvas-eenheden via /effectiveScale bij gebruik, zodat de
+// vangafstand visueel gelijk aanvoelt ongeacht in-/uitzoomniveau.
+const SNAP_THRESHOLD_PX = 6;
+const SNAP_GUIDE_COLOR = "#ff3b30";
+
 // Zwevende-controls-afmetingen (canvas-container-relatieve pixels, niet
 // canvas-eenheden) — gebruikt om de actiebalk/rotate-move-knoppen boven of
 // onder de selectie te positioneren.
@@ -496,6 +502,84 @@ function getElementBounds(element: DiagramElement): {
   return { x: element.x - width / 2, y: element.y - height / 2, width, height };
 }
 
+type SnapGuide = { orientation: "vertical" | "horizontal"; position: number };
+
+/**
+ * Vangpunten voor smart alignment guides — links/midden/rechts (x-as) en
+ * boven/midden/onder (y-as) van elk ANDER element (via de al bestaande
+ * getElementBounds hierboven, dus een sportveld-preset telt automatisch als
+ * ÉÉN groep-buitenrand i.p.v. de losse belijning erbinnen), plus het
+ * horizontale/verticale midden van het canvas zelf. Eén keer berekend bij
+ * het BEGIN van een sleep-/schaalgebaar (zie startInteraction-aanroepen
+ * hieronder) i.p.v. bij elke pointer-move — de andere elementen bewegen
+ * toch niet mee tijdens dat gebaar, dus dit is de enige plek waar de O(n)-
+ * kosten (getElementBounds per element) vallen; elke volgende frame
+ * vergelijkt alleen nog tegen deze al-berekende, kleine array met getallen.
+ */
+function buildSnapTargets(
+  elements: DiagramElement[],
+  excludeId: string,
+): { x: number[]; y: number[] } {
+  const xs = new Set<number>([BASE_WIDTH / 2]);
+  const ys = new Set<number>([BASE_HEIGHT / 2]);
+  for (const item of elements) {
+    if (item.id === excludeId) continue;
+    const bounds = getElementBounds(item);
+    xs.add(bounds.x);
+    xs.add(bounds.x + bounds.width / 2);
+    xs.add(bounds.x + bounds.width);
+    ys.add(bounds.y);
+    ys.add(bounds.y + bounds.height / 2);
+    ys.add(bounds.y + bounds.height);
+  }
+  return { x: [...xs], y: [...ys] };
+}
+
+/**
+ * Vergelijkt de linker/midden/rechter- en boven/midden/onderrand van het
+ * GESLEEPTE element (`bounds`, op zijn actuele, ongesnapte positie) met de
+ * vangpunten hierboven. Geeft per as de kleinste correctie terug die één
+ * van die randen exact op een vangpunt legt — "licht doorbreekbaar": zodra
+ * geen van de randen binnen `threshold` van een vangpunt valt, is dx/dy 0 en
+ * verdwijnen de guides, dus verder slepen voelt meteen weer als vrij
+ * bewegen. Maximaal één guide per as (net als de meeste ontwerptools: een
+ * rechte verplaatsing kan toch niet op twee x-doelen tegelijk uitkomen).
+ */
+function resolveSnap(
+  bounds: { x: number; y: number; width: number; height: number },
+  targets: { x: number[]; y: number[] },
+  threshold: number,
+): { dx: number; dy: number; guides: SnapGuide[] } {
+  const xCandidates = [bounds.x, bounds.x + bounds.width / 2, bounds.x + bounds.width];
+  const yCandidates = [bounds.y, bounds.y + bounds.height / 2, bounds.y + bounds.height];
+
+  let bestX: { diff: number; dx: number; target: number } | null = null;
+  for (const candidate of xCandidates) {
+    for (const target of targets.x) {
+      const diff = Math.abs(target - candidate);
+      if (diff <= threshold && (!bestX || diff < bestX.diff)) {
+        bestX = { diff, dx: target - candidate, target };
+      }
+    }
+  }
+
+  let bestY: { diff: number; dy: number; target: number } | null = null;
+  for (const candidate of yCandidates) {
+    for (const target of targets.y) {
+      const diff = Math.abs(target - candidate);
+      if (diff <= threshold && (!bestY || diff < bestY.diff)) {
+        bestY = { diff, dy: target - candidate, target };
+      }
+    }
+  }
+
+  const guides: SnapGuide[] = [];
+  if (bestX) guides.push({ orientation: "vertical", position: bestX.target });
+  if (bestY) guides.push({ orientation: "horizontal", position: bestY.target });
+
+  return { dx: bestX?.dx ?? 0, dy: bestY?.dy ?? 0, guides };
+}
+
 export const GymCanvas = forwardRef<
   GymCanvasHandle,
   { initialData?: DiagramData | null }
@@ -537,6 +621,10 @@ export const GymCanvas = forwardRef<
   // zichtbaar en live-gesynchroniseerd (setTextLive), dus een export tijdens
   // het bewerken toont altijd de laatst getypte tekst.
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  // Actieve smart alignment guides ("snap-lijnen") — alleen gezet tijdens een
+  // sleep-/schaalgebaar, altijd leeg zodra dat stopt (zie endInteraction
+  // hieronder, dat dit voor elk sleep-/schaal-/rotatiepad in één keer regelt).
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 
   const isDesktop = useIsDesktop();
   const isCoarsePointer = useIsCoarsePointer();
@@ -544,6 +632,10 @@ export const GymCanvas = forwardRef<
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const nodeRefs = useRef<Map<string, Konva.Node>>(new Map());
+  // Vangpunten van alle ANDERE elementen — één keer gevuld bij het begin van
+  // een sleep-/schaalgebaar (zie buildSnapTargets hierboven), hergebruikt
+  // door elke daaropvolgende pointer-move van dat gebaar.
+  const dragSnapTargetsRef = useRef<{ x: number[]; y: number[] }>({ x: [], y: [] });
   // Eindpunt-handles van lijn/pijl-elementen — apart van nodeRefs omdat ze
   // geen Transformer-doelwit zijn, maar wél expliciet verborgen moeten
   // worden vóór het exporteren (zie exportDiagram hieronder), net als de
@@ -745,6 +837,7 @@ export const GymCanvas = forwardRef<
 
   function endInteraction() {
     setIsInteracting(false);
+    setSnapGuides([]);
   }
 
   function setLinePointsLive(id: string, points: [number, number, number, number]) {
@@ -1079,15 +1172,22 @@ export const GymCanvas = forwardRef<
     const originY = element.y;
     const elementId = element.id;
 
+    dragSnapTargetsRef.current = buildSnapTargets(elements, elementId);
     startInteraction();
 
     function onMove(moveEvent: PointerEvent) {
       const dx = (moveEvent.clientX - startClientX) / effectiveScale;
       const dy = (moveEvent.clientY - startClientY) / effectiveScale;
+      const rawX = originX + dx;
+      const rawY = originY + dy;
+      const liveBounds = getElementBounds({ ...element, x: rawX, y: rawY } as DiagramElement);
+      const threshold = SNAP_THRESHOLD_PX / effectiveScale;
+      const snap = resolveSnap(liveBounds, dragSnapTargetsRef.current, threshold);
+      setSnapGuides(snap.guides);
       setElements((prev) =>
         prev.map((item) =>
           item.id === elementId && item.kind !== "line"
-            ? { ...item, x: originX + dx, y: originY + dy }
+            ? { ...item, x: rawX + snap.dx, y: rawY + snap.dy }
             : item,
         ),
       );
@@ -1519,13 +1619,30 @@ export const GymCanvas = forwardRef<
                       onDblTap={() => {
                         if (el.kind === "text") startTextEdit(el.id);
                       }}
-                      onDragStart={startInteraction}
+                      onDragStart={() => {
+                        dragSnapTargetsRef.current = buildSnapTargets(elements, el.id);
+                        startInteraction();
+                      }}
                       onDragMove={(e) => {
                         const node = e.target;
+                        const rawX = node.x();
+                        const rawY = node.y();
+                        const liveBounds = getElementBounds({
+                          ...el,
+                          x: rawX,
+                          y: rawY,
+                        } as DiagramElement);
+                        const threshold = SNAP_THRESHOLD_PX / effectiveScale;
+                        const snap = resolveSnap(liveBounds, dragSnapTargetsRef.current, threshold);
+                        const snappedX = rawX + snap.dx;
+                        const snappedY = rawY + snap.dy;
+                        node.x(snappedX);
+                        node.y(snappedY);
+                        setSnapGuides(snap.guides);
                         setElements((prev) =>
                           prev.map((item) =>
                             item.id === el.id && item.kind !== "line"
-                              ? { ...item, x: node.x(), y: node.y() }
+                              ? { ...item, x: snappedX, y: snappedY }
                               : item,
                           ),
                         );
@@ -1540,7 +1657,10 @@ export const GymCanvas = forwardRef<
                         );
                         endInteraction();
                       }}
-                      onTransformStart={startInteraction}
+                      onTransformStart={() => {
+                        dragSnapTargetsRef.current = buildSnapTargets(elements, el.id);
+                        startInteraction();
+                      }}
                       onTransformEnd={(e) => {
                         const node = e.target;
                         // Tekst schaalt naar een nieuwe fontSize i.p.v. de
@@ -1602,10 +1722,93 @@ export const GymCanvas = forwardRef<
                   anchorStrokeWidth={2}
                   borderStroke="#7c3aed"
                   borderStrokeWidth={2}
-                  boundBoxFunc={(oldBox, newBox) =>
-                    newBox.width < 8 || newBox.height < 8 ? oldBox : newBox
-                  }
+                  boundBoxFunc={(oldBox, newBox) => {
+                    if (newBox.width < 8 || newBox.height < 8) return oldBox;
+                    // Randuitlijning tijdens schalen alleen bij (zo goed als)
+                    // 0° rotatie — bij een gedraaid element is newBox.x/y/
+                    // width/height niet meer de as-gelijnde rand in dezelfde
+                    // canvaseenheden-ruimte als de vangpunten, dus dan gewoon
+                    // het bestaande, ongewijzigde schaalgedrag laten staan.
+                    if (Math.abs(newBox.rotation) > 0.001) return newBox;
+
+                    const threshold = SNAP_THRESHOLD_PX / effectiveScale;
+                    const targets = dragSnapTargetsRef.current;
+                    const guides: SnapGuide[] = [];
+                    let { x, y, width, height } = newBox;
+
+                    const leftMoved = Math.abs(newBox.x - oldBox.x) > 0.001;
+                    const rightMoved =
+                      Math.abs(newBox.x + newBox.width - (oldBox.x + oldBox.width)) > 0.001;
+                    if (leftMoved || rightMoved) {
+                      const edgeX = leftMoved ? x : x + width;
+                      let best: { diff: number; target: number } | null = null;
+                      for (const target of targets.x) {
+                        const diff = Math.abs(target - edgeX);
+                        if (diff <= threshold && (!best || diff < best.diff)) {
+                          best = { diff, target };
+                        }
+                      }
+                      if (best) {
+                        const delta = best.target - edgeX;
+                        if (leftMoved) {
+                          x += delta;
+                          width -= delta;
+                        } else {
+                          width += delta;
+                        }
+                        guides.push({ orientation: "vertical", position: best.target });
+                      }
+                    }
+
+                    const topMoved = Math.abs(newBox.y - oldBox.y) > 0.001;
+                    const bottomMoved =
+                      Math.abs(newBox.y + newBox.height - (oldBox.y + oldBox.height)) > 0.001;
+                    if (topMoved || bottomMoved) {
+                      const edgeY = topMoved ? y : y + height;
+                      let best: { diff: number; target: number } | null = null;
+                      for (const target of targets.y) {
+                        const diff = Math.abs(target - edgeY);
+                        if (diff <= threshold && (!best || diff < best.diff)) {
+                          best = { diff, target };
+                        }
+                      }
+                      if (best) {
+                        const delta = best.target - edgeY;
+                        if (topMoved) {
+                          y += delta;
+                          height -= delta;
+                        } else {
+                          height += delta;
+                        }
+                        guides.push({ orientation: "horizontal", position: best.target });
+                      }
+                    }
+
+                    if (width < 8 || height < 8) return newBox;
+                    setSnapGuides(guides);
+                    return { ...newBox, x, y, width, height };
+                  }}
                 />
+              </Layer>
+              {/* Eigen laag, boven alle elementen én de Transformer — de
+                  snap-lijnen moeten altijd zichtbaar zijn tijdens het
+                  gebaar, ook over de selectiebox/handvatten heen. Alleen
+                  gevuld tijdens een actief sleep-/schaalgebaar (zie
+                  endInteraction), dus verder volledig leeg/onzichtbaar. */}
+              <Layer listening={false}>
+                {snapGuides.map((guide, i) => (
+                  <Line
+                    key={i}
+                    points={
+                      guide.orientation === "vertical"
+                        ? [guide.position, 0, guide.position, BASE_HEIGHT]
+                        : [0, guide.position, BASE_WIDTH, guide.position]
+                    }
+                    stroke={SNAP_GUIDE_COLOR}
+                    strokeWidth={1.5 / effectiveScale}
+                    listening={false}
+                  />
+                ))}
               </Layer>
             </Stage>
           </div>
