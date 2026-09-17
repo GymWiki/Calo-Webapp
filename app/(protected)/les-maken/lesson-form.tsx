@@ -17,7 +17,10 @@ import {
   AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY,
   AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
   AI_GENERATED_LESSON_STORAGE_KEY,
+  type AnalyzeLessonInput,
+  type DidacticSuggestion,
   type GeneratedLessonWithIds,
+  type LescoachSuggestion,
 } from "@/types/ai";
 import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
@@ -37,6 +40,35 @@ import type { RequiredLessonFormField } from "./activity-upload-step";
 // geëxporteerd vanuit die component, want dit bestand kent het al via zijn
 // eigen import van dezelfde const.
 type RequiredFieldKey = (typeof REQUIRED_LESSON_FIELDS)[number]["field"];
+
+function createId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// AI Lescoach kostenbeheersing (zie de brief "Herontwerp de AI-
+// activiteitengenerator naar AI Lescoach", Deel 2): een harde cooldown na
+// elke aanroep, ALS EXTRA laag boven de "alleen beschikbaar bij een
+// daadwerkelijke wijziging"-gate hieronder — voorkomt dat een snelle
+// dubbelklik direct twee AI-aanroepen (en dus twee keer kosten) veroorzaakt.
+const LESCOACH_COOLDOWN_SECONDS = 20;
+
+// Volledige momentopname van alle door AI Lescoach analyseerbare secties —
+// gebruikt zowel om te bepalen of de activiteit daadwerkelijk gewijzigd is
+// sinds de vorige analyse (cooldown-gate) als om bij een vervolg-aanroep
+// alleen de gewijzigde secties mee te sturen (zie buildAnalyzePayload
+// hieronder).
+type LescoachContentSnapshot = {
+  goals?: string;
+  learningOutcomes: string[];
+  deelnemersRegels?: string;
+  plaatjePraatje?: string;
+  aandachtspunten?: string;
+  rules: string[];
+  arrangement?: string;
+  baseMaterials: string[];
+  ruleMaterials: string[];
+  didacticItems: DidacticItem[];
+};
 
 // LessonForm is de "mode=edit"-aanroeper van components/activity-wizard-page.tsx
 // (dezelfde component die de wizard-activiteit-detailpagina in "mode=view"
@@ -558,6 +590,229 @@ export function LessonForm({
     setJumpToFieldTrigger({ field: missingFields[0], requestId: jumpRequestIdRef.current });
   }
 
+  // --------------------------------------------------------------------------
+  // AI Lescoach: analyseert de HUIDIGE staat van dit formulier en geeft
+  // per-sectie suggesties terug — geen nieuwe activiteit. Zie de brief
+  // "Herontwerp de AI-activiteitengenerator naar AI Lescoach".
+  // --------------------------------------------------------------------------
+
+  const [lescoachSuggestions, setLescoachSuggestions] = useState<LescoachSuggestion[]>([]);
+  const [lescoachDidacticSuggestions, setLescoachDidacticSuggestions] = useState<
+    DidacticSuggestion[]
+  >([]);
+  const [isRunningLescoach, setIsRunningLescoach] = useState(false);
+  const [lescoachCooldownSecondsLeft, setLescoachCooldownSecondsLeft] = useState(0);
+  const lescoachCooldownUntilRef = useRef<number | null>(null);
+  // De volledige inhoud zoals ze stond bij de LAATSTE analyse — null zolang
+  // nog niet geanalyseerd. Gebruikt zowel om te bepalen of er sindsdien
+  // daadwerkelijk iets gewijzigd is (de knop-gate) als om bij een vervolg-
+  // aanroep alleen de gewijzigde secties mee te sturen (kostenbeheersing).
+  const lastAnalyzedContentRef = useRef<LescoachContentSnapshot | null>(null);
+  // Compacte samenvatting van eerder gegeven suggestietypes (max. de laatste
+  // 20) — meegestuurd bij een vervolg-aanroep zodat de AI niet zomaar exact
+  // dezelfde suggestie herhaalt, zonder de volledige eerdere suggestieteksten
+  // opnieuw te moeten meesturen.
+  const previousSuggestionTypesRef = useRef<{ section: LescoachSuggestion["section"]; type: string }[]>(
+    [],
+  );
+
+  function buildContentSnapshot(): LescoachContentSnapshot {
+    return {
+      goals: goals || undefined,
+      learningOutcomes,
+      deelnemersRegels: deelnemersRegels || undefined,
+      plaatjePraatje: plaatjePraatje || undefined,
+      aandachtspunten: aandachtspunten || undefined,
+      rules,
+      arrangement: arrangement || undefined,
+      baseMaterials,
+      ruleMaterials,
+      didacticItems,
+    };
+  }
+
+  const currentLescoachSnapshot = buildContentSnapshot();
+  const hasAnalyzedBefore = lastAnalyzedContentRef.current !== null;
+  const lescoachContentChanged =
+    !hasAnalyzedBefore ||
+    JSON.stringify(currentLescoachSnapshot) !== JSON.stringify(lastAnalyzedContentRef.current);
+  const canRunLescoach =
+    !isRunningLescoach && lescoachCooldownSecondsLeft === 0 && lescoachContentChanged;
+  const lescoachButtonLabel =
+    lescoachCooldownSecondsLeft > 0
+      ? `Opnieuw raadplegen over ${lescoachCooldownSecondsLeft}s`
+      : hasAnalyzedBefore && !lescoachContentChanged
+        ? "Geen wijzigingen sinds laatste analyse"
+        : "AI Lescoach raadplegen";
+
+  // Tikt elke seconde de cooldown-aftelling terug — event-gedreven (een
+  // interval-callback), geen synchrone setState tijdens het effect zelf.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const until = lescoachCooldownUntilRef.current;
+      if (!until) {
+        setLescoachCooldownSecondsLeft(0);
+        return;
+      }
+      const secondsLeft = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      setLescoachCooldownSecondsLeft(secondsLeft);
+      if (secondsLeft === 0) lescoachCooldownUntilRef.current = null;
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Kostenbeheersing: bij de EERSTE aanroep gaat de volledige inhoud mee; bij
+  // een vervolg-aanroep alleen de secties die daadwerkelijk gewijzigd zijn
+  // sinds de vorige analyse (de "identiteitsvelden" — nodig voor consistente
+  // Kennisbank-retrieval — gaan wél altijd mee, die zijn klein) + een
+  // samenvatting van eerder gegeven suggestietypes i.p.v. de volledige
+  // eerdere suggesties.
+  function buildAnalyzePayload(currentContent: LescoachContentSnapshot): AnalyzeLessonInput {
+    const identity = {
+      title: title || undefined,
+      learningLine: learningLine || undefined,
+      movementTheme: movementTheme || undefined,
+      movementProblem: movementProblem || undefined,
+      doelgroep,
+      minParticipants,
+      participantsBench,
+      activityId: activityId ?? undefined,
+    };
+
+    const previous = lastAnalyzedContentRef.current;
+    if (!previous) {
+      return { ...identity, ...currentContent };
+    }
+
+    const changed: Record<string, unknown> = {};
+    (Object.keys(currentContent) as (keyof LescoachContentSnapshot)[]).forEach((key) => {
+      if (JSON.stringify(currentContent[key]) !== JSON.stringify(previous[key])) {
+        changed[key] = currentContent[key];
+      }
+    });
+
+    return {
+      ...identity,
+      ...changed,
+      isFollowUp: true,
+      previousSuggestionTypes: previousSuggestionTypesRef.current,
+    };
+  }
+
+  async function runLescoachAnalysis() {
+    setIsRunningLescoach(true);
+    try {
+      const currentContent = buildContentSnapshot();
+      const response = await fetch("/api/ai/analyze-lesson", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildAnalyzePayload(currentContent)),
+      });
+      const data = await response.json();
+
+      if (!response.ok || "error" in data) {
+        toast.error(data.error ?? "AI Lescoach-analyse is mislukt.");
+        return;
+      }
+
+      const newSuggestions: LescoachSuggestion[] = (
+        (data.suggestions ?? []) as Omit<LescoachSuggestion, "id">[]
+      ).map((suggestion) => ({ ...suggestion, id: createId("s") }));
+      const newDidacticSuggestions: DidacticSuggestion[] = (
+        (data.didacticSuggestions ?? []) as Omit<DidacticSuggestion, "id">[]
+      ).map((suggestion) => ({ ...suggestion, id: createId("d") }));
+
+      setLescoachSuggestions((prev) => [...prev, ...newSuggestions]);
+      setLescoachDidacticSuggestions((prev) => [...prev, ...newDidacticSuggestions]);
+
+      lastAnalyzedContentRef.current = currentContent;
+      previousSuggestionTypesRef.current = [
+        ...previousSuggestionTypesRef.current,
+        ...newSuggestions.map((suggestion) => ({ section: suggestion.section, type: suggestion.type })),
+      ].slice(-20);
+      lescoachCooldownUntilRef.current = Date.now() + LESCOACH_COOLDOWN_SECONDS * 1000;
+      setLescoachCooldownSecondsLeft(LESCOACH_COOLDOWN_SECONDS);
+
+      const totalNew = newSuggestions.length + newDidacticSuggestions.length;
+      toast.success(
+        totalNew === 0
+          ? "Geen nieuwe suggesties — deze onderdelen zien er al goed uit."
+          : `${totalNew} nieuwe suggestie${totalNew === 1 ? "" : "s"} van de AI Lescoach.`,
+      );
+    } catch {
+      toast.error("AI Lescoach-analyse is mislukt. Controleer je verbinding.");
+    } finally {
+      setIsRunningLescoach(false);
+    }
+  }
+
+  // Tekstsecties: "Toepassen" VERVANGT de huidige waarde. Lijstsecties:
+  // "Toepassen" VOEGT het voorstel TOE als nieuw item — zie
+  // types/ai.ts (LESCOACH_LIST_SECTIONS).
+  function applyLescoachSuggestion(suggestion: LescoachSuggestion) {
+    switch (suggestion.section) {
+      case "goals":
+        form.setValue("goals", suggestion.suggestion);
+        break;
+      case "movementProblem":
+        form.setValue("movementProblem", suggestion.suggestion);
+        break;
+      case "deelnemersRegels":
+        form.setValue("deelnemersRegels", suggestion.suggestion);
+        break;
+      case "plaatjePraatje":
+        form.setValue("plaatjePraatje", suggestion.suggestion);
+        break;
+      case "aandachtspunten":
+        form.setValue("aandachtspunten", suggestion.suggestion);
+        break;
+      case "arrangement":
+        form.setValue("arrangement", suggestion.suggestion);
+        break;
+      case "learningOutcomes":
+        setLearningOutcomes((prev) => [...prev, suggestion.suggestion]);
+        break;
+      case "rules":
+        setRules((prev) => [...prev, suggestion.suggestion]);
+        break;
+      case "baseMaterials":
+        setBaseMaterials((prev) => [...prev, suggestion.suggestion]);
+        break;
+      case "ruleMaterials":
+        setRuleMaterials((prev) => [...prev, suggestion.suggestion]);
+        break;
+    }
+    setLescoachSuggestions((prev) => prev.filter((entry) => entry.id !== suggestion.id));
+    scheduleAutosave();
+    toast.success("Suggestie toegepast.");
+  }
+
+  function dismissLescoachSuggestion(id: string) {
+    setLescoachSuggestions((prev) => prev.filter((entry) => entry.id !== id));
+  }
+
+  // Leerhulp-variant: altijd een AANVULLING (nieuw los item), nooit een
+  // vervanging van bestaande items — zie de brief.
+  function applyDidacticSuggestion(suggestion: DidacticSuggestion) {
+    setDidacticItems((prev) => [
+      ...prev,
+      {
+        id: createId("d"),
+        category: suggestion.category,
+        subTheme: null,
+        observation: suggestion.observation,
+        action: suggestion.action,
+      },
+    ]);
+    setLescoachDidacticSuggestions((prev) => prev.filter((entry) => entry.id !== suggestion.id));
+    scheduleAutosave();
+    toast.success("Leerhulp-variant toegevoegd.");
+  }
+
+  function dismissDidacticSuggestion(id: string) {
+    setLescoachDidacticSuggestions((prev) => prev.filter((entry) => entry.id !== id));
+  }
+
   return (
     <Form {...form}>
       {/* pb-28/md:pb-24: dezelfde marge als de activiteit-detailpagina
@@ -643,16 +898,17 @@ export function LessonForm({
           onDidacticItemsChange={setDidacticItems}
           onCommit={scheduleAutosave}
           saveStatus={saveStatus}
-          analyzePayload={{
-            title,
-            learningLine: learningLine || undefined,
-            movementProblem: movementProblem || undefined,
-            movementTheme: movementTheme || undefined,
-            goals: goals || undefined,
-            didacticItems,
-            activityId: activityId ?? undefined,
-          }}
           usedKnowledgeSources={[...generatedChunks, ...(initialUsedKnowledgeSources ?? [])]}
+          lescoachSuggestions={lescoachSuggestions}
+          onApplyLescoachSuggestion={applyLescoachSuggestion}
+          onDismissLescoachSuggestion={dismissLescoachSuggestion}
+          lescoachDidacticSuggestions={lescoachDidacticSuggestions}
+          onApplyDidacticSuggestion={applyDidacticSuggestion}
+          onDismissDidacticSuggestion={dismissDidacticSuggestion}
+          onRunLescoach={() => void runLescoachAnalysis()}
+          isRunningLescoach={isRunningLescoach}
+          canRunLescoach={canRunLescoach}
+          lescoachButtonLabel={lescoachButtonLabel}
           isSubmitting={form.formState.isSubmitting}
           missingFields={missingFields}
           jumpToFieldTrigger={jumpToFieldTrigger}

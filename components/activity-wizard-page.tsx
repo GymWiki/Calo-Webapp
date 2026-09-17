@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
+import { ArrowLeft, Bot, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
 
-import { AiLescoachButton, type AnalyzeLessonPayload } from "@/components/AiLescoachSheet";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { DidacticsForm } from "@/components/DidacticsForm";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { EditableList } from "@/components/editable-list";
 import { InlineEditText } from "@/components/inline-edit-text";
+import { SuggestionCardList } from "@/components/LescoachSuggestionCard";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { MaterialChecklist } from "@/components/material-checklist";
 import { SourceBadge } from "@/components/library-item-card";
@@ -29,6 +29,7 @@ import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColor
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
+import type { DidacticSuggestion, LescoachSection, LescoachSuggestion } from "@/types/ai";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import { REQUIRED_LESSON_FIELDS, type DidacticItem } from "@/types/lesson";
 import { FullscreenDiagramEditor } from "@/components/canvas/FullscreenDiagramEditor";
@@ -180,11 +181,20 @@ export function ActivityWizardPage({
 
   onCommit,
   saveStatus,
-  analyzePayload,
   isSubmitting,
   missingFields,
   jumpToFieldTrigger,
   usedKnowledgeSources,
+  lescoachSuggestions,
+  onApplyLescoachSuggestion,
+  onDismissLescoachSuggestion,
+  lescoachDidacticSuggestions,
+  onApplyDidacticSuggestion,
+  onDismissDidacticSuggestion,
+  onRunLescoach,
+  isRunningLescoach,
+  canRunLescoach,
+  lescoachButtonLabel,
 }: {
   mode: "view" | "edit";
   /** Alleen nodig in mode="view" — voor LessonPdfButton, dat de volledige rij verwacht. */
@@ -268,7 +278,6 @@ export function ActivityWizardPage({
    * eigen toast (zie lesson-form.tsx); dit is puur de rustige "bezig.../
    * opgeslagen"-indicatie voor het normale geval. */
   saveStatus?: "idle" | "saving" | "saved" | "error";
-  analyzePayload: AnalyzeLessonPayload;
   isSubmitting?: boolean;
   /** Welke verplichte velden (zie REQUIRED_LESSON_FIELDS) op dit moment nog
    * leeg zijn — live bijgewerkt terwijl de gebruiker typt. Drijft zowel de
@@ -284,8 +293,44 @@ export function ActivityWizardPage({
    * activiteit (generatie, kwaliteitscheck en/of AI Lescoach) — backt de
    * "Gebruikte bronnen"-sectie hieronder. Leeg/undefined toont geen sectie. */
   usedKnowledgeSources?: UsedKnowledgeChunk[];
+  /** AI Lescoach — alleen relevant in mode="edit" (zie lesson-form.tsx, dat
+   * de fetch/apply/dismiss/cooldown-logica bezit). Suggesties worden hier
+   * per sectie gefilterd en direct onder het bijbehorende veld getoond. */
+  lescoachSuggestions?: LescoachSuggestion[];
+  onApplyLescoachSuggestion?: (suggestion: LescoachSuggestion) => void;
+  onDismissLescoachSuggestion?: (id: string) => void;
+  /** Leerhulp-variant-suggesties — apart kanaal, zie DidacticsForm. */
+  lescoachDidacticSuggestions?: DidacticSuggestion[];
+  onApplyDidacticSuggestion?: (suggestion: DidacticSuggestion) => void;
+  onDismissDidacticSuggestion?: (id: string) => void;
+  /** Triggert een nieuwe analyse (de knop in de actiebalk hieronder). */
+  onRunLescoach?: () => void;
+  isRunningLescoach?: boolean;
+  /** Cooldown/content-ongewijzigd-gate — door lesson-form.tsx berekend, hier
+   * puur gebruikt om de knop te (de)activeren. */
+  canRunLescoach?: boolean;
+  /** Overschrijft het standaardlabel "AI Lescoach raadplegen" (bijv. een
+   * cooldown-aftelling) — zie lesson-form.tsx. */
+  lescoachButtonLabel?: string;
 }) {
   const isEdit = mode === "edit";
+
+  // AI Lescoach-suggesties gefilterd per sectie — alleen in mode="edit"
+  // (nooit gezet voor mode="view", zie de callers), null-safe zodat elke
+  // sectie hieronder gewoon `{renderSuggestions("...")}` kan aanroepen.
+  function renderSuggestions(section: LescoachSection) {
+    if (!isEdit || !onApplyLescoachSuggestion || !onDismissLescoachSuggestion) return null;
+    const matches = (lescoachSuggestions ?? []).filter((suggestion) => suggestion.section === section);
+    if (matches.length === 0) return null;
+    return (
+      <SuggestionCardList
+        suggestions={matches}
+        onApply={onApplyLescoachSuggestion}
+        onDismiss={onDismissLescoachSuggestion}
+      />
+    );
+  }
+
   // Bewegingsthema is een verfijning BINNEN de gekozen leerlijn (zie
   // lib/constants/learningLines.ts) — alleen tonen als een select wanneer er
   // voor deze leerlijn een gecorroboreerde thema-lijst bestaat; anders is er
@@ -761,6 +806,7 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{goals}</p>
                   )}
+                  {renderSuggestions("goals")}
                 </div>
               )}
 
@@ -790,6 +836,7 @@ export function ActivityWizardPage({
                       <p className="text-sm whitespace-pre-line text-foreground">{movementProblem}</p>
                     )
                   )}
+                  {renderSuggestions("movementProblem")}
                 </div>
               )}
 
@@ -817,6 +864,7 @@ export function ActivityWizardPage({
                       ))}
                     </ol>
                   )}
+                  {renderSuggestions("learningOutcomes")}
                 </div>
               )}
 
@@ -835,6 +883,7 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{deelnemersRegels || "-"}</p>
                   )}
+                  {renderSuggestions("deelnemersRegels")}
                 </div>
                 <div id="field-plaatjePraatje">
                   <SectionHeading>Plaatje &amp; Praatje</SectionHeading>
@@ -850,6 +899,7 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{plaatjePraatje || "-"}</p>
                   )}
+                  {renderSuggestions("plaatjePraatje")}
                 </div>
                 <div id="field-aandachtspunten" className="sm:col-span-2">
                   <SectionHeading>Aandachtspunten</SectionHeading>
@@ -865,6 +915,7 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{aandachtspunten || "-"}</p>
                   )}
+                  {renderSuggestions("aandachtspunten")}
                 </div>
               </div>
 
@@ -891,6 +942,7 @@ export function ActivityWizardPage({
                     ))}
                   </ul>
                 )}
+                {renderSuggestions("rules")}
               </div>
             </CardContent>
           </Card>
@@ -914,6 +966,7 @@ export function ActivityWizardPage({
                 ) : (
                   <p className="text-sm whitespace-pre-line text-foreground">{arrangement || "-"}</p>
                 )}
+                {renderSuggestions("arrangement")}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -934,6 +987,7 @@ export function ActivityWizardPage({
                       emptyLabel="Geen materiaal nodig."
                     />
                   )}
+                  {renderSuggestions("baseMaterials")}
                 </div>
                 <div>
                   <SectionHeading>Regelmateriaal</SectionHeading>
@@ -953,6 +1007,7 @@ export function ActivityWizardPage({
                       emptyLabel="Geen materiaal nodig."
                     />
                   )}
+                  {renderSuggestions("ruleMaterials")}
                 </div>
               </div>
               {usedKnowledgeSources && usedKnowledgeSources.length > 0 && (
@@ -974,6 +1029,9 @@ export function ActivityWizardPage({
                 onCommit?.();
               }}
               styleOverrides={LEERHULP_DIDACTIC_STYLE_OVERRIDES}
+              suggestions={lescoachDidacticSuggestions}
+              onApplySuggestion={onApplyDidacticSuggestion}
+              onDismissSuggestion={onDismissDidacticSuggestion}
             />
           ) : (
             <DidacticsMatrix items={didacticItems} styleOverrides={LEERHULP_DIDACTIC_STYLE_OVERRIDES} />
@@ -990,7 +1048,22 @@ export function ActivityWizardPage({
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-2 border-t bg-card p-2.5 shadow-brand-lg md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))] print:hidden">
         {isEdit ? (
           <>
-            <AiLescoachButton payload={analyzePayload} className="flex-1" />
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={onRunLescoach}
+              disabled={!canRunLescoach || isRunningLescoach}
+            >
+              {isRunningLescoach ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Bot className="size-4" />
+              )}
+              {isRunningLescoach
+                ? "Bezig met analyseren..."
+                : lescoachButtonLabel ?? "AI Lescoach raadplegen"}
+            </Button>
             <Button type="submit" disabled={isSubmitting} className="flex-[1.4] gap-2">
               {isSubmitting && <Loader2 className="size-4 animate-spin" />}
               {isSubmitting ? "Bezig met opslaan..." : "Activiteit opslaan"}
@@ -1005,7 +1078,6 @@ export function ActivityWizardPage({
                 </Link>
               </Button>
             )}
-            <AiLescoachButton payload={analyzePayload} className="flex-1" />
             {activity && <LessonPdfButton activity={activity} authorName={authorName} className="flex-1" />}
             {isOwnActivity && activity && (
               <ShareLessonButton

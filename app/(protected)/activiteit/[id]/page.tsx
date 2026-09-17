@@ -231,15 +231,6 @@ export default async function ActiviteitDetailPage({
     }
 
     const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
-    const analyzePayload = {
-      title: activity.titel,
-      learningLine: activity.leerlijn ?? undefined,
-      movementProblem: activity.movement_problem ?? undefined,
-      movementTheme: activity.beweegthema ?? undefined,
-      goals: activity.doel ?? undefined,
-      didacticItems,
-      activityId: activity.id,
-    };
     const usedKnowledgeSources = await getActivityKnowledgeSources(activity.id);
 
     return (
@@ -269,7 +260,6 @@ export default async function ActiviteitDetailPage({
           ruleMaterials={activity.rule_materials ?? []}
           diagramImageUrl={activity.diagram_image_url}
           didacticItems={didacticItems}
-          analyzePayload={analyzePayload}
           usedKnowledgeSources={usedKnowledgeSources}
         />
       </main>

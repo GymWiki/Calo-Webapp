@@ -14,6 +14,18 @@ export const MONTHLY_AI_LIMIT = 40;
 // lib/ai/lessonGeneratorAccess.ts.
 export const LESSON_GENERATOR_MONTHLY_LIMIT = 25;
 
+// Eigen fair-use-limiet voor AI Lescoach (/api/ai/analyze-lesson) — zelfde
+// paid_subscriber-only toegangsmodel als de generator hierboven, maar een
+// EIGEN, HOGER quotum: Lescoach raadpleegt men naar verwachting meerdere
+// keren PER activiteit terwijl die groeit (iteratief, per sectie), in
+// tegenstelling tot de generator die je typisch één keer per activiteit
+// gebruikt om te starten. 60 i.p.v. 25: ruim voldoende voor herhaald gebruik
+// binnen één activiteit-sessie, terwijl gpt-4o-mini (zie CHECK_MODEL) de
+// kosten per aanroep al laag houdt — bijstellen zodra er echte
+// gebruiksdata in `ai_usage` staat (feature='ai_lescoach'). Zie
+// lib/ai/lescoachAccess.ts.
+export const AI_LESCOACH_MONTHLY_LIMIT = 60;
+
 export interface UserPermissions {
   subscriptionStatus: SubscriptionStatus;
   /**

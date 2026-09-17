@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { EyeOff, Sparkles } from "lucide-react";
 
-import { AiLescoachButton } from "@/components/AiLescoachSheet";
 import { EmptyState } from "@/components/empty-state";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
@@ -119,19 +118,6 @@ export default async function SharedActivityPage({
   const usedKnowledgeSources = await getActivityKnowledgeSources(activity.id);
 
   const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
-  const analyzePayload = {
-    title: activity.titel,
-    learningLine: activity.leerlijn ?? undefined,
-    movementProblem: activity.movement_problem ?? undefined,
-    movementTheme: activity.beweegthema ?? undefined,
-    goals: activity.doel ?? undefined,
-    didacticItems,
-    // De route logt hiermee alleen daadwerkelijk iets (context='lescoach')
-    // wanneer de huidige viewer ook de auteur is — zie de server-side
-    // eigenaarschapscheck in analyze-lesson/route.ts. Voor elke andere
-    // viewer van deze gedeelde pagina heeft dit veld gewoon geen effect.
-    activityId: activity.id,
-  };
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -197,12 +183,6 @@ export default async function SharedActivityPage({
             <LessonPdfButton activity={activity} authorName={authorName} />
           </CardContent>
         </Card>
-
-        {profile && (
-          <div className="animate-fade-up flex justify-end" style={{ animationDelay: "60ms" }}>
-            <AiLescoachButton payload={analyzePayload} />
-          </div>
-        )}
 
         <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
           <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3">
