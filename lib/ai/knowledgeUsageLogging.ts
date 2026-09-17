@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { KnowledgeMatch } from "@/types/knowledge";
 
-export type KnowledgeUsageContext = "generate" | "lescoach" | "checker";
+export type KnowledgeUsageContext = "lescoach" | "checker";
 
 // Serialiseerbare vorm van een gebruikt fragment — dezelfde velden als
 // KnowledgeMatch, maar losgekoppeld zodat dit probleemloos via JSON
@@ -38,7 +38,7 @@ export function toUsedKnowledgeChunks(matches: KnowledgeMatch[]): UsedKnowledgeC
  * gelijknamige migratie) — backt de "Gebruikte bronnen"-sectie op de
  * activiteit-detailpagina en de "Gebruikt in N activiteiten"-indicatie op
  * /kennisbank. Best-effort: een loggingfout mag de daadwerkelijke AI-actie
- * (genereren/controleren/Lescoach-feedback) nooit blokkeren of laten falen.
+ * (controleren/Lescoach-feedback) nooit blokkeren of laten falen.
  */
 export async function logKnowledgeUsage(
   supabase: SupabaseClient,

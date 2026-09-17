@@ -5,13 +5,10 @@ import OpenAI from "openai";
 export const EMBEDDING_MODEL =
   process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
 
-// CHAT_MODEL is reserved for the AI Activiteiten Generator (de duurste,
-// meest kwaliteitsgevoelige taak: een hele lesvoorbereiding vanaf niets
-// genereren). CHECK_MODEL is voor de goedkopere, structureel eenvoudigere
-// "check"-taken — kwaliteitscontrole, AI Lescoach-feedback en document-
-// extractie — die geen gpt-4o-niveau nodig hebben. Zie modelPricing.ts voor
-// de bijbehorende kosten per model.
-export const CHAT_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
+// CHECK_MODEL is voor de goedkopere, structureel eenvoudigere "check"-taken
+// — kwaliteitscontrole, AI Lescoach-feedback en document-extractie — die
+// geen gpt-4o-niveau nodig hebben. Zie modelPricing.ts voor de bijbehorende
+// kosten per model.
 export const CHECK_MODEL = process.env.OPENAI_CHECK_MODEL || "gpt-4o-mini";
 
 // Tied to the fallback embedding model above (text-embedding-3-small) and

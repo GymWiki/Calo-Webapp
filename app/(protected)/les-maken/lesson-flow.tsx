@@ -1,20 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { FileUp, Lock, NotebookPen, Sparkles, type LucideIcon } from "lucide-react";
+import { FileUp, NotebookPen, type LucideIcon } from "lucide-react";
 
-import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { ActivityUploadStep, type RequiredLessonFormField } from "./activity-upload-step";
-import { AiLessonWizard } from "./ai-lesson-wizard";
 import { LessonForm } from "./lesson-form";
 
 type TabValue = "context" | "organisatie" | "didactiek" | "voorbereiding";
-type Mode = "choice" | "ai-wizard" | "form" | "upload-activity";
+type Mode = "choice" | "form" | "upload-activity";
 
 function ChoiceCard({
   icon: Icon,
@@ -24,7 +21,6 @@ function ChoiceCard({
   actionLabel,
   accent,
   onClick,
-  href,
   disabled,
 }: {
   icon: LucideIcon;
@@ -34,7 +30,6 @@ function ChoiceCard({
   actionLabel: string;
   accent: "primary" | "neutral";
   onClick?: () => void;
-  href?: string;
   disabled?: boolean;
 }) {
   const content = (
@@ -64,14 +59,6 @@ function ChoiceCard({
     accent === "primary" ? "border-primary/40 bg-primary/5" : "bg-card",
   );
 
-  if (href) {
-    return (
-      <Link href={href} className={className}>
-        {content}
-      </Link>
-    );
-  }
-
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className}>
       {content}
@@ -80,15 +67,15 @@ function ChoiceCard({
 }
 
 /**
- * Orchestrates /les-maken's states: the choice screen, the AI wizard, the
- * (shared, unmodified) LessonForm, and uploading an existing
- * lesvoorbereiding. This is the ONE place to create new content — there
- * used to also be a separate, standalone "Activiteit toevoegen" flow (its
- * own page, plus cards on the dashboard and here) creating individual
- * library activiteiten through its own storage path. That's removed: every
- * remaining way to add content (this wizard, the AI generator, and
- * uploading a file) now goes through the same `createLesson` action, which
- * writes straight into `activiteiten` (see
+ * Orchestrates /les-maken's states: the choice screen, the (shared,
+ * unmodified) LessonForm, and uploading an existing lesvoorbereiding. This
+ * is the ONE place to create new content — there used to also be a
+ * separate, standalone "Activiteit toevoegen" flow (its own page, plus
+ * cards on the dashboard and here) creating individual library
+ * activiteiten through its own storage path. That's removed: every
+ * remaining way to add content (this wizard and uploading a file) now goes
+ * through the same `createLesson` action, which writes straight into
+ * `activiteiten` (see
  * supabase/migrations/consolidate_lessons_into_activiteiten.sql), so an
  * activiteit only counts toward the monthly contribution requirement once,
  * regardless of how it was created.
@@ -105,11 +92,8 @@ export function LesMakenFlow({
   isEditingSavedActivity,
   initialTab,
   activeSourceCount,
-  lessonGeneratorAccess,
   skipChoice,
   initialUsedKnowledgeSources,
-  leeruitkomstenByLeerlijn,
-  popularMaterials,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -130,12 +114,7 @@ export function LesMakenFlow({
   isEditingSavedActivity?: boolean;
   initialTab?: TabValue;
   activeSourceCount?: number;
-  lessonGeneratorAccess: LessonGeneratorAccess;
   skipChoice: boolean;
-  /** Zie AiLessonWizard's gelijknamige prop — server-side opgehaald in
-   * les-maken/page.tsx. */
-  leeruitkomstenByLeerlijn: Record<string, string[]>;
-  popularMaterials: string[];
 }) {
   const [mode, setMode] = useState<Mode>(skipChoice ? "form" : "choice");
   const [uploadedValues, setUploadedValues] = useState<Partial<CreateLessonFormInput> | null>(
@@ -146,34 +125,14 @@ export function LesMakenFlow({
   >(undefined);
 
   if (mode === "choice") {
-    const locked = !lessonGeneratorAccess.allowed;
-    const isNotSubscriber = lessonGeneratorAccess.reason === "not_subscriber";
-
-    const aiCaption = isNotSubscriber
-      ? "Vereist het betaalde abonnement (EUR 3,-/mnd)"
-      : locked
-        ? `Je ${lessonGeneratorAccess.limit} lesgeneraties voor deze maand zijn op — volgende maand weer beschikbaar.`
-        : `${lessonGeneratorAccess.remaining} van ${lessonGeneratorAccess.limit} lesgeneraties deze maand over.`;
-
     return (
-      <div className="grid gap-4 sm:grid-cols-3">
-        <ChoiceCard
-          icon={isNotSubscriber ? Lock : Sparkles}
-          title="Genereer een activiteit op maat met AI"
-          description="Kies een leerlijn en doelgroep. De AI stelt een volledige activiteit samen op basis van de Kennisbank."
-          caption={aiCaption}
-          actionLabel={isNotSubscriber ? "Upgrade →" : locked ? "Niet beschikbaar" : "Genereren →"}
-          accent="primary"
-          onClick={locked ? undefined : () => setMode("ai-wizard")}
-          href={isNotSubscriber ? "/pro" : undefined}
-          disabled={locked && !isNotSubscriber}
-        />
+      <div className="grid gap-4 sm:grid-cols-2">
         <ChoiceCard
           icon={NotebookPen}
           title="Zelf een activiteit samenstellen"
           description="Bouw je activiteit vanaf nul op met de plattegrond-tekenaar, 3 L'en en lesblokken."
           actionLabel="Beginnen →"
-          accent="neutral"
+          accent="primary"
           onClick={() => setMode("form")}
         />
         <ChoiceCard
@@ -185,19 +144,6 @@ export function LesMakenFlow({
           onClick={() => setMode("upload-activity")}
         />
       </div>
-    );
-  }
-
-  if (mode === "ai-wizard") {
-    return (
-      <AiLessonWizard
-        activeSourceCount={activeSourceCount}
-        lessonGeneratorAccess={lessonGeneratorAccess}
-        leeruitkomstenByLeerlijn={leeruitkomstenByLeerlijn}
-        popularMaterials={popularMaterials}
-        onCancel={() => setMode("choice")}
-        onGenerated={() => setMode("form")}
-      />
     );
   }
 
@@ -218,8 +164,8 @@ export function LesMakenFlow({
     <LessonForm
       authorName={authorName}
       initialValues={uploadedValues ?? initialValues}
-      // Een upload/AI-generatie start altijd een NIEUW concept — het
-      // hervat-id geldt alleen als er geen upload heeft plaatsgevonden.
+      // Een upload start altijd een NIEUW concept — het hervat-id geldt
+      // alleen als er geen upload heeft plaatsgevonden.
       initialActivityId={uploadedValues ? undefined : initialActivityId}
       initialDiagram={uploadedValues ? undefined : initialDiagram}
       isEditingSavedActivity={uploadedValues ? false : isEditingSavedActivity}

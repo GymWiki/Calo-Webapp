@@ -6,15 +6,12 @@ const DEFAULT_OVERLAP = 150;
 /**
  * Losstaand van knowledgeProcessor.ts (dat ook lib/ai/documentText.ts —
  * en dus pdf-parse/pdfjs-dist — importeert): elke route die alleen wil
- * embedden/matchen (generate-activity, analyze-lesson,
- * activityQualityCheck, via knowledgeRetrieval.ts) mag pdf-parse nooit in
- * z'n module-graaf krijgen. pdfjs-dist's Node-build voert namelijk
- * ongeconditioneerd `new DOMMatrix()` uit op module-top-level — zonder de
- * optionele @napi-rs/canvas-polyfill crasht dát alleen al bij het
- * *importeren* van pdf-parse, nog voordat er iets geparsed wordt. Dat
- * veroorzaakte de "Genereren van de lesvoorbereiding is mislukt"-fout:
- * generate-activity importeerde deze functies voorheen uit
- * knowledgeProcessor.ts, wat pdf-parse ongewild meesleepte.
+ * embedden/matchen (analyze-lesson, activityQualityCheck, via
+ * knowledgeRetrieval.ts) mag pdf-parse nooit in z'n module-graaf krijgen.
+ * pdfjs-dist's Node-build voert namelijk ongeconditioneerd `new
+ * DOMMatrix()` uit op module-top-level — zonder de optionele
+ * @napi-rs/canvas-polyfill crasht dát alleen al bij het *importeren* van
+ * pdf-parse, nog voordat er iets geparsed wordt.
  */
 
 /**

@@ -4,7 +4,6 @@ import { estimateCostUsd } from "@/lib/ai/modelPricing";
 
 export type AiUsageFeature =
   | "activity_checker"
-  | "lesson_generator"
   | "ai_lescoach"
   | "knowledge_base_embedding"
   | "activity_import_extraction";
@@ -12,8 +11,8 @@ export type AiUsageFeature =
 /**
  * Losstaande, herbruikbare logservice voor elke betaalde AI-aanroep — vult
  * de ai_usage-tabel (supabase/migrations/ai_usage_tracking.sql), die het
- * kostenoverzicht voor de eigenaar en de lessengenerator-fair-use-limiet
- * voedt. Best-effort: een falende logregel mag de AI-functie zelf nooit
+ * kostenoverzicht voor de eigenaar en de fair-use-limieten voedt.
+ * Best-effort: een falende logregel mag de AI-functie zelf nooit
  * blokkeren, dus fouten worden alleen gelogd, nooit doorgegooid.
  */
 export async function recordAiUsage(

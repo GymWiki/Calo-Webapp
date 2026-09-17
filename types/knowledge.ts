@@ -57,7 +57,7 @@ export type KnowledgeMatch = {
   similarity: number;
   // "Eigen kennisbank" voor knowledge_base-matches, of de pakketnaam voor
   // Standaardbibliotheek-matches — backt de "Gebaseerd op: ..."-attributie
-  // in de AI-checker/-generator/-lescoach-UI (zie lib/ai/knowledgeRetrieval.ts).
+  // in de AI-checker/-lescoach-UI (zie lib/ai/knowledgeRetrieval.ts).
   source_label: string;
   // Backt de "Gebruikte bronnen"-brontracking (activity_knowledge_usage,
   // zie lib/ai/knowledgeUsageLogging.ts) — welke tabel/pakket dit fragment

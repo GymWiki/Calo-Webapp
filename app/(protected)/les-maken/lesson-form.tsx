@@ -13,16 +13,7 @@ import { Form } from "@/components/ui/form";
 import { BEWEGINGSTHEMAS } from "@/lib/constants/learningLines";
 import { createClient } from "@/utils/supabase/client";
 import { applyDoelgroepToggle } from "@/types/activity";
-import {
-  AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY,
-  AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
-  AI_GENERATED_LESSON_STORAGE_KEY,
-  type AnalyzeLessonInput,
-  type DidacticSuggestion,
-  type GeneratedLessonWithIds,
-  type LescoachSuggestion,
-} from "@/types/ai";
-import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
+import type { AnalyzeLessonInput, DidacticSuggestion, LescoachSuggestion } from "@/types/ai";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import {
   createLessonDefaultValues,
@@ -116,81 +107,18 @@ export function LessonForm({
 }) {
   const router = useRouter();
 
-  // Picks up a lesson stashed by the AI Activiteiten Generator wizard
-  // (written to sessionStorage by AiLessonWizard before LesMakenFlow
-  // switches to this component). Read once, synchronously, as part of the
-  // initial render via lazy useState initializers below — not in an
-  // effect — so there's no post-mount setState cascade; a fresh mount of
-  // this component is the only time this matters, and every initializer
-  // here runs once per mount regardless.
-  const [stashedGenerated] = useState<GeneratedLessonWithIds | null>(() => {
-    if (typeof window === "undefined") return null;
-    const raw = sessionStorage.getItem(AI_GENERATED_LESSON_STORAGE_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(AI_GENERATED_LESSON_STORAGE_KEY);
-    try {
-      return JSON.parse(raw) as GeneratedLessonWithIds;
-    } catch {
-      return null;
-    }
-  });
-
-  // Bron-attributie (Stap 7: "Gebaseerd op: ...") bij de zojuist opgehaalde
-  // stashedGenerated — apart gestasht, zie AI_GENERATED_LESSON_SOURCES_STORAGE_KEY.
-  const [generatedSources] = useState<KnowledgeSourceSummary[]>(() => {
-    if (typeof window === "undefined") return [];
-    const raw = sessionStorage.getItem(AI_GENERATED_LESSON_SOURCES_STORAGE_KEY);
-    if (!raw) return [];
-    sessionStorage.removeItem(AI_GENERATED_LESSON_SOURCES_STORAGE_KEY);
-    try {
-      return JSON.parse(raw) as KnowledgeSourceSummary[];
-    } catch {
-      return [];
-    }
-  });
-
-  // Volledige (niet-samengevatte) gebruikte fragmenten van dezelfde
-  // generatie — blijft staan voor de "Gebruikte bronnen"-weergave (ook nadat
-  // de eerste autosave ze al heeft gelogd), zie generatedChunksToLogRef
-  // hieronder voor de "log slechts één keer"-vlag.
-  const [generatedChunks] = useState<UsedKnowledgeChunk[]>(() => {
-    if (typeof window === "undefined") return [];
-    const raw = sessionStorage.getItem(AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY);
-    if (!raw) return [];
-    sessionStorage.removeItem(AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY);
-    try {
-      return JSON.parse(raw) as UsedKnowledgeChunk[];
-    } catch {
-      return [];
-    }
-  });
-  // Voorkomt dat elke autosave-tick (performSave, handleDiagramSave) dezelfde
-  // gegenereerde fragmenten opnieuw logt: alleen de EERSTE save die de
-  // activiteit daadwerkelijk aanmaakt/bijwerkt na generatie stuurt ze mee;
-  // daarna staat deze op false. `generatedChunks` zelf blijft ongemoeid (dat
-  // blijft de weergavebron voor UsedSourcesList).
-  const generatedChunksToLogRef = useRef(generatedChunks.length > 0);
-
   const [baseMaterials, setBaseMaterials] = useState<string[]>(
-    stashedGenerated?.baseMaterials ?? initialValues?.baseMaterials ?? [],
+    initialValues?.baseMaterials ?? [],
   );
   const [ruleMaterials, setRuleMaterials] = useState<string[]>(
-    stashedGenerated?.ruleMaterials ?? initialValues?.ruleMaterials ?? [],
+    initialValues?.ruleMaterials ?? [],
   );
-  const [rules, setRules] = useState<string[]>(
-    stashedGenerated?.rules ?? initialValues?.rules ?? [],
-  );
-  // Root cause van de leeg blijvende "Leeruitkomsten"-sectie na een
-  // AI-generatie: dit las voorheen nooit stashedGenerated.learningOutcomes
-  // uit (in tegenstelling tot baseMaterials/ruleMaterials/rules hierboven,
-  // die dat wél al deden) — de AI kreeg dan ook geen kans om dit veld te
-  // vullen, zie generate-activity/route.ts (nu deterministisch gezet vanuit
-  // de eigen leeruitkomst-selectie van de gebruiker).
+  const [rules, setRules] = useState<string[]>(initialValues?.rules ?? []);
   const [learningOutcomes, setLearningOutcomes] = useState<string[]>(
-    stashedGenerated?.learningOutcomes ?? initialValues?.learningOutcomes ?? [],
+    initialValues?.learningOutcomes ?? [],
   );
   const [didacticItems, setDidacticItems] = useState<DidacticItem[]>(
-    stashedGenerated?.didacticItems ?? initialValues?.didacticItems ?? [],
+    initialValues?.didacticItems ?? [],
   );
   const [diagram, setDiagram] = useState<{
     data: DiagramData;
@@ -224,39 +152,8 @@ export function LessonForm({
     defaultValues: {
       ...createLessonDefaultValues,
       ...initialValues,
-      ...(stashedGenerated
-        ? {
-            title: stashedGenerated.title,
-            learningLine: stashedGenerated.learningLine,
-            movementProblem: stashedGenerated.movementProblem,
-            movementTheme: stashedGenerated.movementTheme,
-            doelgroep: stashedGenerated.doelgroep ?? [],
-            goals: stashedGenerated.goals,
-            arrangement: stashedGenerated.arrangement || "",
-            deelnemersRegels: stashedGenerated.deelnemersRegels || "",
-            plaatjePraatje: stashedGenerated.plaatjePraatje || "",
-            aandachtspunten: stashedGenerated.aandachtspunten || "",
-          }
-        : {}),
     },
   });
-
-  // Side-effect only (no setState) — safe in an effect. Fires once if a
-  // generated lesson was picked up above.
-  useEffect(() => {
-    if (stashedGenerated) {
-      const sourcesText =
-        generatedSources.length > 0
-          ? ` Gebaseerd op: ${generatedSources
-              .map((source) => `${source.label} (${source.count})`)
-              .join(", ")}.`
-          : "";
-      toast.success(
-        `AI-gegenereerde activiteit geladen — controleer en vul aan.${sourcesText}`,
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function toggleDoelgroep(waarde: number) {
     form.setValue("doelgroep", applyDoelgroepToggle(form.getValues("doelgroep"), waarde));
@@ -281,14 +178,7 @@ export function LessonForm({
         learningOutcomes,
         didacticItems,
       };
-      const result = await saveLessonDraft(
-        payload,
-        diagram,
-        stashedGenerated !== null,
-        activityId,
-        afbeeldingUrl ?? undefined,
-        generatedChunksToLogRef.current ? generatedChunks : [],
-      );
+      const result = await saveLessonDraft(payload, diagram, false, activityId, afbeeldingUrl ?? undefined);
       if ("error" in result) {
         consecutiveFailuresRef.current += 1;
         console.error(
@@ -306,7 +196,6 @@ export function LessonForm({
         return;
       }
       consecutiveFailuresRef.current = 0;
-      generatedChunksToLogRef.current = false;
       setActivityId(result.activityId);
       setSaveStatus("saved");
     } finally {
@@ -395,20 +284,12 @@ export function LessonForm({
 
       let currentActivityId = activityId;
       if (!currentActivityId) {
-        const created = await saveLessonDraft(
-          payload,
-          { data, imageDataUrl },
-          stashedGenerated !== null,
-          null,
-          undefined,
-          generatedChunksToLogRef.current ? generatedChunks : [],
-        );
+        const created = await saveLessonDraft(payload, { data, imageDataUrl }, false, null);
         if ("error" in created) {
           toast.error("Plattegrond opslaan is mislukt. Probeer het opnieuw.");
           return;
         }
         currentActivityId = created.activityId;
-        generatedChunksToLogRef.current = false;
         setActivityId(currentActivityId);
       }
 
@@ -418,10 +299,9 @@ export function LessonForm({
       const result = await saveLessonDraft(
         payload,
         { data, imageDataUrl },
-        stashedGenerated !== null,
+        false,
         currentActivityId,
         uploadedUrl ?? undefined,
-        generatedChunksToLogRef.current ? generatedChunks : [],
       );
       if ("error" in result) {
         consecutiveFailuresRef.current += 1;
@@ -430,7 +310,6 @@ export function LessonForm({
         return;
       }
       consecutiveFailuresRef.current = 0;
-      generatedChunksToLogRef.current = false;
       setSaveStatus("saved");
     } finally {
       isSavingDraftRef.current = false;
@@ -474,28 +353,20 @@ export function LessonForm({
       didacticItems,
     };
 
-    // Herkomst is bepaald bij het openen van dit formulier (stashedGenerated
-    // hierboven) en blijft vastliggen, ook als de velden hierna handmatig
-    // zijn aangepast — telt daarom nooit mee voor de maandelijkse
-    // bijdrage-eis zodra deze activiteit openbaar wordt gemaakt (zie
-    // consolidate_lessons_into_activiteiten.sql).
     try {
       const result = await createLesson(
         payload,
         diagram,
-        stashedGenerated !== null,
+        false,
         activityId,
         values.isPublic,
         afbeeldingUrl ?? undefined,
-        generatedChunksToLogRef.current ? generatedChunks : [],
       );
 
       if ("error" in result) {
         toast.error(result.error);
         return;
       }
-
-      generatedChunksToLogRef.current = false;
 
       if (result.status === "rejected") {
         // Geen fout: de activiteit staat gewoon opgeslagen (zichtbaar in
@@ -636,10 +507,23 @@ export function LessonForm({
   const lescoachContentChanged =
     !hasAnalyzedBefore ||
     JSON.stringify(currentLescoachSnapshot) !== JSON.stringify(lastAnalyzedContentRef.current);
+  // De gebruiker moet de activiteit-inhoud (Doel, Beginsituatie, Deelnemers
+  // & Regels, Plaatje & Praatje, Aandachtspunten, Veldopstelling — de
+  // REQUIRED_LESSON_FIELDS-entries met een sectie, dus niet de pure
+  // metadata zoals titel/leerlijn/datum) eerst zelf voldoende hebben
+  // ingevuld voordat de AI Lescoach iets heeft om over te adviseren.
+  const missingContentFields = REQUIRED_LESSON_FIELDS.filter(
+    ({ field, section }) => section !== null && missingFieldSet.has(field),
+  );
+  const hasMinimumContent = missingContentFields.length === 0;
   const canRunLescoach =
-    !isRunningLescoach && lescoachCooldownSecondsLeft === 0 && lescoachContentChanged;
-  const lescoachButtonLabel =
-    lescoachCooldownSecondsLeft > 0
+    hasMinimumContent &&
+    !isRunningLescoach &&
+    lescoachCooldownSecondsLeft === 0 &&
+    lescoachContentChanged;
+  const lescoachButtonLabel = !hasMinimumContent
+    ? "Vul eerst de activiteit verder in"
+    : lescoachCooldownSecondsLeft > 0
       ? `Opnieuw raadplegen over ${lescoachCooldownSecondsLeft}s`
       : hasAnalyzedBefore && !lescoachContentChanged
         ? "Geen wijzigingen sinds laatste analyse"
@@ -898,7 +782,7 @@ export function LessonForm({
           onDidacticItemsChange={setDidacticItems}
           onCommit={scheduleAutosave}
           saveStatus={saveStatus}
-          usedKnowledgeSources={[...generatedChunks, ...(initialUsedKnowledgeSources ?? [])]}
+          usedKnowledgeSources={initialUsedKnowledgeSources ?? []}
           lescoachSuggestions={lescoachSuggestions}
           onApplyLescoachSuggestion={applyLescoachSuggestion}
           onDismissLescoachSuggestion={dismissLescoachSuggestion}

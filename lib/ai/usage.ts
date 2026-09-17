@@ -10,12 +10,10 @@ export type AiUsageResult =
  * lib/permissions.ts) for every user regardless of subscription status.
  * Records the attempt in `ai_usage_log` when it's allowed.
  *
- * analyze-lesson (AI Lescoach) and generate-activity (AI Activiteiten
- * Generator) used to share this same flat pool, but both moved to their own
- * dedicated, paid-subscriber-only quota (ai_usage-table-based — see
- * lib/ai/lescoachAccess.ts / lib/ai/lessonGeneratorAccess.ts) once they
- * became paid-subscriber features with their own cost profile, so this is
- * now extract-activity's alone.
+ * analyze-lesson (AI Lescoach) used to share this same flat pool, but moved
+ * to its own dedicated, paid-subscriber-only quota (ai_usage-table-based —
+ * see lib/ai/lescoachAccess.ts) once it became a paid-subscriber feature
+ * with its own cost profile, so this is now extract-activity's alone.
  */
 export async function checkAndRecordAiUsage(
   supabase: SupabaseClient,

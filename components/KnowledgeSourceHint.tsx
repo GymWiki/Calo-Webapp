@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 /**
- * Subtiel informatielabel bij de AI Lescoach / Activiteiten Generator: laat
- * zien op hoeveel verwerkte Kennisbank-documenten de AI zich baseert (de
- * hele, gedeelde Kennisbank — geen per-gebruiker toggle meer), met een
- * snelkoppeling naar /kennisbank om zelf een document toe te voegen.
+ * Subtiel informatielabel bij de AI Lescoach: laat zien op hoeveel
+ * verwerkte Kennisbank-documenten de AI zich baseert (de hele, gedeelde
+ * Kennisbank — geen per-gebruiker toggle meer), met een snelkoppeling naar
+ * /kennisbank om zelf een document toe te voegen.
  */
 export function KnowledgeSourceHint({ count }: { count: number }) {
   return (

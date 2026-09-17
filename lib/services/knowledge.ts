@@ -55,7 +55,7 @@ export async function getAllKnowledgeDocuments(): Promise<
 
 /**
  * Aantal succesvol verwerkte documenten — backt het "AI baseert zich op N
- * bronnen"-informatielabel bij de AI Lescoach / Activiteiten Generator
+ * bronnen"-informatielabel bij de AI Lescoach
  * (components/KnowledgeSourceHint.tsx). Geen per-gebruiker scoping meer:
  * de hele Kennisbank is gedeeld.
  */

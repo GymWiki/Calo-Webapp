@@ -24,31 +24,6 @@ export async function getAllMaterials(supabase: SupabaseClient): Promise<Materia
 }
 
 /**
- * De meest gebruikte materiaalnamen (canvas-gebruik, zie usage_count) — backt
- * de optionele "Beschikbaar materiaal"-checklist in de AI Activiteiten
- * Generator (app/(protected)/les-maken/ai-lesson-wizard.tsx): een simpele
- * checklist van veelgebruikt standaardmateriaal i.p.v. een leeg vrij veld,
- * zodat de AI geen materiaal voorschrijft dat niet voorhanden is.
- */
-export async function getPopularMaterialNames(
-  supabase: SupabaseClient,
-  limit = 16,
-): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("materials")
-    .select("name")
-    .order("usage_count", { ascending: false })
-    .order("name", { ascending: true })
-    .limit(limit);
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data.map((row) => row.name as string);
-}
-
-/**
  * Best-effort: telt hoe vaak een materiaal op het canvas is gebruikt, voor
  * de "meest gebruikt"-sectie. Een falende teller mag het slepen van een
  * materiaal naar het canvas nooit blokkeren.

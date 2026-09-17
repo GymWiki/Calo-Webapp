@@ -105,8 +105,7 @@ async function matchKnowledgePackages(
  * worden samengevoegd en puur op relevantie (similarity) geherrangschikt —
  * geen quotum per bron — en afgekapt op matchCount totaal, voor
  * voorspelbare tokenkosten. Gedeeld door de AI-activiteitenchecker
- * (lib/ai/activityQualityCheck.ts), de AI Lescoach (analyze-lesson/route.ts)
- * en de AI-activiteitengenerator (generate-activity/route.ts).
+ * (lib/ai/activityQualityCheck.ts) en de AI Lescoach (analyze-lesson/route.ts).
  */
 export async function getRelevantKnowledge(
   supabase: SupabaseClient,

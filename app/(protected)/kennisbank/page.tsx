@@ -30,7 +30,7 @@ export default async function KennisbankPage() {
         <PageHeader
           eyebrow="Kennisbank"
           title="Kennisbank"
-          description="Vakliteratuur voor de AI Activiteitenchecker, AI Lescoach en AI Activiteitengenerator — je eigen uploads en de door GymWiki beheerde Standaardbibliotheek."
+          description="Vakliteratuur voor de AI Activiteitenchecker en AI Lescoach — je eigen uploads en de door GymWiki beheerde Standaardbibliotheek."
         />
         {isLibraryAdmin(profile.email) && (
           <Link

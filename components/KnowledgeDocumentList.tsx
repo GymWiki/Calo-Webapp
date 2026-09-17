@@ -67,7 +67,7 @@ export function KnowledgeDocumentList({
           <EmptyState
             icon={Database}
             title="Nog geen documenten"
-            description="Upload hierboven het eerste document zodat de AI-checker en -generator vakliteratuur kunnen raadplegen."
+            description="Upload hierboven het eerste document zodat de AI-checker en AI Lescoach vakliteratuur kunnen raadplegen."
           />
         ) : (
           <ul className="space-y-2">

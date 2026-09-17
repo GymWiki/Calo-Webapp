@@ -17,12 +17,11 @@ function startOfMonth(): Date {
 }
 
 /**
- * Alleen-lezen toegangscheck voor AI Lescoach — exact hetzelfde patroon als
- * lib/ai/lessonGeneratorAccess.ts (checkLessonGeneratorAccess), maar met een
- * eigen teller (feature='ai_lescoach' in `ai_usage`) en een eigen, hoger
- * maandquotum (AI_LESCOACH_MONTHLY_LIMIT, zie lib/permissions.ts) — Lescoach
- * is net als de generator een functie van het betaalde abonnement, maar
- * wordt naar verwachting vaker per activiteit geraadpleegd.
+ * Alleen-lezen toegangscheck voor AI Lescoach — een functie van het
+ * betaalde abonnement, met een eigen teller (feature='ai_lescoach' in
+ * `ai_usage`) en een eigen maandquotum (AI_LESCOACH_MONTHLY_LIMIT, zie
+ * lib/permissions.ts), want Lescoach wordt naar verwachting vaker per
+ * activiteit geraadpleegd dan een eenmalige AI-aanroep.
  */
 export async function checkLescoachAccess(
   supabase: SupabaseClient,

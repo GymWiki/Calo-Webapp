@@ -86,8 +86,7 @@ function computeFlaggedEmptyFields(
  * wizard door naar het gewone lesformulier (LessonForm), al vooraf ingevuld
  * met wat de AI uit het document haalde, klaar om te controleren en aan te
  * vullen. Er bestaat geen apart "activiteit toevoegen"-formulier meer: elke
- * invoerroute (wizard, AI-generator, deze upload) komt uit bij dezelfde
- * createLesson-opslag.
+ * invoerroute (wizard, deze upload) komt uit bij dezelfde createLesson-opslag.
  */
 export function ActivityUploadStep({
   onCancel,

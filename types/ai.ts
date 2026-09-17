@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { didacticCategorySchema, didacticItemSchema, type DidacticItem } from "@/types/lesson";
+import { didacticCategorySchema, didacticItemSchema } from "@/types/lesson";
 
 // ----------------------------------------------------------------------------
 // AI Lescoach — POST /api/ai/analyze-lesson
@@ -126,84 +126,3 @@ export const lescoachAnalysisSchema = z.object({
   didacticSuggestions: z.array(didacticSuggestionSchema).optional().default([]),
 });
 export type LescoachAnalysis = z.infer<typeof lescoachAnalysisSchema>;
-
-// ----------------------------------------------------------------------------
-// AI Activiteiten Generator — POST /api/ai/generate-activity
-// ----------------------------------------------------------------------------
-
-export const generateActivityInputSchema = z.object({
-  learningLine: z.string().trim().min(1, "Kies een leerlijn."),
-  targetGroup: z.string().trim().min(1, "Vul een doelgroep in."),
-  // Het concrete "decor" (sport/onderwerp) waarbinnen de leerlijn wordt
-  // beoefend — zie lib/constants/sportTopics.ts. Zonder dit bleef de AI
-  // gokken tussen willekeurige sporten binnen dezelfde leerlijn, wat tot
-  // een vage, generieke opzet leidde i.p.v. één scherp afgebakende
-  // activiteit.
-  topic: z.string().trim().min(1, "Kies een onderwerp/sport."),
-  // De gekozen leeruitkomst(en) — minstens 1 vereist, uit de leerlijn-
-  // specifieke catalogus (leerlijn_leeruitkomsten) en/of het vrije "Anders,
-  // namelijk"-veld. Deze sturen de hele generatie EN worden na generatie
-  // deterministisch (niet AI-geraden) in de output overgenomen — zie
-  // generate-activity/route.ts.
-  learningOutcomes: z
-    .array(z.string().trim().min(1))
-    .min(1, "Kies minstens één leeruitkomst, of vul 'Anders, namelijk' in."),
-  // Optionele aanvullende context — puur om de generatie realistischer te
-  // maken (groepsgrootte, omgeving, beschikbaar materiaal); wordt niet 1-op-1
-  // teruggegeven als apart outputveld.
-  minParticipants: z.coerce.number().int().positive().optional(),
-  participantsBench: z.coerce.number().int().min(0).optional(),
-  location: z.enum(["binnen", "buiten"]).optional(),
-  availableMaterials: z.array(z.string().trim().min(1)).optional().default([]),
-});
-export type GenerateActivityInput = z.infer<typeof generateActivityInputSchema>;
-
-// What the AI itself must produce — `id` is assigned server-side after
-// validation so the response can be used as real DidacticItem[] directly.
-export const generatedLessonSchema = z.object({
-  title: z.string(),
-  learningLine: z.string(),
-  movementProblem: z.string(),
-  movementTheme: z.string(),
-  doelgroep: z.array(z.number().int()).optional().default([]),
-  goals: z.string(),
-  didacticItems: z.array(didacticItemSchema.omit({ id: true })).optional().default([]),
-  baseMaterials: z.array(z.string()).optional().default([]),
-  ruleMaterials: z.array(z.string()).optional().default([]),
-  rules: z.array(z.string()).optional().default([]),
-  arrangement: z.string().optional().default(""),
-  deelnemersRegels: z.string().optional().default(""),
-  plaatjePraatje: z.string().optional().default(""),
-  aandachtspunten: z.string().optional().default(""),
-});
-export type GeneratedLesson = z.infer<typeof generatedLessonSchema>;
-
-// The shape actually returned to the client: same as GeneratedLesson but
-// with real ids on each didactic item, plus `learningOutcomes` — NOT part of
-// generatedLessonSchema (the AI never produces this itself, see
-// generate-activity/route.ts): deterministically copied server-side from the
-// user's own leeruitkomst-selectie (generateActivityInputSchema), so this
-// section is guaranteed non-empty and matches exactly what was chosen.
-export type GeneratedLessonWithIds = Omit<GeneratedLesson, "didacticItems"> & {
-  didacticItems: DidacticItem[];
-  learningOutcomes: string[];
-};
-
-// sessionStorage key the /les-maken AI wizard (AiLessonWizard) writes to
-// and LessonForm reads from, to hand off an AI-generated lesson to the
-// form when LesMakenFlow switches views, without threading it through props.
-export const AI_GENERATED_LESSON_STORAGE_KEY = "gymbase-ai-generated-lesson";
-
-// Losse key naast AI_GENERATED_LESSON_STORAGE_KEY: de bron-attributie
-// ("Gebaseerd op: eigen kennisbank (3), Athletic Skills Model (2)") bij een
-// AI-generatie — apart gehouden i.p.v. in de les zelf, zodat
-// LessonForm's bestaande GeneratedLessonWithIds-vorm ongemoeid blijft.
-export const AI_GENERATED_LESSON_SOURCES_STORAGE_KEY = "gymbase-ai-generated-lesson-sources";
-
-// Volledige (niet-samengevatte) gebruikte fragmenten bij dezelfde generatie
-// — apart van AI_GENERATED_LESSON_SOURCES_STORAGE_KEY (dat alleen de
-// samengevatte "N bronnen"-telling bevat) zodat LessonForm de complete
-// UsedKnowledgeChunk[]-vorm kan doorgeven aan createLesson/saveLessonDraft
-// voor brontracking (activity_knowledge_usage, context='generate') zodra de
-// activiteit daadwerkelijk wordt opgeslagen.
-export const AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY = "gymbase-ai-generated-lesson-chunks";

@@ -1,14 +1,9 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
-import { getLeeruitkomstenByLeerlijn } from "@/lib/services/learningOutcomesCatalog";
-import { getPopularMaterialNames } from "@/lib/services/materials";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
-import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
 import type { CreateLessonFormInput, DidacticItem } from "@/types/lesson";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
@@ -105,16 +100,10 @@ export default async function LesMakenPage({
   }
 
   const { vanuit, tab } = await searchParams;
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const [activity, activeSourceCount, lessonGeneratorAccess, leeruitkomstenByLeerlijn, popularMaterials] =
-    await Promise.all([
-      vanuit ? getActivityById(vanuit) : Promise.resolve(null),
-      getAvailableSourceCount(profile.id),
-      checkLessonGeneratorAccess(supabase, profile.id, profile.subscription_status),
-      getLeeruitkomstenByLeerlijn(),
-      getPopularMaterialNames(supabase),
-    ]);
+  const [activity, activeSourceCount] = await Promise.all([
+    vanuit ? getActivityById(vanuit) : Promise.resolve(null),
+    getAvailableSourceCount(profile.id),
+  ]);
   const initialTab = parseInitialTab(tab);
   const skipChoice = Boolean(activity) || Boolean(initialTab);
 
@@ -176,11 +165,8 @@ export default async function LesMakenPage({
         isEditingSavedActivity={resumingOwnActivity && !isDraftResume}
         initialTab={initialTab}
         activeSourceCount={activeSourceCount}
-        lessonGeneratorAccess={lessonGeneratorAccess}
         skipChoice={skipChoice}
         initialUsedKnowledgeSources={initialUsedKnowledgeSources}
-        leeruitkomstenByLeerlijn={leeruitkomstenByLeerlijn}
-        popularMaterials={popularMaterials}
       />
     </main>
   );
