@@ -108,6 +108,8 @@ export function LesMakenFlow({
   lessonGeneratorAccess,
   skipChoice,
   initialUsedKnowledgeSources,
+  leeruitkomstenByLeerlijn,
+  popularMaterials,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -130,6 +132,10 @@ export function LesMakenFlow({
   activeSourceCount?: number;
   lessonGeneratorAccess: LessonGeneratorAccess;
   skipChoice: boolean;
+  /** Zie AiLessonWizard's gelijknamige prop — server-side opgehaald in
+   * les-maken/page.tsx. */
+  leeruitkomstenByLeerlijn: Record<string, string[]>;
+  popularMaterials: string[];
 }) {
   const [mode, setMode] = useState<Mode>(skipChoice ? "form" : "choice");
   const [uploadedValues, setUploadedValues] = useState<Partial<CreateLessonFormInput> | null>(
@@ -187,6 +193,8 @@ export function LesMakenFlow({
       <AiLessonWizard
         activeSourceCount={activeSourceCount}
         lessonGeneratorAccess={lessonGeneratorAccess}
+        leeruitkomstenByLeerlijn={leeruitkomstenByLeerlijn}
+        popularMaterials={popularMaterials}
         onCancel={() => setMode("choice")}
         onGenerated={() => setMode("form")}
       />

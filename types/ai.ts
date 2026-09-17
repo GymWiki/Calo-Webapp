@@ -60,6 +60,27 @@ export function matchDidacticCategory(
 export const generateActivityInputSchema = z.object({
   learningLine: z.string().trim().min(1, "Kies een leerlijn."),
   targetGroup: z.string().trim().min(1, "Vul een doelgroep in."),
+  // Het concrete "decor" (sport/onderwerp) waarbinnen de leerlijn wordt
+  // beoefend — zie lib/constants/sportTopics.ts. Zonder dit bleef de AI
+  // gokken tussen willekeurige sporten binnen dezelfde leerlijn, wat tot
+  // een vage, generieke opzet leidde i.p.v. één scherp afgebakende
+  // activiteit.
+  topic: z.string().trim().min(1, "Kies een onderwerp/sport."),
+  // De gekozen leeruitkomst(en) — minstens 1 vereist, uit de leerlijn-
+  // specifieke catalogus (leerlijn_leeruitkomsten) en/of het vrije "Anders,
+  // namelijk"-veld. Deze sturen de hele generatie EN worden na generatie
+  // deterministisch (niet AI-geraden) in de output overgenomen — zie
+  // generate-activity/route.ts.
+  learningOutcomes: z
+    .array(z.string().trim().min(1))
+    .min(1, "Kies minstens één leeruitkomst, of vul 'Anders, namelijk' in."),
+  // Optionele aanvullende context — puur om de generatie realistischer te
+  // maken (groepsgrootte, omgeving, beschikbaar materiaal); wordt niet 1-op-1
+  // teruggegeven als apart outputveld.
+  minParticipants: z.coerce.number().int().positive().optional(),
+  participantsBench: z.coerce.number().int().min(0).optional(),
+  location: z.enum(["binnen", "buiten"]).optional(),
+  availableMaterials: z.array(z.string().trim().min(1)).optional().default([]),
 });
 export type GenerateActivityInput = z.infer<typeof generateActivityInputSchema>;
 
@@ -84,9 +105,14 @@ export const generatedLessonSchema = z.object({
 export type GeneratedLesson = z.infer<typeof generatedLessonSchema>;
 
 // The shape actually returned to the client: same as GeneratedLesson but
-// with real ids on each didactic item.
+// with real ids on each didactic item, plus `learningOutcomes` — NOT part of
+// generatedLessonSchema (the AI never produces this itself, see
+// generate-activity/route.ts): deterministically copied server-side from the
+// user's own leeruitkomst-selectie (generateActivityInputSchema), so this
+// section is guaranteed non-empty and matches exactly what was chosen.
 export type GeneratedLessonWithIds = Omit<GeneratedLesson, "didacticItems"> & {
   didacticItems: DidacticItem[];
+  learningOutcomes: string[];
 };
 
 // sessionStorage key the /les-maken AI wizard (AiLessonWizard) writes to

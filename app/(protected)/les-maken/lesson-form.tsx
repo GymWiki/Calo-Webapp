@@ -148,8 +148,14 @@ export function LessonForm({
   const [rules, setRules] = useState<string[]>(
     stashedGenerated?.rules ?? initialValues?.rules ?? [],
   );
+  // Root cause van de leeg blijvende "Leeruitkomsten"-sectie na een
+  // AI-generatie: dit las voorheen nooit stashedGenerated.learningOutcomes
+  // uit (in tegenstelling tot baseMaterials/ruleMaterials/rules hierboven,
+  // die dat wél al deden) — de AI kreeg dan ook geen kans om dit veld te
+  // vullen, zie generate-activity/route.ts (nu deterministisch gezet vanuit
+  // de eigen leeruitkomst-selectie van de gebruiker).
   const [learningOutcomes, setLearningOutcomes] = useState<string[]>(
-    initialValues?.learningOutcomes ?? [],
+    stashedGenerated?.learningOutcomes ?? initialValues?.learningOutcomes ?? [],
   );
   const [didacticItems, setDidacticItems] = useState<DidacticItem[]>(
     stashedGenerated?.didacticItems ?? initialValues?.didacticItems ?? [],
