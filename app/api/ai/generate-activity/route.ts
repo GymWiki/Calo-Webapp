@@ -6,6 +6,7 @@ import {
   getRelevantKnowledge,
   summarizeKnowledgeSources,
 } from "@/lib/ai/knowledgeRetrieval";
+import { toUsedKnowledgeChunks } from "@/lib/ai/knowledgeUsageLogging";
 import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { CHAT_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
@@ -237,6 +238,12 @@ export async function POST(request: Request) {
       success: true,
       lesson,
       sources: summarizeKnowledgeSources(matches),
+      // Nog geen activity-id op dit moment (de gegenereerde les is nog niet
+      // opgeslagen) — deze fragmenten worden pas gelogd (activity_knowledge_
+      // usage, context='generate') zodra de gebruiker de activiteit
+      // daadwerkelijk opslaat, zie les-maken/lesson-form.tsx +
+      // actions/lesson.ts.
+      usedKnowledgeChunks: toUsedKnowledgeChunks(matches),
       remaining: Math.max(access.remaining - 1, 0),
     });
   } catch (cause) {

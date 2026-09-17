@@ -22,6 +22,7 @@ import {
 } from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
+import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -237,7 +238,9 @@ export default async function ActiviteitDetailPage({
       movementTheme: activity.beweegthema ?? undefined,
       goals: activity.doel ?? undefined,
       didacticItems,
+      activityId: activity.id,
     };
+    const usedKnowledgeSources = await getActivityKnowledgeSources(activity.id);
 
     return (
       <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
@@ -267,6 +270,7 @@ export default async function ActiviteitDetailPage({
           diagramImageUrl={activity.diagram_image_url}
           didacticItems={didacticItems}
           analyzePayload={analyzePayload}
+          usedKnowledgeSources={usedKnowledgeSources}
         />
       </main>
     );

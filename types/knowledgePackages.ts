@@ -30,6 +30,9 @@ export type KnowledgePackage = {
 
 export type KnowledgePackageWithPreference = KnowledgePackage & {
   enabled: boolean;
+  // Zie KnowledgeBaseDocumentWithUploader.usage_count in types/knowledge.ts
+  // — hier per pakket i.p.v. per document.
+  usage_count: number;
 };
 
 export type KnowledgePackageDocument = {

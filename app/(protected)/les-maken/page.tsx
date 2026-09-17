@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
+import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
 import { createClient } from "@/utils/supabase/server";
@@ -130,6 +131,10 @@ export default async function LesMakenPage({
       : mapActivityToLessonInput(activity)
     : undefined;
 
+  const initialUsedKnowledgeSources = resumingOwnActivity
+    ? await getActivityKnowledgeSources(activity.id)
+    : undefined;
+
   // Zaadt de fullscreen-canvas-editor met het al opgeslagen arrangement bij
   // het hervatten van een eigen wizard-activiteit — zonder dit begint de
   // tekening leeg (zie het commentaar bij initialDiagram in lesson-form.tsx).
@@ -168,6 +173,7 @@ export default async function LesMakenPage({
         activeSourceCount={activeSourceCount}
         lessonGeneratorAccess={lessonGeneratorAccess}
         skipChoice={skipChoice}
+        initialUsedKnowledgeSources={initialUsedKnowledgeSources}
       />
     </main>
   );

@@ -31,6 +31,10 @@ export type KnowledgeBaseDocument = {
 
 export type KnowledgeBaseDocumentWithUploader = KnowledgeBaseDocument & {
   uploader_name: string;
+  // Aantal activiteiten waar dit document daadwerkelijk als AI-bron in
+  // gebruikt is (activity_knowledge_usage) — "Gebruikt in N activiteiten" op
+  // /kennisbank, zie lib/services/knowledge.ts.
+  usage_count: number;
 };
 
 // Metadata gevalideerd server-side; het bestand zelf komt via FormData en
@@ -55,4 +59,9 @@ export type KnowledgeMatch = {
   // Standaardbibliotheek-matches — backt de "Gebaseerd op: ..."-attributie
   // in de AI-checker/-generator/-lescoach-UI (zie lib/ai/knowledgeRetrieval.ts).
   source_label: string;
+  // Backt de "Gebruikte bronnen"-brontracking (activity_knowledge_usage,
+  // zie lib/ai/knowledgeUsageLogging.ts) — welke tabel/pakket dit fragment
+  // daadwerkelijk uit voortkomt.
+  source_type: "knowledge_base" | "knowledge_package";
+  package_id: string | null;
 };

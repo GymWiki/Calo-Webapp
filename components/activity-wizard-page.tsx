@@ -14,6 +14,7 @@ import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { MaterialChecklist } from "@/components/material-checklist";
 import { SourceBadge } from "@/components/library-item-card";
 import { ShareLessonButton } from "@/components/ShareLessonButton";
+import { UsedSourcesList } from "@/components/UsedSourcesList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ import { BEWEGINGSTHEMAS, LEARNING_LINE_CATEGORIES } from "@/lib/constants/learn
 import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import { REQUIRED_LESSON_FIELDS, type DidacticItem } from "@/types/lesson";
 import { FullscreenDiagramEditor } from "@/components/canvas/FullscreenDiagramEditor";
@@ -182,6 +184,7 @@ export function ActivityWizardPage({
   isSubmitting,
   missingFields,
   jumpToFieldTrigger,
+  usedKnowledgeSources,
 }: {
   mode: "view" | "edit";
   /** Alleen nodig in mode="view" — voor LessonPdfButton, dat de volledige rij verwacht. */
@@ -277,6 +280,10 @@ export function ActivityWizardPage({
    * naar het genoemde veld (tab wisselen indien nodig + scrollen + focus),
    * ook als het dezelfde veldnaam is als de vorige mislukte poging. */
   jumpToFieldTrigger?: { field: RequiredFieldKey; requestId: number } | null;
+  /** De Kennisbank-fragmenten die de AI daadwerkelijk gebruikte voor deze
+   * activiteit (generatie, kwaliteitscheck en/of AI Lescoach) — backt de
+   * "Gebruikte bronnen"-sectie hieronder. Leeg/undefined toont geen sectie. */
+  usedKnowledgeSources?: UsedKnowledgeChunk[];
 }) {
   const isEdit = mode === "edit";
   // Bewegingsthema is een verfijning BINNEN de gekozen leerlijn (zie
@@ -948,6 +955,9 @@ export function ActivityWizardPage({
                   )}
                 </div>
               </div>
+              {usedKnowledgeSources && usedKnowledgeSources.length > 0 && (
+                <UsedSourcesList chunks={usedKnowledgeSources} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

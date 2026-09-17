@@ -80,6 +80,12 @@ export function KnowledgePackageList({
                       Bron: {pkg.source_attribution}
                     </p>
                   )}
+                  {pkg.usage_count > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Gebruikt in {pkg.usage_count}{" "}
+                      {pkg.usage_count === 1 ? "activiteit" : "activiteiten"}
+                    </p>
+                  )}
                 </div>
                 <Switch
                   checked={enabled}

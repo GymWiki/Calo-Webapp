@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
+import { toUsedKnowledgeChunks, type UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
 
@@ -29,8 +30,8 @@ export type ActivityQualityCheckInput = {
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.6;
 
 export type ActivityQualityResult =
-  | { status: "approved" }
-  | { status: "rejected"; reason: string };
+  | { status: "approved"; usedKnowledgeChunks: UsedKnowledgeChunk[] }
+  | { status: "rejected"; reason: string; usedKnowledgeChunks: UsedKnowledgeChunk[] };
 
 const qualityCheckSchema = z.object({
   acceptable: z.boolean(),
@@ -71,12 +72,14 @@ async function checkContentQuality(
   authorId: string,
   input: ActivityQualityCheckInput,
 ): Promise<ActivityQualityResult> {
+  let usedKnowledgeChunks: UsedKnowledgeChunk[] = [];
   try {
     const query = [input.titel, input.leerlijn, input.beschrijving].join(". ");
     let knowledgeSection = "";
     try {
       const matches = await getRelevantKnowledge(supabase, authorId, query, { matchCount: 4 });
       knowledgeSection = `\n\n${buildKnowledgePromptSection(matches)}`;
+      usedKnowledgeChunks = toUsedKnowledgeChunks(matches);
     } catch {
       // Retrieval-storing mag de kwaliteitscheck niet blokkeren — de check
       // valt dan terug op algemene beoordeling zonder Kennisbank-grounding.
@@ -107,8 +110,8 @@ async function checkContentQuality(
 
     const result = qualityCheckSchema.parse(JSON.parse(raw));
     return result.acceptable
-      ? { status: "approved" }
-      : { status: "rejected", reason: result.reason };
+      ? { status: "approved", usedKnowledgeChunks }
+      : { status: "rejected", reason: result.reason, usedKnowledgeChunks };
   } catch {
     // Bij een storing in de AI-check (geen API-key, netwerkfout, onverwacht
     // antwoord) niet stilzwijgend goedkeuren — een falende kwaliteitscheck
@@ -117,6 +120,7 @@ async function checkContentQuality(
       status: "rejected",
       reason:
         "De kwaliteitscheck kon niet worden uitgevoerd. Probeer het later opnieuw.",
+      usedKnowledgeChunks: [],
     };
   }
 }
@@ -138,6 +142,7 @@ async function checkForDuplicate(
     return {
       status: "rejected",
       reason: "De duplicaatcheck kon niet worden uitgevoerd. Probeer het later opnieuw.",
+      usedKnowledgeChunks: [],
     };
   }
 
@@ -146,10 +151,11 @@ async function checkForDuplicate(
     return {
       status: "rejected",
       reason: `Deze activiteit lijkt sterk op je eerdere inzending "${match.titel}".`,
+      usedKnowledgeChunks: [],
     };
   }
 
-  return { status: "approved" };
+  return { status: "approved", usedKnowledgeChunks: [] };
 }
 
 /**

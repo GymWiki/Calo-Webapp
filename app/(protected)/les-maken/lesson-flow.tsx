@@ -7,6 +7,7 @@ import { FileUp, Lock, NotebookPen, Sparkles, type LucideIcon } from "lucide-rea
 import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
+import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { ActivityUploadStep, type RequiredLessonFormField } from "./activity-upload-step";
 import { AiLessonWizard } from "./ai-lesson-wizard";
@@ -106,6 +107,7 @@ export function LesMakenFlow({
   activeSourceCount,
   lessonGeneratorAccess,
   skipChoice,
+  initialUsedKnowledgeSources,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -115,6 +117,9 @@ export function LesMakenFlow({
   /** Zie de gelijknamige prop op LessonForm — enkel gezet wanneer die eigen
    * activiteit al een opgeslagen arrangement had. */
   initialDiagram?: { data: DiagramData; imageDataUrl: string };
+  /** Zie LessonForm's initialUsedKnowledgeSources — de al eerder gelogde
+   * "Gebruikte bronnen" van de hervatte activiteit. */
+  initialUsedKnowledgeSources?: UsedKnowledgeChunk[];
   /** True wanneer initialActivityId een AL opgeslagen (niet-concept)
    * activiteit is die bewerkt wordt — dan is er geen "concept" om
    * automatisch bij te werken (saveLessonDraft update alleen status='draft'-
@@ -213,6 +218,7 @@ export function LesMakenFlow({
       initialScrollTarget={initialTab === "voorbereiding" ? "materiaal" : undefined}
       activeSourceCount={activeSourceCount}
       flaggedEmptyFields={uploadedValues ? uploadedFlaggedFields : undefined}
+      initialUsedKnowledgeSources={uploadedValues ? undefined : initialUsedKnowledgeSources}
     />
   );
 }

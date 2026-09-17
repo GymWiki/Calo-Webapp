@@ -14,11 +14,13 @@ import { BEWEGINGSTHEMAS } from "@/lib/constants/learningLines";
 import { createClient } from "@/utils/supabase/client";
 import { applyDoelgroepToggle } from "@/types/activity";
 import {
+  AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY,
   AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
   AI_GENERATED_LESSON_STORAGE_KEY,
   type GeneratedLessonWithIds,
 } from "@/types/ai";
 import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
+import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import {
   createLessonDefaultValues,
   createLessonInputSchema,
@@ -50,6 +52,7 @@ export function LessonForm({
   initialScrollTarget,
   activeSourceCount,
   flaggedEmptyFields,
+  initialUsedKnowledgeSources,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -72,6 +75,12 @@ export function LessonForm({
   initialScrollTarget?: "materiaal" | "leerhulp";
   activeSourceCount?: number;
   flaggedEmptyFields?: Set<RequiredLessonFormField>;
+  /** Al eerder gelogde "Gebruikte bronnen" (activity_knowledge_usage) voor
+   * deze activiteit — alleen relevant bij het hervatten van een bestaand
+   * concept/activiteit (zie les-maken/page.tsx). Wordt samengevoegd met de
+   * live chunks van een net-in-déze-sessie uitgevoerde AI-generatie
+   * hieronder. */
+  initialUsedKnowledgeSources?: UsedKnowledgeChunk[];
 }) {
   const router = useRouter();
 
@@ -107,6 +116,28 @@ export function LessonForm({
       return [];
     }
   });
+
+  // Volledige (niet-samengevatte) gebruikte fragmenten van dezelfde
+  // generatie — blijft staan voor de "Gebruikte bronnen"-weergave (ook nadat
+  // de eerste autosave ze al heeft gelogd), zie generatedChunksToLogRef
+  // hieronder voor de "log slechts één keer"-vlag.
+  const [generatedChunks] = useState<UsedKnowledgeChunk[]>(() => {
+    if (typeof window === "undefined") return [];
+    const raw = sessionStorage.getItem(AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY);
+    if (!raw) return [];
+    sessionStorage.removeItem(AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY);
+    try {
+      return JSON.parse(raw) as UsedKnowledgeChunk[];
+    } catch {
+      return [];
+    }
+  });
+  // Voorkomt dat elke autosave-tick (performSave, handleDiagramSave) dezelfde
+  // gegenereerde fragmenten opnieuw logt: alleen de EERSTE save die de
+  // activiteit daadwerkelijk aanmaakt/bijwerkt na generatie stuurt ze mee;
+  // daarna staat deze op false. `generatedChunks` zelf blijft ongemoeid (dat
+  // blijft de weergavebron voor UsedSourcesList).
+  const generatedChunksToLogRef = useRef(generatedChunks.length > 0);
 
   const [baseMaterials, setBaseMaterials] = useState<string[]>(
     stashedGenerated?.baseMaterials ?? initialValues?.baseMaterials ?? [],
@@ -218,6 +249,7 @@ export function LessonForm({
         stashedGenerated !== null,
         activityId,
         afbeeldingUrl ?? undefined,
+        generatedChunksToLogRef.current ? generatedChunks : [],
       );
       if ("error" in result) {
         consecutiveFailuresRef.current += 1;
@@ -236,6 +268,7 @@ export function LessonForm({
         return;
       }
       consecutiveFailuresRef.current = 0;
+      generatedChunksToLogRef.current = false;
       setActivityId(result.activityId);
       setSaveStatus("saved");
     } finally {
@@ -329,12 +362,15 @@ export function LessonForm({
           { data, imageDataUrl },
           stashedGenerated !== null,
           null,
+          undefined,
+          generatedChunksToLogRef.current ? generatedChunks : [],
         );
         if ("error" in created) {
           toast.error("Plattegrond opslaan is mislukt. Probeer het opnieuw.");
           return;
         }
         currentActivityId = created.activityId;
+        generatedChunksToLogRef.current = false;
         setActivityId(currentActivityId);
       }
 
@@ -347,6 +383,7 @@ export function LessonForm({
         stashedGenerated !== null,
         currentActivityId,
         uploadedUrl ?? undefined,
+        generatedChunksToLogRef.current ? generatedChunks : [],
       );
       if ("error" in result) {
         consecutiveFailuresRef.current += 1;
@@ -355,6 +392,7 @@ export function LessonForm({
         return;
       }
       consecutiveFailuresRef.current = 0;
+      generatedChunksToLogRef.current = false;
       setSaveStatus("saved");
     } finally {
       isSavingDraftRef.current = false;
@@ -411,12 +449,15 @@ export function LessonForm({
         activityId,
         values.isPublic,
         afbeeldingUrl ?? undefined,
+        generatedChunksToLogRef.current ? generatedChunks : [],
       );
 
       if ("error" in result) {
         toast.error(result.error);
         return;
       }
+
+      generatedChunksToLogRef.current = false;
 
       if (result.status === "rejected") {
         // Geen fout: de activiteit staat gewoon opgeslagen (zichtbaar in
@@ -603,7 +644,9 @@ export function LessonForm({
             movementTheme: movementTheme || undefined,
             goals: goals || undefined,
             didacticItems,
+            activityId: activityId ?? undefined,
           }}
+          usedKnowledgeSources={[...generatedChunks, ...(initialUsedKnowledgeSources ?? [])]}
           isSubmitting={form.formState.isSubmitting}
           missingFields={missingFields}
           jumpToFieldTrigger={jumpToFieldTrigger}

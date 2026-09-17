@@ -6,6 +6,7 @@ import {
   getRelevantKnowledge,
   summarizeKnowledgeSources,
 } from "@/lib/ai/knowledgeRetrieval";
+import { logKnowledgeUsage, toUsedKnowledgeChunks } from "@/lib/ai/knowledgeUsageLogging";
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
@@ -125,6 +126,25 @@ export async function POST(request: Request) {
       console.error("AI Lescoach: Kennisbank-retrieval mislukt:", cause);
     }
 
+    // Brontracking (activity_knowledge_usage, context='lescoach') — alleen
+    // wanneer dit een bestaande activiteit betreft ÉN de aanroeper
+    // daadwerkelijk de auteur is. Dat laatste voorkomt dat een willekeurige
+    // viewer op /les/share/[id] hún eigen Kennisbank-selectie aan andermans
+    // gedeelde activiteit koppelt (zie de migratie-toelichting bij
+    // activity_knowledge_usage.sql).
+    if (lesson.activityId) {
+      const { data: ownedActivity } = await supabase
+        .from("activiteiten")
+        .select("id")
+        .eq("id", lesson.activityId)
+        .eq("author_id", user.id)
+        .maybeSingle();
+
+      if (ownedActivity) {
+        await logKnowledgeUsage(supabase, lesson.activityId, "lescoach", toUsedKnowledgeChunks(matches));
+      }
+    }
+
     const learningLine = lesson.learningLine ?? "";
     const themeOptions = BEWEGINGSTHEMAS[learningLine];
     const domainInstruction =
@@ -166,6 +186,7 @@ export async function POST(request: Request) {
       success: true,
       feedback,
       sources: summarizeKnowledgeSources(matches),
+      usedKnowledgeChunks: toUsedKnowledgeChunks(matches),
       remaining: usage.remaining,
     });
   } catch (cause) {

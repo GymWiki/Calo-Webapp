@@ -15,8 +15,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { UsedSourcesList } from "@/components/UsedSourcesList";
 import { matchDidacticCategory, type LescoachFeedback } from "@/types/ai";
 import type { DidacticItem } from "@/types/lesson";
+import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import type { KnowledgeSourceSummary } from "@/lib/ai/knowledgeRetrieval";
 
 export type AnalyzeLessonPayload = {
@@ -26,6 +28,10 @@ export type AnalyzeLessonPayload = {
   movementTheme?: string;
   goals?: string;
   didacticItems?: DidacticItem[];
+  /** Alleen gezet wanneer dit een al opgeslagen activiteit betreft — laat de
+   * analyze-lesson-route toe om de gebruikte Kennisbank-fragmenten te loggen
+   * (activity_knowledge_usage, context='lescoach'), zie route.ts. */
+  activityId?: string;
 };
 
 function createId() {
@@ -53,12 +59,14 @@ export function AiLescoachSheet({
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<LescoachFeedback | null>(null);
   const [sources, setSources] = useState<KnowledgeSourceSummary[]>([]);
+  const [usedChunks, setUsedChunks] = useState<UsedKnowledgeChunk[]>([]);
   const [appliedIndexes, setAppliedIndexes] = useState<Set<number>>(new Set());
 
   async function runAnalysis() {
     setIsLoading(true);
     setFeedback(null);
     setSources([]);
+    setUsedChunks([]);
     setAppliedIndexes(new Set());
 
     try {
@@ -77,6 +85,7 @@ export function AiLescoachSheet({
 
       setFeedback(data.feedback);
       setSources(data.sources ?? []);
+      setUsedChunks(data.usedKnowledgeChunks ?? []);
     } catch {
       toast.error("AI Lescoach-analyse is mislukt. Controleer je verbinding.");
       setOpen(false);
@@ -147,6 +156,12 @@ export function AiLescoachSheet({
                     {sources.map((source) => `${source.label} (${source.count})`).join(", ")}.
                   </p>
                 )}
+
+                <UsedSourcesList
+                  chunks={usedChunks}
+                  title="Gebruikte fragmenten"
+                  description="De exacte Kennisbank-fragmenten die deze feedback onderbouwen."
+                />
 
                 {feedback.strengths.length > 0 && (
                   <div>

@@ -15,6 +15,14 @@ export const analyzeLessonInputSchema = z.object({
   movementTheme: z.string().trim().optional(),
   goals: z.string().trim().optional(),
   didacticItems: z.array(didacticItemSchema).optional(),
+  // Alleen gezet wanneer dit een al bestaande (opgeslagen) activiteit is —
+  // gebruikt om de gebruikte Kennisbank-fragmenten te loggen
+  // (activity_knowledge_usage, context='lescoach'). De route verifieert
+  // server-side dat de aanroeper ook daadwerkelijk de auteur is voordat er
+  // iets gelogd wordt — zie app/api/ai/analyze-lesson/route.ts.
+  // Géén .uuid(): activiteiten.id is text, en oudere bibliotheek-activiteiten
+  // hebben een numeriek id (bijv. "1003"), geen UUID.
+  activityId: z.string().trim().min(1).optional(),
 });
 export type AnalyzeLessonInput = z.infer<typeof analyzeLessonInputSchema>;
 
@@ -91,3 +99,11 @@ export const AI_GENERATED_LESSON_STORAGE_KEY = "gymbase-ai-generated-lesson";
 // AI-generatie — apart gehouden i.p.v. in de les zelf, zodat
 // LessonForm's bestaande GeneratedLessonWithIds-vorm ongemoeid blijft.
 export const AI_GENERATED_LESSON_SOURCES_STORAGE_KEY = "gymbase-ai-generated-lesson-sources";
+
+// Volledige (niet-samengevatte) gebruikte fragmenten bij dezelfde generatie
+// — apart van AI_GENERATED_LESSON_SOURCES_STORAGE_KEY (dat alleen de
+// samengevatte "N bronnen"-telling bevat) zodat LessonForm de complete
+// UsedKnowledgeChunk[]-vorm kan doorgeven aan createLesson/saveLessonDraft
+// voor brontracking (activity_knowledge_usage, context='generate') zodra de
+// activiteit daadwerkelijk wordt opgeslagen.
+export const AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY = "gymbase-ai-generated-lesson-chunks";

@@ -16,10 +16,10 @@ export async function getAllKnowledgeDocuments(): Promise<
 > {
   const supabase = await getServerClient();
 
-  const { data, error } = await supabase
-    .from("knowledge_base")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data, error }, { data: usageCounts }] = await Promise.all([
+    supabase.from("knowledge_base").select("*").order("created_at", { ascending: false }),
+    supabase.rpc("get_knowledge_base_usage_counts"),
+  ]);
 
   if (error || !data) {
     return [];
@@ -40,9 +40,16 @@ export async function getAllKnowledgeDocuments(): Promise<
     ]),
   );
 
+  const usageCountByDocumentId = new Map(
+    (usageCounts as { document_id: string; activity_count: number }[] | null ?? []).map(
+      (row) => [row.document_id, row.activity_count],
+    ),
+  );
+
   return documents.map((document) => ({
     ...document,
     uploader_name: nameById.get(document.uploaded_by) ?? "Onbekende gebruiker",
+    usage_count: usageCountByDocumentId.get(document.id) ?? 0,
   }));
 }
 

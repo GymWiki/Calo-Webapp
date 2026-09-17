@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality, type ActivityQualityCheckInput } from "@/lib/ai/activityQualityCheck";
+import { logKnowledgeUsage, type UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import {
   createLessonInputSchema,
   type CreateLessonFormInput,
@@ -130,6 +131,11 @@ export async function createLesson(
    * wanneer de gebruiker deze sessie daadwerkelijk een arrangement heeft
    * opgeslagen, wordt hij hier expliciet meegegeven. */
   afbeeldingUrl?: string,
+  /** Kennisbank-fragmenten die de AI Activiteiten Generator daadwerkelijk
+   * gebruikte om déze activiteit te genereren (zie generate-activity/route.ts
+   * en lesson-form.tsx) — hier alleen gelogd (context='generate'), niet
+   * verder verwerkt. Lege array voor een niet-AI-gegenereerde activiteit. */
+  usedKnowledgeChunks: UsedKnowledgeChunk[] = [],
 ): Promise<CreateLessonResult> {
   const parsed = createLessonInputSchema.safeParse(input);
 
@@ -153,9 +159,11 @@ export async function createLesson(
   let status: "approved" | "rejected" = "approved";
   let rejectionReason: string | null = null;
   let publicSince: string | null = null;
+  let checkerUsedChunks: UsedKnowledgeChunk[] = [];
 
   if (isPublic) {
     const quality = await checkActivityQuality(supabase, user.id, toQualityCheckInput(values));
+    checkerUsedChunks = quality.usedKnowledgeChunks;
     if (quality.status === "rejected") {
       status = "rejected";
       rejectionReason = quality.reason;
@@ -185,17 +193,37 @@ export async function createLesson(
     taalcode: "nl",
   };
 
-  const { error } = activityId
-    ? await supabase
-        .from("activiteiten")
-        .update(row)
-        .eq("id", activityId)
-        .eq("author_id", user.id)
-    : await supabase.from("activiteiten").insert({ ...row, author_id: user.id });
+  let resolvedActivityId = activityId;
+  let error: unknown = null;
+
+  if (activityId) {
+    ({ error } = await supabase
+      .from("activiteiten")
+      .update(row)
+      .eq("id", activityId)
+      .eq("author_id", user.id));
+  } else {
+    const inserted = await supabase
+      .from("activiteiten")
+      .insert({ ...row, author_id: user.id })
+      .select("id")
+      .single();
+    error = inserted.error;
+    resolvedActivityId = inserted.data?.id ?? null;
+  }
 
   if (error) {
     logActivitiesRowError("createLesson", error);
     return { error: GENERIC_ERROR };
+  }
+
+  // Brontracking (activity_knowledge_usage) — best-effort, pas mogelijk
+  // zodra het activity-id vaststaat (bij een nieuwe rij dus pas na de
+  // insert hierboven). Zie generate-activity/route.ts (context='generate')
+  // en activityQualityCheck.ts (context='checker').
+  if (resolvedActivityId) {
+    await logKnowledgeUsage(supabase, resolvedActivityId, "generate", usedKnowledgeChunks);
+    await logKnowledgeUsage(supabase, resolvedActivityId, "checker", checkerUsedChunks);
   }
 
   return status === "rejected"
@@ -221,6 +249,9 @@ export async function saveLessonDraft(
   /** Zie createLesson hierboven — zelfde "alleen zetten wanneer expliciet
    * meegegeven"-conventie. */
   afbeeldingUrl?: string,
+  /** Zie createLesson hierboven — zelfde brontracking-conventie
+   * (context='generate'). */
+  usedKnowledgeChunks: UsedKnowledgeChunk[] = [],
 ): Promise<SaveDraftResult> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -259,6 +290,8 @@ export async function saveLessonDraft(
       return { error: GENERIC_ERROR };
     }
 
+    await logKnowledgeUsage(supabase, activityId, "generate", usedKnowledgeChunks);
+
     return { success: true, activityId };
   }
 
@@ -272,6 +305,8 @@ export async function saveLessonDraft(
     logActivitiesRowError("saveLessonDraft", error ?? "geen rij teruggekregen na insert");
     return { error: GENERIC_ERROR };
   }
+
+  await logKnowledgeUsage(supabase, data.id, "generate", usedKnowledgeChunks);
 
   return { success: true, activityId: data.id };
 }

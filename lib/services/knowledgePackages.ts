@@ -21,26 +21,28 @@ export async function getActivePackagesWithPreferences(
 ): Promise<KnowledgePackageWithPreference[]> {
   const supabase = await getServerClient();
 
-  const { data: packages } = await supabase
-    .from("knowledge_packages")
-    .select("*")
-    .eq("is_active", true)
-    .order("name");
+  const [{ data: packages }, { data: preferences }, { data: usageCounts }] = await Promise.all([
+    supabase.from("knowledge_packages").select("*").eq("is_active", true).order("name"),
+    supabase.from("user_knowledge_preferences").select("package_id, enabled").eq("user_id", userId),
+    supabase.rpc("get_knowledge_package_usage_counts"),
+  ]);
 
   if (!packages || packages.length === 0) return [];
-
-  const { data: preferences } = await supabase
-    .from("user_knowledge_preferences")
-    .select("package_id, enabled")
-    .eq("user_id", userId);
 
   const enabledById = new Map(
     (preferences ?? []).map((preference) => [preference.package_id as string, preference.enabled as boolean]),
   );
 
+  const usageCountByPackageId = new Map(
+    (usageCounts as { package_id: string; activity_count: number }[] | null ?? []).map(
+      (row) => [row.package_id, row.activity_count],
+    ),
+  );
+
   return (packages as KnowledgePackage[]).map((pkg) => ({
     ...pkg,
     enabled: enabledById.get(pkg.id) ?? pkg.default_enabled,
+    usage_count: usageCountByPackageId.get(pkg.id) ?? 0,
   }));
 }
 

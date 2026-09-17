@@ -92,6 +92,12 @@ export function KnowledgeDocumentList({
                     {formatDate(document.created_at) && (
                       <span>· {formatDate(document.created_at)}</span>
                     )}
+                    {document.usage_count > 0 && (
+                      <Badge variant="outline" className="font-normal">
+                        Gebruikt in {document.usage_count}{" "}
+                        {document.usage_count === 1 ? "activiteit" : "activiteiten"}
+                      </Badge>
+                    )}
                   </div>
                   {document.status === "failed" && document.error_message && (
                     <p className="text-xs text-destructive">{document.error_message}</p>

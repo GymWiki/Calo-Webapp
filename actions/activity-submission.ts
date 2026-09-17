@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality } from "@/lib/ai/activityQualityCheck";
+import { logKnowledgeUsage } from "@/lib/ai/knowledgeUsageLogging";
 import { submitActivityInputSchema } from "@/types/activity";
 
 type SubmitResult =
@@ -77,6 +78,8 @@ export async function submitActivityDraft(activityId: string): Promise<SubmitRes
   if (updateError) {
     return { error: GENERIC_ERROR };
   }
+
+  await logKnowledgeUsage(supabase, activityId, "checker", quality.usedKnowledgeChunks);
 
   return quality.status === "approved"
     ? { success: true, status: "approved", activityId }

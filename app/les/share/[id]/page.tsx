@@ -5,6 +5,7 @@ import { AiLescoachButton } from "@/components/AiLescoachSheet";
 import { EmptyState } from "@/components/empty-state";
 import { LessonPdfButton } from "@/components/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
+import { UsedSourcesList } from "@/components/UsedSourcesList";
 import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { getActivityById } from "@/lib/services/activities";
+import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
@@ -114,6 +116,8 @@ export default async function SharedActivityPage({
     if (author) authorName = `${author.first_name} ${author.last_name}`.trim();
   }
 
+  const usedKnowledgeSources = await getActivityKnowledgeSources(activity.id);
+
   const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
   const analyzePayload = {
     title: activity.titel,
@@ -122,6 +126,11 @@ export default async function SharedActivityPage({
     movementTheme: activity.beweegthema ?? undefined,
     goals: activity.doel ?? undefined,
     didacticItems,
+    // De route logt hiermee alleen daadwerkelijk iets (context='lescoach')
+    // wanneer de huidige viewer ook de auteur is — zie de server-side
+    // eigenaarschapscheck in analyze-lesson/route.ts. Voor elke andere
+    // viewer van deze gedeelde pagina heeft dit veld gewoon geen effect.
+    activityId: activity.id,
   };
 
   return (
@@ -278,6 +287,9 @@ export default async function SharedActivityPage({
                     <BadgeList items={activity.rule_materials} />
                   </div>
                 </div>
+                {usedKnowledgeSources.length > 0 && (
+                  <UsedSourcesList chunks={usedKnowledgeSources} />
+                )}
               </CardContent>
             </Card>
           </TabsContent>

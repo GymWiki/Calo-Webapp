@@ -12,6 +12,7 @@ import type { LessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { cn } from "@/lib/utils";
 import {
+  AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY,
   AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
   AI_GENERATED_LESSON_STORAGE_KEY,
 } from "@/types/ai";
@@ -70,6 +71,12 @@ export function AiLessonWizard({
         sessionStorage.setItem(
           AI_GENERATED_LESSON_SOURCES_STORAGE_KEY,
           JSON.stringify(data.sources),
+        );
+      }
+      if (data.usedKnowledgeChunks) {
+        sessionStorage.setItem(
+          AI_GENERATED_LESSON_CHUNKS_STORAGE_KEY,
+          JSON.stringify(data.usedKnowledgeChunks),
         );
       }
       onGenerated();
