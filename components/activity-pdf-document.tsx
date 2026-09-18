@@ -82,6 +82,17 @@ const styles = StyleSheet.create({
   },
 });
 
+// Same-origin proxy in plaats van de rechtstreekse Supabase Storage-URL —
+// zie app/api/activity-image-proxy/route.ts: @react-pdf/renderer haalt
+// `Image`'s src zelf op via `fetch()`, wat (in tegenstelling tot een
+// gewone <img>-tag) CORS-headers op de Storage-response vereist. Zonder
+// deze proxy faalde die fetch stil bij afbeeldingen zonder CORS-headers,
+// waardoor de PDF zonder foutmelding werd gegenereerd maar de plattegrond
+// miste.
+function toProxiedImageUrl(url: string): string {
+  return `/api/activity-image-proxy?url=${encodeURIComponent(url)}`;
+}
+
 function HeaderField({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.headerCell}>
@@ -225,7 +236,7 @@ export function ActivityPdfDocument({ activity }: { activity: Activity }) {
           </View>
           {activity.afbeelding && (
             // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop
-            <Image style={styles.afbeelding} src={activity.afbeelding} />
+            <Image style={styles.afbeelding} src={toProxiedImageUrl(activity.afbeelding)} />
           )}
         </View>
 
