@@ -16,6 +16,7 @@ import { getOwnSubmissions, getPublicActivities } from "@/lib/services/activitie
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
+import type { UserProfile } from "@/lib/types";
 
 const COMMUNITY_LIMIT = 6;
 const OWN_ACTIVITIES_LIMIT = 5;
@@ -27,6 +28,31 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  return (
+    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-6xl xl:max-w-[1360px]">
+      <PageHeader
+        eyebrow="Dashboard"
+        title={`Welkom terug, ${profile.first_name}`}
+        description="Hier vind je je snelle acties, je activiteiten en wat er speelt in de community."
+      />
+
+      {/* Eigen Suspense-boundary i.p.v. hier zelf awaiten: getContributionStatus
+          hoort geen streaming van de rest van de pagina (met name de
+          DashboardContent-sectie hieronder, die zijn eigen, onafhankelijke
+          Suspense al had) te blokkeren — zie CLAUDE.md/de brief over
+          per-sectie laden i.p.v. alles-of-niets. */}
+      <Suspense fallback={<Skeleton className="h-24 w-full rounded-2xl" />}>
+        <ContributionStatusSection profile={profile} />
+      </Suspense>
+
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent userId={profile.id} />
+      </Suspense>
+    </main>
+  );
+}
+
+async function ContributionStatusSection({ profile }: { profile: UserProfile }) {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const contributionStatus = await getContributionStatus(
@@ -36,22 +62,10 @@ export default async function DashboardPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-6xl xl:max-w-[1360px]">
-      <PageHeader
-        eyebrow="Dashboard"
-        title={`Welkom terug, ${profile.first_name}`}
-        description="Hier vind je je snelle acties, je activiteiten en wat er speelt in de community."
-      />
-
-      <ContributionStatusCard
-        status={contributionStatus}
-        subscriptionStatus={profile.subscription_status}
-      />
-
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent userId={profile.id} />
-      </Suspense>
-    </main>
+    <ContributionStatusCard
+      status={contributionStatus}
+      subscriptionStatus={profile.subscription_status}
+    />
   );
 }
 

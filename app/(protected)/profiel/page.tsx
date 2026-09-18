@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -7,6 +8,7 @@ import { FreemiumStatusCard } from "@/components/profile/FreemiumStatusCard";
 import { KnowledgeBaseSummaryCard } from "@/components/profile/KnowledgeBaseSummaryCard";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ProfileNavGrid } from "@/components/profile/ProfileNavGrid";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getCommunityStats } from "@/lib/services/community-stats";
 import { getContributionStatus } from "@/lib/services/contribution";
 import {
@@ -17,36 +19,20 @@ import {
 import { getAllKnowledgeDocuments } from "@/lib/services/knowledge";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
+import type { UserProfile } from "@/lib/types";
 
+// Voorheen ÉÉN grote Promise.all met alle 6 queries vóór alle JSX — dat
+// betekende dat de hele pagina (incl. ProfileHeader, die alleen `profile`
+// nodig heeft) wachtte op de traagste van de zes. Elke kaart hieronder
+// heeft nu zijn eigen Suspense-boundary met een eigen, onafhankelijke
+// databron, zodat ProfileHeader instant rendert en elke kaart verschijnt
+// zodra ZIJN data binnen is — zie CLAUDE.md/de brief over per-sectie laden.
 export default async function ProfielPage() {
   const profile = await getCurrentUserProfile();
 
   if (!profile) {
     redirect("/login");
   }
-
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
-  const [
-    contributionStatus,
-    ownSubmissions,
-    savedIds,
-    drafts,
-    knowledgeDocuments,
-    communityStats,
-  ] = await Promise.all([
-    getContributionStatus(supabase, profile.id, profile.subscription_status),
-    getOwnSubmissions(profile.id),
-    getSavedActivityIds(profile.id),
-    getActivityDrafts(profile.id),
-    getAllKnowledgeDocuments(),
-    getCommunityStats(profile.id),
-  ]);
-
-  const processedDocuments = knowledgeDocuments.filter(
-    (document) => document.status === "processed",
-  ).length;
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-6xl">
@@ -58,22 +44,77 @@ export default async function ProfielPage() {
 
       <ProfileHeader profile={profile} />
 
-      <FreemiumStatusCard
-        status={contributionStatus}
-        subscriptionStatus={profile.subscription_status}
-      />
+      <Suspense fallback={<Skeleton className="h-20 w-full rounded-2xl" />}>
+        <FreemiumStatusSection profile={profile} />
+      </Suspense>
 
-      <ProfileNavGrid
-        activitiesCount={ownSubmissions.length + drafts.length}
-        savedCount={savedIds.size}
-      />
+      <Suspense
+        fallback={
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full rounded-xl" />
+            ))}
+          </div>
+        }
+      >
+        <ProfileNavSection userId={profile.id} />
+      </Suspense>
 
-      <KnowledgeBaseSummaryCard
-        totalCount={knowledgeDocuments.length}
-        processedCount={processedDocuments}
-      />
+      <Suspense fallback={<Skeleton className="h-20 w-full rounded-2xl" />}>
+        <KnowledgeBaseSection />
+      </Suspense>
 
-      <CommunityStatsCard stats={communityStats} />
+      <Suspense fallback={<Skeleton className="h-32 w-full rounded-2xl" />}>
+        <CommunityStatsSection userId={profile.id} />
+      </Suspense>
     </main>
   );
+}
+
+async function FreemiumStatusSection({ profile }: { profile: UserProfile }) {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const contributionStatus = await getContributionStatus(
+    supabase,
+    profile.id,
+    profile.subscription_status,
+  );
+
+  return (
+    <FreemiumStatusCard status={contributionStatus} subscriptionStatus={profile.subscription_status} />
+  );
+}
+
+async function ProfileNavSection({ userId }: { userId: string }) {
+  const [ownSubmissions, drafts, savedIds] = await Promise.all([
+    getOwnSubmissions(userId),
+    getActivityDrafts(userId),
+    getSavedActivityIds(userId),
+  ]);
+
+  return (
+    <ProfileNavGrid
+      activitiesCount={ownSubmissions.length + drafts.length}
+      savedCount={savedIds.size}
+    />
+  );
+}
+
+async function KnowledgeBaseSection() {
+  const knowledgeDocuments = await getAllKnowledgeDocuments();
+  const processedDocuments = knowledgeDocuments.filter(
+    (document) => document.status === "processed",
+  ).length;
+
+  return (
+    <KnowledgeBaseSummaryCard
+      totalCount={knowledgeDocuments.length}
+      processedCount={processedDocuments}
+    />
+  );
+}
+
+async function CommunityStatsSection({ userId }: { userId: string }) {
+  const communityStats = await getCommunityStats(userId);
+  return <CommunityStatsCard stats={communityStats} />;
 }

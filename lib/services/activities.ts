@@ -6,6 +6,25 @@ const ACTIVITY_SELECT =
   "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
   "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, is_public, public_since";
 
+// Voor lijst-/kaartweergaves (bibliotheek, "Mijn activiteiten", opgeslagen,
+// dashboard-secties): dezelfde velden als ACTIVITY_SELECT, MINUS de zware
+// velden die uitsluitend op de detail-/editweergave gebruikt worden
+// (diagram_data is de volledige canvas-plattegrond-JSON, didactic_items/
+// tactical_questions/deelnemers_regels/plaatje_praatje/aandachtspunten/
+// movement_problem/game_category/game_dimensions/is_ai_generated zijn
+// detail-only vrije tekst/metadata). Geverifieerd met een repo-brede grep
+// dat geen van deze velden ergens in een kaart- of zoek/filter-component
+// wordt gebruikt (o.a. library-search-client.tsx, library-item-card.tsx,
+// my-activity-card.tsx, recent-activities-list.tsx, community-lessons-
+// section.tsx) — voeg een veld hier terug toe zodra een lijstweergave het
+// nodig heeft. Het resultaat wordt nog steeds als `Activity[]` getypeerd
+// (geen apart, smaller type) — dat is een bewuste, gedocumenteerde
+// afweging: TypeScript kan een toekomstig gebruik van een hier weggelaten
+// veld dus niet zelf afvangen, alleen deze lijst met opmerking.
+const ACTIVITY_LIST_SELECT =
+  "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
+  "group_name, activity_date, min_participants, participants_bench, base_materials, rule_materials, diagram_image_url, arrangement, is_public, public_since";
+
 async function getServerClient() {
   const cookieStore = await cookies();
   return createClient(cookieStore);
@@ -30,7 +49,7 @@ export async function getAllActivities(): Promise<Activity[]> {
 
   const { data, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .eq("status", "approved")
     .eq("is_public", true)
     .order("titel", { ascending: true })
@@ -54,7 +73,7 @@ export async function getOwnSubmissions(authorId: string): Promise<Activity[]> {
 
   const { data, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .eq("author_id", authorId)
     .neq("status", "draft")
     .order("submitted_at", { ascending: false })
@@ -83,7 +102,7 @@ export async function getActivityDrafts(authorId: string): Promise<Activity[]> {
 
   const { data, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .eq("author_id", authorId)
     .eq("status", "draft")
     .order("created_at", { ascending: false })
@@ -127,7 +146,7 @@ export async function getPublicActivities(): Promise<Activity[]> {
 
   const { data, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .eq("is_public", true)
     .not("author_id", "is", null)
     .order("public_since", { ascending: false })
@@ -201,7 +220,7 @@ export async function getSavedActivities(userId: string): Promise<Activity[]> {
 
   const { data: activities, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .in("id", orderedIds)
     .returns<Activity[]>();
 

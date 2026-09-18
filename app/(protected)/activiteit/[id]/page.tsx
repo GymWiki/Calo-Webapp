@@ -167,6 +167,17 @@ function isWizardActivity(activity: Activity): boolean {
   return activity.arrangement !== null;
 }
 
+async function getAuthorName(authorId: string): Promise<string | null> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const { data: author } = await supabase
+    .from("users")
+    .select("first_name, last_name")
+    .eq("id", authorId)
+    .maybeSingle();
+  return author ? `${author.first_name} ${author.last_name}`.trim() : null;
+}
+
 export default async function ActiviteitDetailPage({
   params,
 }: {
@@ -207,27 +218,26 @@ export default async function ActiviteitDetailPage({
     );
   }
 
-  const saved = await isActivitySaved(profile.id, activity.id);
   const wizardActivity = isWizardActivity(activity);
+
+  // Drie onderling onafhankelijke queries (geen enkele heeft het resultaat
+  // van een ander nodig) liepen hier voorheen na elkaar — saved eerst, dan
+  // (bij een wizard-activiteit) pas de auteursnaam, dan pas de gebruikte
+  // kennisbronnen. Gecombineerd in één Promise.all i.p.v. drie sequentiële
+  // round-trips.
+  const [saved, authorName, usedKnowledgeSources] = await Promise.all([
+    isActivitySaved(profile.id, activity.id),
+    wizardActivity && activity.author_id
+      ? getAuthorName(activity.author_id)
+      : Promise.resolve(null),
+    wizardActivity ? getActivityKnowledgeSources(activity.id) : Promise.resolve(undefined),
+  ]);
 
   // Wizard-activiteiten delen hun volledige weergave met de inline-editor
   // (zie components/activity-wizard-page.tsx: mode="view" hier, mode="edit"
   // in de "Zelf een activiteit maken"-pagina) — vandaar de vroege return.
   if (wizardActivity) {
-    let authorName: string | null = null;
-    if (activity.author_id) {
-      const cookieStore = await cookies();
-      const supabase = createClient(cookieStore);
-      const { data: author } = await supabase
-        .from("users")
-        .select("first_name, last_name")
-        .eq("id", activity.author_id)
-        .maybeSingle();
-      authorName = author ? `${author.first_name} ${author.last_name}`.trim() : null;
-    }
-
     const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
-    const usedKnowledgeSources = await getActivityKnowledgeSources(activity.id);
 
     return (
       <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
