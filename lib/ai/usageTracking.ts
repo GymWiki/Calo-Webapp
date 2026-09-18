@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { estimateCostUsd } from "@/lib/ai/modelPricing";
+import { estimateCostUsd } from "./modelPricing";
 
 export type AiUsageFeature =
   | "activity_checker"
   | "ai_lescoach"
   | "knowledge_base_embedding"
-  | "activity_import_extraction";
+  | "activity_import_extraction"
+  | "taalcheck";
 
 /**
  * Losstaande, herbruikbare logservice voor elke betaalde AI-aanroep — vult
