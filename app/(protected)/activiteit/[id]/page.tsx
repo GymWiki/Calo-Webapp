@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Check, Lock, MapPin, Users } from "lucide-react";
+import { Check, Lock, MapPin, Users } from "lucide-react";
 
 import { ActivityDetailActions } from "@/components/activity-detail-actions";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { ActivityInfoStrip, type InfoStripItem } from "@/components/activity-info-strip";
 import { ActivityWizardPage } from "@/components/activity-wizard-page";
+import { BackButton } from "@/components/BackButton";
 import { EmptyState } from "@/components/empty-state";
 import { SourceBadge } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
@@ -191,12 +192,7 @@ export default async function ActiviteitDetailPage({
   if (!hasFullLibraryAccess && !isOwnActivity && !activity.is_public) {
     return (
       <main className="mx-auto w-full max-w-3xl space-y-6 p-4 pb-28 md:p-8 md:pb-8">
-        <Button asChild variant="outline">
-          <Link href="/zoeken">
-            <ArrowLeft className="size-4" />
-            Terug naar Activiteiten
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/zoeken" fallbackLabel="Bibliotheek" />
         <EmptyState
           icon={Lock}
           title="Bibliotheektoegang beperkt"
@@ -302,12 +298,7 @@ export default async function ActiviteitDetailPage({
   return (
     <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
       <div className="print:hidden">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground">
-          <Link href="/zoeken">
-            <ArrowLeft className="size-4" />
-            Bibliotheek
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/zoeken" fallbackLabel="Bibliotheek" className="-ml-2" />
       </div>
 
       {/* Header — titel is het belangrijkste element, geen kaart-omlijning

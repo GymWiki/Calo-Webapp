@@ -6,7 +6,11 @@ import type { CommunityStats } from "@/lib/services/community-stats";
 /**
  * Bewust licht: alleen twee tellingen, geen badges/gamification (die zijn
  * eerder deze sessie al uit de refactor gehaald). "Keer opgeslagen door
- * anderen" is de hergebruik-proxy — er bestaat geen "bekeken"-teller.
+ * anderen" is de hergebruik-proxy — er bestaat geen "bekeken"-teller, en
+ * ook geen losse lijst om naartoe te linken, dus die kaart blijft puur
+ * informatief. "Gedeelde activiteiten" wijst wel door naar het
+ * "Activiteiten"-tabblad in "Mijn activiteiten" — daar staan de eigen
+ * gedeelde (en overige) activiteiten met hun status.
  */
 export function CommunityStatsCard({ stats }: { stats: CommunityStats }) {
   return (
@@ -16,6 +20,7 @@ export function CommunityStatsCard({ stats }: { stats: CommunityStats }) {
         label="Gedeelde activiteiten"
         value={stats.sharedActivitiesCount}
         accent="blue"
+        href="/profiel/activiteiten?tab=activiteiten"
       />
       <StatCard
         icon={Star}

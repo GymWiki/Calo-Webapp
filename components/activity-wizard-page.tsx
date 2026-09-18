@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bot, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
+import { Bot, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
 
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
+import { BackButton } from "@/components/BackButton";
 import { DidacticsForm } from "@/components/DidacticsForm";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { EditableList } from "@/components/editable-list";
@@ -195,6 +196,7 @@ export function ActivityWizardPage({
   isRunningLescoach,
   canRunLescoach,
   lescoachButtonLabel,
+  onBeforeBack,
 }: {
   mode: "view" | "edit";
   /** Alleen nodig in mode="view" — voor LessonPdfButton, dat de volledige rij verwacht. */
@@ -312,6 +314,10 @@ export function ActivityWizardPage({
   /** Overschrijft het standaardlabel "AI Lescoach raadplegen" (bijv. een
    * cooldown-aftelling) — zie lesson-form.tsx. */
   lescoachButtonLabel?: string;
+  /** Best-effort hook vóór de "Terug"-knop daadwerkelijk navigeert (bijv.
+   * een lopende autosave laten afronden) — alleen relevant in mode="edit".
+   * Zie BackButton. */
+  onBeforeBack?: () => void | Promise<void>;
 }) {
   const isEdit = mode === "edit";
 
@@ -406,12 +412,12 @@ export function ActivityWizardPage({
   return (
     <>
       <div className="print:hidden">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground">
-          <Link href="/zoeken">
-            <ArrowLeft className="size-4" />
-            Bibliotheek
-          </Link>
-        </Button>
+        <BackButton
+          fallbackHref="/zoeken"
+          fallbackLabel="Bibliotheek"
+          className="-ml-2"
+          onBeforeNavigate={onBeforeBack}
+        />
       </div>
 
       {/* Header — eyebrow (alleen-lezen preview van leerlijn/thema) + titel

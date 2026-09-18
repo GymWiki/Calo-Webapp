@@ -93,15 +93,20 @@ function ActivityGrid({
 export function OwnActivitiesSection({
   drafts,
   submissions,
+  defaultTab = "concepten",
 }: {
   drafts: Activity[];
   submissions: Activity[];
+  /** Welk tabblad standaard open staat — bijv. vanuit de dashboard-
+   * statistiekkaart "Activiteiten gemaakt" (?tab=activiteiten), die
+   * specifiek naar het "Activiteiten"-tabblad wil linken, niet "Concepten". */
+  defaultTab?: "concepten" | "activiteiten";
 }) {
   const [draftQuery, setDraftQuery] = useState("");
   const [submissionQuery, setSubmissionQuery] = useState("");
 
   return (
-    <Tabs defaultValue="concepten">
+    <Tabs defaultValue={defaultTab}>
       <TabsList>
         <TabsTrigger value="concepten">Concepten ({drafts.length})</TabsTrigger>
         <TabsTrigger value="activiteiten">Activiteiten ({submissions.length})</TabsTrigger>

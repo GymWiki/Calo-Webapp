@@ -5,12 +5,19 @@ import { PageHeader } from "@/components/page-header";
 import { getActivityDrafts, getOwnSubmissions } from "@/lib/services/activities";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
-export default async function ProfielActiviteitenPage() {
+export default async function ProfielActiviteitenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const profile = await getCurrentUserProfile();
 
   if (!profile) {
     redirect("/login");
   }
+
+  const { tab } = await searchParams;
+  const defaultTab = tab === "activiteiten" ? "activiteiten" : "concepten";
 
   // Concepten (status 'draft') en daadwerkelijk opgeslagen activiteiten
   // staan in aparte tabbladen (zie OwnActivitiesSection) — consistent met
@@ -27,7 +34,7 @@ export default async function ProfielActiviteitenPage() {
         title="Activiteiten"
         description="Al je activiteiten met status — alleen gedeelde, goedgekeurde activiteiten tellen mee voor je maandelijkse bijdrage."
       />
-      <OwnActivitiesSection drafts={drafts} submissions={submissions} />
+      <OwnActivitiesSection drafts={drafts} submissions={submissions} defaultTab={defaultTab} />
     </main>
   );
 }

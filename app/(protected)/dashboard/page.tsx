@@ -100,12 +100,14 @@ async function DashboardContent({ userId }: { userId: string }) {
           label="Activiteiten gemaakt"
           value={ownActivities.length}
           accent="cone"
+          href="/profiel/activiteiten?tab=activiteiten"
         />
         <StatCard
           icon={CalendarDays}
           label="Deze maand"
           value={countThisMonth(ownActivities)}
           accent="blue"
+          href="/profiel/activiteiten?tab=activiteiten"
         />
         <StatCard
           icon={Trophy}
@@ -114,6 +116,7 @@ async function DashboardContent({ userId }: { userId: string }) {
           meta={latest?.titel}
           accent="yellow"
           className="col-span-2 sm:col-span-1"
+          href={latest ? `/activiteit/${latest.id}` : undefined}
         />
       </div>
 

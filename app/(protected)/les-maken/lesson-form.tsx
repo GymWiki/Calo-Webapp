@@ -343,6 +343,30 @@ export function LessonForm({
     };
   }, []);
 
+  // Vóór de "Terug"-knop daadwerkelijk navigeert (zie BackButton via
+  // activity-wizard-page.tsx's onBeforeBack): een nog niet weggeschreven
+  // debounced wijziging direct opslaan i.p.v. te laten verlopen, zodat er
+  // niets verloren gaat wanneer de gebruiker meteen wegnavigeert na een
+  // laatste veldwijziging. Wacht daarna op elke lopende/gequeuede save —
+  // zowel performSave (tekstvelden) als handleDiagramSave (plattegrond)
+  // zetten isSavingDraftRef/pendingSaveRef, dus polling op die refs dekt
+  // beide save-paden zonder een aparte promise-keten te hoeven bijhouden.
+  async function flushAutosave() {
+    if (isEditingSavedActivity) return;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+      if (isSavingDraftRef.current) {
+        pendingSaveRef.current = true;
+      } else {
+        void performSave();
+      }
+    }
+    while (isSavingDraftRef.current || pendingSaveRef.current) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
   async function onSubmit(values: CreateLessonInput) {
     const payload: CreateLessonInput = {
       ...values,
@@ -796,6 +820,7 @@ export function LessonForm({
           isSubmitting={form.formState.isSubmitting}
           missingFields={missingFields}
           jumpToFieldTrigger={jumpToFieldTrigger}
+          onBeforeBack={flushAutosave}
         />
       </form>
     </Form>
