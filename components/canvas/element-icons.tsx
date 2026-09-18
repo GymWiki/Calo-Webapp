@@ -18,6 +18,7 @@ import type {
   ElementType,
   FieldPresetDiagramElement,
   MaterialDiagramElement,
+  ShapeDiagramElement,
   TextDiagramElement,
   ViewMode,
 } from "./gym-canvas-types";
@@ -256,6 +257,62 @@ function FieldPresetElementIcon({ element }: { element: FieldPresetDiagramElemen
   );
 }
 
+// -- vrije tekenvormen ---------------------------------------------------------
+
+/**
+ * Rechthoek/driehoek/cirkel — getekend op lokale (0,0), net als de andere
+ * kinds hier: de omringende Group in GymCanvas.tsx staat al op x/y/rotation/
+ * scaleX/scaleY, dus hier is geen verdere offset-berekening nodig. Cirkel
+ * gebruikt Ellipse (radiusX/radiusY) i.p.v. Circle met één straal: zo blijft
+ * een NIET-uniforme schaling (Shift+hoek-handle, zie ShapeDiagramElement in
+ * gym-canvas-types.ts) een ellips i.p.v. dat de twee assen tegen elkaar in
+ * zouden werken. Driehoek is geen Konva RegularPolygon (die kent alleen één
+ * radius, dus geen onafhankelijke breedte/hoogte) maar een losse Line met 3
+ * punten, gesloten — een gelijkzijdige driehoek bij de standaard-breedte/
+ * hoogte uit SHAPE_DEFAULT_SIZE (GymCanvas.tsx), en gewoon een andere
+ * driehoek zodra breedte/hoogte apart worden aangepast.
+ */
+function ShapeElementIcon({ element }: { element: ShapeDiagramElement }) {
+  const { width: w, height: h, fill, stroke, strokeWidth } = element;
+
+  if (element.shape === "rectangle") {
+    return (
+      <Rect
+        x={-w / 2}
+        y={-h / 2}
+        width={w}
+        height={h}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+    );
+  }
+
+  if (element.shape === "circle") {
+    return (
+      <Ellipse
+        radiusX={w / 2}
+        radiusY={h / 2}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+    );
+  }
+
+  return (
+    <Line
+      points={[0, -h / 2, -w / 2, h / 2, w / 2, h / 2]}
+      closed
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      lineJoin="round"
+    />
+  );
+}
+
 // -- element graphic per systeemtype -----------------------------------------
 
 function VectorIcon({
@@ -342,6 +399,10 @@ export function ElementIcon({
 
   if (element.kind === "field_preset") {
     return <FieldPresetElementIcon element={element} />;
+  }
+
+  if (element.kind === "shape") {
+    return <ShapeElementIcon element={element} />;
   }
 
   // "line" wordt niet via dit pad getekend — zie LineElementNode in

@@ -25,6 +25,7 @@ import {
   ArrowRight,
   Bold,
   BringToFront,
+  Circle as CircleShapeIcon,
   Copy,
   Eraser,
   Italic,
@@ -35,7 +36,9 @@ import {
   RotateCcw,
   RotateCw,
   SendToBack,
+  Square,
   Trash2,
+  Triangle,
   Type,
   X,
   ZoomIn,
@@ -64,6 +67,10 @@ import {
   ELEMENT_DEFS,
   LEGACY_LINE_TYPES,
   LINE_VARIANT_LABELS,
+  LOCATION_TYPES,
+  LOCATION_TYPE_LABELS,
+  SHAPE_KINDS,
+  SHAPE_KIND_LABELS,
   type DiagramData,
   type DiagramElement,
   type ElementType,
@@ -71,11 +78,19 @@ import {
   type LineDiagramElement,
   type LineVariant,
   type LocationType,
+  type ShapeDiagramElement,
+  type ShapeKind,
   type TextDiagramElement,
   type TextFontStyle,
   type ViewMode,
 } from "./gym-canvas-types";
-import { FIELD_PRESET_LABELS, FIELD_PRESET_SPORTS, FIELD_PRESETS } from "./field-presets";
+import {
+  FIELD_PRESET_LABELS,
+  FIELD_PRESET_SPORTS,
+  FIELD_PRESETS,
+  POOL_BACKGROUND,
+  TRACK_BACKGROUND,
+} from "./field-presets";
 
 const BASE_WIDTH = 800;
 const BASE_HEIGHT = 560;
@@ -106,6 +121,19 @@ const LINE_POINTER_WIDTH = 12;
 
 const DEFAULT_TEXT_FONT_SIZE = 22;
 const DEFAULT_TEXT_COLOR = "#1b1d21";
+
+// Vrije tekenvormen — width/height bij plaatsing (zie ShapeDiagramElement),
+// daarna gewoon via de gedeelde Transformer aan te passen. Driehoek start
+// als een gelijkzijdige driehoek: bij breedte w is de "natuurlijke" hoogte
+// w * sqrt(3)/2 (hoogte van een gelijkzijdige driehoek), afgerond.
+const SHAPE_DEFAULT_SIZE: Record<ShapeKind, { width: number; height: number }> = {
+  rectangle: { width: 120, height: 80 },
+  triangle: { width: 100, height: Math.round(100 * (Math.sqrt(3) / 2)) },
+  circle: { width: 90, height: 90 },
+};
+const DEFAULT_SHAPE_FILL = "#dbeafe";
+const DEFAULT_SHAPE_STROKE = "#1c7ed6";
+const DEFAULT_SHAPE_STROKE_WIDTH = 3;
 
 // Pan/zoom — los van `scale` (de "pas-in-container-breedte"-factor
 // hieronder), zie effectiveScale verderop. MIN/MAX in "keer scale", dus
@@ -215,6 +243,18 @@ function GrassStripes() {
   );
 }
 
+// Vloerkleur per ondergrond voor het zijaanzicht — indoor/outdoor bleven
+// ongewijzigd (eef2f6/dceefb resp. e4dcc8/7bab52), zwembad/atletiekbaan
+// krijgen elk hun eigen herkenbare kleurpaar (waterblauw resp. sintelrood).
+// Alleen indoor toont het materiaalrek (zie rungCount/rackX hieronder) — dat
+// hoort bij een gymzaal, niet bij de andere drie ondergronden.
+const SIDE_VIEW_COLORS: Record<LocationType, { ceiling: string; floor: string }> = {
+  indoor: { ceiling: "#eef2f6", floor: "#e4dcc8" },
+  outdoor: { ceiling: "#dceefb", floor: "#7bab52" },
+  pool: { ceiling: "#dceefb", floor: "#3a8fc4" },
+  track: { ceiling: "#eef2f6", floor: "#b5502e" },
+};
+
 function GymBackground({ viewMode, locationType }: { viewMode: ViewMode; locationType: LocationType }) {
   const outdoor = locationType === "outdoor";
 
@@ -222,13 +262,14 @@ function GymBackground({ viewMode, locationType }: { viewMode: ViewMode; locatio
     const floorY = BASE_HEIGHT - 90;
     const rungCount = 8;
     const rackX = BASE_WIDTH - 40;
+    const colors = SIDE_VIEW_COLORS[locationType];
 
     return (
       <>
-        <Rect x={0} y={0} width={BASE_WIDTH} height={floorY} fill={outdoor ? "#dceefb" : "#eef2f6"} listening={false} />
-        <Rect x={0} y={floorY} width={BASE_WIDTH} height={BASE_HEIGHT - floorY} fill={outdoor ? "#7bab52" : "#e4dcc8"} listening={false} />
+        <Rect x={0} y={0} width={BASE_WIDTH} height={floorY} fill={colors.ceiling} listening={false} />
+        <Rect x={0} y={floorY} width={BASE_WIDTH} height={BASE_HEIGHT - floorY} fill={colors.floor} listening={false} />
         <Line points={[0, floorY, BASE_WIDTH, floorY]} stroke="#adb5bd" strokeWidth={3} listening={false} />
-        {!outdoor && (
+        {locationType === "indoor" && (
           <>
             <Rect x={rackX} y={40} width={14} height={floorY - 60} fill="#c99a52" stroke="rgba(0,0,0,0.15)" strokeWidth={1} listening={false} />
             {Array.from({ length: rungCount }, (_, i) => {
@@ -245,6 +286,40 @@ function GymBackground({ viewMode, locationType }: { viewMode: ViewMode; locatio
             })}
           </>
         )}
+      </>
+    );
+  }
+
+  // Zwembad/atletiekbaan: eigen baan-belijning (zie POOL_BACKGROUND/
+  // TRACK_BACKGROUND, field-presets.ts) i.p.v. de generieke rand+middencirkel
+  // hieronder — die zou over de baanlijnen heen een niet-bestaand "veld"
+  // suggereren.
+  if (locationType === "pool" || locationType === "track") {
+    const geometry = locationType === "pool" ? POOL_BACKGROUND : TRACK_BACKGROUND;
+    const bgFill = locationType === "pool" ? "#3a8fc4" : "#8a8a86";
+    const laneFill = locationType === "pool" ? "#2f7fb8" : "#b5502e";
+
+    return (
+      <>
+        <Rect x={0} y={0} width={BASE_WIDTH} height={BASE_HEIGHT} fill={bgFill} listening={false} />
+        <Group
+          x={BASE_WIDTH / 2}
+          y={BASE_HEIGHT / 2}
+          scaleX={geometry.fitScale}
+          scaleY={geometry.fitScale}
+          listening={false}
+        >
+          <Rect
+            x={-geometry.width / 2}
+            y={-geometry.height / 2}
+            width={geometry.width}
+            height={geometry.height}
+            fill={laneFill}
+          />
+          {geometry.lines.map((line, i) => (
+            <Line key={i} points={line.points} stroke="#ffffff" strokeWidth={2.5} lineJoin="round" />
+          ))}
+        </Group>
       </>
     );
   }
@@ -355,6 +430,36 @@ function LineVariantPickerButton({
       </div>
       <span className="w-full leading-tight font-medium text-[11px] break-words">
         {LINE_VARIANT_LABELS[variant]}
+      </span>
+    </button>
+  );
+}
+
+const SHAPE_KIND_ICONS: Record<ShapeKind, typeof Square> = {
+  rectangle: Square,
+  triangle: Triangle,
+  circle: CircleShapeIcon,
+};
+
+function ShapeKindPickerButton({
+  shape,
+  onSelect,
+}: {
+  shape: ShapeKind;
+  onSelect: (shape: ShapeKind) => void;
+}) {
+  const Icon = SHAPE_KIND_ICONS[shape];
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(shape)}
+      className="flex min-h-24 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg border bg-background p-2 text-center transition-colors duration-150 ease-brand hover:bg-accent active:scale-95"
+    >
+      <div className="flex size-10 items-center justify-center rounded-md bg-muted text-foreground">
+        <Icon className="size-5" aria-hidden="true" />
+      </div>
+      <span className="w-full leading-tight font-medium text-[11px] break-words">
+        {SHAPE_KIND_LABELS[shape]}
       </span>
     </button>
   );
@@ -502,6 +607,12 @@ function getElementBounds(element: DiagramElement): {
     const geometry = FIELD_PRESETS[element.sport];
     const width = geometry.width * geometry.initialScale * element.scaleX;
     const height = geometry.height * geometry.initialScale * element.scaleY;
+    return { x: element.x - width / 2, y: element.y - height / 2, width, height };
+  }
+
+  if (element.kind === "shape") {
+    const width = element.width * element.scaleX;
+    const height = element.height * element.scaleY;
     return { x: element.x - width / 2, y: element.y - height / 2, width, height };
   }
 
@@ -828,6 +939,37 @@ export const GymCanvas = forwardRef<
     };
     withHistory((prev) => [...prev, newElement]);
     setSelectedId(newElement.id);
+  }
+
+  function addShapeElement(shape: ShapeKind) {
+    const { x, y } = staggeredCenter();
+    const { width, height } = SHAPE_DEFAULT_SIZE[shape];
+    const newElement: DiagramElement = {
+      id: createId(),
+      kind: "shape",
+      shape,
+      x,
+      y,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      width,
+      height,
+      fill: DEFAULT_SHAPE_FILL,
+      stroke: DEFAULT_SHAPE_STROKE,
+      strokeWidth: DEFAULT_SHAPE_STROKE_WIDTH,
+    };
+    withHistory((prev) => [...prev, newElement]);
+    setSelectedId(newElement.id);
+  }
+
+  function updateShapeStyle(
+    id: string,
+    changes: Partial<Pick<ShapeDiagramElement, "fill" | "stroke" | "strokeWidth">>,
+  ) {
+    withHistory((prev) =>
+      prev.map((el) => (el.id === id && el.kind === "shape" ? { ...el, ...changes } : el)),
+    );
   }
 
   // Eén geschiedenis-snapshot bij het BEGIN van een doorlopend sleepgebaar
@@ -1272,9 +1414,27 @@ export const GymCanvas = forwardRef<
                     <TabsTrigger value="veldpresets" className="min-h-9 flex-1 text-xs">
                       Veldpresets
                     </TabsTrigger>
+                    <TabsTrigger value="vormen" className="min-h-9 flex-1 text-xs">
+                      Vormen
+                    </TabsTrigger>
                   </TabsList>
                   <TabsContent value="materiaal" className="mt-3">
                     <MaterialPicker onSelect={addMaterialElement} />
+                  </TabsContent>
+                  <TabsContent value="vormen" className="mt-3">
+                    <p className="mb-2 text-sm font-semibold">Vrije tekenvormen</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {SHAPE_KINDS.map((shape) => (
+                        <ShapeKindPickerButton
+                          key={shape}
+                          shape={shape}
+                          onSelect={(s) => {
+                            addShapeElement(s);
+                            setPickerOpen(false);
+                          }}
+                        />
+                      ))}
+                    </div>
                   </TabsContent>
                   <TabsContent value="veldpresets" className="mt-3">
                     <p className="mb-2 text-sm font-semibold">Sportvelden</p>
@@ -1377,31 +1537,23 @@ export const GymCanvas = forwardRef<
             </button>
           </div>
 
-          <div className="flex overflow-hidden rounded-md border">
-            <button
-              type="button"
-              onClick={() => setLocationType("indoor")}
-              className={cn(
-                "min-h-9 px-3 py-2 text-xs font-medium transition-colors duration-150 ease-brand",
-                locationType === "indoor"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background hover:bg-accent",
-              )}
-            >
-              Binnen
-            </button>
-            <button
-              type="button"
-              onClick={() => setLocationType("outdoor")}
-              className={cn(
-                "min-h-9 border-l px-3 py-2 text-xs font-medium transition-colors duration-150 ease-brand",
-                locationType === "outdoor"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background hover:bg-accent",
-              )}
-            >
-              Buiten
-            </button>
+          <div className="flex flex-wrap overflow-hidden rounded-md border">
+            {LOCATION_TYPES.map((type, i) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setLocationType(type)}
+                className={cn(
+                  "min-h-9 flex-1 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-150 ease-brand",
+                  i > 0 && "border-l",
+                  locationType === type
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background hover:bg-accent",
+                )}
+              >
+                {LOCATION_TYPE_LABELS[type]}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -1443,9 +1595,53 @@ export const GymCanvas = forwardRef<
           bestond nog geen algemeen stijl-controlepatroon in deze editor
           (spelers/materiaal hebben een vaste vorm/foto), dus dit hergebruikt
           de gewone Button/Input-componenten van de rest van de app. */}
-      {selectedElement && (selectedElement.kind === "line" || selectedElement.kind === "text") && (
+      {selectedElement &&
+        (selectedElement.kind === "line" ||
+          selectedElement.kind === "text" ||
+          selectedElement.kind === "shape") && (
         <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/40 p-2.5">
-          {selectedElement.kind === "line" ? (
+          {selectedElement.kind === "shape" ? (
+            <>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                Vulkleur
+                <input
+                  type="color"
+                  value={selectedElement.fill}
+                  onChange={(e) => updateShapeStyle(selectedElement.id, { fill: e.target.value })}
+                  className="size-7 cursor-pointer rounded border p-0.5"
+                  aria-label="Vulkleur"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                Randkleur
+                <input
+                  type="color"
+                  value={selectedElement.stroke}
+                  onChange={(e) => updateShapeStyle(selectedElement.id, { stroke: e.target.value })}
+                  className="size-7 cursor-pointer rounded border p-0.5"
+                  aria-label="Randkleur"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                Randdikte
+                <Input
+                  type="number"
+                  min={0}
+                  max={12}
+                  value={selectedElement.strokeWidth}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (!Number.isNaN(value)) {
+                      updateShapeStyle(selectedElement.id, {
+                        strokeWidth: Math.min(12, Math.max(0, value)),
+                      });
+                    }
+                  }}
+                  className="h-8 w-16 text-sm"
+                />
+              </label>
+            </>
+          ) : selectedElement.kind === "line" ? (
             <>
               <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 Kleur

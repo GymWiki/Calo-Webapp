@@ -11,6 +11,13 @@
 // eenheden — dat raster is hier bewust als 1 rastervak = 1 meter geïnterpreteerd, dus
 // CANVAS_UNITS_PER_METER = 40. Een dubbele gymzaal (~18,5 x 12,5 m) komt daarmee vrijwel
 // exact overeen met dat speelvlak.
+//
+// AUDIT (tegen de actuele, officiële wedstrijdafmetingen van elke sportbond — zie de
+// toelichting per build-functie hieronder voor de precieze bron/getallen): alle vijf
+// bestaande presets bleken bij controle al correct. Geen van de vijf is dus in deze
+// audit-ronde gewijzigd — alleen het badminton-label is verduidelijkt (zie
+// FIELD_PRESET_LABELS) om expliciet te maken dat het de dubbelspel-belijning is
+// (met de enkelspel-zijlijnen erbinnen getekend), niet een aparte enkelspel-variant.
 import type { FieldPresetSport } from "./gym-canvas-types";
 
 export const CANVAS_UNITS_PER_METER = 40;
@@ -60,7 +67,12 @@ export const FIELD_PRESET_SPORTS: FieldPresetSport[] = [
 export const FIELD_PRESET_LABELS: Record<FieldPresetSport, string> = {
   volleybal: "Volleybal",
   basketbal: "Basketbal",
-  badminton: "Badminton",
+  // Expliciet "dubbel" in het label: de belijning is het dubbelspelveld
+  // (13,4 x 6,1 m, BWF) MET de enkelspel-zijlijnen erbinnen getekend (zie
+  // buildBadminton) — zonder deze toevoeging leek "Badminton" een generiek,
+  // ongespecificeerd veld te suggereren terwijl het er één specifieke
+  // (weliswaar de meest gebruikte) variant is.
+  badminton: "Badminton (dubbel, incl. enkellijnen)",
   handbal: "Handbal",
   zaalvoetbal: "Zaalvoetbal / Korfbal",
 };
@@ -111,8 +123,9 @@ function build(
   };
 }
 
-// Volleybal — 18 x 9 m (officiële FIVB-afmetingen). Net op de middellijn,
-// aanvalslijnen 3 m aan weerszijden van het net.
+// Volleybal — 18 x 9 m (officiële FIVB-afmetingen, FIVB Official Volleyball
+// Rules 2025-2028). Net op de middellijn, aanvalslijnen 3 m aan weerszijden
+// van het net. AUDIT: klopt, geen wijziging nodig.
 function buildVolleybal(): FieldPresetGeometry {
   const widthM = 18;
   const heightM = 9;
@@ -130,7 +143,8 @@ function buildVolleybal(): FieldPresetGeometry {
 // 5,8 (diep) x 4,9 m (breed), driepuntslijn r=6,75 m — vereenvoudigd als halve
 // cirkel (FIBA's exacte lijn heeft rechte stukken bij de zijlijn vóór de boog
 // begint; die nuance is hier bewust weggelaten voor een duidelijke, robuuste
-// vorm). Basket op 1,575 m van de achterlijn.
+// vorm). Basket op 1,575 m van de achterlijn. AUDIT: alle getallen kloppen
+// tegen de actuele FIBA-regels — geen wijziging nodig.
 function buildBasketbal(): FieldPresetGeometry {
   const widthM = 28;
   const heightM = 15;
@@ -164,8 +178,13 @@ function buildBasketbal(): FieldPresetGeometry {
 }
 
 // Badminton — dubbelveld 13,4 x 6,1 m (BWF). Enkelspel-zijlijn 0,46 m
-// ingesprongen, korte-servicelijn 1,98 m vanaf het net, lange-servicelijn
-// (dubbel) 0,76 m vanaf de achterlijn, middenlijn deelt elk servicevak.
+// ingesprongen (dus een enkelspelbreedte van 6,1 - 2x0,46 = 5,18 m — exact de
+// officiële enkelspelmaat), korte-servicelijn 1,98 m vanaf het net,
+// lange-servicelijn (dubbel) 0,76 m vanaf de achterlijn, middenlijn deelt elk
+// servicevak. AUDIT: alle getallen kloppen tegen de actuele BWF-regels
+// (inclusief de dubbel/enkelspel-verhouding uit de brief) — geen wijziging
+// aan de geometrie nodig, alleen het label verduidelijkt (zie
+// FIELD_PRESET_LABELS) zodat "welke variant" expliciet is.
 function buildBadminton(): FieldPresetGeometry {
   const widthM = 13.4;
   const heightM = 6.1;
@@ -194,7 +213,8 @@ function buildBadminton(): FieldPresetGeometry {
 // het midden van de doellijn (i.p.v. de officiële, per doelpaal-gecentreerde
 // samengestelde vorm — die zou bij dit veldformaat net buiten de zijlijn
 // uitkomen; deze vereenvoudiging blijft duidelijk herkenbaar en altijd
-// binnen het veld).
+// binnen het veld). AUDIT: veldmaat en de twee radii (6 m/9 m) kloppen tegen
+// de actuele IHF-regels — geen wijziging nodig.
 function buildGoalArea(goalLineX: number, direction: 1 | -1, radius: number): FieldLine {
   const postOffset = m(1.5);
   return {
@@ -242,7 +262,13 @@ function buildHandbal(): FieldPresetGeometry {
 // Zaalvoetbal / Korfbal — hergebruikt het handbalveld (40 x 20 m) en de 6 m
 // doelgebied-D-vorm, met een middencirkel (r=3 m) i.p.v. handbal's 9 m-lijn
 // (zaalvoetbal kent geen vrijeworplijn). Deelbaar met korfbal, dat een
-// vergelijkbaar zaalformaat gebruikt.
+// vergelijkbaar zaalformaat gebruikt. AUDIT: 40x20 m, het doelgebied (FIFA
+// futsal: kwartcirkels r=6 m vanaf de palen) en het doel van 3 m breed
+// (goalHalfWidth=1,5 m) kloppen tegen de actuele FIFA Futsal Laws of the
+// Game — geen wijziging nodig (FIFA's verbindingslijn tussen de twee
+// kwartcirkels is exact 3,16 m i.p.v. de hier gebruikte generieke
+// D-vorm-constructie; dat verschil van 16 cm is visueel niet waarneembaar op
+// deze schaal en dus bewust niet apart aangepast).
 function buildZaalvoetbal(): FieldPresetGeometry {
   const widthM = 40;
   const heightM = 20;
@@ -268,6 +294,106 @@ function buildZaalvoetbal(): FieldPresetGeometry {
 
   return build("zaalvoetbal", widthM, heightM, lines, [{ x: 0, y: 0, radius: centerCircleRadius }]);
 }
+
+// ============================================================================
+// Ondergrond-belijning voor de "Zwembad"/"Atletiekbaan"-ondergrondopties (zie
+// LocationType in gym-canvas-types.ts) — géén FieldPresetDiagramElement (die
+// worden los, verplaatsbaar op het canvas GEPLAATST), maar een vaste
+// ACHTERGROND-tekening die GymBackground (GymCanvas.tsx) rendert zolang die
+// ondergrond actief is, net als de bestaande grasmat/vloer-decoratie voor
+// buiten/binnen. Hergebruikt dezelfde m()/CANVAS_UNITS_PER_METER-conventie
+// als de sportveld-presets hierboven zodat de banen ONDERLING correct
+// geschaald zijn (breedte-op-lengte-verhouding klopt); een los `fitScale`
+// (analoog aan initialScale hierboven) schaalt het geheel daarna uniform
+// terug zodat het altijd binnen de vaste 800x560-canvas past — zonder dat
+// zou een letterlijke 40-eenheden-per-meter-weergave van een 25m-bad of een
+// 60m-baan het canvas ver overschrijden.
+// ============================================================================
+
+export type FacilityBackgroundGeometry = {
+  widthM: number;
+  heightM: number;
+  width: number;
+  height: number;
+  lines: FieldLine[];
+  fitScale: number;
+};
+
+// Zelfde "speelvlak"-oppervlak als de bestaande indoor/outdoor-decoratie
+// (BASE_WIDTH-60 x BASE_HEIGHT-60, zie GymBackground) — zo blijft de
+// zwembad/atletiekbaan-achtergrond even groot op het canvas als de
+// bestaande gymzaalvloer/grasmat.
+const BACKGROUND_FIT_WIDTH = 740;
+const BACKGROUND_FIT_HEIGHT = 500;
+
+function buildFacilityBackground(
+  widthM: number,
+  heightM: number,
+  lines: FieldLine[],
+): FacilityBackgroundGeometry {
+  const width = m(widthM);
+  const height = m(heightM);
+  return {
+    widthM,
+    heightM,
+    width,
+    height,
+    lines,
+    fitScale: Math.min(BACKGROUND_FIT_WIDTH / width, BACKGROUND_FIT_HEIGHT / height),
+  };
+}
+
+// Zwembad — meest gangbare Nederlandse schoolzwembad-configuratie: 6 banen
+// van 2,5 m breed x 25 m lang (widthM = de lengte, langs de brede canvas-as;
+// heightM = de totale baanbreedte, 6 x 2,5 m). 5 baanscheidingslijnen tussen
+// de 6 banen, plus de buitenrand.
+function buildPoolBackground(): FacilityBackgroundGeometry {
+  const laneWidthM = 2.5;
+  const laneCount = 6;
+  const widthM = 25;
+  const heightM = laneWidthM * laneCount;
+  const hw = m(widthM) / 2;
+  const hh = m(heightM) / 2;
+
+  const lines: FieldLine[] = [rectOutline(m(widthM), m(heightM))];
+  for (let i = 1; i < laneCount; i++) {
+    const y = -hh + m(laneWidthM) * i;
+    lines.push({ points: [-hw, y, hw, y] });
+  }
+
+  return buildFacilityBackground(widthM, heightM, lines);
+}
+
+// Atletiekbaan — BEWUST alleen de rechte sprintbaan-variant, geen ovale
+// 400m-baan: een geometrisch correcte 400m-ovaal (rechte stukken + bochten
+// met de juiste boogstraal, elke baan een eigen effectieve straal) is met
+// deze op-rechte-lijnen/cirkels-gebaseerde presetopbouw niet haalbaar zonder
+// een vervormde/onjuiste boog te tekenen — zie de toelichting in de PR/het
+// eindrapport. In plaats daarvan: 8 rechte banen van 1,22 m breed (de
+// officiële baanbreedte, IAAF/World Athletics) over 60 m — de officiële
+// indoor-sprintafstand (60m sprint), gekozen omdat de brief geen exacte
+// lengte voorschrijft voor de trainingscontext maar wél vraagt om een
+// herkenbare, correcte rechte baan; 60 m is zelf een genoemde, echte
+// atletiekafstand (in plaats van een arbitrair getal).
+function buildTrackBackground(): FacilityBackgroundGeometry {
+  const laneWidthM = 1.22;
+  const laneCount = 8;
+  const widthM = 60;
+  const heightM = laneWidthM * laneCount;
+  const hw = m(widthM) / 2;
+  const hh = m(heightM) / 2;
+
+  const lines: FieldLine[] = [rectOutline(m(widthM), m(heightM))];
+  for (let i = 1; i < laneCount; i++) {
+    const y = -hh + m(laneWidthM) * i;
+    lines.push({ points: [-hw, y, hw, y] });
+  }
+
+  return buildFacilityBackground(widthM, heightM, lines);
+}
+
+export const POOL_BACKGROUND = buildPoolBackground();
+export const TRACK_BACKGROUND = buildTrackBackground();
 
 export const FIELD_PRESETS: Record<FieldPresetSport, FieldPresetGeometry> = {
   volleybal: buildVolleybal(),

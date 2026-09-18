@@ -171,12 +171,49 @@ export type FieldPresetDiagramElement = BaseElement & {
   sport: FieldPresetSport;
 };
 
+/**
+ * Vrije tekenvormen (rechthoek/driehoek/cirkel) — net als MaterialDiagramElement
+ * een BaseElement, dus verplaatsbaar/roteerbaar/schaalbaar via hetzelfde
+ * generieke Group+Transformer-pad als elk ander element (geen aparte
+ * lijn-achtige eindpunt-logica nodig, zie LineDiagramElement hierboven).
+ * `width`/`height` zijn de ongeschaalde afmetingen bij plaatsing (net als
+ * MaterialDiagramElement); scaleX/scaleY passen daarna de werkelijke grootte
+ * aan. Konva's Transformer houdt scaleX/scaleY standaard aan elkaar gelijk
+ * bij een hoek-handle (keepRatio, alleen doorbroken met Shift ingedrukt),
+ * dus "eenvoudig schalen" vervormt de vormverhouding niet — bewust géén
+ * eigen aanpassing nodig om dat gedrag te krijgen.
+ */
+export type ShapeKind = "rectangle" | "triangle" | "circle";
+
+export const SHAPE_KINDS: ShapeKind[] = ["rectangle", "triangle", "circle"];
+
+export const SHAPE_KIND_LABELS: Record<ShapeKind, string> = {
+  rectangle: "Rechthoek",
+  triangle: "Driehoek",
+  circle: "Cirkel",
+};
+
+export type ShapeDiagramElement = BaseElement & {
+  kind: "shape";
+  shape: ShapeKind;
+  width: number;
+  height: number;
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+};
+
 export type DiagramElement =
   | SystemDiagramElement
   | MaterialDiagramElement
   | LineDiagramElement
   | TextDiagramElement
-  | FieldPresetDiagramElement;
+  | FieldPresetDiagramElement
+  | ShapeDiagramElement;
+
+export function isShapeElement(element: DiagramElement): element is ShapeDiagramElement {
+  return element.kind === "shape";
+}
 
 export function isMaterialElement(
   element: DiagramElement,
@@ -198,8 +235,23 @@ export function isFieldPresetElement(
   return element.kind === "field_preset";
 }
 
-/** Ondergrond van het canvas — stuurt alleen de achtergrond, nooit de geplaatste elementen. */
-export type LocationType = "indoor" | "outdoor";
+/**
+ * Ondergrond van het canvas — stuurt alleen de achtergrond, nooit de
+ * geplaatste elementen/materialen/lijnen/presets (zie GymBackground in
+ * GymCanvas.tsx). "pool"/"track" zijn later toegevoegd naast de
+ * oorspronkelijke indoor/outdoor — zie field-presets.ts's
+ * POOL_BACKGROUND/TRACK_BACKGROUND voor de belijning.
+ */
+export type LocationType = "indoor" | "outdoor" | "pool" | "track";
+
+export const LOCATION_TYPES: LocationType[] = ["indoor", "outdoor", "pool", "track"];
+
+export const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
+  indoor: "Binnen",
+  outdoor: "Buiten",
+  pool: "Zwembad",
+  track: "Atletiekbaan",
+};
 
 export type DiagramData = {
   width: number;
