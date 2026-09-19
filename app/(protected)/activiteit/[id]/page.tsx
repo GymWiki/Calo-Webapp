@@ -1,16 +1,14 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Check, Lock, MapPin, Users } from "lucide-react";
+import { Check, MapPin, Users } from "lucide-react";
 
 import { ActivityDetailActions } from "@/components/activity-detail-actions";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { ActivityInfoStrip, type InfoStripItem } from "@/components/activity-info-strip";
 import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { BackButton } from "@/components/BackButton";
-import { EmptyState } from "@/components/empty-state";
+import { LibraryAccessBlocked } from "@/components/library-access-blocked";
 import { SourceBadge } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
@@ -23,6 +21,7 @@ import {
 } from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
+import { getContributionStatus } from "@/lib/services/contribution";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
@@ -200,20 +199,27 @@ export default async function ActiviteitDetailPage({
   const { hasFullLibraryAccess } = getUserPermissions(profile);
   const isOwnActivity = activity.author_id === profile.id;
 
-  if (!hasFullLibraryAccess && !isOwnActivity && !activity.is_public) {
+  // Preview-slot voor de bibliotheek (zie de brief): een free_blocked-
+  // gebruiker mag de kaart in de lijst zien, maar de inhoud hier niet — voor
+  // ZOWEL GymWiki- als publiek gedeelde activiteiten (voorheen was
+  // `activity.is_public` een uitzondering; dat maakte publieke activiteiten
+  // volledig ongeblokkeerd, wat de brief nu expliciet niet meer wil). Eigen
+  // bijdragen blijven wél altijd toegankelijk — anders zou een gebruiker
+  // zijn eigen eerder bijgedragen werk niet meer kunnen inzien zodra hij in
+  // een nieuwe maand (nog) niet aan de eis voldoet.
+  if (!hasFullLibraryAccess && !isOwnActivity) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const contributionStatus = await getContributionStatus(
+      supabase,
+      profile.id,
+      profile.subscription_status,
+    );
+
     return (
       <main className="mx-auto w-full max-w-3xl space-y-6 p-4 pb-28 md:p-8 md:pb-8">
         <BackButton fallbackHref="/zoeken" fallbackLabel="Bibliotheek" />
-        <EmptyState
-          icon={Lock}
-          title="Bibliotheektoegang beperkt"
-          description="Je hebt de maandelijkse bijdrage-eis niet gehaald, dus zie je alleen je eigen bijdragen. Maak en publiceer deze maand een activiteit via de wizard, of neem het betaalde abonnement voor volledige toegang."
-          action={
-            <Button asChild>
-              <Link href="/les-maken">Naar de activiteit-maken wizard</Link>
-            </Button>
-          }
-        />
+        <LibraryAccessBlocked status={contributionStatus} />
       </main>
     );
   }

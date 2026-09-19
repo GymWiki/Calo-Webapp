@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { Search, SearchX, SlidersHorizontal, X } from "lucide-react";
+import Link from "next/link";
+import { Lock, Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { LibraryItemCard, type LibraryListItem } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -447,9 +449,18 @@ type ActiveChip = {
 export function LibrarySearchClient({
   activities,
   publicActivities,
+  previewLimit = null,
 }: {
   activities: Activity[];
   publicActivities: Activity[];
+  /**
+   * Preview-slot voor free_blocked-gebruikers (zie de brief): niet-null
+   * betekent "toon nooit meer dan dit aantal kaarten, ongeacht filter/bron,
+   * en bied geen 'Laad meer' aan" — in plaats daarvan verschijnt de
+   * CTA-banner onder de kaarten (zie `visible`/`isPreviewCapped` verderop).
+   * null (standaard) is het normale, onbeperkte gedrag.
+   */
+  previewLimit?: number | null;
 }) {
   // Onthoud de laatst gekozen bron-tab per gebruiker (localStorage via de
   // module-level store hierboven) — geen server-round-trip nodig voor een
@@ -459,7 +470,7 @@ export function LibrarySearchClient({
   const [persisted, setPersisted] = useStoredSearchState();
   const [draft, setDraft] = useState<FilterState>(EMPTY_FILTERS);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [visibleCount, setVisibleCount] = useState(previewLimit ?? PAGE_SIZE);
   const isDesktop = useIsDesktop();
 
   const query = persisted.query;
@@ -468,7 +479,7 @@ export function LibrarySearchClient({
   const activeCount = countActive(filters);
 
   function resetPaging() {
-    setVisibleCount(PAGE_SIZE);
+    setVisibleCount(previewLimit ?? PAGE_SIZE);
   }
 
   function selectSourceFilter(value: SourceFilter) {
@@ -609,8 +620,9 @@ export function LibrarySearchClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- commitFilters closes over `persisted`/`filters` fresh each render; only `filters` itself should retrigger this list.
   }, [filters]);
 
-  const visible = filteredItems.slice(0, visibleCount);
+  const visible = filteredItems.slice(0, previewLimit ?? visibleCount);
   const hasActiveFilters = query.trim() !== "" || activeCount > 0;
+  const isPreviewCapped = previewLimit !== null && filteredItems.length > previewLimit;
 
   return (
     <div className="lg:grid lg:grid-cols-[17rem_1fr] lg:items-start lg:gap-6">
@@ -763,15 +775,39 @@ export function LibrarySearchClient({
                 </div>
               ))}
             </div>
-            {visibleCount < filteredItems.length && (
-              <div className="flex justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                >
-                  Laad meer
-                </Button>
-              </div>
+            {isPreviewCapped ? (
+              <Card className="border-destructive/40 bg-destructive/5">
+                <CardContent className="flex flex-col items-center gap-3 py-5 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
+                  <div className="flex items-start gap-3">
+                    <Lock className="mt-0.5 size-5 shrink-0 text-destructive" />
+                    <p className="text-sm">
+                      <span className="font-semibold">
+                        {visible.length} van {filteredItems.length} activiteiten getoond.
+                      </span>{" "}
+                      Rond je bijdrage af of upgrade voor volledige toegang tot de rest.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button asChild size="sm">
+                      <Link href="/les-maken">Activiteit toevoegen</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/pro">Upgraden</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              visibleCount < filteredItems.length && (
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                  >
+                    Laad meer
+                  </Button>
+                </div>
+              )
             )}
           </>
         )}

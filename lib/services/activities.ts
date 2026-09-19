@@ -32,10 +32,14 @@ async function getServerClient() {
 
 /**
  * De gedeelde, doorzoekbare bibliotheek — alleen goedgekeurde, publiek
- * gedeelde activiteiten. Voor free_blocked-gebruikers (bijdrage-eis niet
- * gehaald) filtert de aanroepende pagina hier apart op via
- * getOwnSubmissions, zie lib/permissions.ts's hasFullLibraryAccess.
+ * gedeelde activiteiten. Wordt voor ELKE gebruiker volledig opgehaald,
+ * ongeacht toegangsniveau: het preview-slot voor free_blocked-gebruikers
+ * (bijdrage-eis niet gehaald, zie lib/permissions.ts's hasFullLibraryAccess
+ * en LIBRARY_PREVIEW_LIMIT) beperkt hoeveel kaarten LibrarySearchClient
+ * ervan RENDERT, niet welke rijen hier worden opgehaald — de daadwerkelijke
+ * inhoud-blokkade zit op /activiteit/[id] zelf.
  *
+
  * `is_public=true` is hier bewust expliciet toegevoegd (naast
  * `status='approved'`): sinds de "Delen in de gedeelde bibliotheek"-toggle
  * (zie actions/lesson.ts's createLesson) kan een eigen activiteit
@@ -64,9 +68,9 @@ export async function getAllActivities(): Promise<Activity[]> {
 
 /**
  * Eigen ingediende activiteiten (pending/approved/rejected) — gebruikt voor
- * "Mijn activiteiten" en voor de beperkte bibliotheekweergave van
- * free_blocked-accounts. Sluit concepten (status 'draft') bewust uit — die
- * zijn nog niet ingediend, zie getActivityDrafts hieronder.
+ * "Mijn activiteiten" en het dashboard/profiel. Sluit concepten (status
+ * 'draft') bewust uit — die zijn nog niet ingediend, zie getActivityDrafts
+ * hieronder.
  */
 export async function getOwnSubmissions(authorId: string): Promise<Activity[]> {
   const supabase = await getServerClient();

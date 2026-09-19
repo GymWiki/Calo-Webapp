@@ -17,6 +17,13 @@ export const MONTHLY_AI_LIMIT = 40;
 // lib/ai/lescoachAccess.ts.
 export const AI_LESCOACH_MONTHLY_LIMIT = 60;
 
+// Preview-slot voor de bibliotheek (/zoeken): free_blocked-gebruikers zien
+// nog steeds de eerste N kaarten van elk gekozen bron-/filterresultaat (mét
+// het echte totaalaantal ernaast) — de bibliotheek volledig verbergen zou
+// het "kijk wat je mist"-effect wegnemen dat juist als stimulans moet
+// werken. Zie library-search-client.tsx voor de daadwerkelijke cap.
+export const LIBRARY_PREVIEW_LIMIT = 20;
+
 export interface UserPermissions {
   subscriptionStatus: SubscriptionStatus;
   /**
