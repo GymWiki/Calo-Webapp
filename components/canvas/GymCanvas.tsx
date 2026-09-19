@@ -74,6 +74,7 @@ import {
   type DiagramData,
   type DiagramElement,
   type ElementType,
+  type FieldPresetDiagramElement,
   type FieldPresetSport,
   type LineDiagramElement,
   type LineVariant,
@@ -134,6 +135,18 @@ const SHAPE_DEFAULT_SIZE: Record<ShapeKind, { width: number; height: number }> =
 const DEFAULT_SHAPE_FILL = "#dbeafe";
 const DEFAULT_SHAPE_STROKE = "#1c7ed6";
 const DEFAULT_SHAPE_STROKE_WIDTH = 3;
+
+// Veldpreset-belijning: vaste, veelgebruikte markeringskleuren als snelkeuze
+// (zie de kleurkiezer bij een geselecteerd preset hieronder) — wit is de
+// oorspronkelijke, altijd gebruikte kleur en blijft daarom de standaard bij
+// plaatsing.
+const DEFAULT_FIELD_PRESET_STROKE = "#ffffff";
+const FIELD_PRESET_STROKE_PRESETS: { label: string; value: string }[] = [
+  { label: "Wit", value: "#ffffff" },
+  { label: "Geel", value: "#facc15" },
+  { label: "Blauw", value: "#1c7ed6" },
+  { label: "Rood", value: "#e03131" },
+];
 
 // Pan/zoom — los van `scale` (de "pas-in-container-breedte"-factor
 // hieronder), zie effectiveScale verderop. MIN/MAX in "keer scale", dus
@@ -936,6 +949,7 @@ export const GymCanvas = forwardRef<
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
+      stroke: DEFAULT_FIELD_PRESET_STROKE,
     };
     withHistory((prev) => [...prev, newElement]);
     setSelectedId(newElement.id);
@@ -969,6 +983,15 @@ export const GymCanvas = forwardRef<
   ) {
     withHistory((prev) =>
       prev.map((el) => (el.id === id && el.kind === "shape" ? { ...el, ...changes } : el)),
+    );
+  }
+
+  function updateFieldPresetStyle(
+    id: string,
+    changes: Partial<Pick<FieldPresetDiagramElement, "stroke">>,
+  ) {
+    withHistory((prev) =>
+      prev.map((el) => (el.id === id && el.kind === "field_preset" ? { ...el, ...changes } : el)),
     );
   }
 
@@ -1598,7 +1621,8 @@ export const GymCanvas = forwardRef<
       {selectedElement &&
         (selectedElement.kind === "line" ||
           selectedElement.kind === "text" ||
-          selectedElement.kind === "shape") && (
+          selectedElement.kind === "shape" ||
+          selectedElement.kind === "field_preset") && (
         <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/40 p-2.5">
           {selectedElement.kind === "shape" ? (
             <>
@@ -1669,6 +1693,45 @@ export const GymCanvas = forwardRef<
                     }
                   }}
                   className="h-8 w-16 text-sm"
+                />
+              </label>
+            </>
+          ) : selectedElement.kind === "field_preset" ? (
+            <>
+              <span className="text-xs font-medium text-muted-foreground">Lijnkleur</span>
+              <div className="flex items-center gap-1.5">
+                {FIELD_PRESET_STROKE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() =>
+                      updateFieldPresetStyle(selectedElement.id, { stroke: preset.value })
+                    }
+                    className={cn(
+                      "size-7 cursor-pointer rounded-full border-2 transition-transform",
+                      (selectedElement.stroke ?? DEFAULT_FIELD_PRESET_STROKE) === preset.value
+                        ? "border-primary scale-110"
+                        : "border-border",
+                    )}
+                    style={{ backgroundColor: preset.value }}
+                    aria-label={preset.label}
+                    aria-pressed={
+                      (selectedElement.stroke ?? DEFAULT_FIELD_PRESET_STROKE) === preset.value
+                    }
+                    title={preset.label}
+                  />
+                ))}
+              </div>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                Aangepast
+                <input
+                  type="color"
+                  value={selectedElement.stroke ?? DEFAULT_FIELD_PRESET_STROKE}
+                  onChange={(e) =>
+                    updateFieldPresetStyle(selectedElement.id, { stroke: e.target.value })
+                  }
+                  className="size-7 cursor-pointer rounded border p-0.5"
+                  aria-label="Aangepaste lijnkleur"
                 />
               </label>
             </>

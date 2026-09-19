@@ -220,7 +220,9 @@ function TextElementIcon({ element }: { element: TextDiagramElement }) {
  */
 function FieldPresetElementIcon({ element }: { element: FieldPresetDiagramElement }) {
   const geometry = FIELD_PRESETS[element.sport];
-  const stroke = "#ffffff";
+  // Ontbrekend `stroke` (tekeningen van vóór deze functionaliteit) valt terug
+  // op de oorspronkelijke, altijd-witte belijning.
+  const stroke = element.stroke ?? "#ffffff";
   const strokeWidth = 3;
 
   return (

@@ -169,6 +169,15 @@ export type FieldPresetSport =
 export type FieldPresetDiagramElement = BaseElement & {
   kind: "field_preset";
   sport: FieldPresetSport;
+  /**
+   * Lijnkleur van dít geplaatste preset-exemplaar (alle lijnen/cirkels
+   * samen — niet de veldachtergrond, die blijft aan LocationType
+   * gekoppeld). Optioneel voor achterwaartse compatibiliteit: tekeningen
+   * die vóór deze functionaliteit zijn opgeslagen hebben dit veld niet;
+   * element-icons.tsx valt in dat geval terug op de oorspronkelijke,
+   * hardgecodeerde "#ffffff".
+   */
+  stroke?: string;
 };
 
 /**

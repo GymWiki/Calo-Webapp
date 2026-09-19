@@ -215,12 +215,30 @@ function buildBadminton(): FieldPresetGeometry {
 // uitkomen; deze vereenvoudiging blijft duidelijk herkenbaar en altijd
 // binnen het veld). AUDIT: veldmaat en de twee radii (6 m/9 m) kloppen tegen
 // de actuele IHF-regels — geen wijziging nodig.
-function buildGoalArea(goalLineX: number, direction: 1 | -1, radius: number): FieldLine {
+// BUGFIX (canvas-editor rapport): de oorspronkelijke boogparameters hierboven
+// gaven bij `side=-1` een kwartcirkel die ~6 m VOORBIJ de achterlijn/buiten
+// het veld uitstak, en de twee bogen sloten niet op elkaar aan — Konva
+// tekende daardoor één doorlopende lijn met een lange, onbedoelde diagonale
+// "sprong" tussen de losse boog-eindpunten. Dat verklaart het gerapporteerde
+// beeld (niet-passende bogen, een "los" ogend doelgebied, en een
+// Transformer-selectiekader dat groter is dan het veld — Konva's Transformer
+// berekent zijn kader live uit de daadwerkelijk getekende, overlopende
+// geometrie, los van de eigen getElementBounds()-berekening in
+// GymCanvas.tsx). Nieuwe, geverifieerde constructie volgens de officiële
+// IHF-regel: twee kwartcirkels van 6 m om elke doelpaal, elk begint op de
+// doellijn aan de kant weg van de andere paal en zwaait 90° naar het punt op
+// 6 m diepte t.h.v. diezelfde paal — de twee diepte-eindpunten liggen zo 3 m
+// uit elkaar (gelijk aan de 2x1,5 m paalafstand) en worden door Konva als
+// rechte lijn verbonden doordat ze gewoon opeenvolgende punten zijn in
+// dezelfde `points`-array.
+function buildGoalArea(goalLineX: number, side: 1 | -1, radius: number): FieldLine {
   const postOffset = m(1.5);
+  const fieldAngle = side === 1 ? 180 : 0;
+  const farFieldAngle = side === 1 ? -180 : 0;
   return {
     points: [
-      ...arcPoints(goalLineX, -postOffset, radius, direction === 1 ? 90 : -90, direction === 1 ? 180 : -180),
-      ...arcPoints(goalLineX, postOffset, radius, direction === 1 ? 180 : 0, direction === 1 ? 270 : -90),
+      ...arcPoints(goalLineX, postOffset, radius, 90, fieldAngle),
+      ...arcPoints(goalLineX, -postOffset, radius, farFieldAngle, -90),
     ],
   };
 }
