@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { pdf } from "@react-pdf/renderer";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import type { TournamentSchedule, TournamentScores } from "@/types/tournament";
-import { TournamentPdfDocument } from "./tournament-pdf-document";
 
 const DIACRITICS_PATTERN = /[̀-ͯ]/g;
 
@@ -38,6 +36,11 @@ export function TournamentPdfButton({
     setIsGenerating(true);
 
     try {
+      // Zie ActivityPdfButton.tsx — pas bij klikken laden i.p.v. statisch.
+      const [{ pdf }, { TournamentPdfDocument }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./tournament-pdf-document"),
+      ]);
       const blob = await pdf(
         <TournamentPdfDocument schedule={schedule} scores={scores} title={title} />,
       ).toBlob();

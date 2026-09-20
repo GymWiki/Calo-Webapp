@@ -29,6 +29,27 @@ const nextConfig: NextConfig = {
   // worker-bestand of native canvas-afhankelijkheid — zie
   // lib/ai/documentText.ts.)
   serverExternalPackages: ["mammoth"],
+  // Activiteit-/materiaalafbeeldingen komen van twee externe hosts: de
+  // oorspronkelijk geïmporteerde bibliotheek-activiteiten verwijzen nog naar
+  // de vroegere Firebase Storage-bucket, alles wat ná de Supabase-migratie
+  // is geüpload (materialen, canvas-plattegrond-exports, nieuwe
+  // activiteit-foto's) staat in Supabase Storage. Wildcard op het
+  // projectsubdomein i.p.v. de exacte projectref, zodat dit niet breekt als
+  // het Supabase-project ooit verhuist.
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "firebasestorage.googleapis.com",
+        pathname: "/v0/b/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
+  },
   experimental: {
     serverActions: {
       // createLesson's payload can include a base64 PNG of the exported

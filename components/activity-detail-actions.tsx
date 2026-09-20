@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
 import { Bookmark, BookmarkCheck, Copy } from "lucide-react";
-import { toast } from "sonner";
 
 import { toggleSavedActivity } from "@/actions/activity";
-import { ActivityPdfButton } from "@/components/ActivityPdfButton";
+import { ActivityPdfButton } from "@/components/pdf/ActivityPdfButton";
 import { Button } from "@/components/ui/button";
+import { useOptimisticAction } from "@/lib/hooks/useOptimisticAction";
 import type { Activity } from "@/types/activity";
 
 export function ActivityDetailActions({
@@ -18,21 +17,11 @@ export function ActivityDetailActions({
   initiallySaved: boolean;
 }) {
   const activityId = activity.id;
-  const [saved, setSaved] = useState(initiallySaved);
-  const [pending, startTransition] = useTransition();
-
-  function handleToggleSave() {
-    const next = !saved;
-    setSaved(next); // optimistic
-
-    startTransition(async () => {
-      const result = await toggleSavedActivity(activityId);
-      if ("error" in result) {
-        setSaved(!next); // revert
-        toast.error(result.error);
-      }
-    });
-  }
+  const {
+    value: saved,
+    run: toggleSave,
+    isPending: pending,
+  } = useOptimisticAction(initiallySaved, () => toggleSavedActivity(activityId));
 
   return (
     // Eén vaste onderbalk, op elke breedte — geen aparte desktop-variant.
@@ -49,7 +38,7 @@ export function ActivityDetailActions({
         className="flex-1"
         aria-pressed={saved}
         disabled={pending}
-        onClick={handleToggleSave}
+        onClick={() => toggleSave(!saved)}
       >
         {saved ? (
           <BookmarkCheck className="size-4 text-primary" />

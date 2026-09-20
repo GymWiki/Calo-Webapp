@@ -5,7 +5,7 @@ import { ArrowLeft, ClipboardCopy, Minus, Plus, Save, Sparkles } from "lucide-re
 import { toast } from "sonner";
 
 import { saveTournament } from "@/actions/tournament";
-import { TournamentPdfButton } from "@/components/TournamentPdfButton";
+import { TournamentPdfButton } from "@/components/pdf/TournamentPdfButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

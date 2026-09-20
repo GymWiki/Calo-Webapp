@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Bot, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
 
@@ -11,7 +12,7 @@ import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { EditableList } from "@/components/editable-list";
 import { InlineEditText } from "@/components/inline-edit-text";
 import { SuggestionCardList } from "@/components/LescoachSuggestionCard";
-import { LessonPdfButton } from "@/components/LessonPdfButton";
+import { LessonPdfButton } from "@/components/pdf/LessonPdfButton";
 import { MaterialChecklist } from "@/components/material-checklist";
 import { SourceBadge } from "@/components/library-item-card";
 import { ShareLessonButton } from "@/components/ShareLessonButton";
@@ -723,11 +724,12 @@ export function ActivityWizardPage({
                   onClick={() => setDiagramModalOpen(true)}
                   className="group relative block h-48 w-full overflow-hidden rounded-2xl border bg-muted"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- external, unregistered hosts (Firebase/Supabase Storage) */}
-                  <img
+                  <Image
                     src={diagramImageUrl}
                     alt="Plattegrond van het arrangement"
-                    className="size-full object-contain transition-transform duration-200 ease-brand group-hover:scale-[1.01]"
+                    fill
+                    sizes="(min-width: 768px) 700px, 100vw"
+                    className="object-contain transition-transform duration-200 ease-brand group-hover:scale-[1.01]"
                   />
                 </button>
               ) : (

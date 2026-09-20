@@ -207,13 +207,17 @@ export function LessonForm({
     }
   }
 
-  // Zet de net geëxporteerde canvas-PNG (data-URL) om naar een permanente
-  // Supabase Storage-URL — rechtstreeks vanuit de browser (buiten Vercel om,
-  // zelfde architectuurkeuze als de activity-imports-upload in
-  // activity_import_jobs.sql), op een stabiel pad per activiteit
-  // (`${userId}/${activityId}.png`, upsert:true) zodat elke nieuwe versie de
-  // vorige gewoon vervangt. Geeft `null` terug bij een fout — de aanroeper
-  // laat in dat geval simpelweg de bestaande `afbeelding` ongemoeid.
+  // Zet de net geëxporteerde canvas-afbeelding (data-URL, zie GymCanvas.tsx's
+  // exportDiagram) om naar een permanente Supabase Storage-URL — rechtstreeks
+  // vanuit de browser (buiten Vercel om, zelfde architectuurkeuze als de
+  // activity-imports-upload in activity_import_jobs.sql), op een stabiel pad
+  // per activiteit (upsert:true) zodat elke nieuwe versie de vorige gewoon
+  // vervangt. De bestandsextensie/contentType worden van het ECHTE
+  // blob.type afgeleid i.p.v. ".png" aan te nemen: exportDiagram vraagt WebP
+  // aan, maar een browser zonder WebP-canvas-encode-ondersteuning valt
+  // stilzwijgend op PNG terug, dus dit moet met beide uitkomsten correct
+  // omgaan. Geeft `null` terug bij een fout — de aanroeper laat in dat geval
+  // simpelweg de bestaande `afbeelding` ongemoeid.
   async function uploadDiagramImage(
     imageDataUrl: string,
     forActivityId: string,
@@ -226,10 +230,11 @@ export function LessonForm({
       if (!user) return null;
 
       const blob = await (await fetch(imageDataUrl)).blob();
-      const path = `${user.id}/${forActivityId}.png`;
+      const extension = blob.type === "image/webp" ? "webp" : "png";
+      const path = `${user.id}/${forActivityId}.${extension}`;
       const { error } = await supabase.storage
         .from("activiteit-afbeeldingen")
-        .upload(path, blob, { upsert: true, contentType: "image/png" });
+        .upload(path, blob, { upsert: true, contentType: blob.type || "image/png" });
       if (error) {
         console.error("Plattegrond-afbeelding uploaden mislukt:", error);
         return null;

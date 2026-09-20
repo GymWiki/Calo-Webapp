@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Settings } from "lucide-react";
 
@@ -13,10 +14,11 @@ export function ProfileHeader({ profile }: { profile: UserProfile }) {
     <Card>
       <CardContent className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
         {profile.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage-URL
-          <img
+          <Image
             src={profile.avatar_url}
             alt=""
+            width={80}
+            height={80}
             className="size-20 shrink-0 rounded-full object-cover"
           />
         ) : (

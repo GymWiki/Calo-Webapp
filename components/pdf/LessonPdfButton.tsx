@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { pdf } from "@react-pdf/renderer";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import type { Activity } from "@/types/activity";
 import type { DidacticItem, LessonBlock, LessonWithDetails } from "@/types/lesson";
-import { LessonPdfDocument } from "./lesson-pdf-document";
 
 const DIACRITICS_PATTERN = /[̀-ͯ]/g;
 
@@ -88,6 +86,13 @@ export function LessonPdfButton({
     setIsGenerating(true);
 
     try {
+      // Zie ActivityPdfButton.tsx — pas bij klikken laden i.p.v. statisch,
+      // zodat @react-pdf/renderer niet standaard meeloopt op de wizard-/
+      // detailpagina.
+      const [{ pdf }, { LessonPdfDocument }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./lesson-pdf-document"),
+      ]);
       const lesson = toLessonPdfShape(activity, authorName);
       const blob = await pdf(<LessonPdfDocument lesson={lesson} />).toBlob();
       const fileName = `Activiteit_${slugify(lesson.title, "activiteit")}_${slugify(

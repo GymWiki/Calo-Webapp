@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -71,8 +72,13 @@ export function MyActivityCard({ activity }: { activity: Activity }) {
       <Link href={href} className="flex flex-1 flex-col">
         <div className="relative flex h-28 items-center justify-center bg-muted">
           {image ? (
-            // eslint-disable-next-line @next/next/no-img-element -- external, unregistered hosts (Firebase/Supabase Storage)
-            <img src={image} alt="" className="size-full object-cover" loading="lazy" />
+            <Image
+              src={image}
+              alt=""
+              fill
+              sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
+              className="object-cover"
+            />
           ) : (
             <ImageOff className="size-6 text-muted-foreground" aria-hidden="true" />
           )}

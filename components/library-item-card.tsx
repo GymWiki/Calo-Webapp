@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, Globe2, ImageOff, MapPinned } from "lucide-react";
 
@@ -87,8 +88,13 @@ function ActivityTile({ activity, source }: { activity: Activity; source: "gymwi
     >
       <div className="relative flex h-28 items-center justify-center bg-muted">
         {image ? (
-          // eslint-disable-next-line @next/next/no-img-element -- external, unregistered hosts (Firebase/Supabase Storage)
-          <img src={image} alt="" className="size-full object-cover" loading="lazy" />
+          <Image
+            src={image}
+            alt=""
+            fill
+            sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
+            className="object-cover"
+          />
         ) : source === "public" ? (
           <MapPinned className="size-6 text-muted-foreground" aria-hidden="true" />
         ) : (

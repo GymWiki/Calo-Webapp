@@ -2,7 +2,7 @@ import Link from "next/link";
 import { EyeOff, Sparkles } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
-import { LessonPdfButton } from "@/components/LessonPdfButton";
+import { LessonPdfButton } from "@/components/pdf/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { UsedSourcesList } from "@/components/UsedSourcesList";
 import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";

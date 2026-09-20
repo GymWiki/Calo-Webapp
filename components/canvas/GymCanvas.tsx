@@ -867,9 +867,19 @@ export const GymCanvas = forwardRef<
       // huidige pan/zoom-viewport-stand — anders zou heen-en-weer inzoomen
       // vóór het opslaan de geëxporteerde plattegrond-afbeelding beïnvloeden.
       const currentScale = scale;
+      // WebP i.p.v. PNG: doorgaans 25-35% kleiner voor dezelfde
+      // plattegrond-tekening (vlakke kleuren/lijnen), zonder zichtbaar
+      // kwaliteitsverlies bij quality 0.92. Browsers zonder WebP-encode-
+      // ondersteuning in <canvas>.toDataURL() (met name oudere Safari-
+      // versies) vallen hier automatisch en stilzwijgend op PNG terug — dat
+      // is ingebouwd canvas-toDataURL-gedrag, geen aparte foutafhandeling
+      // nodig. uploadDiagramImage (lesson-form.tsx) leest het echte
+      // MIME-type van de resulterende blob i.p.v. PNG aan te nemen, dus
+      // beide uitkomsten worden correct opgeslagen.
       const imageDataUrl = stage
         ? stage.toDataURL({
-            mimeType: "image/png",
+            mimeType: "image/webp",
+            quality: 0.92,
             pixelRatio: 1 / currentScale,
             x: 0,
             y: 0,

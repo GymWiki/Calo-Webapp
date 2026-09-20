@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { pdf } from "@react-pdf/renderer";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import type { Activity } from "@/types/activity";
-import { ActivityPdfDocument } from "./activity-pdf-document";
 
 const DIACRITICS_PATTERN = /[̀-ͯ]/g;
 
@@ -36,6 +34,16 @@ export function ActivityPdfButton({
     setIsGenerating(true);
 
     try {
+      // @react-pdf/renderer (2,8MB) en het Document-component pas laden op
+      // het moment van klikken i.p.v. statisch bovenaan het bestand — dit
+      // component staat op de activiteit-detailpagina/wizard, die vrijwel
+      // iedereen bezoekt terwijl maar een klein deel ooit op "PDF" klikt
+      // (zie de performance-audit: dit was de zwaarste onnodig-globale
+      // client-bundle in de app).
+      const [{ pdf }, { ActivityPdfDocument }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./activity-pdf-document"),
+      ]);
       const blob = await pdf(<ActivityPdfDocument activity={activity} />).toBlob();
       const fileName = `Activiteit_${slugify(activity.titel, "activiteit")}.pdf`;
 

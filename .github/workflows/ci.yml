@@ -1,0 +1,32 @@
+name: CI
+
+# Bestond nog niet — deze workflow is onderdeel van de performance-
+# architectuurstandaard (zie ARCHITECTURE.md): typecheck/lint/build lopen nu
+# op elke push/PR, en de bundle-size-check (scripts/check-bundle-size.mjs)
+# voorkomt dat de client-bundle sluipend weer aangroeit zonder dat iemand
+# het merkt.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm run build
+
+      - run: npm run check:bundle-size
