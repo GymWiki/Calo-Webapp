@@ -21,7 +21,7 @@ const ACTIVITY_SELECT =
 // (geen apart, smaller type) — dat is een bewuste, gedocumenteerde
 // afweging: TypeScript kan een toekomstig gebruik van een hier weggelaten
 // veld dus niet zelf afvangen, alleen deze lijst met opmerking.
-const ACTIVITY_LIST_SELECT =
+export const ACTIVITY_LIST_SELECT =
   "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
   "group_name, activity_date, min_participants, participants_bench, base_materials, rule_materials, diagram_image_url, arrangement, is_public, public_since";
 
