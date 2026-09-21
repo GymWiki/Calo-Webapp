@@ -62,17 +62,42 @@ const nextConfig: NextConfig = {
   // Security-audit (naar aanleiding van een Google Safe Browsing-melding):
   // geen eigen CSP/beveiligingsheaders vóór deze wijziging, dus een
   // eventuele toekomstige script-injectie zou door niets in de browser zelf
-  // tegengehouden worden. `script-src 'self'` (geen 'unsafe-inline') kan
-  // omdat de app zelf geen enkel inline-script meer heeft — het vroegere
-  // theme-init-script staat nu als los bestand in public/theme-init.js, zie
-  // app/layout.tsx. `style-src` heeft 'unsafe-inline' wél nodig: React zet
-  // zelf inline style-attributen (bijv. animationDelay in de
-  // scroll-reveal-animaties), en een style-attribuut kan — in tegenstelling
-  // tot een script — geen CSP-nonce dragen.
+  // tegengehouden worden.
+  //
+  // `script-src 'self'` (zónder 'unsafe-inline') is EERDER geprobeerd en
+  // brak de hele site: Next.js's App Router injecteert op ÉLKE pagina zelf
+  // inline <script>-tags (de RSC/hydratie-payload — self.__next_f/__next_r
+  // e.d.), volledig los van onze eigen code. Zonder 'unsafe-inline' worden
+  // die door de browser geweigerd (console: "Refused to execute inline
+  // script... script-src 'self'"), waardoor React nooit hydrateert. Zonder
+  // hydratie is er geen enkele onSubmit-handler meer gekoppeld aan wélk
+  // formulier dan ook — dus valt de browser terug op een kale HTML
+  // form-submit (GET naar de huidige URL, met alle velden als
+  // query-parameters — op /login dus ook het wachtwoord in leesbare tekst
+  // in de adresbalk/geschiedenis/server-logs). Dat is precies de "volledige
+  // pagina-herlaad bij een mislukte inlogpoging"-bug die dit heeft
+  // veroorzaakt, en gold voor de HELE site, niet alleen /login.
+  // Geverifieerd met een lokale Playwright-reproductie (next dev + een
+  // mislukte inlogpoging): met 'unsafe-inline' verdwijnen de CSP-fouten en
+  // blijft de submit een normale fetch-based server-action-aanroep.
+  //
+  // Het juiste alternatief zonder 'unsafe-inline' is een per-request nonce
+  // via proxy.ts (Next.js's eigen aanbevolen aanpak), maar dat dwingt ALLE
+  // pagina's af naar dynamic rendering — inclusief app/page.tsx, die nu
+  // bewust `revalidate = 3600` gebruikt voor ISR. Die trade-off (geen
+  // statische/ISR-caching meer, ergens tegen CLAUDE.md's performance-
+  // standaard in) is een aparte, weloverwogen keuze en geen automatische
+  // bijvangst van een CSP-fix — vandaar hier bewust 'unsafe-inline' i.p.v.
+  // een halfslachtige nonce-migratie onder tijdsdruk.
+  //
+  // `style-src` had 'unsafe-inline' al nodig: React zet zelf inline
+  // style-attributen (bijv. animationDelay in de scroll-reveal-animaties),
+  // en een style-attribuut kan — in tegenstelling tot een script — sowieso
+  // geen CSP-nonce dragen.
   async headers() {
     const csp = [
       "default-src 'self'",
-      "script-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://*.supabase.co",
       "font-src 'self' data:",

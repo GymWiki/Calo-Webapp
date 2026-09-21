@@ -44,10 +44,16 @@ export async function login(input: {
   email: string;
   password: string;
 }): Promise<ActionError | Record<string, never>> {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
+  // createClient() zelf binnen de try: als het Supabase-project verkeerd
+  // geconfigureerd is (ontbrekende/foute env-vars) gooit createServerClient
+  // hier direct een exception, buiten de auth-aanroep om. Die mocht eerst
+  // ongevangen door de server action heen lekken — een fout die de client
+  // niet als een normale { error } kan tonen crasht de aanroep zelf, wat de
+  // React-formulierstatus in een kapotte staat kan achterlaten in plaats van
+  // gewoon de generieke foutmelding te tonen.
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
     const { error } = await supabase.auth.signInWithPassword(input);
 
     if (error) {
@@ -63,10 +69,9 @@ export async function login(input: {
 export async function requestPasswordReset(input: {
   email: string;
 }): Promise<ActionError | Record<string, never>> {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
     const origin = await getOrigin();
     // GoTrue's /recover-endpoint geeft altijd succes terug, ongeacht of het
     // e-mailadres bestaat (voorkomt account-enumeratie) — een `error` hier
@@ -96,10 +101,9 @@ export async function register(input: {
   email: string;
   password: string;
 }): Promise<ActionError | Record<string, never>> {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
     const { error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
@@ -126,10 +130,9 @@ export async function register(input: {
 }
 
 export async function logout() {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
     await supabase.auth.signOut();
   } catch {
     // Best-effort: fall through to redirect either way.

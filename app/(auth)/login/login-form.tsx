@@ -39,7 +39,21 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginValues) {
     setFormError(null);
-    const result = await login(values);
+
+    // login() zelf vangt alles wat het kan (zie app/(auth)/actions.ts), maar
+    // de server-action-aanroep hiernaartoe is zelf ook een netwerkverzoek —
+    // een verbindingsfout hier (offline, timeout) hoort óók als een gewone,
+    // zichtbare foutmelding te eindigen i.p.v. als een ongevangen
+    // promise-rejection die het formulier stil laat vastlopen.
+    let result: Awaited<ReturnType<typeof login>>;
+    try {
+      result = await login(values);
+    } catch {
+      setFormError("Er ging iets mis. Controleer je verbinding en probeer het opnieuw.");
+      form.resetField("password", { defaultValue: "" });
+      form.setFocus("password");
+      return;
+    }
 
     if ("error" in result) {
       setFormError(result.error);
