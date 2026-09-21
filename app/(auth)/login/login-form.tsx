@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { TriangleAlert } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,13 @@ export function LoginForm() {
 
     if ("error" in result) {
       setFormError(result.error);
+      // E-mailadres blijft staan (field-waarde wordt hierboven niet
+      // aangeraakt — react-hook-form reset velden alleen als je zelf reset()
+      // aanroept). Het wachtwoord wissen we bewust wél: voorkomt dat een
+      // eerder getypt wachtwoord onnodig in de form-state/DOM blijft hangen,
+      // en de gebruiker moet er sowieso opnieuw naartoe om het te herproberen.
+      form.resetField("password", { defaultValue: "" });
+      form.setFocus("password");
       return;
     }
 
@@ -69,7 +78,15 @@ export function LoginForm() {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Wachtwoord</FormLabel>
+              <div className="flex items-center justify-between gap-2">
+                <FormLabel>Wachtwoord</FormLabel>
+                <Link
+                  href="/wachtwoord-vergeten"
+                  className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Wachtwoord vergeten?
+                </Link>
+              </div>
               <FormControl>
                 <PasswordInput autoComplete="current-password" {...field} />
               </FormControl>
@@ -77,7 +94,19 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        {formError && <p className="text-sm text-destructive">{formError}</p>}
+        {formError && (
+          // aria-live kondigt de melding aan zonder de focus te verplaatsen
+          // (die gaat hieronder expliciet naar het wachtwoordveld) — role="alert"
+          // is de bredere browserondersteunde variant van hetzelfde idee.
+          <div
+            role="alert"
+            aria-live="polite"
+            className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <p>{formError}</p>
+          </div>
+        )}
         <Button
           type="submit"
           className="w-full"
