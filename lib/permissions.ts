@@ -21,8 +21,10 @@ export const AI_LESCOACH_MONTHLY_LIMIT = 60;
 // nog steeds de eerste N kaarten van elk gekozen bron-/filterresultaat (mét
 // het echte totaalaantal ernaast) — de bibliotheek volledig verbergen zou
 // het "kijk wat je mist"-effect wegnemen dat juist als stimulans moet
-// werken. Zie library-search-client.tsx voor de daadwerkelijke cap.
-export const LIBRARY_PREVIEW_LIMIT = 20;
+// werken. Bewust laag (was 20): hoe kleiner het "kijkje", hoe sterker de
+// schaarste-prikkel om bij te dragen of te upgraden. Zie
+// library-search-client.tsx voor de daadwerkelijke cap.
+export const LIBRARY_PREVIEW_LIMIT = 4;
 
 export interface UserPermissions {
   subscriptionStatus: SubscriptionStatus;
