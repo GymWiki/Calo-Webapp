@@ -23,6 +23,21 @@ jobs:
 
       - run: npm ci
 
+      # Security-audit (Google Safe Browsing-melding): de kritieke Next.js-RCE
+      # die de directe aanleiding was, werd alleen gevonden door handmatig
+      # `npm audit` te draaien — dat moet voortaan elke push/PR gebeuren i.p.v.
+      # incidenteel. Gate op "critical" (niet "high"): er staan momenteel 2
+      # bekende high-severity findings open (pdfjs-dist via officeparser,
+      # serialize-javascript via @ducanh2912/next-pwa's workbox-chain) die
+      # alleen via een breaking major-bump op te lossen zijn en beide een
+      # code-pad raken dat deze app niet gebruikt (PDF-extractie loopt via
+      # `unpdf`, niet officeparser's ingebouwde parser; de workbox-chain
+      # draait alleen tijdens `next build`, nooit in de live server). Ze
+      # blokkeren de build bewust niet, maar Dependabot volgt ze wekelijks op
+      # (.github/dependabot.yml) — elke NIEUWE critical (of een toekomstige
+      # bump naar high) faalt de build wél meteen.
+      - run: npm audit --audit-level=critical
+
       - run: npm run typecheck
 
       - run: npm run lint

@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # Onderdeel van de security-audit n.a.v. een Google Safe Browsing-melding:
+  # de directe aanleiding was een kritieke, ongepatchte RCE in Next.js zelf
+  # (GHSA-p293-qw3h-jr36 / GHSA-2xp9-vwfh-vxw4) die alleen aan het licht kwam
+  # door handmatig `npm audit` te draaien. Wekelijkse, geautomatiseerde
+  # dependency-PR's moeten dat soort kwetsbaarheden voortaan vóór ze lang
+  # ongemerkt in productie staan opmerken.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Patch/minor-bumps zijn zelden breaking — samen tot 1 PR bundelen
+      # scheelt ruis; majors (potentieel breaking) blijven los.
+      npm-patch-and-minor:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

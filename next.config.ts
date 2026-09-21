@@ -59,6 +59,56 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "20mb",
     },
   },
+  // Security-audit (naar aanleiding van een Google Safe Browsing-melding):
+  // geen eigen CSP/beveiligingsheaders vóór deze wijziging, dus een
+  // eventuele toekomstige script-injectie zou door niets in de browser zelf
+  // tegengehouden worden. `script-src 'self'` (geen 'unsafe-inline') kan
+  // omdat de app zelf geen enkel inline-script meer heeft — het vroegere
+  // theme-init-script staat nu als los bestand in public/theme-init.js, zie
+  // app/layout.tsx. `style-src` heeft 'unsafe-inline' wél nodig: React zet
+  // zelf inline style-attributen (bijv. animationDelay in de
+  // scroll-reveal-animaties), en een style-attribuut kan — in tegenstelling
+  // tot een script — geen CSP-nonce dragen.
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://*.supabase.co",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Content-Security-Policy", value: csp },
+          // Vercel dwingt HTTPS al af op de edge, maar HSTS voorkomt dat een
+          // client ooit over onversleuteld http:// naar deze host praat,
+          // zelfs bij een verkeerd getypte/oude link.
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // frame-ancestors hierboven dekt dit al af (moderner dan
+          // X-Frame-Options) — GymWiki hoort nergens in een <iframe> van een
+          // andere site te staan.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);

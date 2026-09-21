@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Anton, Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -27,13 +28,6 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
 };
 
-// Zet de `dark`-class op <html> vóórdat de pagina schildert (voorkomt een
-// lichte flits bij het laden in dark mode) — moet hier als kale inline
-// <script> staan omdat React zelf pas ná hydratie kan aanpassen, wat
-// zichtbaar te laat is. Voorkeur: localStorage ("theme"), anders het
-// systeemvoorkeur; zie ThemeToggle voor waar "theme" geschreven wordt.
-const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("theme");var d=t?t==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d);}catch(e){}})();`;
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -41,7 +35,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${anton.variable} h-full antialiased`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Zet de `dark`-class op <html> vóórdat de pagina schildert
+            (voorkomt een lichte flits bij het laden in dark mode) — moet
+            vóór hydratie draaien, wat zichtbaar te laat is als React het
+            pas na hydratie zou doen (next/script strategy="beforeInteractive"
+            regelt precies dat). Als extern bestand (public/theme-init.js,
+            NIET inline) zodat de Content-Security-Policy (next.config.ts)
+            zonder 'unsafe-inline' in script-src kan — een losstaande
+            security-audit wees dit aan als het enige inline script in de
+            hele app en dus de enige reden om die CSP-regel te verzwakken.
+            Voorkeur: localStorage ("theme"), anders het systeemvoorkeur; zie
+            components/theme-toggle.tsx voor waar "theme" geschreven wordt. */}
+        <Script src="/theme-init.js" strategy="beforeInteractive" />
       </head>
       <body className="min-h-full flex flex-col overflow-x-hidden">
         {children}
