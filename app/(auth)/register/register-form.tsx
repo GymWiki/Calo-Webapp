@@ -31,7 +31,6 @@ type RegisterValues = z.infer<typeof registerSchema>;
 export function RegisterForm() {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirmationSent, setConfirmationSent] = useState(false);
 
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -52,22 +51,8 @@ export function RegisterForm() {
       return;
     }
 
-    if (result.needsEmailConfirmation) {
-      setConfirmationSent(true);
-      return;
-    }
-
     router.push("/dashboard");
     router.refresh();
-  }
-
-  if (confirmationSent) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Bijna klaar! Check je e-mail om je account te bevestigen voordat je
-        kunt inloggen.
-      </p>
-    );
   }
 
   return (

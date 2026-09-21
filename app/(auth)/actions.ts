@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import type { AuthError } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 
-type LoginErrorKind = "invalid_credentials" | "email_not_confirmed" | "rate_limited" | "generic";
+type LoginErrorKind = "invalid_credentials" | "rate_limited" | "generic";
 type ActionError = { error: string; kind?: LoginErrorKind };
 
 const GENERIC_ERROR =
@@ -24,11 +24,6 @@ function mapLoginError(error: AuthError): ActionError {
       // — anders kan een kwaadwillende aan de respons aflezen welke
       // e-mailadressen geregistreerd zijn (account-enumeratie).
       return { error: "E-mailadres of wachtwoord is onjuist.", kind: "invalid_credentials" };
-    case "email_not_confirmed":
-      return {
-        error: "Bevestig eerst je e-mailadres via de link die we je gestuurd hebben.",
-        kind: "email_not_confirmed",
-      };
     case "over_request_rate_limit":
       return {
         error: "Te veel inlogpogingen. Wacht een paar minuten en probeer het daarna opnieuw.",
@@ -100,12 +95,12 @@ export async function register(input: {
   lastName: string;
   email: string;
   password: string;
-}): Promise<ActionError | { needsEmailConfirmation: boolean }> {
+}): Promise<ActionError | Record<string, never>> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
 
   try {
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
       options: {
@@ -120,7 +115,11 @@ export async function register(input: {
       return { error: error.message };
     }
 
-    return { needsEmailConfirmation: !data.session };
+    // Vereist dat "Confirm email" uitstaat in de Supabase-projectinstellingen
+    // (Authentication -> Sign In / Providers -> Email) — anders geeft signUp
+    // hierboven geen sessie terug en faalt de daaropvolgende pagina die wél
+    // een sessie verwacht.
+    return {};
   } catch {
     return { error: GENERIC_ERROR };
   }
