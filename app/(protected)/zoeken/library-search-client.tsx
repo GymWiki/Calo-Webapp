@@ -343,6 +343,24 @@ function matchesActivityQuery(activity: Activity, query: string) {
   return haystack.includes(query.toLowerCase());
 }
 
+// Preview-slot voor free_blocked-gebruikers (zie de brief): previewIdSet ===
+// null betekent hasFullLibraryAccess (geen enkele beperking). Anders is een
+// item alleen "vrij" als het in de vaste preview-set zit, OF het de eigen
+// bijdrage van de kijker is — eigen werk moet altijd toegankelijk blijven,
+// ook al zit het toevallig niet in de willekeurig gekozen preview-set (zie
+// activiteit/[id]/page.tsx's isOwnActivity-uitzondering, die dit al
+// afdwingt bij het daadwerkelijk openen; dit is puur de visuele
+// tegenhanger in de kaartenlijst).
+function isItemUnlocked(
+  item: LibraryListItem,
+  previewIdSet: Set<string> | null,
+  currentUserId: string | null | undefined,
+): boolean {
+  if (previewIdSet === null) return true;
+  if (previewIdSet.has(item.id)) return true;
+  return currentUserId != null && item.activity.author_id === currentUserId;
+}
+
 // Normalizes an activity onto the shared categorie/leerlijn/doelgroep/
 // materiaal shape the filters operate on — een via de wizard aangemaakte
 // activiteit heeft geen eigen `categorie`-kolom, dus die wordt afgeleid uit
@@ -449,18 +467,23 @@ type ActiveChip = {
 export function LibrarySearchClient({
   activities,
   publicActivities,
-  previewLimit = null,
+  previewActivityIds = null,
+  currentUserId = null,
 }: {
   activities: Activity[];
   publicActivities: Activity[];
   /**
-   * Preview-slot voor free_blocked-gebruikers (zie de brief): niet-null
-   * betekent "toon nooit meer dan dit aantal kaarten, ongeacht filter/bron,
-   * en bied geen 'Laad meer' aan" — in plaats daarvan verschijnt de
-   * CTA-banner onder de kaarten (zie `visible`/`isPreviewCapped` verderop).
-   * null (standaard) is het normale, onbeperkte gedrag.
+   * Preview-slot voor free_blocked-gebruikers (zie de brief): niet-null is
+   * een VASTE set activiteit-ID's (zie getOrCreateLibraryPreviewActivityIds)
+   * die ongeacht filter/bron/zoekterm als "vrij" gelden — alle overige
+   * gefilterde resultaten worden nog steeds gerenderd, maar dan vervaagd/
+   * vergrendeld (zie isItemUnlocked/LibraryItemCard's `locked`-prop) i.p.v.
+   * simpelweg niet getoond. null (standaard) is het normale, onbeperkte
+   * gedrag.
    */
-  previewLimit?: number | null;
+  previewActivityIds?: string[] | null;
+  /** Voor de "eigen bijdrage blijft altijd vrij"-uitzondering, zie isItemUnlocked. */
+  currentUserId?: string | null;
 }) {
   // Onthoud de laatst gekozen bron-tab per gebruiker (localStorage via de
   // module-level store hierboven) — geen server-round-trip nodig voor een
@@ -470,7 +493,7 @@ export function LibrarySearchClient({
   const [persisted, setPersisted] = useStoredSearchState();
   const [draft, setDraft] = useState<FilterState>(EMPTY_FILTERS);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(previewLimit ?? PAGE_SIZE);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const isDesktop = useIsDesktop();
 
   const query = persisted.query;
@@ -479,7 +502,7 @@ export function LibrarySearchClient({
   const activeCount = countActive(filters);
 
   function resetPaging() {
-    setVisibleCount(previewLimit ?? PAGE_SIZE);
+    setVisibleCount(PAGE_SIZE);
   }
 
   function selectSourceFilter(value: SourceFilter) {
@@ -620,9 +643,24 @@ export function LibrarySearchClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- commitFilters closes over `persisted`/`filters` fresh each render; only `filters` itself should retrigger this list.
   }, [filters]);
 
-  const visible = filteredItems.slice(0, previewLimit ?? visibleCount);
+  const previewIdSet = useMemo(
+    () => (previewActivityIds === null ? null : new Set(previewActivityIds)),
+    [previewActivityIds],
+  );
+
+  // Render ALLE gefilterde resultaten (vervaagd/vergrendeld voorbij de
+  // preview-set) i.p.v. de vroegere harde afkap na N kaarten — dezelfde
+  // PAGE_SIZE-paginering als voor onbeperkte gebruikers houdt dit ook bij
+  // een grote resultatenlijst (bijv. 340 activiteiten) licht: nooit meer
+  // dan 24 kaarten (waarvan hooguit een paar los-vervaagd) tegelijk in de
+  // DOM, i.p.v. alles in één keer met blur() te renderen.
+  const visible = filteredItems.slice(0, visibleCount);
   const hasActiveFilters = query.trim() !== "" || activeCount > 0;
-  const isPreviewCapped = previewLimit !== null && filteredItems.length > previewLimit;
+  const unlockedInFilterCount = useMemo(
+    () => filteredItems.filter((item) => isItemUnlocked(item, previewIdSet, currentUserId)).length,
+    [filteredItems, previewIdSet, currentUserId],
+  );
+  const hasLockedItems = previewIdSet !== null && unlockedInFilterCount < filteredItems.length;
 
   return (
     <div className="lg:grid lg:grid-cols-[17rem_1fr] lg:items-start lg:gap-6">
@@ -764,27 +802,16 @@ export function LibrarySearchClient({
                 ? `${filteredItems.length} ${filteredItems.length === 1 ? "resultaat" : "resultaten"} gevonden`
                 : `${filteredItems.length} van ${preFilterItems.length} resultaten`}
             </p>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
-              {visible.map((item, index) => (
-                <div
-                  key={`${item.source}-${item.id}`}
-                  className="animate-fade-up"
-                  style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
-                >
-                  <LibraryItemCard item={item} />
-                </div>
-              ))}
-            </div>
-            {isPreviewCapped ? (
+            {hasLockedItems && (
               <Card className="border-destructive/40 bg-destructive/5">
-                <CardContent className="flex flex-col items-center gap-3 py-5 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
+                <CardContent className="flex flex-col items-center gap-3 py-4 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
                   <div className="flex items-start gap-3">
                     <Lock className="mt-0.5 size-5 shrink-0 text-destructive" />
                     <p className="text-sm">
                       <span className="font-semibold">
-                        {visible.length} van {filteredItems.length} activiteiten getoond.
+                        {unlockedInFilterCount} van {filteredItems.length} activiteiten vrij toegankelijk.
                       </span>{" "}
-                      Rond je bijdrage af of upgrade voor volledige toegang tot de rest.
+                      De rest zie je vervaagd — rond je bijdrage af of upgrade voor volledige toegang.
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
@@ -797,17 +824,27 @@ export function LibrarySearchClient({
                   </div>
                 </CardContent>
               </Card>
-            ) : (
-              visibleCount < filteredItems.length && (
-                <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                  >
-                    Laad meer
-                  </Button>
+            )}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+              {visible.map((item, index) => (
+                <div
+                  key={`${item.source}-${item.id}`}
+                  className="animate-fade-up"
+                  style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
+                >
+                  <LibraryItemCard item={item} locked={!isItemUnlocked(item, previewIdSet, currentUserId)} />
                 </div>
-              )
+              ))}
+            </div>
+            {visibleCount < filteredItems.length && (
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                >
+                  Laad meer
+                </Button>
+              </div>
             )}
           </>
         )}

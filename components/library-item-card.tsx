@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, Globe2, ImageOff, MapPinned } from "lucide-react";
+import { BookOpen, Globe2, ImageOff, Lock, MapPinned } from "lucide-react";
 
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { cn } from "@/lib/utils";
@@ -70,7 +70,15 @@ export function SourceBadge({
   );
 }
 
-function ActivityTile({ activity, source }: { activity: Activity; source: "gymwiki" | "public" }) {
+function ActivityTile({
+  activity,
+  source,
+  locked = false,
+}: {
+  activity: Activity;
+  source: "gymwiki" | "public";
+  locked?: boolean;
+}) {
   const doelgroepLabel = (activity.doelgroep ?? [])
     .map((waarde) => DOELGROEP_LABELS[waarde])
     .filter((label): label is string => Boolean(label))
@@ -84,9 +92,17 @@ function ActivityTile({ activity, source }: { activity: Activity; source: "gymwi
   return (
     <Link
       href={`/activiteit/${activity.id}`}
-      className={cn(TILE_CLASS, getCategoryColor(activity.categorie).border)}
+      className={cn(TILE_CLASS, "relative", getCategoryColor(activity.categorie).border)}
+      // Titel/thumbnail zijn met opzet vervaagd (zie hieronder) — een
+      // screenreader mag die inhoud dan ook niet gewoon voorlezen, dat zou
+      // de schaarste-prikkel voor sighted en assistive-tech-gebruikers uit
+      // elkaar laten lopen.
+      aria-label={locked ? "Vergrendelde activiteit — rond je bijdrage af of upgrade voor toegang" : undefined}
     >
-      <div className="relative flex h-28 items-center justify-center bg-muted">
+      <div
+        className={cn("relative flex h-28 items-center justify-center bg-muted", locked && "blur-sm")}
+        aria-hidden={locked || undefined}
+      >
         {image ? (
           <Image
             src={image}
@@ -100,19 +116,47 @@ function ActivityTile({ activity, source }: { activity: Activity; source: "gymwi
         ) : (
           <ImageOff className="size-6 text-muted-foreground" aria-hidden="true" />
         )}
-        <SourceBadge source={source} className="absolute top-1.5 right-1.5" />
+        {!locked && <SourceBadge source={source} className="absolute top-1.5 right-1.5" />}
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-2.5">
+      <div
+        className={cn("flex flex-1 flex-col gap-1 p-2.5", locked && "blur-sm")}
+        aria-hidden={locked || undefined}
+      >
         <p className="line-clamp-2 text-sm font-semibold">{activity.titel}</p>
         {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
         {doelgroepLabel && (
           <p className="truncate text-xs text-muted-foreground">{doelgroepLabel}</p>
         )}
       </div>
+      {locked && (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-background/35"
+          aria-hidden="true"
+        >
+          <span className="flex size-9 items-center justify-center rounded-full bg-ink/85 text-paper shadow-brand-sm dark:bg-paper/85 dark:text-ink">
+            <Lock className="size-4" />
+          </span>
+        </div>
+      )}
     </Link>
   );
 }
 
-export function LibraryItemCard({ item }: { item: LibraryListItem }) {
-  return <ActivityTile activity={item.activity} source={item.source} />;
+export function LibraryItemCard({
+  item,
+  locked = false,
+}: {
+  item: LibraryListItem;
+  /**
+   * Preview-slot voor free_blocked-gebruikers (zie de brief): vervaagt
+   * titel/thumbnail (CSS blur) en toont een slotje i.p.v. de kaart simpelweg
+   * niet te renderen — het "kijk wat je mist"-effect vereist dat de
+   * aanwezigheid van de activiteit zichtbaar blijft. Klikken navigeert nog
+   * altijd gewoon naar /activiteit/[id] — DIE pagina handhaaft de
+   * daadwerkelijke blokkade (zie hasFullLibraryAccess/isOwnActivity daar),
+   * dus geen aparte client-side klik-onderschepping nodig hier.
+   */
+  locked?: boolean;
+}) {
+  return <ActivityTile activity={item.activity} source={item.source} locked={locked} />;
 }
