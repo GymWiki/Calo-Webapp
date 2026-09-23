@@ -1,30 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { NativeUpgradeAction } from "@/components/mobile/NativeUpgradeAction";
-import { useIsNativeApp } from "@/lib/mobile/useIsNativeApp";
+import type { SubscriptionPlan } from "@/lib/constants/subscriptionPlans";
 
 /**
  * Enige plek in de app die daadwerkelijk een Stripe-checkout-sessie
- * aanmaakt (zie app/(protected)/pro/page.tsx — alle andere upgrade-CTA's
- * in de app linken alleen naar /pro toe, ze roepen dit nooit rechtstreeks
- * aan). Binnen de native app mag deze ingebedde checkout-ervaring van
- * Apple/Google niet getoond worden — useIsNativeApp() schakelt dan over op
- * NativeUpgradeAction (systeem-browser-link), zonder dat een van die
- * andere CTA's hoeft te weten of ze in de native app draaien: ze linken
- * toch al alleen naar deze pagina.
+ * aanmaakt (zie app/(protected)/pro/page.tsx — alle andere upgrade-CTA's in
+ * de app linken alleen naar /pro toe, ze roepen dit nooit rechtstreeks aan).
+ * Alleen gerenderd op het web — components/subscription/SubscriptionPlansSection.tsx
+ * beslist vóór het renderen al of de native-app-gebruiker in plaats hiervan
+ * NativeUpgradeAction (systeem-browser-link, zie components/mobile/) ziet,
+ * zodat de ingebedde checkout-ervaring nooit binnen de native WebView
+ * getoond wordt.
  */
-export function ProCheckoutButton({ className }: { className?: string }) {
-  const isNative = useIsNativeApp();
+export function ProCheckoutButton({
+  plan,
+  label,
+  className,
+}: {
+  plan: SubscriptionPlan;
+  label: string;
+  className?: string;
+}) {
   const [isPending, setIsPending] = useState(false);
-
-  if (isNative) {
-    return <NativeUpgradeAction className={className} />;
-  }
 
   async function handleCheckout() {
     setIsPending(true);
@@ -41,7 +43,7 @@ export function ProCheckoutButton({ className }: { className?: string }) {
       const response = await fetch("/api/stripe/create-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ native }),
+        body: JSON.stringify({ plan, native }),
       });
       const result = await response.json();
 
@@ -61,17 +63,12 @@ export function ProCheckoutButton({ className }: { className?: string }) {
   return (
     <Button
       type="button"
-      size="lg"
       className={className}
       disabled={isPending}
       onClick={handleCheckout}
     >
-      {isPending ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : (
-        <Sparkles className="size-4" />
-      )}
-      {isPending ? "Bezig..." : "Abonneren"}
+      {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+      {isPending ? "Bezig..." : label}
     </Button>
   );
 }

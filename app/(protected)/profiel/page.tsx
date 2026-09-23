@@ -81,7 +81,11 @@ async function FreemiumStatusSection({ profile }: { profile: UserProfile }) {
   );
 
   return (
-    <FreemiumStatusCard status={contributionStatus} subscriptionStatus={profile.subscription_status} />
+    <FreemiumStatusCard
+      status={contributionStatus}
+      subscriptionStatus={profile.subscription_status}
+      subscriptionType={profile.subscription_type}
+    />
   );
 }
 

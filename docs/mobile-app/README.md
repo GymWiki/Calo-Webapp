@@ -270,17 +270,24 @@ serverwerk er is.
 
 Apple en Google verbieden een ingebedde betaalervaring voor een digitaal
 abonnement binnen de app/WebView — dus toont de native app géén Stripe-
-checkout in-app. `components/ProCheckoutButton.tsx` (de enige plek die
-daadwerkelijk een Stripe-checkout-sessie aanmaakt, zie hieronder) schakelt
-via `useIsNativeApp()` (`lib/mobile/useIsNativeApp.ts`) automatisch over op
-`components/mobile/NativeUpgradeAction.tsx`: een knop "Abonnement afsluiten
-op gymwiki.nl" met een neutrale toelichting, die de systeem-browser opent
-(`Browser.open()` van `@capacitor/browser`, dus SFSafariViewController/
-Chrome Custom Tabs — zie de code-comments in `lib/mobile/capacitor.ts`'s
-`openInSystemBrowser()` voor een belangrijke nuance hieronder) naar
-`/pro?native=1` — dezelfde, ongewijzigde webpagina die gewone browser-
-bezoekers ook zien, inclusief de bestaande ingebedde Stripe-checkout, die
-daar wél is toegestaan (dat is een gewone webbrowser, geen app-WebView).
+checkout in-app, voor geen van de drie plannen (maandelijks/jaarlijks/
+lifetime, zie ["Drie abonnementsopties"](#drie-abonnementsopties-maandelijks-jaarlijks-lifetime)
+hieronder). `components/subscription/ProCheckoutButton.tsx` (de enige plek
+die daadwerkelijk een Stripe-checkout-sessie aanmaakt) wordt alleen
+gerenderd als `components/subscription/SubscriptionPlansSection.tsx` via
+`useIsNativeApp()` (`lib/mobile/useIsNativeApp.ts`) vaststelt dat dit géén
+native app is; in de native app tonen de drie prijskaarten alleen
+vergelijkingsinformatie (prijs/besparing), zonder losse koop-knop per
+kaart, en staat er in plaats daarvan ÉÉN gedeelde
+`components/mobile/NativeUpgradeAction.tsx` eronder: een knop "Abonnement
+afsluiten op gymwiki.nl" met een neutrale toelichting, die de systeem-
+browser opent (`Browser.open()` van `@capacitor/browser`, dus
+SFSafariViewController/Chrome Custom Tabs — zie de code-comments in
+`lib/mobile/capacitor.ts`'s `openInSystemBrowser()` voor een belangrijke
+nuance hieronder) naar `/pro?native=1` — dezelfde, ongewijzigde webpagina
+die gewone browserbezoekers ook zien, inclusief de bestaande ingebedde
+Stripe-checkout (voor alle drie plannen), die daar wél is toegestaan (dat
+is een gewone webbrowser, geen app-WebView).
 
 **Alle overige upgrade-CTA's in de app** (`components/library-access-blocked.tsx`,
 `components/profile/FreemiumStatusCard.tsx`,

@@ -1,21 +1,39 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { PLAN_ORDER, type SubscriptionPlan } from "@/lib/constants/subscriptionPlans";
 import { getUserPermissions } from "@/lib/permissions";
 import { getStripeClient } from "@/lib/stripe/client";
+import type { SubscriptionType } from "@/lib/types";
+
+const PRICE_ENV_VAR: Record<SubscriptionPlan, string> = {
+  monthly: "STRIPE_PRICE_MONTHLY",
+  yearly: "STRIPE_PRICE_YEARLY",
+  lifetime: "STRIPE_PRICE_LIFETIME",
+};
+
+function isSubscriptionPlan(value: unknown): value is SubscriptionPlan {
+  return value === "monthly" || value === "yearly" || value === "lifetime";
+}
 
 export async function POST(request: Request) {
   // `native: true` betekent: deze checkout is gestart vanuit de /pro-pagina
   // die de native-app-gebruiker via de systeem-browser-link bereikte (zie
   // components/mobile/NativeUpgradeAction.tsx) — draagt dat over naar de
   // Stripe-redirect-URL's zodat /pro na afloop een "Terug naar de app"-knop
-  // kan tonen. Geen JSON-body meegestuurd (gewone webgebruikers) is gewoon
-  // `native: false`.
+  // kan tonen. `plan` is verplicht: welk van de drie opties (zie
+  // lib/constants/subscriptionPlans.ts) de gebruiker koos op /pro.
+  let plan: unknown;
   let native = false;
   try {
     const body = await request.json();
+    plan = body?.plan;
     native = body?.native === true;
   } catch {
-    // Geen of geen geldige JSON-body — blijft `native: false`.
+    // Geen/ongeldige JSON-body — plan blijft undefined en wordt hieronder afgewezen.
+  }
+
+  if (!isSubscriptionPlan(plan)) {
+    return Response.json({ error: "Ongeldige abonnementskeuze." }, { status: 400 });
   }
 
   const cookieStore = await cookies();
@@ -31,7 +49,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("subscription_status")
+    .select("subscription_status, subscription_type")
     .eq("id", user.id)
     .single();
 
@@ -39,19 +57,34 @@ export async function POST(request: Request) {
     return Response.json({ error: "Profiel niet gevonden." }, { status: 404 });
   }
 
-  if (getUserPermissions(profile).subscriptionStatus === "paid_subscriber") {
-    return Response.json(
-      { error: "Je hebt al een actief abonnement." },
-      { status: 400 },
-    );
+  // Upgrade-pad: alleen naar een HOGER plan (monthly < yearly < lifetime),
+  // nooit hetzelfde plan opnieuw of een downgrade — zie
+  // lib/constants/subscriptionPlans.ts's PLAN_ORDER. Downgraden (bv. van
+  // lifetime terug naar maandelijks) wordt bewust niet via deze pagina
+  // aangeboden; dat is geen aankoopflow maar een opzegging + latere nieuwe
+  // aankoop, en hoort dus bij "abonnement beheren", niet bij checkout.
+  const currentType: SubscriptionType =
+    getUserPermissions(profile).subscriptionStatus === "paid_subscriber"
+      ? profile.subscription_type
+      : "none";
+
+  if (currentType !== "none") {
+    if (currentType === plan) {
+      return Response.json({ error: "Je hebt dit abonnement al." }, { status: 400 });
+    }
+    if (PLAN_ORDER[plan] < PLAN_ORDER[currentType]) {
+      return Response.json(
+        { error: "Downgraden kan niet via deze pagina — neem contact op als je dit wilt wijzigen." },
+        { status: 400 },
+      );
+    }
   }
 
-  const priceId = process.env.STRIPE_PRICE_ID;
+  const priceId = process.env[PRICE_ENV_VAR[plan]];
   if (!priceId) {
     return Response.json(
       {
-        error:
-          "Stripe is nog niet geconfigureerd. Voeg STRIPE_SECRET_KEY en STRIPE_PRICE_ID (het EUR 3,-/mnd-abonnement) toe aan de omgevingsvariabelen.",
+        error: `Stripe is nog niet geconfigureerd. Voeg STRIPE_SECRET_KEY en ${PRICE_ENV_VAR[plan]} toe aan de omgevingsvariabelen.`,
       },
       { status: 501 },
     );
@@ -72,11 +105,18 @@ export async function POST(request: Request) {
 
   try {
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
+      // Lifetime is een eenmalige betaling (mode "payment"), geen
+      // Stripe-Subscription-object — maand/jaar blijven "subscription" zoals
+      // voorheen.
+      mode: plan === "lifetime" ? "payment" : "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: user.id,
       customer_email: user.email ?? undefined,
-      metadata: { userId: user.id },
+      // subscription_type in de metadata i.p.v. de Price-ID terug-mappen in
+      // de webhook: dat zou breken zodra iemand ooit een Price-ID in Stripe
+      // wijzigt/dupliceert. De webhook (app/api/stripe/webhook/route.ts)
+      // leest dit veld direct.
+      metadata: { userId: user.id, subscription_type: plan },
       success_url: `${origin}/pro?checkout=success${nativeParam}`,
       cancel_url: `${origin}/pro?checkout=cancelled${nativeParam}`,
     });

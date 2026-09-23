@@ -6,11 +6,14 @@ import { ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
- * Vervangt ProCheckoutButton (zie components/ProCheckoutButton.tsx) wanneer
- * de app in de native iOS/Android-context draait — Apple en Google staan
- * geen ingebedde betaalervaring voor een digitaal abonnement toe binnen de
- * app/WebView zelf. In plaats daarvan: een link die de systeem-browser
- * opent naar de bestaande, ongewijzigde webbetaalflow op gymwiki.nl. Bewust
+ * Vervangt de per-kaart ProCheckoutButton (zie
+ * components/subscription/{ProCheckoutButton,SubscriptionPlansSection}.tsx)
+ * wanneer de app in de native iOS/Android-context draait — Apple en Google
+ * staan geen ingebedde betaalervaring voor een digitaal abonnement toe
+ * binnen de app/WebView zelf, voor geen van de drie plannen (maandelijks/
+ * jaarlijks/lifetime). In plaats daarvan: één gedeelde link die de
+ * systeem-browser opent naar de bestaande, ongewijzigde webbetaalflow op
+ * gymwiki.nl, waar de gebruiker alsnog tussen de drie opties kiest. Bewust
  * geen prijs of wervende tekst hier — alleen de neutrale, feitelijke
  * toelichting die Apple's "neutral disclosure"-eis voorschrijft bij dit
  * soort externe links (zie /pro/page.tsx voor waar prijs/features wél

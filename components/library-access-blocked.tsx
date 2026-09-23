@@ -53,7 +53,7 @@ export function LibraryAccessBlocked({ status }: { status: ContributionStatus })
           <Link href="/les-maken">Activiteit toevoegen</Link>
         </Button>
         <Button asChild variant="outline" className="flex-1">
-          <Link href="/pro">Upgrade naar €3,-/maand</Link>
+          <Link href="/pro">Bekijk het abonnement</Link>
         </Button>
       </div>
     </div>
