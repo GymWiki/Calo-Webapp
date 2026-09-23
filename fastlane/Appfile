@@ -1,0 +1,23 @@
+# Alle waarden komen uit environment-variabelen — nooit hardcoded, zodat dit
+# bestand zonder geheimen gecommit kan worden. Zie docs/mobile-app/README.md
+# voor de volledige lijst env-vars en waar je elke waarde vandaan haalt.
+#
+# env(...) i.p.v. ENV[...] || fallback: GitHub Actions' `${{ vars.X }}`
+# substitueert een ONGEZETTE variabele als lege string, niet als afwezig —
+# `ENV["X"] || fallback` zou die lege string dan als "gezet" beschouwen
+# (Ruby's || valt alleen terug bij nil/false, niet bij "") en dus per
+# ongeluk een leeg bundle ID doorgeven i.p.v. de fallback te gebruiken.
+def env(key, fallback = nil)
+  value = ENV[key]
+  value.nil? || value.empty? ? fallback : value
+end
+
+# --- iOS ---
+app_identifier(env("IOS_BUNDLE_ID", "com.mycompany.gymwiki"))
+apple_id(env("APPLE_ID"))
+itc_team_id(env("APP_STORE_CONNECT_TEAM_ID")) if env("APP_STORE_CONNECT_TEAM_ID")
+team_id(env("APPLE_DEVELOPER_TEAM_ID")) if env("APPLE_DEVELOPER_TEAM_ID")
+
+# --- Android ---
+package_name(env("ANDROID_PACKAGE_NAME", "com.mycompany.gymwiki"))
+json_key_file(env("GOOGLE_PLAY_JSON_KEY_PATH")) if env("GOOGLE_PLAY_JSON_KEY_PATH")

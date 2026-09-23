@@ -51,3 +51,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# mobiel (Capacitor/Fastlane) — zie docs/mobile-app/README.md. Native
+# build-artefacten van ios/android hebben hun EIGEN .gitignore (door `cap
+# add` gegenereerd); dit zijn alleen de signing-geheimen + Fastlane-output.
+android/app/keystore.properties
+android/*.keystore
+android/*.jks
+android/app/*.keystore
+android/app/*.jks
+ios/App/*.mobileprovision
+ios/App/*.p12
+ios/App/*.cer
+ios/App/AuthKey_*.p8
+fastlane/report.xml
+fastlane/test_output/
+fastlane/*.log
+*.ipa
+*.apk
+*.aab

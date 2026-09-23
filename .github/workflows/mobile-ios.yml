@@ -1,0 +1,75 @@
+name: Mobile - iOS build & upload
+
+# Handmatig gestart (workflow_dispatch) — een build die naar TestFlight/App
+# Store Connect upload is geen bijeffect van een gewone push, dat moet een
+# bewuste actie blijven. Bedoeld voor wie geen eigen Mac heeft: dit draait
+# de `fastlane ios <lane>`-lanes (zie fastlane/Fastfile) op een macOS-
+# cloud-runner i.p.v. lokaal in Xcode.
+#
+# Vereist: alle secrets hieronder ingesteld op Settings → Secrets and
+# variables → Actions van deze repo. Zie docs/mobile-app/README.md voor
+# waar elke waarde vandaan komt.
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: "Fastlane-lane"
+        required: true
+        default: "beta"
+        type: choice
+        options:
+          - beta
+          - release
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
+      APPLE_DEVELOPER_TEAM_ID: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
+      APP_STORE_CONNECT_TEAM_ID: ${{ secrets.APP_STORE_CONNECT_TEAM_ID }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+      # Vercel bouwt/host de webapp zelf al (zie de rest van dit repo) — de
+      # native app laadt die live URL rechtstreeks (capacitor.config.ts),
+      # dus dit werk heeft GEEN Supabase/Stripe/OpenAI-env-vars nodig: er
+      # wordt hier geen regel webapp-code uitgevoerd, alleen het native
+      # iOS-omhulsel gebouwd.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      # Gebruikt de Xcode-versie die al standaard op de macos-15-runner
+      # staat (GitHub werkt dit periodiek bij) — pin dit expliciet met
+      # maxim-lobanov/setup-xcode@v1 als een toekomstige Xcode-upgrade ooit
+      # een build breekt en je een specifieke versie wilt vastzetten.
+      - name: CocoaPods-afhankelijkheden installeren
+        run: cd ios/App && pod install
+
+      - name: Fastlane-lane draaien
+        run: bundle exec fastlane ios ${{ inputs.lane }}
+
+      - name: Build-artefact bewaren (ter inzage, ook al is 'm al geüpload)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-${{ inputs.lane }}
+          path: build/ios/**/*.ipa
+          if-no-files-found: ignore
+          retention-days: 14
