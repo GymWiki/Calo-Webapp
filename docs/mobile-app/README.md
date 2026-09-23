@@ -33,6 +33,7 @@ dat een WebView opent die rechtstreeks **www.gymwiki.nl** laadt (zie
 | Status bar / safe area | ✅ Donkere statusbalk + `viewport-fit=cover` zodat `env(safe-area-inset-*)` werkt |
 | Android hardware-terugknop | ✅ Navigeert terug in de WebView i.p.v. de app te sluiten |
 | Camera/bestand-uploads | ✅ Werken al zonder wijzigingen (WebView opent native kiezer); een optionele `pickImageNative()`-helper staat klaar voor een directere "Maak foto"-knop, nog niet in een scherm gebruikt |
+| Betaalmuur (Store-conform) | ✅ Geen ingebedde Stripe-checkout meer native — systeem-browser-link + terugkeer-deeplink, zie ["Betaalmuur in de native app"](#betaalmuur-in-de-native-app-geen-ingebedde-checkout) |
 | Pushmeldingen | 🔲 Scaffold alleen (client-permissie/token-registratie) — vereist nog APNs/FCM-setup + een server-kant, zie [Pushmeldingen](#pushmeldingen-nog-niet-productieklaar) |
 | iOS signing | ⚠️ Automatic signing + `fastlane match`-config staat klaar — vereist jouw Apple Developer-account |
 | Android signing | ⚠️ Gradle-signingConfig staat klaar — vereist een door jou aangemaakte keystore |
@@ -131,9 +132,11 @@ tweede, aparte listing i.p.v. een update van de bestaande):
 
 1. `capacitor.config.ts` → `appId`
 2. `ios/App/App.xcodeproj/project.pbxproj` → beide `PRODUCT_BUNDLE_IDENTIFIER`-regels (via Xcode: project → target "App" → General → Bundle Identifier, makkelijker dan handmatig editen)
-3. `android/app/build.gradle` → `namespace` én `applicationId`
-4. `android/app/src/main/res/values/strings.xml` → `package_name`/`custom_url_scheme`
-5. Herdraai daarna `npx cap sync`
+3. `ios/App/App/Info.plist` → `CFBundleURLTypes` → `CFBundleURLSchemes` (het custom URL-scheme voor de "Terug naar de app"-deeplink, zie ["Betaalmuur in de native app"](#betaalmuur-in-de-native-app-geen-ingebedde-checkout) hieronder — moet gelijk zijn aan de bundle ID)
+4. `android/app/build.gradle` → `namespace` én `applicationId`
+5. `android/app/src/main/res/values/strings.xml` → `package_name`/`custom_url_scheme`
+6. `components/mobile/ReturnToAppBanner.tsx` → de hardgecodeerde `com.mycompany.gymwiki://`-deeplink-URL
+7. Herdraai daarna `npx cap sync`
 
 ## App-icoon/splash-screen vervangen
 
@@ -263,6 +266,61 @@ Roep `registerForPushNotifications()` pas aan vanuit een expliciete
 gebruikersactie (bijv. een toggle in `/profiel/instellingen`) zodra dat
 serverwerk er is.
 
+## Betaalmuur in de native app (geen ingebedde checkout)
+
+Apple en Google verbieden een ingebedde betaalervaring voor een digitaal
+abonnement binnen de app/WebView — dus toont de native app géén Stripe-
+checkout in-app. `components/ProCheckoutButton.tsx` (de enige plek die
+daadwerkelijk een Stripe-checkout-sessie aanmaakt, zie hieronder) schakelt
+via `useIsNativeApp()` (`lib/mobile/useIsNativeApp.ts`) automatisch over op
+`components/mobile/NativeUpgradeAction.tsx`: een knop "Abonnement afsluiten
+op gymwiki.nl" met een neutrale toelichting, die de systeem-browser opent
+(`Browser.open()` van `@capacitor/browser`, dus SFSafariViewController/
+Chrome Custom Tabs — zie de code-comments in `lib/mobile/capacitor.ts`'s
+`openInSystemBrowser()` voor een belangrijke nuance hieronder) naar
+`/pro?native=1` — dezelfde, ongewijzigde webpagina die gewone browser-
+bezoekers ook zien, inclusief de bestaande ingebedde Stripe-checkout, die
+daar wél is toegestaan (dat is een gewone webbrowser, geen app-WebView).
+
+**Alle overige upgrade-CTA's in de app** (`components/library-access-blocked.tsx`,
+`components/profile/FreemiumStatusCard.tsx`,
+`app/(protected)/zoeken/library-search-client.tsx`) linken alleen naar
+`/pro` — ze roepen Stripe nooit rechtstreeks aan, dus die hoefden niet
+aangepast: zodra `/pro` zelf platform-bewust is, is de hele app dat. De
+eerder geplande "Genereer een activiteit op maat met AI"-upsell bestaat
+niet meer in de codebase (de AI-generator is in een eerdere taak volledig
+verwijderd) — niets om daar aan te passen.
+
+**Terugkeer naar de app na betaling**: `?native=1` wordt doorgegeven aan
+`POST /api/stripe/create-checkout` (zie `app/api/stripe/create-checkout/route.ts`)
+en landt in Stripe's `success_url`/`cancel_url` als `&native=1`. Op
+`/pro?checkout=success&native=1` toont `components/mobile/ReturnToAppBanner.tsx`
+een "Terug naar de app"-link naar het custom URL-scheme
+`com.mycompany.gymwiki://` (geregistreerd in `ios/App/App/Info.plist` en
+`android/app/src/main/AndroidManifest.xml` — zie ["Bundle ID wijzigen"](#bundle-idpackage-name-wijzigen)
+als je die ooit aanpast). Tikken op die link haalt de OS de app naar de
+voorgrond en triggert `lib/mobile/capacitor.ts`'s `appUrlOpen`-listener, die
+een **volledige** reload naar `/pro` doet — geen aparte syncstap nodig,
+want dat plukt de bijgewerkte abonnementsstatus (door de bestaande Stripe-
+webhook → Supabase, ongewijzigd) meteen op.
+
+**Nuance om te checken vóór je indient**: `@capacitor/browser`'s `Browser.open()`
+opent op iOS/Android altijd een **in-app** SFSafariViewController/Chrome
+Custom Tab — de plugin's eigen types (`node_modules/@capacitor/browser/.../definitions.d.ts`)
+bevestigen dat de `windowName`-optie ("systeembrowser forceren") alleen op
+web werkt en op native platforms genegeerd wordt. Dit is het gangbare,
+door Apple algemeen geaccepteerde patroon voor "beheer je abonnement op
+onze website"-links bij reader-apps (Kindle, Netflix, Spotify gebruiken
+precies dit), en is functioneel duidelijk "verlaat de app" voor de
+gebruiker (eigen adresbalk, eigen cookie-jar/sessie — een gebruiker moet
+daar dus opnieuw inloggen, dat is verwacht gedrag). Het is **niet**
+hetzelfde als een letterlijke overstap naar de losse Safari/Chrome-app
+(dat vereist Apple's aparte, opt-in "External Purchase Link Entitlement" met
+strengere technische eisen). Controleer of GymWiki's daadwerkelijke
+App Store-beoordelingscategorie (reader-app-uitzondering vs. die aparte
+entitlement) hiermee overeenkomt vóór je indient — dit kon niet in deze
+sandbox worden geverifieerd.
+
 ## Wat niet getest kon worden
 
 Deze hele setup is gebouwd in een Linux-only cloud-omgeving zonder Xcode,
@@ -270,6 +328,14 @@ Android SDK, simulator of fysiek toestel. Concreet **niet** geverifieerd:
 
 - Dat de app daadwerkelijk opstart en de live webapp toont op een echt
   toestel/simulator/emulator.
+- De hele betaalmuur-flow op een echt toestel: dat "Abonnement afsluiten op
+  gymwiki.nl" daadwerkelijk de systeem-browser opent (niet de WebView), dat
+  de "Terug naar de app"-deeplink (`com.mycompany.gymwiki://`) de app
+  daadwerkelijk naar de voorgrond haalt op zowel iOS als Android, en dat de
+  bijgewerkte abonnementsstatus na een echte testbetaling zichtbaar is bij
+  terugkeer. Alleen `tsc`/`eslint`/`next build`/bundle-size-check zijn
+  gedraaid (allemaal groen) — dit is codecorrectheid, geen functionele
+  test.
 - Dat inloggen, de canvas-editor (pinch-to-zoom/rotate/move — de code
   gebruikt de standaard Pointer Events-API met `preventDefault()`, wat
   zowel in iOS' WKWebView als Android's WebView breed ondersteund wordt,

@@ -3,6 +3,7 @@ import { Check, CircleCheck } from "lucide-react";
 
 import { ProCheckoutButton } from "@/components/ProCheckoutButton";
 import { PageHeader } from "@/components/page-header";
+import { ReturnToAppBanner } from "@/components/mobile/ReturnToAppBanner";
 import { Card, CardContent } from "@/components/ui/card";
 import { getUserPermissions } from "@/lib/permissions";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -13,12 +14,27 @@ const SUBSCRIPTION_FEATURES = [
   "Zelf activiteiten blijven delen mag altijd, maar is niet verplicht",
 ];
 
-export default async function ProPage() {
+export default async function ProPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ checkout?: string; native?: string }>;
+}) {
   const profile = await getCurrentUserProfile();
 
   if (!profile) {
     redirect("/login");
   }
+
+  const { checkout, native } = await searchParams;
+  // Alleen tonen als deze pagina via de systeem-browser-link vanuit de
+  // native app is geopend (zie NativeUpgradeAction) — een gewone
+  // webgebruiker die per ongeluk ?native=1 in de URL heeft staan ziet dit
+  // ook, maar de link is een no-op deeplink zonder geïnstalleerde app, dus
+  // onschadelijk.
+  const returnBanner =
+    native === "1" && (checkout === "success" || checkout === "cancelled") ? (
+      <ReturnToAppBanner status={checkout} />
+    ) : null;
 
   if (getUserPermissions(profile).subscriptionStatus === "paid_subscriber") {
     return (
@@ -28,6 +44,7 @@ export default async function ProPage() {
           title="Je hebt een actief abonnement"
           description="Bedankt voor je steun aan GymWiki — je hebt altijd volledige toegang tot de bibliotheek, zonder bijdrage-eis."
         />
+        {returnBanner}
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="flex items-start gap-3 py-6">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
@@ -50,6 +67,8 @@ export default async function ProPage() {
         title="Volledige toegang zonder bijdrage-eis"
         description="GymWiki is gratis zolang je maandelijks minstens 4 activiteiten bijdraagt aan de bibliotheek. Liever geen bijdrage-eis? Neem het abonnement."
       />
+
+      {returnBanner}
 
       <Card>
         <CardContent className="space-y-6 py-6">

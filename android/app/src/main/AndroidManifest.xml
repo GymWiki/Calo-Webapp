@@ -22,6 +22,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- "Terug naar de app"-deeplink vanaf de betaalpagina in de
+                 systeem-browser (zie lib/mobile/capacitor.ts's appUrlOpen-
+                 listener + components/mobile/ReturnToAppBanner.tsx).
+                 @string/custom_url_scheme is al com.mycompany.gymwiki (door
+                 `cap add android` gezet, zie strings.xml) — hier ontbrak
+                 alleen nog het intent-filter dat 'm daadwerkelijk aan deze
+                 activity koppelt. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="@string/custom_url_scheme" />
+            </intent-filter>
+
         </activity>
 
         <provider

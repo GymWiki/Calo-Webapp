@@ -64,4 +64,37 @@ export async function initializeNativeApp(): Promise<void> {
       CapacitorApp.exitApp();
     }
   });
+
+  // "Terug naar de app"-deeplink vanaf de betaalpagina in de externe
+  // browser (zie components/mobile/NativeUpgradeAction.tsx + het
+  // custom_url_scheme dat `cap add` al registreerde, nu ook toegevoegd aan
+  // ios/App/App/Info.plist en android/.../AndroidManifest.xml). Een volledige
+  // reload (niet client-side navigatie) i.p.v. alleen de app naar de
+  // voorgrond halen: de WebView bevat nog de OUDE server-gerenderde
+  // abonnementsstatus van vóór het bezoek aan de externe browser, en de
+  // backend (Stripe-webhook -> Supabase) is inmiddels de enige bron van
+  // waarheid — een verse laad van /pro plukt die meteen op, zonder aparte
+  // syncstap.
+  CapacitorApp.addListener("appUrlOpen", () => {
+    window.location.href = "https://www.gymwiki.nl/pro";
+  });
+}
+
+/**
+ * Opent een URL in de systeem-browser (Safari/Chrome via SFSafariViewController
+ * resp. Chrome Custom Tabs — een apart browser-surface met eigen adresbalk en
+ * cookie-jar, niet de WebView van de app zelf) i.p.v. binnen de app. Gebruikt
+ * voor elke plek waar de Store-richtlijnen een ingebedde ervaring verbieden
+ * (zie components/mobile/NativeUpgradeAction.tsx voor de betaalmuur) — geen
+ * WebView-navigatie naar zo'n URL, want die blijft altijd binnen de app zodra
+ * de host bij server.url hoort (zie capacitor.config.ts).
+ */
+export async function openInSystemBrowser(url: string): Promise<void> {
+  if (!isNativeApp()) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  const { Browser } = await import("@capacitor/browser");
+  await Browser.open({ url });
 }

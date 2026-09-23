@@ -4,6 +4,20 @@ import { getUserPermissions } from "@/lib/permissions";
 import { getStripeClient } from "@/lib/stripe/client";
 
 export async function POST(request: Request) {
+  // `native: true` betekent: deze checkout is gestart vanuit de /pro-pagina
+  // die de native-app-gebruiker via de systeem-browser-link bereikte (zie
+  // components/mobile/NativeUpgradeAction.tsx) — draagt dat over naar de
+  // Stripe-redirect-URL's zodat /pro na afloop een "Terug naar de app"-knop
+  // kan tonen. Geen JSON-body meegestuurd (gewone webgebruikers) is gewoon
+  // `native: false`.
+  let native = false;
+  try {
+    const body = await request.json();
+    native = body?.native === true;
+  } catch {
+    // Geen of geen geldige JSON-body — blijft `native: false`.
+  }
+
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
 
@@ -54,6 +68,7 @@ export async function POST(request: Request) {
   }
 
   const origin = new URL(request.url).origin;
+  const nativeParam = native ? "&native=1" : "";
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -62,8 +77,8 @@ export async function POST(request: Request) {
       client_reference_id: user.id,
       customer_email: user.email ?? undefined,
       metadata: { userId: user.id },
-      success_url: `${origin}/pro?checkout=success`,
-      cancel_url: `${origin}/pro?checkout=cancelled`,
+      success_url: `${origin}/pro?checkout=success${nativeParam}`,
+      cancel_url: `${origin}/pro?checkout=cancelled${nativeParam}`,
     });
 
     if (!session.url) {
