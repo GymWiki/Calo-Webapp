@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Anton, Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import { CapacitorBootstrap } from "@/components/mobile/CapacitorBootstrap";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -28,6 +29,25 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
 };
 
+// viewportFit: "cover" — zonder dit blijven env(safe-area-inset-*) overal 0,
+// ook op plekken die al met die CSS-variabelen rekening houden (o.a.
+// app-layout.tsx, activity-wizard-page.tsx) — WebKit (Safari én de
+// Capacitor-iOS-WebView) negeert safe-area-inset-* totdat de viewport
+// expliciet "cover" opeist. Was hiervoor nooit gezet: op het web viel dit
+// niet op (de meeste content zit al ruim binnen de safe area), maar in de
+// native app — waar de statusbalk-achtergrond tot aan de notch/Dynamic
+// Island doorloopt (zie lib/mobile/capacitor.ts) — zou content daar zonder
+// dit onder de systeem-UI verdwijnen.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f5f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#14171a" },
+  ],
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -49,6 +69,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Script src="/theme-init.js" strategy="beforeInteractive" />
       </head>
       <body className="min-h-full flex flex-col overflow-x-hidden">
+        <CapacitorBootstrap />
         {children}
         <Toaster />
       </body>
