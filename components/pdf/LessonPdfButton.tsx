@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { getArrangementImage, loadArrangementImageDataUrl } from "@/lib/pdf/arrangementImage";
 import type { Activity } from "@/types/activity";
 import type { DidacticItem, LessonBlock, LessonWithDetails } from "@/types/lesson";
 
@@ -94,7 +95,19 @@ export function LessonPdfButton({
         import("./lesson-pdf-document"),
       ]);
       const lesson = toLessonPdfShape(activity, authorName);
-      const blob = await pdf(<LessonPdfDocument lesson={lesson} />).toBlob();
+
+      // Vooraf ophalen als data-URL i.p.v. een URL aan <Image> meegeven —
+      // zie lib/pdf/arrangementImage.ts: zo faalt een niet-op-te-halen
+      // afbeelding (CORS, verlopen URL, niet-toegestane host) niet de hele
+      // export, alleen deze ene afbeelding blijft dan weg.
+      const arrangementUrl = getArrangementImage(activity);
+      const imageDataUrl = arrangementUrl
+        ? await loadArrangementImageDataUrl(arrangementUrl)
+        : null;
+
+      const blob = await pdf(
+        <LessonPdfDocument lesson={lesson} imageDataUrl={imageDataUrl} />,
+      ).toBlob();
       const fileName = `Activiteit_${slugify(lesson.title, "activiteit")}_${slugify(
         lesson.group_name ?? "",
         "groep",
@@ -108,7 +121,8 @@ export function LessonPdfButton({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-    } catch {
+    } catch (err) {
+      console.error("LessonPdfButton: PDF genereren mislukt —", err);
       toast.error("PDF genereren is mislukt. Probeer het opnieuw.");
     } finally {
       setIsGenerating(false);

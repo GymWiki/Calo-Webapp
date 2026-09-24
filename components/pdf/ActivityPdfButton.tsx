@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { getArrangementImage, loadArrangementImageDataUrl } from "@/lib/pdf/arrangementImage";
 import type { Activity } from "@/types/activity";
 
 const DIACRITICS_PATTERN = /[̀-ͯ]/g;
@@ -44,7 +45,19 @@ export function ActivityPdfButton({
         import("@react-pdf/renderer"),
         import("./activity-pdf-document"),
       ]);
-      const blob = await pdf(<ActivityPdfDocument activity={activity} />).toBlob();
+
+      // Vooraf ophalen als data-URL i.p.v. een URL aan <Image> meegeven —
+      // zie lib/pdf/arrangementImage.ts: zo faalt een niet-op-te-halen
+      // afbeelding (CORS, verlopen URL, niet-toegestane host) niet de hele
+      // export, alleen deze ene afbeelding blijft dan weg.
+      const arrangementUrl = getArrangementImage(activity);
+      const imageDataUrl = arrangementUrl
+        ? await loadArrangementImageDataUrl(arrangementUrl)
+        : null;
+
+      const blob = await pdf(
+        <ActivityPdfDocument activity={activity} imageDataUrl={imageDataUrl} />,
+      ).toBlob();
       const fileName = `Activiteit_${slugify(activity.titel, "activiteit")}.pdf`;
 
       const url = URL.createObjectURL(blob);
@@ -55,7 +68,8 @@ export function ActivityPdfButton({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-    } catch {
+    } catch (err) {
+      console.error("ActivityPdfButton: PDF genereren mislukt —", err);
       toast.error("PDF genereren is mislukt. Probeer het opnieuw.");
     } finally {
       setIsGenerating(false);

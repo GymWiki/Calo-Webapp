@@ -136,7 +136,22 @@ function NumberedList({ items }: { items: string[] | null }) {
   );
 }
 
-export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
+export function LessonPdfDocument({
+  lesson,
+  imageDataUrl,
+}: {
+  lesson: LessonWithDetails;
+  /**
+   * Al vooraf opgehaalde plattegrond-afbeelding als data-URL (zie
+   * lib/pdf/arrangementImage.ts, aangeroepen door LessonPdfButton.tsx
+   * vóórdat dit document gerenderd wordt) — voorheen las dit document
+   * lesson.diagram_image_url rechtstreeks in de <Image>, wat react-pdf zelf
+   * liet fetchen; die fetch faalde hard (en liet de hele PDF-export
+   * mislukken) zodra de URL niet direct als afbeelding op te halen was.
+   * null/undefined betekent gewoon: geen afbeelding in de PDF.
+   */
+  imageDataUrl?: string | null;
+}) {
   const authorName = lesson.author
     ? `${lesson.author.first_name} ${lesson.author.last_name}`.trim()
     : "-";
@@ -212,9 +227,9 @@ export function LessonPdfDocument({ lesson }: { lesson: LessonWithDetails }) {
               <TextList items={lesson.rule_materials} />
             </View>
           </View>
-          {lesson.diagram_image_url && (
+          {imageDataUrl && (
             // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop
-            <Image style={styles.diagramImage} src={lesson.diagram_image_url} />
+            <Image style={styles.diagramImage} src={imageDataUrl} />
           )}
         </View>
 

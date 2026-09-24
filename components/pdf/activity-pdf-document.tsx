@@ -82,17 +82,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// Same-origin proxy in plaats van de rechtstreekse Supabase Storage-URL —
-// zie app/api/activity-image-proxy/route.ts: @react-pdf/renderer haalt
-// `Image`'s src zelf op via `fetch()`, wat (in tegenstelling tot een
-// gewone <img>-tag) CORS-headers op de Storage-response vereist. Zonder
-// deze proxy faalde die fetch stil bij afbeeldingen zonder CORS-headers,
-// waardoor de PDF zonder foutmelding werd gegenereerd maar de plattegrond
-// miste.
-function toProxiedImageUrl(url: string): string {
-  return `/api/activity-image-proxy?url=${encodeURIComponent(url)}`;
-}
-
 function HeaderField({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.headerCell}>
@@ -175,7 +164,20 @@ function LeerhulpColumn({
   );
 }
 
-export function ActivityPdfDocument({ activity }: { activity: Activity }) {
+export function ActivityPdfDocument({
+  activity,
+  imageDataUrl,
+}: {
+  activity: Activity;
+  /**
+   * Al vooraf opgehaalde plattegrond-afbeelding als data-URL (zie
+   * lib/pdf/arrangementImage.ts, aangeroepen door ActivityPdfButton.tsx
+   * vóórdat dit document gerenderd wordt) — geen eigen fetch meer hier,
+   * dus geen risico dat een mislukte afbeelding-fetch de hele export laat
+   * crashen. null/undefined betekent gewoon: geen afbeelding in de PDF.
+   */
+  imageDataUrl?: string | null;
+}) {
   const doelgroepLabels = (activity.doelgroep ?? [])
     .map((waarde) => DOELGROEP_LABELS[waarde])
     .filter((label): label is string => Boolean(label))
@@ -234,9 +236,9 @@ export function ActivityPdfDocument({ activity }: { activity: Activity }) {
             <Text style={styles.boxLabel}>Materiaallijst</Text>
             <TextList items={activity.materiaal} />
           </View>
-          {activity.afbeelding && (
+          {imageDataUrl && (
             // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop
-            <Image style={styles.afbeelding} src={toProxiedImageUrl(activity.afbeelding)} />
+            <Image style={styles.afbeelding} src={imageDataUrl} />
           )}
         </View>
 
