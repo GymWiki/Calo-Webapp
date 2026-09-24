@@ -4,6 +4,7 @@ import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/know
 import { toUsedKnowledgeChunks, type UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
+import { SEO_SUMMARY_CORE_INSTRUCTION, buildSeoSummaryUserMessage } from "@/lib/ai/seoSummaryPrompt";
 
 // Lichter dan SubmitActivityInput (types/activity.ts, de oorspronkelijke
 // "eenvoudige activiteit"-vorm met een verplichte categorie-enum en
@@ -43,19 +44,12 @@ const qualityCheckSchema = z.object({
 });
 
 // Eén extra, verplicht JSON-veld bovenop de bestaande goed/afkeuren-check —
-// geen tweede AI-aanroep nodig. Voedt de publieke /activiteiten/[slug]-
-// pagina's (zie supabase/migrations/activiteiten_public_seo.sql) als
-// meta-description én als zichtbare "korte beschrijving" voor niet-
-// ingelogde bezoekers/zoekmachines, dus mag NOOIT de volledige opbouw,
-// speelregels of leerhulp verklappen — dat blijft achter de betaalmuur.
+// geen tweede AI-aanroep nodig. De eigenlijke instructie (wat een goede
+// seo_summary is) staat in lib/ai/seoSummaryPrompt.ts, GEDEELD met
+// scripts/backfill-activity-seo.mts (dat losse script draait via kale
+// node-executie, die geen @/-aliases kent — zie het commentaar daar).
 const SEO_SUMMARY_INSTRUCTION =
-  "Genereer ALLEEN wanneer acceptable=true ook een `seo_summary`: 2-3 zinnen, 250-400 tekens, " +
-  "Nederlands. Beschrijft wat de leerlingen doen, voor welke groep/doelgroep en met welk " +
-  "materiaal (of juist zonder materiaal) — gebruik natuurlijke zoektermen die een leerkracht zelf " +
-  "zou typen (bijv. concrete spelnaam/-type, groepsaanduiding als 'groep 5-6', 'zonder materiaal'), " +
-  "geen keyword stuffing (geen kunstmatige opsomming van zoekwoorden). Verklap NOOIT de volledige " +
-  "opbouw/organisatie, speelregels, varianten of leerhulp — dat is precies wat er achter de " +
-  "betaalmuur blijft; een lezer moet nieuwsgierig blijven naar de uitwerking, niet 'm al kennen. " +
+  `Genereer ALLEEN wanneer acceptable=true ook een \`seo_summary\`. ${SEO_SUMMARY_CORE_INSTRUCTION} ` +
   "Bij acceptable=false: seo_summary is een lege string.";
 
 const CONTENT_QUALITY_SYSTEM_PROMPT =
@@ -72,22 +66,6 @@ const CONTENT_QUALITY_SYSTEM_PROMPT =
   'Antwoord uitsluitend met geldige JSON: {"acceptable": boolean, "reason": string, ' +
   '"seo_summary": string} — reason is een korte, opbouwende Nederlandse toelichting (1-2 zinnen), ' +
   "ook bij goedkeuring.";
-
-function buildSubmissionSummary(input: ActivityQualityCheckInput): string {
-  return [
-    `Titel: ${input.titel}`,
-    input.categorie ? `Categorie: ${input.categorie}` : null,
-    `Leerlijn: ${input.leerlijn}`,
-    `Doel: ${input.doel}`,
-    input.beginsituatie ? `Beginsituatie: ${input.beginsituatie}` : null,
-    `Beschrijving: ${input.beschrijving}`,
-    input.veld ? `Veld: ${input.veld}` : null,
-    input.materiaal?.length ? `Materiaal: ${input.materiaal.join(", ")}` : null,
-    input.regels?.length ? `Regels: ${input.regels.join("; ")}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
 
 async function checkContentQuality(
   supabase: SupabaseClient,
@@ -113,7 +91,7 @@ async function checkContentQuality(
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: `${CONTENT_QUALITY_SYSTEM_PROMPT}${knowledgeSection}` },
-        { role: "user", content: buildSubmissionSummary(input) },
+        { role: "user", content: buildSeoSummaryUserMessage(input) },
       ],
     });
 
