@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
+import { getActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { BEWEGINGSTHEMAS, LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";
@@ -453,7 +454,7 @@ export function ActivityWizardPage({
             )}
           </div>
           {!isEdit && (
-            <SourceBadge source={activity?.author_id ? (isPublic ? "public" : "gymwiki") : "gymwiki"} className="mt-1 shrink-0" />
+            <SourceBadge source={activity ? getActivitySource(activity) : "gymwiki"} className="mt-1 shrink-0" />
           )}
         </div>
 

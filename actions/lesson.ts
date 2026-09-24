@@ -56,6 +56,16 @@ function logActivitiesRowError(context: "createLesson" | "saveLessonDraft", erro
 // de invoer eerst door het schema moet verschilt.
 function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
   return {
+    // Legacy kolom uit de oorspronkelijke Firestore-import (de ~203
+    // basis-bibliotheekactiviteiten, author_id null) — nergens meer
+    // gelezen in de app (bron wordt nu bepaald via lib/activity-source.ts,
+    // op author_id/is_public), maar hier expliciet false zetten i.p.v. op
+    // de kolomdefault te leunen: elke rij die via createLesson/
+    // saveLessonDraft wordt aangemaakt of bijgewerkt heeft altijd een
+    // author_id (hieronder gezet bij insert, of al gezet — de
+    // .eq("author_id", user.id)-filter bij een update garandeert dat), is
+    // dus per definitie nooit een gymwiki-basisrij.
+    in_gymwiki: false,
     titel: values.title,
     // `activity_date` is een Postgres `date`-kolom — een lege string (de
     // waarde zolang dit veld nog niet is ingevuld, wat bij een concept vaak

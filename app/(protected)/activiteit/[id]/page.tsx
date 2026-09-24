@@ -11,6 +11,7 @@ import { SourceBadge } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { LEERHULP_COLORS } from "@/lib/constants/leerhulpColors";
 import { splitLearningOutcomeItems } from "@/lib/format";
@@ -339,11 +340,7 @@ export default async function ActiviteitDetailPage({
               <p className="mt-1 text-sm text-muted-foreground">{groepNiveauSummary}</p>
             )}
           </div>
-          {activity.is_public ? (
-            <SourceBadge source={activity.author_id ? "public" : "gymwiki"} className="mt-1 shrink-0" />
-          ) : (
-            <SourceBadge source="gymwiki" className="mt-1 shrink-0" />
-          )}
+          <SourceBadge source={getActivitySource(activity)} className="mt-1 shrink-0" />
         </div>
 
         {inKort && (

@@ -65,10 +65,19 @@ async function ZoekenContent({
   // het openen van een activiteit (zie activiteit/[id]/page.tsx). Dat is
   // bewust: het "kijk wat je mist"-effect vereist dat de echte omvang van
   // de bibliotheek zichtbaar blijft, niet een vooraf al ingekorte dataset.
-  const [activities, publicActivities] = await Promise.all([
+  const [allActivities, publicActivities] = await Promise.all([
     getAllActivities(),
     getPublicActivities(),
   ]);
+
+  // getAllActivities() geeft ALLE goedgekeurde+publieke activiteiten terug
+  // (de basisbibliotheek ÉN door gebruikers gedeelde activiteiten) — de
+  // "GymWiki"-bron-tab/badge hoort alleen bij de oorspronkelijke
+  // basisbibliotheek (author_id null). Zonder dit filter zou een door een
+  // gebruiker gedeelde activiteit hier dubbel én verkeerd gelabeld ("GymWiki"
+  // i.p.v. "Publiek") verschijnen — 'm zit al correct in publicActivities
+  // hieronder (zie getPublicActivities's eigen author_id-not-null-filter).
+  const activities = allActivities.filter((activity) => activity.author_id === null);
 
   // Vaste preview-set (zie lib/services/libraryPreview.ts): eenmalig
   // berekend en op het profiel opgeslagen bij het eerste bezoek van een
