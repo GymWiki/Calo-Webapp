@@ -110,6 +110,23 @@ export async function getPublicActivitiesByGroep(code: number): Promise<PublicAc
   return all.filter((activity) => activity.doelgroep?.includes(code));
 }
 
+/** Combinatiepagina /leerlijn/[leerlijn]/[groep] — zie STAP 6 van de brief:
+ * alleen gerenderd wanneer de aanroeper (de pagina zelf) minstens 5
+ * resultaten telt. Dat minimum wordt hier bewust NIET afgedwongen — deze
+ * functie geeft gewoon terug wat er is, de pagina beslist of dat genoeg is. */
+export async function getPublicActivitiesByLeerlijnAndGroep(
+  leerlijnSlug: string,
+  code: number,
+): Promise<PublicActivity[]> {
+  const all = await getAllPublicActivities();
+  return all.filter(
+    (activity) =>
+      activity.leerlijn &&
+      getLeerlijnSlug(activity.leerlijn) === leerlijnSlug &&
+      activity.doelgroep?.includes(code),
+  );
+}
+
 /** Zelfde leerlijn of overlappende doelgroep, activiteit zelf uitgesloten —
  * gebruikt voor de "Gerelateerde activiteiten"-sectie op de detailpagina
  * (interne links, zie de brief). */

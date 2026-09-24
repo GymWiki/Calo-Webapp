@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality } from "@/lib/ai/activityQualityCheck";
 import { logKnowledgeUsage } from "@/lib/ai/knowledgeUsageLogging";
 import { resolveSlug } from "@/lib/services/activitySlug";
+import { getGroepSlug, getLeerlijnSlug } from "@/lib/services/publicActivities";
 import { submitActivityInputSchema } from "@/types/activity";
 
 type SubmitResult =
@@ -96,6 +97,11 @@ export async function submitActivityDraft(activityId: string): Promise<SubmitRes
   if (slug) {
     revalidatePath(`/activiteiten/${slug}`);
     revalidatePath("/activiteiten");
+    revalidatePath(`/leerlijn/${getLeerlijnSlug(values.leerlijn)}`);
+    for (const code of values.doelgroep) {
+      const groepSlug = getGroepSlug(code);
+      if (groepSlug) revalidatePath(`/groep/${groepSlug}`);
+    }
   }
 
   return quality.status === "approved"

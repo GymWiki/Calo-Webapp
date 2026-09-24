@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality, type ActivityQualityCheckInput } from "@/lib/ai/activityQualityCheck";
 import { logKnowledgeUsage, type UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import { resolveSlug } from "@/lib/services/activitySlug";
+import { getGroepSlug, getLeerlijnSlug } from "@/lib/services/publicActivities";
 import {
   createLessonInputSchema,
   type CreateLessonFormInput,
@@ -248,10 +249,16 @@ export async function createLesson(
   // heeft nu een slug, dus haar /activiteiten/[slug]-pagina bestaat of is
   // gewijzigd — ververs 'm meteen i.p.v. te wachten op de tijdgebonden
   // revalidate-achtervang (zie die pagina). De algemene index-pagina
-  // (/activiteiten) toont er ook één extra/gewijzigde kaart bij.
+  // (/activiteiten) en de leerlijn-/groep-categoriepagina's (STAP 6) tonen
+  // er ook één extra/gewijzigde kaart bij.
   if (slug) {
     revalidatePath(`/activiteiten/${slug}`);
     revalidatePath("/activiteiten");
+    revalidatePath(`/leerlijn/${getLeerlijnSlug(values.learningLine)}`);
+    for (const code of values.doelgroep) {
+      const groepSlug = getGroepSlug(code);
+      if (groepSlug) revalidatePath(`/groep/${groepSlug}`);
+    }
   }
 
   return status === "rejected"
