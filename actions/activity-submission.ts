@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality } from "@/lib/ai/activityQualityCheck";
 import { logKnowledgeUsage } from "@/lib/ai/knowledgeUsageLogging";
+import { resolveSlug } from "@/lib/services/activitySlug";
 import { submitActivityInputSchema } from "@/types/activity";
 
 type SubmitResult =
@@ -65,13 +66,23 @@ export async function submitActivityDraft(activityId: string): Promise<SubmitRes
   const values = parsed.data;
   const quality = await checkActivityQuality(supabase, user.id, values);
 
+  const updatePayload = {
+    status: quality.status,
+    rejection_reason: quality.status === "rejected" ? quality.reason : null,
+    submitted_at: new Date().toISOString(),
+    // Voedt de publieke /activiteiten/[slug]-pagina (zie
+    // supabase/migrations/activiteiten_public_seo.sql) — alleen bij een
+    // geslaagde check, en resolveSlug houdt een al bestaande slug altijd
+    // aan (zie het commentaar daar) zodat een eerder gedeelde URL nooit
+    // breekt.
+    ...(quality.status === "approved"
+      ? { seo_summary: quality.seoSummary, slug: await resolveSlug(supabase, activityId, values.titel) }
+      : {}),
+  };
+
   const { error: updateError } = await supabase
     .from("activiteiten")
-    .update({
-      status: quality.status,
-      rejection_reason: quality.status === "rejected" ? quality.reason : null,
-      submitted_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", activityId)
     .eq("author_id", user.id);
 

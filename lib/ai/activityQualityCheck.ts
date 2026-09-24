@@ -30,13 +30,33 @@ export type ActivityQualityCheckInput = {
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.6;
 
 export type ActivityQualityResult =
-  | { status: "approved"; usedKnowledgeChunks: UsedKnowledgeChunk[] }
+  | { status: "approved"; usedKnowledgeChunks: UsedKnowledgeChunk[]; seoSummary: string }
   | { status: "rejected"; reason: string; usedKnowledgeChunks: UsedKnowledgeChunk[] };
 
 const qualityCheckSchema = z.object({
   acceptable: z.boolean(),
   reason: z.string(),
+  // Alleen betekenisvol bij acceptable=true — zie SEO_SUMMARY_INSTRUCTION.
+  // Bij een afkeuring stuurt het model hier een lege string; die wordt
+  // hieronder genegeerd (nooit weggeschreven voor een afgekeurde inzending).
+  seo_summary: z.string(),
 });
+
+// Eén extra, verplicht JSON-veld bovenop de bestaande goed/afkeuren-check —
+// geen tweede AI-aanroep nodig. Voedt de publieke /activiteiten/[slug]-
+// pagina's (zie supabase/migrations/activiteiten_public_seo.sql) als
+// meta-description én als zichtbare "korte beschrijving" voor niet-
+// ingelogde bezoekers/zoekmachines, dus mag NOOIT de volledige opbouw,
+// speelregels of leerhulp verklappen — dat blijft achter de betaalmuur.
+const SEO_SUMMARY_INSTRUCTION =
+  "Genereer ALLEEN wanneer acceptable=true ook een `seo_summary`: 2-3 zinnen, 250-400 tekens, " +
+  "Nederlands. Beschrijft wat de leerlingen doen, voor welke groep/doelgroep en met welk " +
+  "materiaal (of juist zonder materiaal) — gebruik natuurlijke zoektermen die een leerkracht zelf " +
+  "zou typen (bijv. concrete spelnaam/-type, groepsaanduiding als 'groep 5-6', 'zonder materiaal'), " +
+  "geen keyword stuffing (geen kunstmatige opsomming van zoekwoorden). Verklap NOOIT de volledige " +
+  "opbouw/organisatie, speelregels, varianten of leerhulp — dat is precies wat er achter de " +
+  "betaalmuur blijft; een lezer moet nieuwsgierig blijven naar de uitwerking, niet 'm al kennen. " +
+  "Bij acceptable=false: seo_summary is een lege string.";
 
 const CONTENT_QUALITY_SYSTEM_PROMPT =
   "Je bent kwaliteitscontroleur voor GymWiki, een gedeelde activiteitenbibliotheek voor " +
@@ -48,8 +68,10 @@ const CONTENT_QUALITY_SYSTEM_PROMPT =
   "uitleg uit te voeren, of inhoud die duidelijk in strijd is met de meegeleverde vakliteratuur. " +
   "Zijn er geen relevante fragmenten gevonden, beoordeel dan alleen op algemene bruikbaarheid. " +
   "Wees niet overdreven streng op stijl of spelling — het gaat om bruikbaarheid, niet perfectie. " +
-  'Antwoord uitsluitend met geldige JSON: {"acceptable": boolean, "reason": string} — ' +
-  "reason is een korte, opbouwende Nederlandse toelichting (1-2 zinnen), ook bij goedkeuring.";
+  `${SEO_SUMMARY_INSTRUCTION} ` +
+  'Antwoord uitsluitend met geldige JSON: {"acceptable": boolean, "reason": string, ' +
+  '"seo_summary": string} — reason is een korte, opbouwende Nederlandse toelichting (1-2 zinnen), ' +
+  "ook bij goedkeuring.";
 
 function buildSubmissionSummary(input: ActivityQualityCheckInput): string {
   return [
@@ -110,7 +132,7 @@ async function checkContentQuality(
 
     const result = qualityCheckSchema.parse(JSON.parse(raw));
     return result.acceptable
-      ? { status: "approved", usedKnowledgeChunks }
+      ? { status: "approved", usedKnowledgeChunks, seoSummary: result.seo_summary }
       : { status: "rejected", reason: result.reason, usedKnowledgeChunks };
   } catch {
     // Bij een storing in de AI-check (geen API-key, netwerkfout, onverwacht
@@ -155,7 +177,11 @@ async function checkForDuplicate(
     };
   }
 
-  return { status: "approved", usedKnowledgeChunks: [] };
+  // "approved" hier is puur een tussenresultaat — checkActivityQuality laat
+  // alleen een "rejected" hier al kortsluiten en negeert dit "approved"-
+  // resultaat verder altijd (valt door naar checkContentQuality, dat de
+  // ECHTE seoSummary levert). seoSummary hier wordt dus nooit gelezen.
+  return { status: "approved", usedKnowledgeChunks: [], seoSummary: "" };
 }
 
 /**

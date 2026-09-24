@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality, type ActivityQualityCheckInput } from "@/lib/ai/activityQualityCheck";
 import { logKnowledgeUsage, type UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
+import { resolveSlug } from "@/lib/services/activitySlug";
 import {
   createLessonInputSchema,
   type CreateLessonFormInput,
@@ -166,6 +167,14 @@ export async function createLesson(
   let rejectionReason: string | null = null;
   let publicSince: string | null = null;
   let checkerUsedChunks: UsedKnowledgeChunk[] = [];
+  // Alleen gezet bij een geslaagde check — undefined betekent hieronder
+  // "niet overschrijven", zie de spread bij `row`. seoSummary/slug voeden
+  // de publieke /activiteiten/[slug]-pagina (zie
+  // supabase/migrations/activiteiten_public_seo.sql); slug blijft, eenmaal
+  // gezet, voor altijd hetzelfde (resolveSlug), ook als de titel later
+  // verandert — anders breekt een al gedeelde/geïndexeerde URL.
+  let seoSummary: string | undefined;
+  let slug: string | undefined;
 
   if (isPublic) {
     const quality = await checkActivityQuality(supabase, user.id, toQualityCheckInput(values));
@@ -175,6 +184,8 @@ export async function createLesson(
       rejectionReason = quality.reason;
     } else {
       publicSince = new Date().toISOString();
+      seoSummary = quality.seoSummary;
+      slug = await resolveSlug(supabase, activityId, values.title);
     }
   }
 
@@ -197,6 +208,8 @@ export async function createLesson(
     is_public: isPublic && status === "approved",
     public_since: publicSince,
     taalcode: "nl",
+    ...(seoSummary !== undefined ? { seo_summary: seoSummary } : {}),
+    ...(slug !== undefined ? { slug } : {}),
   };
 
   let resolvedActivityId = activityId;
