@@ -156,6 +156,8 @@ export function ActivityWizardPage({
   movementProblemFlagged,
   learningOutcomes,
   onLearningOutcomesChange,
+  beschrijving,
+  onBeschrijvingChange,
   deelnemersRegels,
   onDeelnemersRegelsChange,
   deelnemersRegelsFlagged,
@@ -243,6 +245,11 @@ export function ActivityWizardPage({
   movementProblemFlagged?: boolean;
   learningOutcomes: string[];
   onLearningOutcomesChange?: (items: string[]) => void;
+  /** Mapt op de `beschrijving`-kolom (activiteiten) — het spelverloop zelf:
+   * start, wat de leerlingen doen, hoe er gescoord/gewisseld wordt. Optioneel
+   * (geen `required`-markering), los van deelnemersRegels hieronder. */
+  beschrijving: string;
+  onBeschrijvingChange?: (value: string) => void;
   deelnemersRegels: string;
   onDeelnemersRegelsChange?: (value: string) => void;
   deelnemersRegelsFlagged?: boolean;
@@ -816,6 +823,23 @@ export function ActivityWizardPage({
                     <p className="text-sm whitespace-pre-line text-foreground">{goals}</p>
                   )}
                   {renderSuggestions("goals")}
+                </div>
+              )}
+
+              {(isEdit || beschrijving) && (
+                <div id="field-beschrijving">
+                  <SectionHeading>Beschrijving</SectionHeading>
+                  {isEdit ? (
+                    <InlineEditText
+                      value={beschrijving}
+                      onChange={(value) => onBeschrijvingChange?.(value)}
+                      onCommit={onCommit}
+                      placeholder="Beschrijf hoe het spel verloopt: start, wat de leerlingen doen, hoe er gescoord en gewisseld wordt."
+                      minRows={6}
+                    />
+                  ) : (
+                    <p className="text-sm whitespace-pre-line text-foreground">{beschrijving}</p>
+                  )}
                 </div>
               )}
 

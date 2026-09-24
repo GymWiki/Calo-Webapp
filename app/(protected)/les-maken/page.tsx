@@ -69,6 +69,7 @@ function mapWizardActivityToLessonInput(activity: Activity): Partial<CreateLesso
     learningOutcomes: activity.learning_outcomes ?? [],
     didacticItems: (activity.didactic_items ?? []) as DidacticItem[],
     arrangement: activity.arrangement ?? "",
+    beschrijving: activity.beschrijving ?? "",
     deelnemersRegels: activity.deelnemers_regels ?? "",
     plaatjePraatje: activity.plaatje_praatje ?? "",
     aandachtspunten: activity.aandachtspunten ?? "",

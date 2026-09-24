@@ -98,6 +98,7 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
     learning_outcomes: values.learningOutcomes,
     didactic_items: values.didacticItems,
     arrangement: values.arrangement,
+    beschrijving: values.beschrijving,
     deelnemers_regels: values.deelnemersRegels,
     plaatje_praatje: values.plaatjePraatje,
     aandachtspunten: values.aandachtspunten,

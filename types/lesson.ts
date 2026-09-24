@@ -136,6 +136,12 @@ export const createLessonInputSchema = z.object({
 
   // Tab 4 — Activiteitsvoorbereiding (de 4 kernelementen)
   arrangement: requiredText("Arrangement is verplicht."),
+  // Mapt op de `beschrijving`-kolom (activiteiten) — het spelverloop zelf,
+  // los van deelnemersRegels (de aanvullende rolverdeling/wisselregels).
+  // Bewust géén requiredText: de kolom is nullable en bij 3 van de 206
+  // bestaande activiteiten leeg, dus een verplichte validatie hier zou het
+  // opslaan van die bestaande concepten/activiteiten blokkeren.
+  beschrijving: z.string().trim(),
   deelnemersRegels: requiredText("Deelnemers & regels is verplicht."),
   plaatjePraatje: requiredText("Plaatje & praatje is verplicht."),
   aandachtspunten: requiredText("Aandachtspunten is verplicht."),
@@ -198,6 +204,7 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   learningOutcomes: [],
   didacticItems: [],
   arrangement: "",
+  beschrijving: "",
   deelnemersRegels: "",
   plaatjePraatje: "",
   aandachtspunten: "",

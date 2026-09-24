@@ -428,6 +428,7 @@ export function LessonForm({
   const goals = form.watch("goals");
   const movementProblem = form.watch("movementProblem");
   const arrangement = form.watch("arrangement");
+  const beschrijving = form.watch("beschrijving");
   const deelnemersRegels = form.watch("deelnemersRegels");
   const plaatjePraatje = form.watch("plaatjePraatje");
   const aandachtspunten = form.watch("aandachtspunten");
@@ -786,6 +787,8 @@ export function LessonForm({
           movementProblemFlagged={isFieldFlagged("movementProblem")}
           learningOutcomes={learningOutcomes}
           onLearningOutcomesChange={setLearningOutcomes}
+          beschrijving={beschrijving}
+          onBeschrijvingChange={(value) => form.setValue("beschrijving", value)}
           deelnemersRegels={deelnemersRegels}
           onDeelnemersRegelsChange={(value) => form.setValue("deelnemersRegels", value)}
           deelnemersRegelsFlagged={isFieldFlagged("deelnemersRegels")}

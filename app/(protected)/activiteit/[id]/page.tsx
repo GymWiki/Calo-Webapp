@@ -264,6 +264,7 @@ export default async function ActiviteitDetailPage({
           goals={activity.doel ?? ""}
           movementProblem={activity.movement_problem ?? ""}
           learningOutcomes={activity.learning_outcomes ?? []}
+          beschrijving={activity.beschrijving ?? ""}
           deelnemersRegels={activity.deelnemers_regels ?? ""}
           plaatjePraatje={activity.plaatje_praatje ?? ""}
           aandachtspunten={activity.aandachtspunten ?? ""}
