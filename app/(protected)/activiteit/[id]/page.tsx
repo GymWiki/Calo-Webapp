@@ -8,6 +8,7 @@ import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { BackButton } from "@/components/BackButton";
 import { LibraryAccessBlocked } from "@/components/library-access-blocked";
 import { SourceBadge } from "@/components/library-item-card";
+import { PlannedForBanner } from "@/components/planning/PlannedForBanner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +25,7 @@ import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
 import { getContributionStatus } from "@/lib/services/contribution";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
+import { getPlannedLessonsForActivity } from "@/lib/services/planning";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -232,12 +234,13 @@ export default async function ActiviteitDetailPage({
   // (bij een wizard-activiteit) pas de auteursnaam, dan pas de gebruikte
   // kennisbronnen. Gecombineerd in één Promise.all i.p.v. drie sequentiële
   // round-trips.
-  const [saved, authorName, usedKnowledgeSources] = await Promise.all([
+  const [saved, authorName, usedKnowledgeSources, plannedLessons] = await Promise.all([
     isActivitySaved(profile.id, activity.id),
     wizardActivity && activity.author_id
       ? getAuthorName(activity.author_id)
       : Promise.resolve(null),
     wizardActivity ? getActivityKnowledgeSources(activity.id) : Promise.resolve(undefined),
+    getPlannedLessonsForActivity(activity.id),
   ]);
 
   // Wizard-activiteiten delen hun volledige weergave met de inline-editor
@@ -248,6 +251,7 @@ export default async function ActiviteitDetailPage({
 
     return (
       <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
+        <PlannedForBanner plannedLessons={plannedLessons} />
         <ActivityWizardPage
           mode="view"
           activity={activity}
@@ -353,6 +357,8 @@ export default async function ActiviteitDetailPage({
         <div className="flex flex-wrap gap-1.5">
           {activity.leerlijn && <Badge variant="outline">{activity.leerlijn}</Badge>}
         </div>
+
+        <PlannedForBanner plannedLessons={plannedLessons} />
       </div>
 
       {/* Eén kolom, altijd: afbeelding vol op de breedte van de pagina, dan

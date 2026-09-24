@@ -17,6 +17,7 @@ import {
   getSavedActivityIds,
 } from "@/lib/services/activities";
 import { getAllKnowledgeDocuments } from "@/lib/services/knowledge";
+import { getClassesForUser } from "@/lib/services/planning";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
 import type { UserProfile } from "@/lib/types";
@@ -90,16 +91,18 @@ async function FreemiumStatusSection({ profile }: { profile: UserProfile }) {
 }
 
 async function ProfileNavSection({ userId }: { userId: string }) {
-  const [ownSubmissions, drafts, savedIds] = await Promise.all([
+  const [ownSubmissions, drafts, savedIds, classes] = await Promise.all([
     getOwnSubmissions(userId),
     getActivityDrafts(userId),
     getSavedActivityIds(userId),
+    getClassesForUser(userId),
   ]);
 
   return (
     <ProfileNavGrid
       activitiesCount={ownSubmissions.length + drafts.length}
       savedCount={savedIds.size}
+      classesCount={classes.length}
     />
   );
 }

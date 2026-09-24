@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Bookmark, ListChecks, type LucideIcon } from "lucide-react";
+import { Bookmark, CalendarRange, ListChecks, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const ACCENTS = {
   cone: "bg-primary/10 text-primary",
   blue: "bg-line-blue/10 text-line-blue",
+  green: "bg-emerald-500/10 text-emerald-600",
 } as const;
 
 type NavCard = {
@@ -21,13 +22,17 @@ type NavCard = {
 // "lessen" en "activiteiten" zijn nu hetzelfde concept (zie
 // supabase/migrations/consolidate_lessons_into_activiteiten.sql), en de
 // status van een concept staat gewoon per item in "Mijn activiteiten"
-// zichtbaar, dus die twee blokken zijn niet langer apart nodig.
+// zichtbaar, dus die twee blokken zijn niet langer apart nodig. "Planning"
+// (klassenbeheer + jaar-/weekplanning) is een nieuw, apart concept — geen
+// overlap met "Mijn activiteiten" — en telt daarom als vierde kaart.
 export function ProfileNavGrid({
   activitiesCount,
   savedCount,
+  classesCount,
 }: {
   activitiesCount: number;
   savedCount: number;
+  classesCount: number;
 }) {
   const cards: NavCard[] = [
     {
@@ -46,12 +51,20 @@ export function ProfileNavGrid({
       accent: "blue",
       count: savedCount,
     },
+    {
+      href: "/profiel/planning",
+      label: "Planning",
+      description: "Klassen, jaarplanning per leerlijn en weekplanning per les.",
+      icon: CalendarRange,
+      accent: "green",
+      count: classesCount,
+    },
   ];
 
   return (
     <div>
       <h2 className="text-lg font-semibold">Overzicht</h2>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
