@@ -126,10 +126,19 @@ export async function generateMetadata({
   const activity = await getPublicActivityBySlug(slug);
 
   if (!activity) {
-    // Geen aparte noindex-metadata nodig — notFound() (zie het
-    // pagina-component hieronder) geeft al een echte 404, en de view
-    // (activiteiten_publiek) toont sowieso nooit een niet-indexeerbare rij.
-    return { title: "Activiteit niet gevonden | GymWiki" };
+    // STAP 5-indexeringsregel: notFound() (zie het pagina-component
+    // hieronder) geeft al een echte HTTP 404 — crawlers behandelen dat op
+    // zich al als "niet indexeren". robots: false hier is puur
+    // defense-in-depth, voor het geval een crawler de 404-statuscode
+    // negeert. De ONDERLIGGENDE regel zit al op databaseniveau: de
+    // activiteiten_publiek-view (zie supabase/migrations/activiteiten_
+    // public_seo.sql) toont een rij pas bij status='approved' EN
+    // is_public=true EN niet-AI-gegenereerd EN een geslaagd gegenereerde
+    // seo_summary (>=100 tekens, dus impliciet "voldoende inhoud") — elke
+    // andere reden (nog niet goedgekeurd, afgekeurd, concept, privé,
+    // AI-gegenereerd, te kort) geeft hier dezelfde 404, zonder dat deze
+    // pagina zelf onderscheid hoeft te maken.
+    return { title: "Activiteit niet gevonden | GymWiki", robots: { index: false, follow: false } };
   }
 
   const canonical = `${BASE_URL}/activiteiten/${activity.slug}`;
