@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality, type ActivityQualityCheckInput } from "@/lib/ai/activityQualityCheck";
 import { logKnowledgeUsage, type UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
@@ -241,6 +242,16 @@ export async function createLesson(
   // insert hierboven). Zie activityQualityCheck.ts (context='checker').
   if (resolvedActivityId) {
     await logKnowledgeUsage(supabase, resolvedActivityId, "checker", checkerUsedChunks);
+  }
+
+  // On-demand ISR: een net (opnieuw) goedgekeurde, publieke activiteit
+  // heeft nu een slug, dus haar /activiteiten/[slug]-pagina bestaat of is
+  // gewijzigd — ververs 'm meteen i.p.v. te wachten op de tijdgebonden
+  // revalidate-achtervang (zie die pagina). De algemene index-pagina
+  // (/activiteiten) toont er ook één extra/gewijzigde kaart bij.
+  if (slug) {
+    revalidatePath(`/activiteiten/${slug}`);
+    revalidatePath("/activiteiten");
   }
 
   return status === "rejected"

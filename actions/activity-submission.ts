@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality } from "@/lib/ai/activityQualityCheck";
 import { logKnowledgeUsage } from "@/lib/ai/knowledgeUsageLogging";
@@ -65,19 +66,18 @@ export async function submitActivityDraft(activityId: string): Promise<SubmitRes
 
   const values = parsed.data;
   const quality = await checkActivityQuality(supabase, user.id, values);
+  // Voedt de publieke /activiteiten/[slug]-pagina (zie
+  // supabase/migrations/activiteiten_public_seo.sql) — alleen bij een
+  // geslaagde check, en resolveSlug houdt een al bestaande slug altijd aan
+  // (zie het commentaar daar) zodat een eerder gedeelde URL nooit breekt.
+  const slug =
+    quality.status === "approved" ? await resolveSlug(supabase, activityId, values.titel) : undefined;
 
   const updatePayload = {
     status: quality.status,
     rejection_reason: quality.status === "rejected" ? quality.reason : null,
     submitted_at: new Date().toISOString(),
-    // Voedt de publieke /activiteiten/[slug]-pagina (zie
-    // supabase/migrations/activiteiten_public_seo.sql) — alleen bij een
-    // geslaagde check, en resolveSlug houdt een al bestaande slug altijd
-    // aan (zie het commentaar daar) zodat een eerder gedeelde URL nooit
-    // breekt.
-    ...(quality.status === "approved"
-      ? { seo_summary: quality.seoSummary, slug: await resolveSlug(supabase, activityId, values.titel) }
-      : {}),
+    ...(quality.status === "approved" ? { seo_summary: quality.seoSummary, slug } : {}),
   };
 
   const { error: updateError } = await supabase
@@ -91,6 +91,12 @@ export async function submitActivityDraft(activityId: string): Promise<SubmitRes
   }
 
   await logKnowledgeUsage(supabase, activityId, "checker", quality.usedKnowledgeChunks);
+
+  // On-demand ISR — zie de gelijknamige toelichting in actions/lesson.ts.
+  if (slug) {
+    revalidatePath(`/activiteiten/${slug}`);
+    revalidatePath("/activiteiten");
+  }
 
   return quality.status === "approved"
     ? { success: true, status: "approved", activityId }

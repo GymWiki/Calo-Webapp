@@ -91,6 +91,20 @@ export const DOELGROEP_LABELS: Record<number, string> = {
 
 export const DOELGROEP_WAARDEN = [1, 2, 3, 4, 5, 6] as const;
 
+// URL-segmenten voor de publieke /groep/[groep]-categoriepagina's (zie
+// lib/services/publicActivities.ts) — afgeleid van DOELGROEP_LABELS, maar
+// als losse, stabiele mapping i.p.v. de labels zelf te slugifyen: een label
+// wijzigen ("Groep 1/2" -> iets anders) mag geen bestaande, mogelijk al
+// geïndexeerde URL laten verschuiven.
+export const DOELGROEP_SLUGS: Record<number, string> = {
+  1: "groep-1-2",
+  2: "groep-3-4",
+  3: "groep-5-6",
+  4: "groep-7-8",
+  5: "onderbouw",
+  6: "bovenbouw",
+};
+
 // Pure, onafhankelijke multi-select — elke chip heeft zijn eigen aan/uit-
 // status. Bewust GEEN exclusiviteit tussen bijv. "Onderbouw" en "Groep 3/4"
 // (een eerdere versie sloot die overlappende kant automatisch uit, wat de
