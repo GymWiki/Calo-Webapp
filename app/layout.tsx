@@ -24,6 +24,12 @@ const anton = Anton({
 });
 
 export const metadata: Metadata = {
+  // Vereist voor absolute Open Graph/Twitter-image-URL's (o.a.
+  // app/opengraph-image.tsx) — zonder dit valt Next.js in productie terug op
+  // http://localhost:3000 voor relatieve image-paden, wat de og:image-tag
+  // zou breken. Pagina's zoals app/page.tsx overschrijven title/description
+  // met hun eigen, specifiekere export const metadata.
+  metadataBase: new URL("https://www.gymwiki.nl"),
   title: "GymWiki",
   description: "GymWiki 2.0 — platform voor CALO-studenten en vakdocenten lichamelijke opvoeding.",
   manifest: "/manifest.json",

@@ -106,7 +106,12 @@ function ActivityTile({
         {image ? (
           <Image
             src={image}
-            alt=""
+            // Leeg bij locked (zie de aria-label hierboven): een screenreader
+            // mag vervaagde inhoud niet gewoon voorlezen. Anders de titel —
+            // beschrijvende alt-tekst i.p.v. leeg, relevant voor zowel
+            // toegankelijkheid als afbeeldingen-SEO op de publieke
+            // landingspagina/bibliotheek-preview (app/page.tsx).
+            alt={locked ? "" : activity.titel}
             fill
             sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
             className="object-cover"

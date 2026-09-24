@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { ReturnToAppBanner } from "@/components/mobile/ReturnToAppBanner";
 import { SubscriptionPlansSection } from "@/components/subscription/SubscriptionPlansSection";
+import { MONTHLY_CONTRIBUTION_REQUIRED_COUNT, type SubscriptionPlan } from "@/lib/constants/subscriptionPlans";
 import { getUserPermissions } from "@/lib/permissions";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
@@ -13,10 +14,14 @@ const SUBSCRIPTION_FEATURES = [
   "Zelf activiteiten blijven delen mag altijd, maar is niet verplicht",
 ];
 
+function isSubscriptionPlan(value: string | undefined): value is SubscriptionPlan {
+  return value === "monthly" || value === "yearly" || value === "lifetime";
+}
+
 export default async function ProPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; native?: string }>;
+  searchParams: Promise<{ checkout?: string; native?: string; plan?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
 
@@ -24,7 +29,12 @@ export default async function ProPage({
     redirect("/login");
   }
 
-  const { checkout, native } = await searchParams;
+  const { checkout, native, plan } = await searchParams;
+  // ?plan= komt van de prijskaarten op de landingspagina (app/page.tsx) via
+  // /register — zie register-form.tsx. Puur een visuele nadruk (welke
+  // kaart lichtjes oplicht), geen automatische checkout: de gebruiker moet
+  // altijd zelf op de knop klikken.
+  const highlightPlan = isSubscriptionPlan(plan) ? plan : undefined;
   // Alleen tonen als deze pagina via de systeem-browser-link vanuit de
   // native app is geopend (zie NativeUpgradeAction) — een gewone
   // webgebruiker die per ongeluk ?native=1 in de URL heeft staan ziet dit
@@ -45,7 +55,7 @@ export default async function ProPage({
         description={
           isPaid
             ? "Bedankt voor je steun aan GymWiki — je hebt altijd volledige toegang tot de bibliotheek, zonder bijdrage-eis."
-            : "GymWiki is gratis zolang je maandelijks minstens 4 activiteiten bijdraagt aan de bibliotheek. Liever geen bijdrage-eis? Kies een van de opties hieronder."
+            : `GymWiki is gratis zolang je maandelijks minstens ${MONTHLY_CONTRIBUTION_REQUIRED_COUNT} activiteiten bijdraagt aan de bibliotheek. Liever geen bijdrage-eis? Kies een van de opties hieronder.`
         }
       />
 
@@ -60,7 +70,7 @@ export default async function ProPage({
         ))}
       </ul>
 
-      <SubscriptionPlansSection currentType={profile.subscription_type} />
+      <SubscriptionPlansSection currentType={profile.subscription_type} highlightPlan={highlightPlan} />
 
       {isPaid && profile.subscription_type !== "lifetime" && (
         <p className="text-center text-sm text-muted-foreground">

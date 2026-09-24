@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { MONTHLY_CONTRIBUTION_REQUIRED_COUNT } from "@/lib/constants/subscriptionPlans";
 import type { SubscriptionStatus } from "@/lib/types";
 
 export type ContributionStatus = {
@@ -29,7 +30,13 @@ export async function getContributionStatus(
   const periodStart = startOfMonth();
 
   if (subscriptionStatus === "paid_subscriber") {
-    return { required: false, requiredCount: 4, approvedCount: 0, met: true, periodStart };
+    return {
+      required: false,
+      requiredCount: MONTHLY_CONTRIBUTION_REQUIRED_COUNT,
+      approvedCount: 0,
+      met: true,
+      periodStart,
+    };
   }
 
   const { data } = await supabase
@@ -39,7 +46,10 @@ export async function getContributionStatus(
     .eq("period_start", periodStart.toISOString().slice(0, 10))
     .maybeSingle();
 
-  const requiredCount = data?.required_count ?? 4;
+  // Fallback voor een gebruiker die deze maand nog geen enkele goedgekeurde
+  // bijdrage heeft (dus nog geen tracking-rij) — moet gelijk zijn aan de
+  // DB-kolomdefault (zie supabase/migrations/lower_contribution_quota.sql).
+  const requiredCount = data?.required_count ?? MONTHLY_CONTRIBUTION_REQUIRED_COUNT;
   const approvedCount = data?.approved_count ?? 0;
 
   return {

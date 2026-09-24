@@ -4,23 +4,29 @@ import { CircleCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { SubscriptionPlanInfo } from "@/lib/constants/subscriptionPlans";
+import type { PlanCardInfo } from "@/lib/constants/subscriptionPlans";
 
 /**
  * Puur presentationeel — geen hooks, dus vrij te importeren vanuit zowel
- * server- als client-code. De koop-knop/actie komt van de aanroeper via
- * `action` (children-achtig slot): web-gebruikers krijgen een
- * ProCheckoutButton, native-app-gebruikers zien de kaarten juist zonder
- * losse actie (één gedeelde NativeUpgradeAction eronder) — zie
- * SubscriptionPlansSection.tsx.
+ * server- als client-code (o.a. de server-gerenderde prijzensectie op
+ * app/page.tsx). De koop-knop/actie komt van de aanroeper via `action`
+ * (children-achtig slot): web-gebruikers krijgen een ProCheckoutButton,
+ * native-app-gebruikers zien de kaarten juist zonder losse actie (één
+ * gedeelde NativeUpgradeAction eronder, zie SubscriptionPlansSection.tsx),
+ * en op de landingspagina is `action` altijd een gewone /register-link.
+ * `plan: PlanCardInfo` (niet het bredere SubscriptionPlanInfo) zodat ook
+ * het niet-koopbare gratis-plan (FREE_PLAN_INFO) dezelfde kaart gebruikt.
  */
 export function PlanCard({
   plan,
-  isCurrent,
+  isCurrent = false,
+  highlighted = false,
   action,
 }: {
-  plan: SubscriptionPlanInfo;
-  isCurrent: boolean;
+  plan: PlanCardInfo;
+  isCurrent?: boolean;
+  /** Tijdelijke visuele nadruk — zie /pro's ?plan=-parameter (vanuit register). */
+  highlighted?: boolean;
   action: ReactNode;
 }) {
   return (
@@ -29,10 +35,13 @@ export function PlanCard({
         "relative flex h-full flex-col",
         plan.recommended && !isCurrent && "border-primary/50 shadow-md",
         isCurrent && "border-success/40 bg-success/5",
+        highlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background",
       )}
     >
       {plan.recommended && !isCurrent && (
-        <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2">Meest gekozen</Badge>
+        <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+          {plan.badgeLabel ?? "Meest gekozen"}
+        </Badge>
       )}
 
       <CardContent className="flex flex-1 flex-col gap-4 py-6">

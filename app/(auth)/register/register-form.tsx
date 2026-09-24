@@ -51,7 +51,18 @@ export function RegisterForm() {
       return;
     }
 
-    router.push("/dashboard");
+    // ?plan= komt van een prijskaart op de landingspagina (zie
+    // app/page.tsx + lib/constants/subscriptionPlans.ts) — leidt na een
+    // geslaagde registratie meteen naar /pro met dat plan visueel
+    // gemarkeerd i.p.v. het gewone dashboard, zodat "gratis aan de slag"
+    // en "kies een betaald plan" allebei in één stap naar hun bedoelde
+    // vervolgstap gaan. Gewone window.location.search-lezing i.p.v.
+    // useSearchParams(): zie components/subscription/ProCheckoutButton.tsx
+    // voor dezelfde afweging (geen Suspense-boundary nodig voor een
+    // eenmalige lezing bij submit).
+    const plan = new URLSearchParams(window.location.search).get("plan");
+    const isKnownPlan = plan === "monthly" || plan === "yearly" || plan === "lifetime";
+    router.push(isKnownPlan ? `/pro?plan=${plan}` : "/dashboard");
     router.refresh();
   }
 

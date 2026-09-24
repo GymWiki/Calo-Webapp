@@ -1,0 +1,22 @@
+# GymWiki
+
+> GymWiki is de activiteitenbibliotheek voor bewegingsonderwijs, gebouwd en gecontroleerd door vakleerkrachten lichamelijke opvoeding en CALO-studenten. Elke activiteit is opgebouwd rond een expliciet doel, een beginsituatie/doelgroep en meetbare leeruitkomsten, gebaseerd op het Basisdocument Bewegingsonderwijs.
+
+GymWiki is gratis voor wie minstens 3 activiteiten per maand deelt met de gezamenlijke bibliotheek (elke bijdrage gaat langs een AI-kwaliteitscontrole vóór publicatie). Voor wie liever niet zelf bijdraagt zijn er drie betaalde opties.
+
+## Prijzen
+
+- Gratis (via bijdrage): EUR 0,- per maand — bij het delen van 3 activiteiten per maand met de bibliotheek.
+- Maandelijks: EUR 3,- per maand, op elk moment opzegbaar.
+- Jaarlijks: EUR 25,- per jaar (goedkoper dan twaalf keer het maandbedrag van EUR 3,-).
+- Lifetime: EUR 99,- eenmalig, geen terugkerende betaling, voor altijd volledige toegang.
+
+## Belangrijkste pagina's
+
+- [Homepage](https://www.gymwiki.nl/): kernboodschap, hoe het collectieve model werkt, alle vier prijsopties en veelgestelde vragen.
+- [Registreren](https://www.gymwiki.nl/register): een gratis GymWiki-account aanmaken.
+- [Inloggen](https://www.gymwiki.nl/login): inloggen op een bestaand account.
+
+## Over
+
+GymWiki is gebouwd voor vakleerkrachten lichamelijke opvoeding en CALO-studenten die hun gymles voorbereiden. Gebruikers kunnen de activiteitenbibliotheek doorzoeken, zelf activiteiten toevoegen en delen, en een canvas-editor gebruiken om plattegronden en oefeningen te ontwerpen. Toegang tot de rest van het platform (bibliotheek, canvas-editor, kennisbank) vereist een account.

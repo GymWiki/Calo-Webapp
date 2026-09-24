@@ -3,7 +3,12 @@
 import { NativeUpgradeAction } from "@/components/mobile/NativeUpgradeAction";
 import { PlanCard } from "@/components/subscription/PlanCard";
 import { ProCheckoutButton } from "@/components/subscription/ProCheckoutButton";
-import { PLAN_ORDER, SUBSCRIPTION_PLANS, SUBSCRIPTION_PLAN_ORDER } from "@/lib/constants/subscriptionPlans";
+import {
+  PLAN_ORDER,
+  SUBSCRIPTION_PLANS,
+  SUBSCRIPTION_PLAN_ORDER,
+  type SubscriptionPlan,
+} from "@/lib/constants/subscriptionPlans";
 import { useIsNativeApp } from "@/lib/mobile/useIsNativeApp";
 import type { SubscriptionType } from "@/lib/types";
 
@@ -20,7 +25,15 @@ import type { SubscriptionType } from "@/lib/types";
  * op gymwiki.nl in de systeem-browser (zie app/(protected)/pro/page.tsx
  * voor de bijbehorende ReturnToAppBanner die daarna weer terugleidt).
  */
-export function SubscriptionPlansSection({ currentType }: { currentType: SubscriptionType }) {
+export function SubscriptionPlansSection({
+  currentType,
+  highlightPlan,
+}: {
+  currentType: SubscriptionType;
+  /** Komt vanuit /pro?plan=... (zie app/(protected)/pro/page.tsx) — een gebruiker die
+   * op de landingspagina een specifiek plan koos en zich net registreerde. */
+  highlightPlan?: SubscriptionPlan;
+}) {
   const isNative = useIsNativeApp();
 
   return (
@@ -41,6 +54,7 @@ export function SubscriptionPlansSection({ currentType }: { currentType: Subscri
               key={planId}
               plan={plan}
               isCurrent={isCurrent}
+              highlighted={highlightPlan === planId}
               action={
                 isDowngrade ? (
                   <p className="text-center text-xs text-muted-foreground">Niet beschikbaar als downgrade</p>
