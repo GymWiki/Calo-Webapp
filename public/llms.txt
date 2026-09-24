@@ -14,9 +14,13 @@ GymWiki is gratis voor wie minstens 3 activiteiten per maand deelt met de gezame
 ## Belangrijkste pagina's
 
 - [Homepage](https://www.gymwiki.nl/): kernboodschap, hoe het collectieve model werkt, alle vier prijsopties en veelgestelde vragen.
+- [Activiteitenbibliotheek](https://www.gymwiki.nl/activiteiten): publiek doorzoekbaar overzicht van alle gedeelde activiteiten — titel, lesdoel, doelgroep, leerlijn en materiaal zijn voor iedereen zichtbaar; de volledige uitwerking (opbouw, speelregels, varianten, leerhulp, zaaltekening) staat achter de betaalmuur.
+- [Over GymWiki](https://www.gymwiki.nl/over-gymwiki): wat GymWiki is, voor wie, wat het kost, hoe de bijdrage-regeling werkt en de didactische basis (TGfU, Basisdocument Bewegingsonderwijs).
 - [Registreren](https://www.gymwiki.nl/register): een gratis GymWiki-account aanmaken.
 - [Inloggen](https://www.gymwiki.nl/login): inloggen op een bestaand account.
 
+Elke activiteit heeft een eigen pagina onder `/activiteiten/[slug]`, en is ook te vinden via de leerlijn- (`/leerlijn/[leerlijn]`) en groepscategorieën (`/groep/[groep]`, bijv. `/groep/groep-5-6`).
+
 ## Over
 
-GymWiki is gebouwd voor vakleerkrachten lichamelijke opvoeding en CALO-studenten die hun gymles voorbereiden. Gebruikers kunnen de activiteitenbibliotheek doorzoeken, zelf activiteiten toevoegen en delen, en een canvas-editor gebruiken om plattegronden en oefeningen te ontwerpen. Toegang tot de rest van het platform (bibliotheek, canvas-editor, kennisbank) vereist een account.
+GymWiki is gebouwd voor vakleerkrachten lichamelijke opvoeding en CALO-studenten die hun gymles voorbereiden. Gebruikers kunnen de activiteitenbibliotheek doorzoeken, zelf activiteiten toevoegen en delen, en een canvas-editor gebruiken om plattegronden en oefeningen te ontwerpen. De publieke activiteitenbibliotheek (titel, lesdoel, doelgroep, leerlijn, materiaal) is voor iedereen zichtbaar zonder account; de volledige uitwerking en de rest van het platform (canvas-editor, kennisbank) vereisen een account.
