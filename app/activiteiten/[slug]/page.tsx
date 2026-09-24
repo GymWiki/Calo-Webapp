@@ -22,6 +22,7 @@ import {
   type PublicActivity,
 } from "@/lib/services/publicActivities";
 import { DOELGROEP_LABELS } from "@/types/activity";
+import type { BreadcrumbItem } from "@/components/public/Breadcrumbs";
 
 // Publieke, niet-ingelogde pagina — leest geen cookies-afhankelijke
 // gebruikersstate (de Supabase-client hieronder gebruikt alleen de
@@ -63,6 +64,57 @@ function buildMetaTitle(activity: PublicActivity): string {
   const suffix = " | GymWiki";
   const maxTitleLen = META_TITLE_MAX - suffix.length - 1;
   return `${activity.titel.slice(0, maxTitleLen)}…${suffix}`;
+}
+
+// LearningResource + BreadcrumbList als één @graph (zelfde patroon als
+// app/page.tsx's Organization/SoftwareApplication/FAQPage-blok). Volgt
+// Google's paywalled-content-richtlijn: isAccessibleForFree: false op de
+// resource zelf, plus een hasPart/WebPageElement die met cssSelector naar
+// het zichtbare paywall-blok (#volledige-uitwerking) wijst — dat blok
+// bestaat wél in de server-HTML (de aankondiging), de afgeschermde velden
+// zelf nooit.
+function buildActivityJsonLd(
+  activity: PublicActivity,
+  canonical: string,
+  breadcrumbItems: BreadcrumbItem[],
+) {
+  const leerlijnLabel = activity.leerlijn || activity.categorie;
+  const groepLabels = (activity.doelgroep ?? [])
+    .map((code) => DOELGROEP_LABELS[code])
+    .filter((label): label is string => Boolean(label));
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "LearningResource",
+        "@id": `${canonical}#resource`,
+        name: activity.titel,
+        description: activity.seo_summary,
+        url: canonical,
+        inLanguage: "nl",
+        ...(activity.doel ? { teaches: activity.doel } : {}),
+        ...(leerlijnLabel ? { about: leerlijnLabel } : {}),
+        ...(groepLabels.length > 0 ? { educationalLevel: groepLabels.join(", ") } : {}),
+        isAccessibleForFree: false,
+        hasPart: {
+          "@type": "WebPageElement",
+          isAccessibleForFree: false,
+          cssSelector: "#volledige-uitwerking",
+        },
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${canonical}#breadcrumb`,
+        itemListElement: breadcrumbItems.map((item, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          name: item.label,
+          ...(item.href ? { item: `${BASE_URL}${item.href}` } : {}),
+        })),
+      },
+    ],
+  };
 }
 
 export async function generateMetadata({
@@ -129,7 +181,7 @@ export default async function PublicActivityPage({
   const leerlijnLabel = activity.leerlijn || activity.categorie;
   const related = await getRelatedPublicActivities(activity);
 
-  const breadcrumbItems = [
+  const breadcrumbItems: BreadcrumbItem[] = [
     { label: "Home", href: "/" },
     { label: "Activiteiten", href: "/activiteiten" },
     ...(leerlijnLabel
@@ -137,9 +189,18 @@ export default async function PublicActivityPage({
       : []),
     { label: activity.titel },
   ];
+  const canonical = `${BASE_URL}/activiteiten/${activity.slug}`;
+  const jsonLd = buildActivityJsonLd(activity, canonical, breadcrumbItems);
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-8 sm:py-10">
+      {/* JSON-LD — server-gerenderd (geen client-only injectie), dus ook
+          zichtbaar voor AI-crawlers zonder JS. < i.p.v. < ontsnapt elk
+          "</script>"-achtig patroon (zelfde patroon als app/page.tsx). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+      />
       <Breadcrumbs items={breadcrumbItems} />
 
       <div className="space-y-3">
