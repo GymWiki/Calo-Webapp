@@ -315,192 +315,245 @@ export default async function ActiviteitDetailPage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
+    <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-8 md:space-y-6 md:p-8 lg:max-w-6xl print:max-w-none print:p-0">
       <div className="print:hidden">
         <BackButton fallbackHref="/zoeken" fallbackLabel="Bibliotheek" className="-ml-2" />
       </div>
 
-      {/* Header — titel is het belangrijkste element, geen kaart-omlijning
-          nodig (zie components/page-header.tsx voor hetzelfde patroon elders
-          in de app: eyebrow + titel + meta, geen Card-wrapper). */}
-      <div className="animate-fade-up space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className={`font-mono text-xs font-semibold tracking-[0.14em] uppercase ${getCategoryColor(activity.categorie).text}`}
-            >
-              {activity.beweegthema || activity.categorie || "Activiteit"}
-            </p>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words sm:text-3xl">
-              {activity.titel}
-            </h1>
-            {groepNiveauSummary && (
-              <p className="mt-1 text-sm text-muted-foreground">{groepNiveauSummary}</p>
-            )}
-          </div>
-          <SourceBadge source={getActivitySource(activity)} className="mt-1 shrink-0" />
-        </div>
+      {/* Hoofdkolom + sticky zijbalk vanaf lg (CLAUDE.md: "real desktop
+          layout"-wijzigingen wachten op lg, niet md) — op mobiel/tablet blijft
+          dit gewoon één kolom die van boven naar beneden leest. De zijbalk
+          herhaalt bewust dezelfde acties/kernmetadata die in de hoofdkolom-
+          header ook staan: op lg+ blijft hij zichtbaar tijdens het scrollen
+          door de tabs eronder, ook als de header allang buiten beeld is. */}
+      <div className="lg:grid lg:grid-cols-[1fr_300px] lg:items-start lg:gap-10">
+        <div className="space-y-5 md:space-y-6">
+          {/* Header — titel is het belangrijkste element, geen kaart-omlijning
+              nodig (zie components/page-header.tsx voor hetzelfde patroon
+              elders in de app: eyebrow + titel + meta, geen Card-wrapper). */}
+          <div className="animate-fade-up space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p
+                  className={`font-mono text-xs font-semibold tracking-[0.14em] uppercase ${getCategoryColor(activity.categorie).text}`}
+                >
+                  {activity.beweegthema || activity.categorie || "Activiteit"}
+                </p>
+                <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words sm:text-3xl">
+                  {activity.titel}
+                </h1>
+                {groepNiveauSummary && (
+                  <p className="mt-1 text-sm text-muted-foreground">{groepNiveauSummary}</p>
+                )}
+              </div>
+              <SourceBadge source={getActivitySource(activity)} className="mt-1 shrink-0" />
+            </div>
 
-        {infoStripItems.length > 0 && <ActivityInfoStrip items={infoStripItems} />}
-
-        <div className="flex flex-wrap gap-1.5">
-          {activity.leerlijn && <Badge variant="outline">{activity.leerlijn}</Badge>}
-        </div>
-
-        <PlannedForBanner plannedLessons={plannedLessons} />
-      </div>
-
-      {/* Eén kolom, altijd: afbeelding vol op de breedte van de pagina, dan
-          de tabs eronder. Geen zijkolom en geen grid-split meer — op elke
-          breedte dezelfde, voorspelbare leesvolgorde van boven naar
-          beneden. */}
-      <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span
-              className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
-              aria-hidden="true"
+            {/* Compacte iconenrij op mobiel/tablet — gewoon onderdeel van de
+                paginascroll (niet sticky), dus geen concurrentie met de vaste
+                onderste navigatiebalk. Verdwijnt vanaf lg: daar staan
+                dezelfde drie acties al in de sticky zijbalk. */}
+            <ActivityDetailActions
+              activity={activity}
+              initiallySaved={saved}
+              classes={classes}
+              variant="icons"
+              className="lg:hidden"
             />
-            Arrangement
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ActivityImageLightbox
-            src={activity.afbeelding}
-            alt={activity.titel}
-            emptyLabel="Geen arrangement-afbeelding beschikbaar."
-          />
-        </CardContent>
-      </Card>
 
-      <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-        <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
-          <TabsTrigger
-            value="lesinhoud"
-            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Lesinhoud
-          </TabsTrigger>
-          <TabsTrigger
-            value="materiaal"
-            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Materiaal
-          </TabsTrigger>
-          <TabsTrigger
-            value="leerhulp"
-            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Leerhulp
-          </TabsTrigger>
-        </TabsList>
+            {infoStripItems.length > 0 && <ActivityInfoStrip items={infoStripItems} />}
 
-        {/* Tab 1: Lesinhoud */}
-        <TabsContent value="lesinhoud" className="space-y-4">
-          <Card>
-            <CardContent className="space-y-5 pt-6">
-              {/* Volgorde bewust: eerst het "waarom" (Doel), dan de context
-                  waartegen dat doel staat (Beginsituatie & Doelgroep — voor
-                  wie is dit, wat wordt al verondersteld), dán pas de
-                  leeruitkomsten en de daadwerkelijke uitvoering. */}
-              {activity.doel && (
-                <div>
-                  <SectionHeading>Doel</SectionHeading>
-                  <p className="text-sm whitespace-pre-line text-foreground">{activity.doel}</p>
-                </div>
-              )}
+            <div className="flex flex-wrap gap-1.5">
+              {activity.leerlijn && <Badge variant="outline">{activity.leerlijn}</Badge>}
+            </div>
 
-              {hasBeginsituatieSection && (
-                <div>
-                  <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
-                  {doelgroepLabels.length > 0 && (
-                    <div className={beginsituatieText ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
-                      {doelgroepLabels.map((label) => (
-                        <Badge key={label} variant="secondary">
-                          {label}
-                        </Badge>
-                      ))}
+            <PlannedForBanner plannedLessons={plannedLessons} />
+          </div>
+
+          <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <span
+                  className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
+                  aria-hidden="true"
+                />
+                Arrangement
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ActivityImageLightbox
+                src={activity.afbeelding}
+                alt={activity.titel}
+                emptyLabel="Geen arrangement-afbeelding beschikbaar."
+              />
+            </CardContent>
+          </Card>
+
+          <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+            <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
+              <TabsTrigger
+                value="lesinhoud"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Lesinhoud
+              </TabsTrigger>
+              <TabsTrigger
+                value="materiaal"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Materiaal
+              </TabsTrigger>
+              <TabsTrigger
+                value="leerhulp"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Leerhulp
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Tab 1: Lesinhoud */}
+            <TabsContent value="lesinhoud" className="space-y-4">
+              <Card>
+                <CardContent className="space-y-5 pt-6">
+                  {/* Volgorde bewust: eerst het "waarom" (Doel), dan de context
+                      waartegen dat doel staat (Beginsituatie & Doelgroep — voor
+                      wie is dit, wat wordt al verondersteld), dán pas de
+                      leeruitkomsten en de daadwerkelijke uitvoering. */}
+                  {activity.doel && (
+                    <div>
+                      <SectionHeading>Doel</SectionHeading>
+                      <p className="text-sm whitespace-pre-line text-foreground">{activity.doel}</p>
                     </div>
                   )}
-                  {beginsituatieText && (
-                    <p className="text-sm whitespace-pre-line text-foreground">
-                      {beginsituatieText}
-                    </p>
+
+                  {hasBeginsituatieSection && (
+                    <div>
+                      <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
+                      {doelgroepLabels.length > 0 && (
+                        <div className={beginsituatieText ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
+                          {doelgroepLabels.map((label) => (
+                            <Badge key={label} variant="secondary">
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {beginsituatieText && (
+                        <p className="text-sm whitespace-pre-line text-foreground">
+                          {beginsituatieText}
+                        </p>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
 
-              {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
-                <div>
-                  <SectionHeading>Leeruitkomsten</SectionHeading>
-                  <LearningOutcomesList items={activity.learning_outcomes} />
-                </div>
-              )}
-
-              {participantsDetail && (
-                <div>
-                  <SectionHeading>Deelnemers</SectionHeading>
-                  <TextList items={participantsDetail} />
-                </div>
-              )}
-
-              {/* Verborgen i.p.v. een lege "-" tonen wanneer er geen
-                  beschrijving is ingevuld. */}
-              {bodyText && (
-                <div>
-                  <SectionHeading>Zo speel je</SectionHeading>
-                  {speelStappen ? (
-                    <StepList steps={speelStappen} />
-                  ) : (
-                    <p className="text-sm whitespace-pre-line text-foreground">{bodyText}</p>
+                  {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
+                    <div>
+                      <SectionHeading>Leeruitkomsten</SectionHeading>
+                      <LearningOutcomesList items={activity.learning_outcomes} />
+                    </div>
                   )}
-                </div>
-              )}
 
-              <div>
-                <SectionHeading>Regels</SectionHeading>
-                <RulesChecklist items={activity.regels} />
+                  {participantsDetail && (
+                    <div>
+                      <SectionHeading>Deelnemers</SectionHeading>
+                      <TextList items={participantsDetail} />
+                    </div>
+                  )}
+
+                  {/* Verborgen i.p.v. een lege "-" tonen wanneer er geen
+                      beschrijving is ingevuld. */}
+                  {bodyText && (
+                    <div>
+                      <SectionHeading>Zo speel je</SectionHeading>
+                      {speelStappen ? (
+                        <StepList steps={speelStappen} />
+                      ) : (
+                        <p className="text-sm whitespace-pre-line text-foreground">{bodyText}</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <SectionHeading>Regels</SectionHeading>
+                    <RulesChecklist items={activity.regels} />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab 2: Materiaal (incl. veld/opstelling) */}
+            <TabsContent value="materiaal" className="space-y-4">
+              <Card>
+                <CardContent className="space-y-5 pt-6">
+                  <div>
+                    <SectionHeading>Veld &amp; opstelling</SectionHeading>
+                    <p className="text-sm whitespace-pre-line text-foreground">{activity.veld || "-"}</p>
+                  </div>
+                  <div>
+                    <SectionHeading>Materiaallijst</SectionHeading>
+                    <BadgeList items={activity.materiaal} />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab 3: Leerhulp (3 L'en) — onder elkaar i.p.v. drie kolommen: bij
+                langere tips-lijsten waren de kolommen te smal en brak de tekst
+                ongemakkelijk af. */}
+            <TabsContent value="leerhulp" className="space-y-4">
+              <div className="flex flex-col gap-4">
+                <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
+                <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
+                <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
+          </Tabs>
+        </div>
 
-        {/* Tab 2: Materiaal (incl. veld/opstelling) */}
-        <TabsContent value="materiaal" className="space-y-4">
+        {/* Zijbalk — alleen vanaf lg, sticky zodat acties/kernmetadata
+            zichtbaar blijven terwijl er door de tabs gescrold wordt.
+            self-start voorkomt dat de aside de volledige grid-rijhoogte
+            probeert te vullen (wat sticky zou breken). */}
+        <aside className="hidden lg:sticky lg:top-8 lg:block lg:self-start lg:space-y-4">
           <Card>
-            <CardContent className="space-y-5 pt-6">
-              <div>
-                <SectionHeading>Veld &amp; opstelling</SectionHeading>
-                <p className="text-sm whitespace-pre-line text-foreground">{activity.veld || "-"}</p>
-              </div>
-              <div>
-                <SectionHeading>Materiaallijst</SectionHeading>
-                <BadgeList items={activity.materiaal} />
-              </div>
+            <CardContent className="pt-6">
+              <ActivityDetailActions
+                activity={activity}
+                initiallySaved={saved}
+                classes={classes}
+                variant="sidebar"
+              />
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Tab 3: Leerhulp (3 L'en) — onder elkaar i.p.v. drie kolommen: bij
-            langere tips-lijsten waren de kolommen te smal en brak de tekst
-            ongemakkelijk af. Volle kaartbreedte binnen de pagina (die zelf
-            al op een leesbare max-w-3xl staat) i.p.v. een extra kolomsplit. */}
-        <TabsContent value="leerhulp" className="space-y-4">
-          <div className="flex flex-col gap-4">
-            <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
-            <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
-            <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* Eén actiebalk, op elke breedte: vast onderaan het scherm,
-          safe-area-bewust. bottom-[calc(4rem+env(safe-area-inset-bottom))]
-          blijft boven de mobiele bottom-navigatie (md:hidden en zelf ook
-          safe-area-bewust, zie components/app-layout.tsx), md:bottom-0
-          daarna — op mobiel reserveert de nav er al onder de veilige zone. */}
-      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex gap-2 border-t bg-card p-2.5 shadow-brand-lg md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))] print:hidden">
-        <ActivityDetailActions activity={activity} initiallySaved={saved} classes={classes} />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Op een rij</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0">
+              {groepNiveauSummary && (
+                <p className="text-sm text-muted-foreground">{groepNiveauSummary}</p>
+              )}
+              {doelgroepLabels.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {doelgroepLabels.map((label) => (
+                    <Badge key={label} variant="secondary">
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {infoStripItems.length > 0 && (
+                <ActivityInfoStrip items={infoStripItems} className="flex-col items-start gap-2" />
+              )}
+              {activity.leerlijn && (
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="outline">{activity.leerlijn}</Badge>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </aside>
       </div>
     </main>
   );
