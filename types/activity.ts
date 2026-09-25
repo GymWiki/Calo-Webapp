@@ -75,6 +75,10 @@ export type Activity = {
   is_ai_generated: boolean;
   is_public: boolean;
   public_since: string | null;
+  // Gedenormaliseerd, bijgehouden door een DB-trigger op activity_likes (zie
+  // supabase/migrations/activity_likes.sql) — nooit hier vanuit de app
+  // opgehoogd/verlaagd, alleen gelezen.
+  like_count: number;
 };
 
 // `doelgroep` isn't a school-year number — it's a fixed 1-6 bucket code

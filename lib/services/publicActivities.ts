@@ -27,10 +27,11 @@ export type PublicActivity = {
   afbeelding: string | null;
   public_since: string | null;
   created_at: string;
+  like_count: number;
 };
 
 const PUBLIC_SELECT =
-  "id, slug, titel, seo_summary, doel, doelgroep, leerlijn, categorie, materiaal, base_materials, rule_materials, afbeelding, public_since, created_at";
+  "id, slug, titel, seo_summary, doel, doelgroep, leerlijn, categorie, materiaal, base_materials, rule_materials, afbeelding, public_since, created_at, like_count";
 
 // Plain anon-key-client (geen cookies, zie utils/supabase/public.ts) i.p.v.
 // de service-role-client: geen enkele van onderstaande functies heeft ooit

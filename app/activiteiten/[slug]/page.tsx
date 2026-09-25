@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, ThumbsUp } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -229,6 +229,18 @@ export default async function PublicActivityPage({
             ))}
           </div>
         )}
+        {/* Niet-ingelogde bezoeker ziet het aantal wel, maar kan zelf niet
+            liken (activity_likes vereist authenticated, zie de migratie) —
+            een klik linkt naar /login i.p.v. een client-side toggle die toch
+            zou mislukken. */}
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          aria-label={`${activity.like_count} ${activity.like_count === 1 ? "gebruiker vond" : "gebruikers vonden"} dit een goede activiteit — log in om zelf te waarderen`}
+        >
+          <ThumbsUp className="size-4" aria-hidden="true" />
+          {activity.like_count}
+        </Link>
       </div>
 
       {activity.afbeelding && (

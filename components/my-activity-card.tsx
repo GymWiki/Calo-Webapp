@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { ImageOff, Lock, Trash2, Users2 } from "lucide-react";
+import { ImageOff, Lock, ThumbsUp, Trash2, Users2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { deleteActivityDraft } from "@/actions/activity-submission";
@@ -125,6 +125,14 @@ export function MyActivityCard({ activity }: { activity: Activity }) {
           </p>
           {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
           {doelgroepLabel && <p className="truncate text-xs text-muted-foreground">{doelgroepLabel}</p>}
+          {/* Alleen voor ingediende (niet-concept) activiteiten — een concept
+              is nooit publiek zichtbaar geweest en kan dus niet geliket zijn. */}
+          {!isDraft && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <ThumbsUp className="size-3" aria-hidden="true" />
+              {activity.like_count} {activity.like_count === 1 ? "waardering" : "waarderingen"}
+            </p>
+          )}
         </div>
       </Link>
 

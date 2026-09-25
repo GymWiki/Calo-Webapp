@@ -33,6 +33,16 @@ const SOURCE_TABS: { value: SourceFilter; label: string }[] = [
   { value: "public", label: "Publiek" },
 ];
 
+// "Standaard" laat de bestaande alfabetische/nieuwste-eerst database-volgorde
+// intact (zie getAllActivities/getPublicActivities) — sorteren gebeurt dus
+// alleen client-side wanneer de gebruiker expliciet "Meest gewaardeerd" kiest.
+type SortOption = "standaard" | "meest_gewaardeerd";
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "standaard", label: "Standaard" },
+  { value: "meest_gewaardeerd", label: "Meest gewaardeerd" },
+];
+
 function readStoredSourceFilter(): SourceFilter {
   if (typeof window === "undefined") return "all";
   try {
@@ -96,6 +106,7 @@ type PersistedSearchState = {
   leerlijn: string[];
   doelgroep: number[];
   weinigMateriaal: boolean;
+  sort: SortOption;
 };
 
 const EMPTY_PERSISTED_STATE: PersistedSearchState = {
@@ -104,6 +115,7 @@ const EMPTY_PERSISTED_STATE: PersistedSearchState = {
   leerlijn: [],
   doelgroep: [],
   weinigMateriaal: false,
+  sort: "standaard",
 };
 
 function readStoredSearchState(): PersistedSearchState {
@@ -118,6 +130,7 @@ function readStoredSearchState(): PersistedSearchState {
       leerlijn: Array.isArray(parsed.leerlijn) ? parsed.leerlijn : [],
       doelgroep: Array.isArray(parsed.doelgroep) ? parsed.doelgroep : [],
       weinigMateriaal: parsed.weinigMateriaal === true,
+      sort: parsed.sort === "meest_gewaardeerd" ? "meest_gewaardeerd" : "standaard",
     };
   } catch {
     return EMPTY_PERSISTED_STATE;
@@ -515,6 +528,11 @@ export function LibrarySearchClient({
     resetPaging();
   }
 
+  function setSort(value: SortOption) {
+    setPersisted({ ...persisted, sort: value });
+    resetPaging();
+  }
+
   function commitFilters(next: FilterState) {
     setPersisted({
       ...persisted,
@@ -601,6 +619,15 @@ export function LibrarySearchClient({
     });
   }, [preFilterItems, filters]);
 
+  // Losse sorteerstap, ná filteren — "Meest gewaardeerd" sorteert op
+  // like_count aflopend (het gedenormaliseerde veld op activiteiten, zie
+  // supabase/migrations/activity_likes.sql). Nieuwe array (i.p.v. in-place
+  // sort) zodat filteredItems zelf niet muteert.
+  const sortedItems = useMemo(() => {
+    if (persisted.sort !== "meest_gewaardeerd") return filteredItems;
+    return [...filteredItems].sort((a, b) => b.activity.like_count - a.activity.like_count);
+  }, [filteredItems, persisted.sort]);
+
   // Eén losstaande, verwijderbare chip per actief filter — categorie draagt
   // z'n kleurmarkering mee, de rest blijft kleurloos (zie CategorySwatch).
   const activeChips = useMemo(() => {
@@ -654,7 +681,7 @@ export function LibrarySearchClient({
   // een grote resultatenlijst (bijv. 340 activiteiten) licht: nooit meer
   // dan 24 kaarten (waarvan hooguit een paar los-vervaagd) tegelijk in de
   // DOM, i.p.v. alles in één keer met blur() te renderen.
-  const visible = filteredItems.slice(0, visibleCount);
+  const visible = sortedItems.slice(0, visibleCount);
   const hasActiveFilters = query.trim() !== "" || activeCount > 0;
   const unlockedInFilterCount = useMemo(
     () => filteredItems.filter((item) => isItemUnlocked(item, previewIdSet, currentUserId)).length,
@@ -797,11 +824,28 @@ export function LibrarySearchClient({
           />
         ) : (
           <>
-            <p className="text-sm text-muted-foreground">
-              {preFilterItems.length === filteredItems.length
-                ? `${filteredItems.length} ${filteredItems.length === 1 ? "resultaat" : "resultaten"} gevonden`
-                : `${filteredItems.length} van ${preFilterItems.length} resultaten`}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {preFilterItems.length === filteredItems.length
+                  ? `${filteredItems.length} ${filteredItems.length === 1 ? "resultaat" : "resultaten"} gevonden`
+                  : `${filteredItems.length} van ${preFilterItems.length} resultaten`}
+              </p>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                Sorteer op
+                <select
+                  value={persisted.sort}
+                  onChange={(event) => setSort(event.target.value as SortOption)}
+                  aria-label="Sorteer op"
+                  className="h-9 rounded-md border border-input bg-transparent px-2 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             {hasLockedItems && (
               <Card className="border-destructive/40 bg-destructive/5">
                 <CardContent className="flex flex-col items-center gap-3 py-4 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">

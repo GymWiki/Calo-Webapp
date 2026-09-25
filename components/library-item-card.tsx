@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, ImageOff, Lock, MapPinned, Users } from "lucide-react";
+import { BookOpen, ImageOff, Lock, MapPinned, ThumbsUp, Users } from "lucide-react";
 
 import { getActivitySource, type ActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
@@ -138,6 +138,12 @@ function ActivityTile({
           <ImageOff className="size-6 text-muted-foreground" aria-hidden="true" />
         )}
         {!locked && <SourceBadge source={source} className="absolute top-1.5 right-1.5" />}
+        {!locked && activity.like_count > 0 && (
+          <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-md border border-transparent bg-ink/80 px-1.5 py-0.5 text-[10px] font-semibold text-paper shadow-sm dark:bg-paper/85 dark:text-ink">
+            <ThumbsUp className="size-3" aria-hidden="true" />
+            {activity.like_count}
+          </span>
+        )}
       </div>
       <div
         className={cn("flex flex-1 flex-col gap-1 p-2.5", locked && "blur-sm")}

@@ -18,7 +18,7 @@ import { LEERHULP_COLORS } from "@/lib/constants/leerhulpColors";
 import { splitLearningOutcomeItems } from "@/lib/format";
 import { parseActivityDescription, splitIntoSteps } from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
-import { getActivityById, isActivitySaved } from "@/lib/services/activities";
+import { getActivityById, isActivityLiked, isActivitySaved } from "@/lib/services/activities";
 import { getContributionStatus } from "@/lib/services/contribution";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { getClassesForUser, getPlannedLessonsForActivity } from "@/lib/services/planning";
@@ -230,8 +230,9 @@ export default async function ActiviteitDetailPage({
   // (bij een wizard-activiteit) pas de auteursnaam, dan pas de gebruikte
   // kennisbronnen. Gecombineerd in één Promise.all i.p.v. drie sequentiële
   // round-trips.
-  const [saved, authorName, usedKnowledgeSources, plannedLessons, classes] = await Promise.all([
+  const [saved, liked, authorName, usedKnowledgeSources, plannedLessons, classes] = await Promise.all([
     isActivitySaved(profile.id, activity.id),
+    isActivityLiked(profile.id, activity.id),
     wizardActivity && activity.author_id
       ? getAuthorName(activity.author_id)
       : Promise.resolve(null),
@@ -356,6 +357,8 @@ export default async function ActiviteitDetailPage({
             <ActivityDetailActions
               activity={activity}
               initiallySaved={saved}
+              initiallyLiked={liked}
+              isOwnActivity={isOwnActivity}
               classes={classes}
               variant="icons"
               className="lg:hidden"
@@ -520,6 +523,8 @@ export default async function ActiviteitDetailPage({
               <ActivityDetailActions
                 activity={activity}
                 initiallySaved={saved}
+                initiallyLiked={liked}
+                isOwnActivity={isOwnActivity}
                 classes={classes}
                 variant="sidebar"
               />

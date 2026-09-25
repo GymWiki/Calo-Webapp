@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ThumbsUp } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { DOELGROEP_LABELS } from "@/types/activity";
@@ -40,7 +41,15 @@ export function PublicActivityCard({ activity }: { activity: PublicActivity }) {
         <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           {activity.leerlijn || activity.categorie || "Activiteit"}
         </p>
-        <h3 className="text-base font-semibold text-foreground">{activity.titel}</h3>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-base font-semibold text-foreground">{activity.titel}</h3>
+          {activity.like_count > 0 && (
+            <span className="flex shrink-0 items-center gap-1 pt-0.5 text-xs font-medium text-muted-foreground">
+              <ThumbsUp className="size-3" aria-hidden="true" />
+              {activity.like_count}
+            </span>
+          )}
+        </div>
         <p className="line-clamp-3 text-sm text-muted-foreground">{activity.seo_summary}</p>
         {doelgroepLabels.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">

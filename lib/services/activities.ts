@@ -4,7 +4,7 @@ import type { Activity } from "@/types/activity";
 
 const ACTIVITY_SELECT =
   "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
-  "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, is_public, public_since";
+  "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, is_public, public_since, like_count";
 
 // Voor lijst-/kaartweergaves (bibliotheek, "Mijn activiteiten", opgeslagen,
 // dashboard-secties): dezelfde velden als ACTIVITY_SELECT, MINUS de zware
@@ -23,7 +23,7 @@ const ACTIVITY_SELECT =
 // veld dus niet zelf afvangen, alleen deze lijst met opmerking.
 export const ACTIVITY_LIST_SELECT =
   "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
-  "group_name, activity_date, min_participants, participants_bench, base_materials, rule_materials, diagram_image_url, arrangement, is_public, public_since";
+  "group_name, activity_date, min_participants, participants_bench, base_materials, rule_materials, diagram_image_url, arrangement, is_public, public_since, like_count";
 
 async function getServerClient() {
   const cookieStore = await cookies();
@@ -236,4 +236,45 @@ export async function getSavedActivities(userId: string): Promise<Activity[]> {
   return orderedIds
     .map((id) => byId.get(id))
     .filter((activity): activity is Activity => activity !== undefined);
+}
+
+// Zelfde patroon als isActivitySaved/getSavedActivityIds hierboven —
+// activity_likes is een aparte junction-tabel (zie
+// supabase/migrations/activity_likes.sql), het geaggregeerde aantal staat
+// gedenormaliseerd op activiteiten.like_count (al onderdeel van
+// ACTIVITY_SELECT/ACTIVITY_LIST_SELECT), dus deze functies geven alleen
+// terug OF de huidige gebruiker al geliket heeft — nooit het aantal zelf.
+export async function isActivityLiked(
+  userId: string,
+  activityId: string,
+): Promise<boolean> {
+  const supabase = await getServerClient();
+
+  const { data, error } = await supabase
+    .from("activity_likes")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("activity_id", activityId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Kon like-status niet ophalen: ${error.message}`);
+  }
+
+  return data !== null;
+}
+
+export async function getLikedActivityIds(userId: string): Promise<Set<string>> {
+  const supabase = await getServerClient();
+
+  const { data, error } = await supabase
+    .from("activity_likes")
+    .select("activity_id")
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(`Kon geliket activiteiten niet ophalen: ${error.message}`);
+  }
+
+  return new Set((data ?? []).map((row) => row.activity_id));
 }
