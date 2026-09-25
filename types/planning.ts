@@ -54,52 +54,6 @@ export type PlanningClass = {
 };
 
 // ----------------------------------------------------------------------------
-// Jaarplanning-blokken — welke leerlijn een klas krijgt van start_date t/m
-// end_date. `leerlijn` is vrije tekst (zelfde sleutel als
-// activiteiten.leerlijn/LEARNING_LINE_CATEGORIES), geen foreign key.
-// Overlap binnen dezelfde klas wordt door de database geweigerd (exclude-
-// constraint) — de server action zet die foutmelding om in een vriendelijke
-// tekst i.p.v. de ruwe Postgres-foutcode door te geven.
-// ----------------------------------------------------------------------------
-
-const yearPlanBlockDateOrder = (value: { startDate: string; endDate: string }) =>
-  value.endDate >= value.startDate;
-const yearPlanBlockDateOrderIssue = {
-  message: "Einddatum moet op of na de startdatum liggen.",
-  path: ["endDate"],
-};
-
-const yearPlanBlockFieldsSchema = z.object({
-  classId: z.string().uuid(),
-  leerlijn: z.string().trim().min(1, "Kies een leerlijn."),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ongeldige startdatum."),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ongeldige einddatum."),
-});
-
-export const createYearPlanBlockInputSchema = yearPlanBlockFieldsSchema.refine(
-  yearPlanBlockDateOrder,
-  yearPlanBlockDateOrderIssue,
-);
-
-export type CreateYearPlanBlockInput = z.infer<typeof createYearPlanBlockInputSchema>;
-
-export const updateYearPlanBlockInputSchema = yearPlanBlockFieldsSchema
-  .extend({ id: z.string().uuid() })
-  .refine(yearPlanBlockDateOrder, yearPlanBlockDateOrderIssue);
-
-export type UpdateYearPlanBlockInput = z.infer<typeof updateYearPlanBlockInputSchema>;
-
-export type YearPlanBlock = {
-  id: string;
-  class_id: string;
-  user_id: string;
-  leerlijn: string;
-  start_date: string;
-  end_date: string;
-  created_at: string;
-};
-
-// ----------------------------------------------------------------------------
 // Geplande lessen — één rij per concreet lesmoment. `lesson_date`/
 // `start_time`/`duration_minutes` worden bij generatie "bevroren" (zie
 // lib/planningSchedule.ts) en niet elke render herberekend uit de
@@ -124,6 +78,17 @@ export const updatePlannedLessonInputSchema = z.object({
 
 export type UpdatePlannedLessonInput = z.infer<typeof updatePlannedLessonInputSchema>;
 
+// "Toevoegen aan planning" vanaf de activiteit-detailpagina: klas + datum
+// kiezen, koppelt aan een bestaand lesmoment op die datum of maakt er één
+// aan (zie actions/planning.ts's addActivityToPlanning).
+export const addActivityToPlanningInputSchema = z.object({
+  activityId: z.string().trim().min(1, "Kies een activiteit."),
+  classId: z.string().uuid(),
+  lessonDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ongeldige datum."),
+});
+
+export type AddActivityToPlanningInput = z.infer<typeof addActivityToPlanningInputSchema>;
+
 export type PlannedLesson = {
   id: string;
   class_id: string;
@@ -137,12 +102,11 @@ export type PlannedLesson = {
   created_at: string;
 };
 
-// Weekplanning-rij verrijkt met de actieve leerlijn (afgeleid uit de
-// jaarplanning-blokken, niet opgeslagen) en, indien gekoppeld, de titel van
-// de activiteit — voor gebruik in WeekPlanningView zonder een aparte lookup
-// per rij nodig te hebben.
+// Maandkalender-rij verrijkt met de klasnaam (voor de les-"chip" die klasnaam
+// + activiteit toont zonder een aparte lookup per rij) en, indien gekoppeld,
+// de titel van de activiteit.
 export type PlannedLessonWithContext = PlannedLesson & {
-  activeLeerlijn: string | null;
+  class_name: string;
   activityTitel: string | null;
 };
 
@@ -154,4 +118,29 @@ export type PlannedLessonForActivity = {
   class_name: string;
   lesson_date: string;
   start_time: string;
+};
+
+// ----------------------------------------------------------------------------
+// Schoolvakanties — centraal beheerde, per regio verschillende periodes (zie
+// supabase/migrations/planning_feature_rework.sql). `holiday_region` staat
+// op het gebruikersprofiel (lib/types.ts's UserProfile) en bepaalt welke
+// rijen hier relevant zijn.
+// ----------------------------------------------------------------------------
+
+export const HOLIDAY_REGIONS = ["noord", "midden", "zuid"] as const;
+export type HolidayRegion = (typeof HOLIDAY_REGIONS)[number];
+
+export const HOLIDAY_REGION_LABELS: Record<HolidayRegion, string> = {
+  noord: "Noord",
+  midden: "Midden",
+  zuid: "Zuid",
+};
+
+export type SchoolHoliday = {
+  id: string;
+  region: HolidayRegion;
+  name: string;
+  start_date: string;
+  end_date: string;
+  school_year: string;
 };

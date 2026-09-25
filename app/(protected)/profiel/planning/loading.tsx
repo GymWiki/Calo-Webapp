@@ -7,13 +7,14 @@ export default function ProfielPlanningLoading() {
       <PageHeader
         eyebrow="Profiel"
         title="Planning"
-        description="Klassen, jaarplanning per leerlijn en weekplanning per les."
+        description="Klassen en een maandkalender met geplande lesmomenten."
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <Skeleton key={i} className="h-36 w-full rounded-2xl" />
         ))}
       </div>
+      <Skeleton className="h-[520px] w-full rounded-2xl" />
     </main>
   );
 }

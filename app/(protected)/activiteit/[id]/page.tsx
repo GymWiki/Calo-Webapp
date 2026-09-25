@@ -25,7 +25,7 @@ import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
 import { getContributionStatus } from "@/lib/services/contribution";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
-import { getPlannedLessonsForActivity } from "@/lib/services/planning";
+import { getClassesForUser, getPlannedLessonsForActivity } from "@/lib/services/planning";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -234,13 +234,14 @@ export default async function ActiviteitDetailPage({
   // (bij een wizard-activiteit) pas de auteursnaam, dan pas de gebruikte
   // kennisbronnen. Gecombineerd in één Promise.all i.p.v. drie sequentiële
   // round-trips.
-  const [saved, authorName, usedKnowledgeSources, plannedLessons] = await Promise.all([
+  const [saved, authorName, usedKnowledgeSources, plannedLessons, classes] = await Promise.all([
     isActivitySaved(profile.id, activity.id),
     wizardActivity && activity.author_id
       ? getAuthorName(activity.author_id)
       : Promise.resolve(null),
     wizardActivity ? getActivityKnowledgeSources(activity.id) : Promise.resolve(undefined),
     getPlannedLessonsForActivity(activity.id),
+    getClassesForUser(profile.id),
   ]);
 
   // Wizard-activiteiten delen hun volledige weergave met de inline-editor
@@ -255,6 +256,7 @@ export default async function ActiviteitDetailPage({
         <ActivityWizardPage
           mode="view"
           activity={activity}
+          classes={classes}
           title={activity.titel}
           learningLine={activity.leerlijn ?? ""}
           movementTheme={activity.beweegthema ?? ""}
@@ -511,7 +513,7 @@ export default async function ActiviteitDetailPage({
           safe-area-bewust, zie components/app-layout.tsx), md:bottom-0
           daarna — op mobiel reserveert de nav er al onder de veilige zone. */}
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex gap-2 border-t bg-card p-2.5 shadow-brand-lg md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))] print:hidden">
-        <ActivityDetailActions activity={activity} initiallySaved={saved} />
+        <ActivityDetailActions activity={activity} initiallySaved={saved} classes={classes} />
       </div>
     </main>
   );

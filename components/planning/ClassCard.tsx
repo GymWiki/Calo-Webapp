@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -39,10 +38,10 @@ export function ClassCard({ klas }: { klas: PlanningClass }) {
   return (
     <div className="group flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md">
       <div className="flex items-start justify-between gap-2">
-        <Link href={`/profiel/planning/${klas.id}`} className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
           <p className="font-semibold">{klas.name}</p>
           <p className="mt-1 text-sm text-muted-foreground">{DOELGROEP_LABELS[klas.doelgroep]}</p>
-        </Link>
+        </div>
         <div className="flex shrink-0 gap-1">
           <Button
             type="button"
@@ -71,13 +70,6 @@ export function ClassCard({ klas }: { klas: PlanningClass }) {
         <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="truncate">{slotSummary || "Nog geen weekmoment"}</span>
       </div>
-
-      <Link
-        href={`/profiel/planning/${klas.id}`}
-        className="mt-auto text-sm font-medium text-primary group-hover:underline"
-      >
-        Planning bekijken →
-      </Link>
 
       <ClassFormDialog open={editOpen} onOpenChange={setEditOpen} existingClass={klas} />
     </div>

@@ -1,3 +1,5 @@
+import type { HolidayRegion } from "@/types/planning";
+
 export type SubscriptionStatus = "free_contributor" | "free_blocked" | "paid_subscriber";
 
 /**
@@ -19,6 +21,14 @@ export type UserProfile = {
   subscription_status: SubscriptionStatus;
   subscription_type: SubscriptionType;
   email: string | null;
+  /**
+   * Regio (noord/midden/zuid) voor de schoolvakantie-weergave in de
+   * Planning-kalender — null zolang de gebruiker dit niet heeft ingesteld
+   * (zie /profiel/instellingen), dan wordt er bewust geen vakantie-info
+   * getoond. Zie types/planning.ts's HolidayRegion en
+   * supabase/migrations/planning_feature_rework.sql.
+   */
+  holiday_region: HolidayRegion | null;
   /**
    * Vaste preview-set voor de bibliotheek (/zoeken) — alleen relevant voor
    * free_blocked-accounts. null = nog nooit berekend (zie

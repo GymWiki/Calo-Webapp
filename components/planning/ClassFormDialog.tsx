@@ -66,7 +66,7 @@ function ClassFormFields({
       }
       toast.success("Klas aangemaakt.");
       onOpenChange(false);
-      router.push(`/profiel/planning/${result.classId}`);
+      router.refresh();
     });
   }
 
@@ -76,7 +76,7 @@ function ClassFormFields({
         <DialogTitle>{isEdit ? "Klas bewerken" : "Klas toevoegen"}</DialogTitle>
         <DialogDescription>
           Naam, doelgroep en vaste weekmomenten — de weekmomenten bepalen wanneer
-          lesmomenten automatisch worden aangemaakt in de weekplanning.
+          lesmomenten automatisch verschijnen in de maandkalender.
         </DialogDescription>
       </DialogHeader>
 

@@ -6,6 +6,7 @@ import { CalendarDays, ListChecks, Trophy } from "lucide-react";
 import { CommunityLessonsSection } from "@/components/community-lessons-section";
 import { ContributionStatusCard } from "@/components/ContributionStatusCard";
 import { PageHeader } from "@/components/page-header";
+import { TodaysPlanningCard } from "@/components/planning/TodaysPlanningCard";
 import { QuickActionGrid } from "@/components/quick-action-grid";
 import { RecentActivitiesList } from "@/components/recent-activities-list";
 import { StatCard } from "@/components/stat-card";
@@ -13,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
 import { getContributionStatus } from "@/lib/services/contribution";
 import { getOwnSubmissions, getPublicActivities } from "@/lib/services/activities";
+import { getClassesForUser, getSchoolHolidays, getTodaysPlannedLessons } from "@/lib/services/planning";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
@@ -45,6 +47,10 @@ export default async function DashboardPage() {
         <ContributionStatusSection profile={profile} />
       </Suspense>
 
+      <Suspense fallback={<Skeleton className="h-24 w-full rounded-2xl" />}>
+        <TodaysPlanningSection profile={profile} />
+      </Suspense>
+
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardContent userId={profile.id} />
       </Suspense>
@@ -65,6 +71,29 @@ async function ContributionStatusSection({ profile }: { profile: UserProfile }) 
     <ContributionStatusCard
       status={contributionStatus}
       subscriptionStatus={profile.subscription_status}
+    />
+  );
+}
+
+async function TodaysPlanningSection({ profile }: { profile: UserProfile }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [lessons, classes] = await Promise.all([
+    getTodaysPlannedLessons(profile.id),
+    getClassesForUser(profile.id),
+  ]);
+
+  let holidayName: string | null = null;
+  if (profile.holiday_region) {
+    const holidays = await getSchoolHolidays(profile.holiday_region, today, today);
+    holidayName = holidays[0]?.name ?? null;
+  }
+
+  return (
+    <TodaysPlanningCard
+      lessons={lessons}
+      holidayName={holidayName}
+      hasClasses={classes.length > 0}
+      month={today.slice(0, 7)}
     />
   );
 }

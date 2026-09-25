@@ -4,17 +4,21 @@ import Link from "next/link";
 import { Bookmark, BookmarkCheck, Copy } from "lucide-react";
 
 import { toggleSavedActivity } from "@/actions/activity";
+import { AddToPlanningButton } from "@/components/planning/AddToPlanningButton";
 import { ActivityPdfButton } from "@/components/pdf/ActivityPdfButton";
 import { Button } from "@/components/ui/button";
 import { useOptimisticAction } from "@/lib/hooks/useOptimisticAction";
 import type { Activity } from "@/types/activity";
+import type { PlanningClass } from "@/types/planning";
 
 export function ActivityDetailActions({
   activity,
   initiallySaved,
+  classes,
 }: {
   activity: Activity;
   initiallySaved: boolean;
+  classes: PlanningClass[];
 }) {
   const activityId = activity.id;
   const {
@@ -55,6 +59,7 @@ export function ActivityDetailActions({
         </Link>
       </Button>
       <ActivityPdfButton activity={activity} className="flex-1" size="sm" />
+      <AddToPlanningButton activityId={activityId} classes={classes} className="flex-1" size="sm" />
     </div>
   );
 }

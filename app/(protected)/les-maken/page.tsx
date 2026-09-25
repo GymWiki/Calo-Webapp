@@ -4,7 +4,7 @@ import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
-import { DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
+import type { Activity } from "@/types/activity";
 import type { CreateLessonFormInput, DidacticItem } from "@/types/lesson";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import { LesMakenFlow } from "./lesson-flow";
@@ -92,7 +92,7 @@ function parseInitialTab(value: string | undefined) {
 export default async function LesMakenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vanuit?: string; tab?: string; leerlijn?: string; doelgroep?: string }>;
+  searchParams: Promise<{ vanuit?: string; tab?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
 
@@ -100,33 +100,14 @@ export default async function LesMakenPage({
     redirect("/login");
   }
 
-  const { vanuit, tab, leerlijn, doelgroep } = await searchParams;
+  const { vanuit, tab } = await searchParams;
   const [activity, activeSourceCount] = await Promise.all([
     vanuit ? getActivityById(vanuit) : Promise.resolve(null),
     getAvailableSourceCount(profile.id),
   ]);
   const initialTab = parseInitialTab(tab);
 
-  // Snelkoppeling vanuit een geplande, nog niet ingevulde les
-  // (components/planning/WeekPlanningView.tsx's "Nieuwe activiteit met AI
-  // Lescoach"-link): leerlijn en doelgroep van die klas vooringevuld, zodat
-  // de gebruiker direct in het formulier landt i.p.v. bij het keuzescherm.
-  // Alleen relevant zonder `vanuit` — een concept/bestaande activiteit
-  // hervatten (mapWizardActivityToLessonInput/mapActivityToLessonInput) is
-  // altijd leidend over deze querystring-prefill.
-  const doelgroepCode = doelgroep ? Number(doelgroep) : null;
-  const planningPrefill: Partial<CreateLessonFormInput> | undefined =
-    !activity && (leerlijn || (doelgroepCode && (DOELGROEP_WAARDEN as readonly number[]).includes(doelgroepCode)))
-      ? {
-          learningLine: leerlijn ?? "",
-          doelgroep:
-            doelgroepCode && (DOELGROEP_WAARDEN as readonly number[]).includes(doelgroepCode)
-              ? [doelgroepCode]
-              : [],
-        }
-      : undefined;
-
-  const skipChoice = Boolean(activity) || Boolean(initialTab) || Boolean(planningPrefill);
+  const skipChoice = Boolean(activity) || Boolean(initialTab);
 
   // Een eigen wizard-activiteit verder bewerken — hetzij een nog niet
   // afgerond concept (link vanuit "Concepten"), hetzij een al opgeslagen
@@ -140,11 +121,11 @@ export default async function LesMakenPage({
     activity !== null && activity.arrangement !== null && activity.author_id === profile.id;
   const isDraftResume = resumingOwnActivity && activity.status === "draft";
 
-  const initialValues = activity
+  const initialValues: Partial<CreateLessonFormInput> | undefined = activity
     ? resumingOwnActivity
       ? mapWizardActivityToLessonInput(activity)
       : mapActivityToLessonInput(activity)
-    : planningPrefill;
+    : undefined;
 
   const initialUsedKnowledgeSources = resumingOwnActivity
     ? await getActivityKnowledgeSources(activity.id)

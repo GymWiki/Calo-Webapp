@@ -33,7 +33,7 @@ export function PlannedForBanner({
             {index > 0 && ", "}
             Gepland voor{" "}
             <Link
-              href={`/profiel/planning/${lesson.class_id}`}
+              href={`/profiel/planning?maand=${lesson.lesson_date.slice(0, 7)}`}
               className="font-medium text-primary hover:underline"
             >
               {lesson.class_name}

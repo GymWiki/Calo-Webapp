@@ -23,7 +23,7 @@ type NavCard = {
 // supabase/migrations/consolidate_lessons_into_activiteiten.sql), en de
 // status van een concept staat gewoon per item in "Mijn activiteiten"
 // zichtbaar, dus die twee blokken zijn niet langer apart nodig. "Planning"
-// (klassenbeheer + jaar-/weekplanning) is een nieuw, apart concept — geen
+// (klassenbeheer + maandkalender) is een nieuw, apart concept — geen
 // overlap met "Mijn activiteiten" — en telt daarom als vierde kaart.
 export function ProfileNavGrid({
   activitiesCount,
@@ -54,7 +54,7 @@ export function ProfileNavGrid({
     {
       href: "/profiel/planning",
       label: "Planning",
-      description: "Klassen, jaarplanning per leerlijn en weekplanning per les.",
+      description: "Klassen en een maandkalender met geplande lesmomenten.",
       icon: CalendarRange,
       accent: "green",
       count: classesCount,

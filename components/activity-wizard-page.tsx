@@ -12,6 +12,7 @@ import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { EditableList } from "@/components/editable-list";
 import { InlineEditText } from "@/components/inline-edit-text";
 import { SuggestionCardList } from "@/components/LescoachSuggestionCard";
+import { AddToPlanningButton } from "@/components/planning/AddToPlanningButton";
 import { LessonPdfButton } from "@/components/pdf/LessonPdfButton";
 import { MaterialChecklist } from "@/components/material-checklist";
 import { SourceBadge } from "@/components/library-item-card";
@@ -35,6 +36,7 @@ import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import type { DidacticSuggestion, LescoachSection, LescoachSuggestion } from "@/types/ai";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import { REQUIRED_LESSON_FIELDS, type DidacticItem } from "@/types/lesson";
+import type { PlanningClass } from "@/types/planning";
 import { FullscreenDiagramEditor } from "@/components/canvas/FullscreenDiagramEditor";
 
 const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
@@ -122,6 +124,7 @@ const DOELGROEP_CHIP_CLASS =
 export function ActivityWizardPage({
   mode,
   activity,
+  classes,
   defaultTab = "lesinhoud",
 
   title,
@@ -205,6 +208,8 @@ export function ActivityWizardPage({
   mode: "view" | "edit";
   /** Alleen nodig in mode="view" — voor LessonPdfButton, dat de volledige rij verwacht. */
   activity?: Activity;
+  /** Alleen nodig in mode="view" — voor AddToPlanningButton in de actiebalk. */
+  classes?: PlanningClass[];
   /** Welke tab standaard open staat — gebruikt door de "Zaal-Plattegrond
    * Tekenen"-snelkoppeling op het dashboard, die direct bij "Materiaal"
    * (waar de plattegrondtekenaar in mode="edit" staat) wil uitkomen. */
@@ -1121,6 +1126,9 @@ export function ActivityWizardPage({
                 isAiGenerated={activity.is_ai_generated}
                 className="flex-1"
               />
+            )}
+            {activity && classes && (
+              <AddToPlanningButton activityId={activity.id} classes={classes} className="flex-1" />
             )}
           </>
         )}
