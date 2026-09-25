@@ -17,6 +17,17 @@ const PROTECTED_PREFIXES = [
 // ("/les") — shared-link visitors are frequently not logged in at all.
 const PUBLIC_EXCEPTIONS = ["/les/share"];
 
+// Alleen de landingspagina hier — /login en /register hebben deze
+// omgekeerde guard al server-side via app/(auth)/layout.tsx
+// (getCurrentUserProfile() + redirect("/dashboard") vóór er iets rendert),
+// dus die nogmaals in middleware dupliceren zou twee plekken voor dezelfde
+// check geven. De landingspagina (app/page.tsx) heeft zo'n check nog niet
+// én kan 'm niet op layout-niveau krijgen zonder de bewuste
+// `revalidate = 3600`-ISR-caching te breken (elke cookie-read in een
+// Server Component dwingt die route naar dynamic rendering) — middleware
+// is hier de enige plek die vóór het (statische) renderen kan ingrijpen.
+const AUTH_ONLY_PATHS = ["/"];
+
 function isProtectedPath(pathname: string) {
   if (
     PUBLIC_EXCEPTIONS.some(
@@ -80,6 +91,21 @@ export async function proxy(request: NextRequest) {
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectTo", pathname);
     return withCookiesFrom(NextResponse.redirect(loginUrl), response);
+  }
+
+  // Omgekeerde route-guard: een al ingelogde gebruiker heeft niets te zoeken
+  // op de landingspagina — direct server-side (vóór er iets gerenderd
+  // wordt) doorsturen naar /dashboard i.p.v. daar zelf op "Inloggen"/"Ga
+  // naar dashboard" te moeten klikken. Alléén op een bevestigde user (geen
+  // rate-limit-fout, zie isRateLimitError hierboven) — anders zou een
+  // tijdelijke Auth-hik een net ingelogde gebruiker terug de landingspagina
+  // in sturen. Geen redirect-lus mogelijk: /dashboard zelf staat niet in
+  // AUTH_ONLY_PATHS.
+  if (AUTH_ONLY_PATHS.includes(pathname) && user) {
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = "/dashboard";
+    dashboardUrl.search = "";
+    return withCookiesFrom(NextResponse.redirect(dashboardUrl), response);
   }
 
   return response;
