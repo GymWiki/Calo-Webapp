@@ -94,10 +94,23 @@ const nextConfig: NextConfig = {
   // style-attributen (bijv. animationDelay in de scroll-reveal-animaties),
   // en een style-attribuut kan — in tegenstelling tot een script — sowieso
   // geen CSP-nonce dragen.
+  //
+  // `'wasm-unsafe-eval'` (naast 'unsafe-inline'): @react-pdf/renderer's
+  // layout-engine (yoga-layout) compileert bij het genereren van een PDF een
+  // WebAssembly-module in de browser. Zonder dit keyword weigert de browser
+  // die `WebAssembly.instantiate()`-aanroep hard (CSP-violation:
+  // "'unsafe-eval' is not an allowed source of script"), wat de hele
+  // PDF-export liet crashen — bevestigd via een server-side gelogde
+  // stacktrace (zie lib/pdf/reportPdfExportError.ts), NIET gerelateerd aan
+  // de activiteit-data of de plattegrond-afbeelding die eerdere fixpogingen
+  // daarop richtten. `'wasm-unsafe-eval'` staat *uitsluitend* WASM-compilatie
+  // toe — in tegenstelling tot het bredere `'unsafe-eval'` blijft `eval()`/
+  // `new Function()` op gewone JS gewoon verboden, dus dit verzwakt de CSP
+  // niet verder dan strikt nodig.
   async headers() {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://*.supabase.co",
       "font-src 'self' data:",
