@@ -1,12 +1,14 @@
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 
 import { BackButton } from "@/components/BackButton";
+import { ClassLessonEntriesSection } from "@/components/planning/ClassLessonEntriesSection";
 import { ClassLessonList } from "@/components/planning/ClassLessonList";
+import { LessonEntriesSkeleton } from "@/components/planning/LessonEntriesSkeleton";
 import { PageHeader } from "@/components/page-header";
 import { getMonthRange } from "@/lib/planningSchedule";
 import { getUserPermissions } from "@/lib/permissions";
-import { getAllActivities, getSavedActivities } from "@/lib/services/activities";
-import { getClassById, getClassLessonsForMonth } from "@/lib/services/planning";
+import { getClassById } from "@/lib/services/planning";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { DOELGROEP_LABELS } from "@/types/activity";
 import { WEEKDAY_LABELS } from "@/types/planning";
@@ -43,12 +45,6 @@ export default async function ProfielPlanningClassPage({
   const { start, end } = getMonthRange(month);
   const today = new Date().toISOString().slice(0, 10);
 
-  const [entries, savedActivities, libraryActivities] = await Promise.all([
-    getClassLessonsForMonth(profile.id, classId, start, end, profile.holiday_region),
-    getSavedActivities(profile.id),
-    getAllActivities(),
-  ]);
-
   const { hasFullLibraryAccess } = getUserPermissions(profile);
   const slotSummary = klas.lesson_slots
     .map((slot) => `${WEEKDAY_LABELS[slot.weekday]} ${slot.startTime}`)
@@ -64,16 +60,27 @@ export default async function ProfielPlanningClassPage({
         description={slotSummary || "Nog geen weekmoment ingesteld."}
       />
 
-      <ClassLessonList
-        klas={klas}
-        month={month}
-        entries={entries}
-        today={today}
-        savedActivities={savedActivities}
-        libraryActivities={libraryActivities}
-        hasFullLibraryAccess={hasFullLibraryAccess}
-        currentUserId={profile.id}
-      />
+      {/* klas/profiel/maand komen hierboven al uit snelle, enkele-rij-
+          queries — alleen de zwaardere lesmoment-/activiteiten-fetch
+          (ClassLessonEntriesSection) wacht hier nog op, achter een eigen
+          Suspense-boundary. Dit is de instant-navigatie-fix: de balk boven
+          deze Suspense (BackButton/PageHeader/maandnavigatie in
+          ClassLessonList) rendert altijd meteen. */}
+      <ClassLessonList klas={klas} month={month}>
+        <Suspense key={month} fallback={<LessonEntriesSkeleton />}>
+          <ClassLessonEntriesSection
+            userId={profile.id}
+            classId={classId}
+            klas={klas}
+            monthStart={start}
+            monthEnd={end}
+            month={month}
+            today={today}
+            holidayRegion={profile.holiday_region}
+            hasFullLibraryAccess={hasFullLibraryAccess}
+          />
+        </Suspense>
+      </ClassLessonList>
     </main>
   );
 }

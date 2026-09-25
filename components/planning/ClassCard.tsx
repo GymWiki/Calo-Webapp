@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import Link from "next/link";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +15,18 @@ export function ClassCard({ klas }: { klas: PlanningClass }) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
+  const href = `/profiel/planning/${klas.id}`;
+
+  // Prefetch zodra de kaart rendert i.p.v. te wachten op hover/viewport —
+  // <Link>'s automatische prefetch valt hier weg omdat de kaart met een
+  // gewone div+onClick werkt (zie hieronder), dus dit haalt 'm zelf in.
+  useEffect(() => {
+    router.prefetch(href);
+  }, [router, href]);
+
+  function handleOpen() {
+    router.push(href);
+  }
 
   function handleDelete() {
     if (!window.confirm(`"${klas.name}" verwijderen? De bijbehorende planning wordt ook verwijderd.`)) {
@@ -37,11 +48,20 @@ export function ClassCard({ klas }: { klas: PlanningClass }) {
     .join(" · ");
 
   return (
-    <div className="group relative flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md">
-      <Link href={`/profiel/planning/${klas.id}`} className="absolute inset-0 z-0" aria-label={`${klas.name} openen`} />
-
-      <div className="relative z-10 flex items-start justify-between gap-2">
-        <div className="pointer-events-none min-w-0 flex-1">
+    <div
+      role="link"
+      tabIndex={0}
+      aria-label={`${klas.name} openen`}
+      onClick={handleOpen}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        handleOpen();
+      }}
+      className="group flex cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-5 shadow-brand-sm outline-none transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
           <p className="font-semibold">{klas.name}</p>
           <p className="mt-1 text-sm text-muted-foreground">{DOELGROEP_LABELS[klas.doelgroep]}</p>
         </div>
@@ -77,7 +97,7 @@ export function ClassCard({ klas }: { klas: PlanningClass }) {
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="truncate">{slotSummary || "Nog geen weekmoment"}</span>
       </div>

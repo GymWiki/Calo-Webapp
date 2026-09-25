@@ -1,3 +1,4 @@
+import { WeekScheduleSkeleton } from "@/components/planning/WeekScheduleSkeleton";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -14,7 +15,7 @@ export default function ProfielPlanningLoading() {
           <Skeleton key={i} className="h-36 w-full rounded-2xl" />
         ))}
       </div>
-      <Skeleton className="h-[520px] w-full rounded-2xl" />
+      <WeekScheduleSkeleton />
     </main>
   );
 }

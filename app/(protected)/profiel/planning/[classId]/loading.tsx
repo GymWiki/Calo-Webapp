@@ -1,3 +1,4 @@
+import { LessonEntriesSkeleton } from "@/components/planning/LessonEntriesSkeleton";
 import { PageHeader } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -8,9 +9,7 @@ export default function ProfielPlanningClassLoading() {
       <PageHeader eyebrow="Klas" title="Laden…" />
       <Skeleton className="h-12 w-full rounded-2xl" />
       <div className="space-y-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-32 w-full rounded-xl" />
-        ))}
+        <LessonEntriesSkeleton />
       </div>
     </main>
   );

@@ -66,10 +66,17 @@ doesn't creep back up over time. Three concrete rules keep it that way:
 
 ## Instant-reacting UI standard
 
-Every user action (click, toggle, form submit) must produce a visible
-reaction within ~100ms, whether or not the underlying server round-trip has
-finished yet. Two shared primitives exist for this — reach for them before
-hand-rolling loading/error state again:
+Every user action — click, toggle, form submit, **and navigation** — must
+produce a visible reaction within ~100ms, whether or not the underlying
+server round-trip has finished yet. This is **non-negotiable for all current
+and future pages/components**: no route ships without the mechanics below,
+and "it's a bit slow" navigation is treated as a bug, not a follow-up.
+Concretely, that means every route needs a `loading.tsx`, and every page
+whose data fetch is slower than a single-row lookup needs its slow part
+carved out behind its own `Suspense` boundary — never one blocking
+`Promise.all`/sequence of `await`s standing between the route transition and
+the first pixel. Three shared primitives exist for this — reach for them
+before hand-rolling loading/error state again:
 
 - **`useOptimisticAction`** (`lib/hooks/useOptimisticAction.ts`) — for a
   value that a user flips (a toggle, a bookmark button, a chip) and a server
@@ -88,6 +95,33 @@ hand-rolling loading/error state again:
   its own `Suspense` boundary (see `dashboard/page.tsx`'s
   `ContributionStatusSection`) should get its own `Skeleton` fallback sized
   to roughly match the real content, not a generic spinner.
+- **Per-section `Suspense` for the slow part of a page, not the whole page**
+  — a page's instantly-available parts (header, static chrome, a
+  single-row-lookup needed for a 404/redirect check) render immediately;
+  only the genuinely slow fetch(es) go behind a `Suspense` boundary with a
+  matching `Skeleton`. The `async` component doing that fetch lives in its
+  own file (never inline top-level `await`s in the page component for
+  anything beyond the fast/required-for-redirect data), so the page can wrap
+  just that piece. See `app/(protected)/profiel/planning/page.tsx` +
+  `components/planning/WeekScheduleSection.tsx` (class list renders
+  instantly, the week schedule streams in behind `WeekScheduleSkeleton`) and
+  `app/(protected)/profiel/planning/[classId]/page.tsx` +
+  `components/planning/ClassLessonEntriesSection.tsx` (header + month-nav
+  bar — `components/planning/ClassLessonList.tsx` — render instantly, only
+  the lesson-container list streams in behind `LessonEntriesSkeleton`) for
+  the reference pattern, including keying the `Suspense` boundary on the
+  param that changes (`key={weekStart}` / `key={month}`) so paginating
+  within the page (week/month navigation) re-shows the skeleton instead of
+  leaving stale content on screen during the transition.
+- **A whole card/row that navigates, with an inner icon-button that must
+  not** — do not fake this with an absolutely-positioned "stretched"
+  `<Link>` sitting under `z-10` siblings; that stacking trick is fragile and
+  has produced real "the card doesn't seem to respond to clicks" bugs. Make
+  the container itself the click target instead: `role="link"`, `tabIndex={0}`,
+  `onClick`/`onKeyDown` calling `router.push(href)` (plus `router.prefetch(href)`
+  in a mount effect, since this skips `<Link>`'s automatic viewport-prefetch),
+  and give the inner button(s) their own `onClick` with `event.stopPropagation()`.
+  See `components/planning/ClassCard.tsx`.
 
 ## Component/lib folder structure
 
