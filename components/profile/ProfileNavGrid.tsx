@@ -54,7 +54,7 @@ export function ProfileNavGrid({
     {
       href: "/profiel/planning",
       label: "Planning",
-      description: "Klassen en een maandkalender met geplande lesmomenten.",
+      description: "Klassen en een weekrooster met geplande lesmomenten.",
       icon: CalendarRange,
       accent: "green",
       count: classesCount,

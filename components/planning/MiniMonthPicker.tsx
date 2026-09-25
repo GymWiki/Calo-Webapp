@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils";
 const WEEKDAY_SHORT = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
 
 /**
- * Compacte maand-grid voor de datumstap van AddToPlanningSheet — zelfde
- * grid-berekening als MonthCalendar (getMonthGridDays), maar zonder
- * les-chips en met eigen prev/next zodat hij los van de hoofdkalender kan
- * bladeren. `markedDates` toont een stipje op datums met een al bestaand
- * "nog te bepalen"-lesmoment voor de gekozen klas.
+ * Compacte maand-grid voor de datumstap van AddToPlanningSheet — dezelfde
+ * grid-berekening als de klas-detailpagina (getMonthGridDays), maar zonder
+ * les-containers en met eigen prev/next zodat hij op zichzelf staat.
+ * `markedDates` toont een stipje op datums met een al bestaand lesmoment
+ * zonder gekoppelde activiteiten voor de gekozen klas.
  */
 export function MiniMonthPicker({
   month,

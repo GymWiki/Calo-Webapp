@@ -4,25 +4,24 @@ import { CalendarRange } from "lucide-react";
 import { AddClassButton } from "@/components/planning/AddClassButton";
 import { ClassCard } from "@/components/planning/ClassCard";
 import { HolidayRegionHint } from "@/components/planning/HolidayRegionHint";
-import { MonthCalendar } from "@/components/planning/MonthCalendar";
+import { WeekSchedule } from "@/components/planning/WeekSchedule";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { getMonthRange } from "@/lib/planningSchedule";
-import { getAllActivities } from "@/lib/services/activities";
-import { getClassesForUser, getPlannedLessonsForMonth, getSchoolHolidays } from "@/lib/services/planning";
+import { getWeekRange, getWeekStart } from "@/lib/planningSchedule";
+import { getClassesForUser, getSchoolHolidays, getWeekLessons } from "@/lib/services/planning";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 
-const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-function resolveMonth(raw: string | undefined): string {
-  if (raw && MONTH_PATTERN.test(raw)) return raw;
-  return new Date().toISOString().slice(0, 7);
+function resolveWeekStart(raw: string | undefined): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return getWeekStart(raw && DATE_PATTERN.test(raw) ? raw : today);
 }
 
 export default async function ProfielPlanningPage({
   searchParams,
 }: {
-  searchParams: Promise<{ maand?: string }>;
+  searchParams: Promise<{ week?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
 
@@ -30,27 +29,24 @@ export default async function ProfielPlanningPage({
     redirect("/login");
   }
 
-  const { maand } = await searchParams;
-  const month = resolveMonth(maand);
-  const { start, end } = getMonthRange(month);
+  const { week } = await searchParams;
+  const weekStart = resolveWeekStart(week);
+  const { end: weekEnd } = getWeekRange(weekStart);
   const today = new Date().toISOString().slice(0, 10);
 
-  const [classes, lessons, activities] = await Promise.all([
+  const [classes, entries] = await Promise.all([
     getClassesForUser(profile.id),
-    getPlannedLessonsForMonth(profile.id, start, end),
-    getAllActivities(),
+    getWeekLessons(profile.id, weekStart, weekEnd, profile.holiday_region),
   ]);
 
-  const holidays = profile.holiday_region
-    ? await getSchoolHolidays(profile.holiday_region, start, end)
-    : [];
+  const holidays = profile.holiday_region ? await getSchoolHolidays(profile.holiday_region, weekStart, weekEnd) : [];
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-6xl">
       <PageHeader
         eyebrow="Profiel"
         title="Planning"
-        description="Klassen en een maandkalender met geplande lesmomenten."
+        description="Klassen en een weekrooster met geplande lesmomenten."
         action={<AddClassButton />}
       />
 
@@ -71,7 +67,7 @@ export default async function ProfielPlanningPage({
 
           {!profile.holiday_region && <HolidayRegionHint />}
 
-          <MonthCalendar month={month} lessons={lessons} holidays={holidays} activities={activities} today={today} />
+          <WeekSchedule weekStart={weekStart} entries={entries} holidays={holidays} today={today} />
         </>
       )}
     </main>

@@ -76,7 +76,7 @@ function ClassFormFields({
         <DialogTitle>{isEdit ? "Klas bewerken" : "Klas toevoegen"}</DialogTitle>
         <DialogDescription>
           Naam, doelgroep en vaste weekmomenten — de weekmomenten bepalen wanneer
-          lesmomenten automatisch verschijnen in de maandkalender.
+          lesmomenten automatisch verschijnen op de klaspagina en in het weekrooster.
         </DialogDescription>
       </DialogHeader>
 

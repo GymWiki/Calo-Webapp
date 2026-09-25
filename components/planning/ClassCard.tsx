@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,9 +37,11 @@ export function ClassCard({ klas }: { klas: PlanningClass }) {
     .join(" · ");
 
   return (
-    <div className="group flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
+    <div className="group relative flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md">
+      <Link href={`/profiel/planning/${klas.id}`} className="absolute inset-0 z-0" aria-label={`${klas.name} openen`} />
+
+      <div className="relative z-10 flex items-start justify-between gap-2">
+        <div className="pointer-events-none min-w-0 flex-1">
           <p className="font-semibold">{klas.name}</p>
           <p className="mt-1 text-sm text-muted-foreground">{DOELGROEP_LABELS[klas.doelgroep]}</p>
         </div>
@@ -48,7 +51,11 @@ export function ClassCard({ klas }: { klas: PlanningClass }) {
             variant="ghost"
             size="icon"
             aria-label={`${klas.name} bewerken`}
-            onClick={() => setEditOpen(true)}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setEditOpen(true);
+            }}
           >
             <Pencil className="size-4" />
           </Button>
@@ -59,14 +66,18 @@ export function ClassCard({ klas }: { klas: PlanningClass }) {
             className="text-muted-foreground hover:text-destructive"
             aria-label={`${klas.name} verwijderen`}
             disabled={isDeleting}
-            onClick={handleDelete}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              handleDelete();
+            }}
           >
             <Trash2 className="size-4" />
           </Button>
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="relative z-10 flex items-center gap-1.5 text-xs text-muted-foreground">
         <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="truncate">{slotSummary || "Nog geen weekmoment"}</span>
       </div>

@@ -30,6 +30,40 @@ export function getWeekStart(date: string): string {
   return addDays(date, -(isoDow - 1));
 }
 
+// Maandag-t/m-zondag bereik van de week die `date` bevat — voor het
+// weekrooster op /profiel/planning.
+export function getWeekRange(date: string): { start: string; end: string } {
+  const start = getWeekStart(date);
+  return { start, end: addDays(start, 6) };
+}
+
+// `weekStart` is de maandag-datum van de huidige week; ±7 dagen blijft dus
+// altijd zelf ook een maandag.
+export function getPreviousWeek(weekStart: string): string {
+  return addDays(weekStart, -7);
+}
+
+export function getNextWeek(weekStart: string): string {
+  return addDays(weekStart, 7);
+}
+
+// ISO-8601-weeknummer (1-53) — voor het "Week 39 · 21-27 sep"-label.
+// Standaardalgoritme: schuif naar de donderdag van de week die `date` bevat
+// (die donderdag bepaalt altijd in welk ISO-jaar de week valt) en tel dan
+// hoeveel volledige weken dat is na 1 januari van dat jaar.
+export function getISOWeekNumber(date: string): number {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  const isoDow = parsed.getUTCDay() || 7;
+  parsed.setUTCDate(parsed.getUTCDate() + 4 - isoDow);
+  const yearStart = new Date(Date.UTC(parsed.getUTCFullYear(), 0, 1));
+  return Math.ceil((diffInDays(toDateOnlyString(yearStart), toDateOnlyString(parsed)) + 1) / 7);
+}
+
+function diffInDays(from: string, to: string): number {
+  const ms = new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime();
+  return Math.round(ms / (24 * 60 * 60 * 1000));
+}
+
 // "YYYY-MM" -> eerste en laatste kalenderdag van die maand.
 export function getMonthRange(month: string): { start: string; end: string } {
   const [year, monthNum] = month.split("-").map(Number);
@@ -73,10 +107,10 @@ export function getMonthGridDays(month: string): MonthGridDay[] {
 }
 
 // Genereert concrete lesdatums voor alle lesson-slots van een klas binnen
-// [rangeStart, rangeEnd] (inclusief) — gebruikt om een bekeken kalendermaand
-// "on the fly" te vullen (zie lib/services/planning.ts's
-// ensureLessonsGeneratedForMonth). `weekday` is ISO (1 = maandag .. 7 =
-// zondag).
+// [rangeStart, rangeEnd] (inclusief) — de virtuele lesmomenten van een
+// klas/periode, vóórdat ze gemerged worden met echte geplande_lessen-rijen
+// (zie lib/services/planning.ts's getClassLessonsForMonth/getWeekLessons).
+// `weekday` is ISO (1 = maandag .. 7 = zondag).
 export function generateLessonDatesInRange(
   lessonSlots: LessonSlot[],
   rangeStart: string,

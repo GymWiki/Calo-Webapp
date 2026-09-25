@@ -78,7 +78,7 @@ async function ContributionStatusSection({ profile }: { profile: UserProfile }) 
 async function TodaysPlanningSection({ profile }: { profile: UserProfile }) {
   const today = new Date().toISOString().slice(0, 10);
   const [lessons, classes] = await Promise.all([
-    getTodaysPlannedLessons(profile.id),
+    getTodaysPlannedLessons(profile.id, profile.holiday_region),
     getClassesForUser(profile.id),
   ]);
 
@@ -88,14 +88,7 @@ async function TodaysPlanningSection({ profile }: { profile: UserProfile }) {
     holidayName = holidays[0]?.name ?? null;
   }
 
-  return (
-    <TodaysPlanningCard
-      lessons={lessons}
-      holidayName={holidayName}
-      hasClasses={classes.length > 0}
-      month={today.slice(0, 7)}
-    />
-  );
+  return <TodaysPlanningCard lessons={lessons} holidayName={holidayName} hasClasses={classes.length > 0} />;
 }
 
 function countThisMonth(activities: Activity[]) {

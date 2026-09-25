@@ -54,33 +54,84 @@ export type PlanningClass = {
 };
 
 // ----------------------------------------------------------------------------
-// Geplande lessen — één rij per concreet lesmoment. `lesson_date`/
-// `start_time`/`duration_minutes` worden bij generatie "bevroren" (zie
-// lib/planningSchedule.ts) en niet elke render herberekend uit de
-// lesson_slots van de klas.
+// Geplande lessen — een rij bestaat pas zodra er iets aan een lesmoment
+// gekoppeld is (activiteit, notitie, of expliciet "vervallen"); zolang dat
+// niet zo is, is een lesmoment puur virtueel, berekend uit klassen.
+// lesson_slots (zie lib/planningSchedule.ts's generateLessonDatesInRange en
+// lib/services/planning.ts's getClassLessonsForMonth/getWeekLessons).
+// `duration_minutes` staat niet meer op deze tabel — bij weergave afgeleid
+// uit de bijbehorende lesson_slot van de klas.
 // ----------------------------------------------------------------------------
 
-export const PLANNED_LESSON_STATUSES = ["nog_te_bepalen", "gepland", "gegeven"] as const;
+export const PLANNED_LESSON_STATUSES = ["gepland", "vervallen"] as const;
 export type PlannedLessonStatus = (typeof PLANNED_LESSON_STATUSES)[number];
 
 export const PLANNED_LESSON_STATUS_LABELS: Record<PlannedLessonStatus, string> = {
-  nog_te_bepalen: "Nog te bepalen",
   gepland: "Gepland",
-  gegeven: "Gegeven",
+  vervallen: "Vervallen",
 };
 
-export const updatePlannedLessonInputSchema = z.object({
-  id: z.string().uuid(),
-  activityId: z.string().trim().min(1).nullable().optional(),
-  status: z.enum(PLANNED_LESSON_STATUSES).optional(),
-  notes: z.string().trim().max(2000).nullable().optional(),
+export type PlannedLesson = {
+  id: string;
+  class_id: string;
+  user_id: string;
+  lesson_date: string;
+  start_time: string;
+  status: PlannedLessonStatus;
+  notes: string | null;
+  created_at: string;
+};
+
+// Eén gekoppelde activiteit binnen een lesmoment — `position` bepaalt de
+// volgorde binnen dat lesmoment (zie actions/planning.ts's
+// reorderLessonActivities).
+export type LessonActivity = {
+  id: string;
+  activityId: string;
+  position: number;
+  titel: string;
+  leerlijn: string | null;
+};
+
+const lessonLocationSchema = z.object({
+  classId: z.string().uuid(),
+  lessonDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ongeldige datum."),
+  startTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Gebruik het formaat UU:MM."),
 });
 
-export type UpdatePlannedLessonInput = z.infer<typeof updatePlannedLessonInputSchema>;
+export const cancelLessonInputSchema = lessonLocationSchema;
+export type CancelLessonInput = z.infer<typeof cancelLessonInputSchema>;
+
+export const restoreLessonInputSchema = lessonLocationSchema;
+export type RestoreLessonInput = z.infer<typeof restoreLessonInputSchema>;
+
+export const updateLessonNotesInputSchema = lessonLocationSchema.extend({
+  notes: z.string().trim().max(2000).nullable(),
+});
+export type UpdateLessonNotesInput = z.infer<typeof updateLessonNotesInputSchema>;
+
+export const addActivitiesToLessonInputSchema = lessonLocationSchema.extend({
+  activityIds: z.array(z.string().trim().min(1)).min(1, "Kies minstens één activiteit."),
+});
+export type AddActivitiesToLessonInput = z.infer<typeof addActivitiesToLessonInputSchema>;
+
+export const removeActivityFromLessonInputSchema = z.object({
+  lessonActivityId: z.string().uuid(),
+});
+export type RemoveActivityFromLessonInput = z.infer<typeof removeActivityFromLessonInputSchema>;
+
+export const reorderLessonActivitiesInputSchema = z.object({
+  lessonId: z.string().uuid(),
+  orderedLessonActivityIds: z.array(z.string().uuid()).min(1),
+});
+export type ReorderLessonActivitiesInput = z.infer<typeof reorderLessonActivitiesInputSchema>;
 
 // "Toevoegen aan planning" vanaf de activiteit-detailpagina: klas + datum
 // kiezen, koppelt aan een bestaand lesmoment op die datum of maakt er één
-// aan (zie actions/planning.ts's addActivityToPlanning).
+// aan (zie actions/planning.ts's addActivityToPlanning — intern via
+// dezelfde add-activities-primitive als addActivitiesToLesson hierboven).
 export const addActivityToPlanningInputSchema = z.object({
   activityId: z.string().trim().min(1, "Kies een activiteit."),
   classId: z.string().uuid(),
@@ -89,25 +140,26 @@ export const addActivityToPlanningInputSchema = z.object({
 
 export type AddActivityToPlanningInput = z.infer<typeof addActivityToPlanningInputSchema>;
 
-export type PlannedLesson = {
-  id: string;
-  class_id: string;
-  user_id: string;
-  lesson_date: string;
-  start_time: string;
-  duration_minutes: number;
-  activity_id: string | null;
+// Klas-detailpagina's lijst-rij: één per lesmoment (virtueel of echt) in de
+// bekeken maand, chronologisch. `lessonId` is null zolang het lesmoment
+// puur virtueel is (nog geen geplande_lessen-rij).
+export type ClassLessonEntry = {
+  date: string;
+  startTime: string;
+  durationMinutes: number;
+  lessonId: string | null;
   status: PlannedLessonStatus;
   notes: string | null;
-  created_at: string;
+  activities: LessonActivity[];
+  holidayName: string | null;
 };
 
-// Maandkalender-rij verrijkt met de klasnaam (voor de les-"chip" die klasnaam
-// + activiteit toont zonder een aparte lookup per rij) en, indien gekoppeld,
-// de titel van de activiteit.
-export type PlannedLessonWithContext = PlannedLesson & {
-  class_name: string;
-  activityTitel: string | null;
+// Weekrooster-rij (alle klassen samen) — zelfde vorm als ClassLessonEntry,
+// aangevuld met klascontext voor het compacte lesblok.
+export type WeekLessonEntry = ClassLessonEntry & {
+  classId: string;
+  className: string;
+  doelgroep: number;
 };
 
 // Voor de "Gepland voor Groep 5A op 12 oktober"-koppeling op de activiteit-

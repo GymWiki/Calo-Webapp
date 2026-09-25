@@ -29,7 +29,7 @@ function AddToPlanningSheetBody({
 }: {
   activityId: string;
   classes: PlanningClass[];
-  onDone: (month: string) => void;
+  onDone: (classId: string, month: string) => void;
 }) {
   const [selectedClass, setSelectedClass] = useState<PlanningClass | null>(null);
   const [month, setMonth] = useState(CURRENT_MONTH);
@@ -49,9 +49,10 @@ function AddToPlanningSheetBody({
     async function loadOpenDates() {
       const rows = await getOpenPlannedDatesForClass(selectedClass!.id, start, end);
       if (cancelled) return;
-      setMarkedDates(
-        new Set(rows.filter((row) => row.status === "nog_te_bepalen").map((row) => row.lessonDate)),
-      );
+      // getOpenPlannedDatesForClass geeft al alleen lesmomenten zonder
+      // gekoppelde activiteiten terug (zie actions/planning.ts) — geen
+      // extra statusfilter meer nodig.
+      setMarkedDates(new Set(rows.map((row) => row.lessonDate)));
     }
 
     loadOpenDates();
@@ -74,7 +75,7 @@ function AddToPlanningSheetBody({
       toast.error(result.error);
       return;
     }
-    onDone(result.month);
+    onDone(selectedClass.id, result.month);
   }
 
   if (!selectedClass) {
@@ -156,12 +157,12 @@ export function AddToPlanningSheet({
 }) {
   const router = useRouter();
 
-  function handleDone(month: string) {
+  function handleDone(classId: string, month: string) {
     onOpenChange(false);
     toast.success("Toegevoegd aan de planning.", {
       action: {
         label: "Bekijk planning",
-        onClick: () => router.push(`/profiel/planning?maand=${month}`),
+        onClick: () => router.push(`/profiel/planning/${classId}?maand=${month}`),
       },
     });
     router.refresh();
