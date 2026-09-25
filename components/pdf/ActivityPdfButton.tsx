@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { getArrangementImage, loadArrangementImageDataUrl } from "@/lib/pdf/arrangementImage";
+import { describePdfExportFailure, reportPdfExportError } from "@/lib/pdf/reportPdfExportError";
 import type { Activity } from "@/types/activity";
 
 const DIACRITICS_PATTERN = /[̀-ͯ]/g;
@@ -33,6 +34,8 @@ export function ActivityPdfButton({
 
   async function handleDownload() {
     setIsGenerating(true);
+    const arrangementUrl = getArrangementImage(activity);
+    let imageDataUrl: string | null = null;
 
     try {
       // @react-pdf/renderer (2,8MB) en het Document-component pas laden op
@@ -50,10 +53,7 @@ export function ActivityPdfButton({
       // zie lib/pdf/arrangementImage.ts: zo faalt een niet-op-te-halen
       // afbeelding (CORS, verlopen URL, niet-toegestane host) niet de hele
       // export, alleen deze ene afbeelding blijft dan weg.
-      const arrangementUrl = getArrangementImage(activity);
-      const imageDataUrl = arrangementUrl
-        ? await loadArrangementImageDataUrl(arrangementUrl)
-        : null;
+      imageDataUrl = arrangementUrl ? await loadArrangementImageDataUrl(arrangementUrl) : null;
 
       const blob = await pdf(
         <ActivityPdfDocument activity={activity} imageDataUrl={imageDataUrl} />,
@@ -70,7 +70,20 @@ export function ActivityPdfButton({
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("ActivityPdfButton: PDF genereren mislukt —", err);
-      toast.error("PDF genereren is mislukt. Probeer het opnieuw.");
+      reportPdfExportError({
+        component: "ActivityPdfButton",
+        activityId: activity.id,
+        error: err,
+        arrangementImageAttempted: Boolean(arrangementUrl),
+        arrangementImageLoaded: Boolean(imageDataUrl),
+      });
+      toast.error(
+        describePdfExportFailure({
+          error: err,
+          arrangementImageAttempted: Boolean(arrangementUrl),
+          arrangementImageLoaded: Boolean(imageDataUrl),
+        }),
+      );
     } finally {
       setIsGenerating(false);
     }
