@@ -16,11 +16,7 @@ import { getActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { LEERHULP_COLORS } from "@/lib/constants/leerhulpColors";
 import { splitLearningOutcomeItems } from "@/lib/format";
-import {
-  parseActivityDescription,
-  splitIntoSteps,
-  summarizeFirstParagraph,
-} from "@/lib/activityDescription";
+import { parseActivityDescription, splitIntoSteps } from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
 import { getActivityById, isActivitySaved } from "@/lib/services/activities";
 import { getContributionStatus } from "@/lib/services/contribution";
@@ -305,7 +301,6 @@ export default async function ActiviteitDetailPage({
   const { participantsSummary, participantsDetail, bodyText } = parseActivityDescription(
     activity.beschrijving,
   );
-  const inKort = summarizeFirstParagraph(bodyText);
   const speelStappen = splitIntoSteps(bodyText);
 
   const beginsituatieText = activity.beginsituatie;
@@ -327,11 +322,7 @@ export default async function ActiviteitDetailPage({
 
       {/* Header — titel is het belangrijkste element, geen kaart-omlijning
           nodig (zie components/page-header.tsx voor hetzelfde patroon elders
-          in de app: eyebrow + titel + meta, geen Card-wrapper). "In het
-          kort" staat hier als dek (grotere, rustig lopende introductiezin)
-          direct onder de titel — dat is de plek waar een docent binnen een
-          paar seconden weet waar de activiteit over gaat, vóór er ook maar
-          een kaart of tab in beeld komt. */}
+          in de app: eyebrow + titel + meta, geen Card-wrapper). */}
       <div className="animate-fade-up space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -349,10 +340,6 @@ export default async function ActiviteitDetailPage({
           </div>
           <SourceBadge source={getActivitySource(activity)} className="mt-1 shrink-0" />
         </div>
-
-        {inKort && (
-          <p className="text-base leading-relaxed text-foreground/80 sm:text-lg">{inKort}</p>
-        )}
 
         {infoStripItems.length > 0 && <ActivityInfoStrip items={infoStripItems} />}
 
