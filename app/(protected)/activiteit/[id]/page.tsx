@@ -8,6 +8,7 @@ import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { BackButton } from "@/components/BackButton";
 import { LibraryAccessBlocked } from "@/components/library-access-blocked";
 import { SourceBadge } from "@/components/library-item-card";
+import { MaterialChecklist } from "@/components/material-checklist";
 import { PlannedForBanner } from "@/components/planning/PlannedForBanner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,22 +110,6 @@ function StepList({ steps }: { steps: string[] }) {
         </li>
       ))}
     </ol>
-  );
-}
-
-function BadgeList({ items }: { items: string[] | null }) {
-  if (!items || items.length === 0) {
-    return <p className="text-sm text-muted-foreground">-</p>;
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((item, index) => (
-        <Badge key={`${item}-${index}`} variant="secondary">
-          {item}
-        </Badge>
-      ))}
-    </div>
   );
 }
 
@@ -306,6 +291,19 @@ export default async function ActiviteitDetailPage({
 
   const beginsituatieText = activity.beginsituatie;
   const hasBeginsituatieSection = Boolean(beginsituatieText) || doelgroepLabels.length > 0;
+
+  // Een handjevol (2 van de 203) oorspronkelijke bibliotheekactiviteiten heeft
+  // als eerste materiaal-item een algemene toelichting i.p.v. een los,
+  // aanvinkbaar materiaalstuk (bijv. "Materiaal voor zoveel mogelijk
+  // badminton velden") — geverifieerd via SQL dat dit exacte prefix-patroon
+  // de enige twee gevallen dekt. Dat item hoort als intro boven de lijst,
+  // niet als gelijkwaardige, aanvinkbare regel ertussen (zie MaterialChecklist
+  // hieronder, dezelfde component als bij wizard-activiteiten).
+  const materiaalIntro =
+    activity.materiaal && /^materiaal voor/i.test(activity.materiaal[0] ?? "")
+      ? activity.materiaal[0]
+      : null;
+  const materiaalItems = materiaalIntro ? activity.materiaal!.slice(1) : (activity.materiaal ?? []);
 
   const infoStripItems: InfoStripItem[] = [];
   if (participantsSummary) {
@@ -494,7 +492,14 @@ export default async function ActiviteitDetailPage({
                   </div>
                   <div>
                     <SectionHeading>Materiaallijst</SectionHeading>
-                    <BadgeList items={activity.materiaal} />
+                    {materiaalIntro && (
+                      <p className="mb-2 text-sm text-foreground">{materiaalIntro}</p>
+                    )}
+                    <MaterialChecklist
+                      items={materiaalItems}
+                      storageKey={`materiaal-checklist:${activity.id}:materiaal`}
+                      emptyLabel="Geen materiaal nodig."
+                    />
                   </div>
                 </CardContent>
               </Card>
