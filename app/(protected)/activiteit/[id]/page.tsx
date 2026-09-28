@@ -23,6 +23,15 @@ import { getActivityById, isActivityLiked, isActivitySaved } from "@/lib/service
 import { getContributionStatus } from "@/lib/services/contribution";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { getClassesForUser, getPlannedLessonsForActivity } from "@/lib/services/planning";
+import {
+  getActivityVersions,
+  getTeamLibraryItemForActivity,
+  getTeamTags,
+} from "@/lib/services/teamLibrary";
+import { ActivityVersionHistory } from "@/components/team/ActivityVersionHistory";
+import { TagEditor } from "@/components/team/TagEditor";
+import { TeamActivityViewActions } from "@/components/team/TeamActivityViewActions";
+import { TeamLibraryActionButton } from "@/components/team/TeamLibraryActionButton";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -183,6 +192,17 @@ export default async function ActiviteitDetailPage({
   const { hasFullLibraryAccess } = getUserPermissions(profile);
   const isOwnActivity = activity.author_id === profile.id;
 
+  // Teambibliotheek (supabase/migrations/team_library.sql) — subscription_status
+  // is hier de EFFECTIEVE status (get_effective_access, team_plans.sql), dus
+  // paid_subscriber dekt ook een team in coulance. isOwnTeamActivity is breder
+  // dan isOwnActivity: "Alle teamleden mogen alle teamactiviteiten bewerken."
+  const hasActiveTeam = profile.team_id !== null && profile.subscription_status === "paid_subscriber";
+  const isOwnTeamActivity = activity.visibility === "team" && activity.team_id === profile.team_id;
+  const canEditActivity = isOwnActivity || isOwnTeamActivity;
+  const canDeleteTeamActivity =
+    isOwnTeamActivity && (activity.author_id === profile.id || profile.team_role === "owner");
+  const canShareToGymWiki = isOwnTeamActivity && !activity.source_activity_id;
+
   // Preview-slot voor de bibliotheek (zie de brief): een free_blocked-
   // gebruiker mag de kaart in de lijst zien, maar de inhoud hier niet — voor
   // ZOWEL GymWiki- als publiek gedeelde activiteiten (voorheen was
@@ -215,15 +235,36 @@ export default async function ActiviteitDetailPage({
   // (bij een wizard-activiteit) pas de auteursnaam, dan pas de gebruikte
   // kennisbronnen. Gecombineerd in één Promise.all i.p.v. drie sequentiële
   // round-trips.
-  const [saved, liked, authorName, usedKnowledgeSources, plannedLessons, classes] = await Promise.all([
+  const supabase = createClient(await cookies());
+
+  const [
+    saved,
+    liked,
+    authorName,
+    usedKnowledgeSources,
+    plannedLessons,
+    classes,
+    editorName,
+    sourceActivity,
+    teamTags,
+    teamLibraryItem,
+    activityVersions,
+  ] = await Promise.all([
     isActivitySaved(profile.id, activity.id),
     isActivityLiked(profile.id, activity.id),
-    wizardActivity && activity.author_id
-      ? getAuthorName(activity.author_id)
-      : Promise.resolve(null),
+    activity.author_id ? getAuthorName(activity.author_id) : Promise.resolve(null),
     wizardActivity ? getActivityKnowledgeSources(activity.id) : Promise.resolve(undefined),
     getPlannedLessonsForActivity(activity.id),
     getClassesForUser(profile.id),
+    activity.updated_by && activity.updated_by !== activity.author_id
+      ? getAuthorName(activity.updated_by)
+      : Promise.resolve(null),
+    activity.source_activity_id ? getActivityById(activity.source_activity_id) : Promise.resolve(null),
+    hasActiveTeam && profile.team_id ? getTeamTags(supabase, profile.team_id) : Promise.resolve([]),
+    hasActiveTeam && profile.team_id
+      ? getTeamLibraryItemForActivity(supabase, profile.team_id, activity.id)
+      : Promise.resolve(null),
+    isOwnTeamActivity ? getActivityVersions(supabase, activity.id) : Promise.resolve([]),
   ]);
 
   // Wizard-activiteiten delen hun volledige weergave met de inline-editor
@@ -247,8 +288,29 @@ export default async function ActiviteitDetailPage({
           doelgroep={activity.doelgroep ?? []}
           minParticipants={activity.min_participants}
           participantsBench={activity.participants_bench}
-          isPublic={activity.is_public}
-          isOwnActivity={isOwnActivity}
+          isPublic={activity.visibility === "public"}
+          isOwnActivity={canEditActivity}
+          creatorName={authorName}
+          editorName={editorName}
+          sourceActivityTitle={sourceActivity?.titel ?? null}
+          teamTagEditor={
+            teamLibraryItem ? (
+              <TagEditor itemId={teamLibraryItem.id} initialTags={teamLibraryItem.tags} allTeamTags={teamTags} />
+            ) : undefined
+          }
+          teamVersionHistory={
+            isOwnTeamActivity ? <ActivityVersionHistory activityId={activity.id} versions={activityVersions} /> : undefined
+          }
+          teamActivityActions={
+            isOwnTeamActivity ? (
+              <TeamActivityViewActions
+                activityId={activity.id}
+                activityTitle={activity.titel}
+                canDelete={canDeleteTeamActivity}
+                canShare={canShareToGymWiki}
+              />
+            ) : undefined
+          }
           goals={activity.doel ?? ""}
           movementProblem={activity.movement_problem ?? ""}
           learningOutcomes={activity.learning_outcomes ?? []}
@@ -313,6 +375,37 @@ export default async function ActiviteitDetailPage({
     infoStripItems.push({ icon: MapPin, label: activity.veld });
   }
 
+  // Team-gerelateerde actie — of de "Team"-toevoegknop (publieke GymWiki-
+  // activiteit, actief teamlid) of "Verwijderen"/"Delen met GymWiki" (de
+  // eigen teamactiviteit van dit team) — nooit allebei tegelijk. Twee
+  // instanties (icons/sidebar) omdat ActivityDetailActions hieronder ook
+  // twee keer met een andere variant gerenderd wordt.
+  function teamAction(variant: "icons" | "sidebar") {
+    if (!activity) return null;
+    if (isOwnTeamActivity) {
+      return (
+        <TeamActivityViewActions
+          activityId={activity.id}
+          activityTitle={activity.titel}
+          canDelete={canDeleteTeamActivity}
+          canShare={canShareToGymWiki}
+        />
+      );
+    }
+    if (hasActiveTeam && activity.visibility === "public") {
+      return (
+        <TeamLibraryActionButton
+          activityId={activity.id}
+          activityTitle={activity.titel}
+          existingItem={teamLibraryItem}
+          allTeamTags={teamTags}
+          variant={variant}
+        />
+      );
+    }
+    return null;
+  }
+
   return (
     <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-8 md:space-y-6 md:p-8 lg:max-w-6xl print:max-w-none print:p-0">
       <div className="print:hidden">
@@ -360,6 +453,7 @@ export default async function ActiviteitDetailPage({
               classes={classes}
               variant="icons"
               className="lg:hidden"
+              teamLibraryButton={teamAction("icons")}
             />
 
             {infoStripItems.length > 0 && <ActivityInfoStrip items={infoStripItems} />}
@@ -367,6 +461,25 @@ export default async function ActiviteitDetailPage({
             <div className="flex flex-wrap gap-1.5">
               {activity.leerlijn && <Badge variant="outline">{activity.leerlijn}</Badge>}
             </div>
+
+            {isOwnTeamActivity && (
+              <div className="space-y-2 rounded-lg border bg-card p-3">
+                <p className="text-xs text-muted-foreground">
+                  Gemaakt door {authorName ?? "een teamlid"}
+                  {editorName && editorName !== authorName ? ` · laatst bewerkt door ${editorName}` : ""}
+                  {sourceActivity && (
+                    <>
+                      {" "}
+                      · Gebaseerd op <span className="font-medium">{sourceActivity.titel}</span>
+                    </>
+                  )}
+                </p>
+                {teamLibraryItem && (
+                  <TagEditor itemId={teamLibraryItem.id} initialTags={teamLibraryItem.tags} allTeamTags={teamTags} />
+                )}
+                <ActivityVersionHistory activityId={activity.id} versions={activityVersions} />
+              </div>
+            )}
 
             <PlannedForBanner plannedLessons={plannedLessons} />
           </div>
@@ -532,6 +645,7 @@ export default async function ActiviteitDetailPage({
                 isOwnActivity={isOwnActivity}
                 classes={classes}
                 variant="sidebar"
+                teamLibraryButton={teamAction("sidebar")}
               />
             </CardContent>
           </Card>

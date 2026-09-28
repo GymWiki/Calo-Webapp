@@ -102,7 +102,7 @@ export function MyActivityCard({ activity }: { activity: Activity }) {
             </span>
             {!isDraft && (
               <span className="flex items-center gap-1 rounded-md border border-ink/20 bg-paper px-1.5 py-0.5 text-[10px] font-semibold text-ink shadow-sm dark:border-paper/25 dark:bg-charcoal dark:text-paper">
-                {activity.is_public ? (
+                {activity.visibility === "public" ? (
                   <>
                     <Users2 className="size-3" aria-hidden="true" />
                     Gedeeld

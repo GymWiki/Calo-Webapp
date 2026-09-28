@@ -7,6 +7,7 @@ import { Check, Lock, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { addActivitiesToLesson } from "@/actions/planning";
+import { tagColorClass } from "@/components/team/TagEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -14,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import type { ClassLessonEntry } from "@/types/planning";
+import type { TeamLibraryItem, TeamTag } from "@/types/teamLibrary";
 
 const RESULT_LIMIT = 50;
 
@@ -96,6 +98,8 @@ function AddActivitiesToLessonSheetBody({
   libraryActivities,
   hasFullLibraryAccess,
   currentUserId,
+  teamEntries,
+  allTeamTags,
   onOpenChange,
 }: {
   entry: ClassLessonEntry;
@@ -105,18 +109,26 @@ function AddActivitiesToLessonSheetBody({
   libraryActivities: Activity[];
   hasFullLibraryAccess: boolean;
   currentUserId: string;
+  teamEntries: { activity: Activity; item: TeamLibraryItem }[];
+  allTeamTags: TeamTag[];
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"opgeslagen" | "bibliotheek">("opgeslagen");
+  const [tab, setTab] = useState<"opgeslagen" | "bibliotheek" | "team">("opgeslagen");
   const [query, setQuery] = useState("");
   const [doelgroepFilter, setDoelgroepFilter] = useState<number | null>(doelgroep);
   const [leerlijnFilter, setLeerlijnFilter] = useState<Set<string>>(new Set());
+  const [tagFilter, setTagFilter] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSubmitting, startTransition] = useTransition();
 
   const savedIds = useMemo(() => new Set(savedActivities.map((activity) => activity.id)), [savedActivities]);
-  const activeList = tab === "opgeslagen" ? savedActivities : libraryActivities;
+  const teamItemByActivityId = useMemo(
+    () => new Map(teamEntries.map(({ activity, item }) => [activity.id, item])),
+    [teamEntries],
+  );
+  const activeList =
+    tab === "opgeslagen" ? savedActivities : tab === "bibliotheek" ? libraryActivities : teamEntries.map((e) => e.activity);
 
   const leerlijnen = useMemo(
     () => [...new Set(activeList.map((activity) => activity.leerlijn).filter((value): value is string => Boolean(value)))].sort(),
@@ -128,15 +140,29 @@ function AddActivitiesToLessonSheetBody({
     return activeList.filter((activity) => {
       if (doelgroepFilter !== null && !(activity.doelgroep ?? []).includes(doelgroepFilter)) return false;
       if (leerlijnFilter.size > 0 && !(activity.leerlijn && leerlijnFilter.has(activity.leerlijn))) return false;
+      if (tab === "team" && tagFilter.size > 0) {
+        const item = teamItemByActivityId.get(activity.id);
+        const itemTagIds = new Set((item?.tags ?? []).map((tag) => tag.id));
+        if (![...tagFilter].some((id) => itemTagIds.has(id))) return false;
+      }
       return matchesQuery(activity, q);
     });
-  }, [activeList, query, doelgroepFilter, leerlijnFilter]);
+  }, [activeList, query, doelgroepFilter, leerlijnFilter, tab, tagFilter, teamItemByActivityId]);
 
   function toggleLeerlijn(line: string) {
     setLeerlijnFilter((current) => {
       const next = new Set(current);
       if (next.has(line)) next.delete(line);
       else next.add(line);
+      return next;
+    });
+  }
+
+  function toggleTagFilter(tagId: string) {
+    setTagFilter((current) => {
+      const next = new Set(current);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
       return next;
     });
   }
@@ -182,7 +208,11 @@ function AddActivitiesToLessonSheetBody({
         <SheetDescription>Kies één of meerdere activiteiten voor dit lesmoment.</SheetDescription>
       </SheetHeader>
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as "opgeslagen" | "bibliotheek")} className="flex min-h-0 flex-1 flex-col">
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as "opgeslagen" | "bibliotheek" | "team")}
+        className="flex min-h-0 flex-1 flex-col"
+      >
         <div className="px-4">
           <TabsList className="w-full">
             <TabsTrigger value="opgeslagen" className="flex-1">
@@ -191,6 +221,11 @@ function AddActivitiesToLessonSheetBody({
             <TabsTrigger value="bibliotheek" className="flex-1">
               Bibliotheek
             </TabsTrigger>
+            {teamEntries.length > 0 && (
+              <TabsTrigger value="team" className="flex-1">
+                Teambibliotheek
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -223,6 +258,26 @@ function AddActivitiesToLessonSheetBody({
                 <FilterChip key={line} active={leerlijnFilter.has(line)} onClick={() => toggleLeerlijn(line)}>
                   {line}
                 </FilterChip>
+              ))}
+            </div>
+          )}
+
+          {tab === "team" && allTeamTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {allTeamTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  aria-pressed={tagFilter.has(tag.id)}
+                  onClick={() => toggleTagFilter(tag.id)}
+                  className={cn(
+                    "shrink-0 rounded-full border px-2.5 py-1 text-sm font-medium transition-colors duration-150 ease-brand",
+                    tagFilter.has(tag.id) ? "ring-2 ring-primary" : "",
+                    tagColorClass(tag.color),
+                  )}
+                >
+                  {tag.name}
+                </button>
               ))}
             </div>
           )}
@@ -282,6 +337,8 @@ export function AddActivitiesToLessonSheet({
   libraryActivities,
   hasFullLibraryAccess,
   currentUserId,
+  teamEntries,
+  allTeamTags,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -292,6 +349,8 @@ export function AddActivitiesToLessonSheet({
   libraryActivities: Activity[];
   hasFullLibraryAccess: boolean;
   currentUserId: string;
+  teamEntries: { activity: Activity; item: TeamLibraryItem }[];
+  allTeamTags: TeamTag[];
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -306,6 +365,8 @@ export function AddActivitiesToLessonSheet({
             libraryActivities={libraryActivities}
             hasFullLibraryAccess={hasFullLibraryAccess}
             currentUserId={currentUserId}
+            teamEntries={teamEntries}
+            allTeamTags={allTeamTags}
             onOpenChange={onOpenChange}
           />
         )}

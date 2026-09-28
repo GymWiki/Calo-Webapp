@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   cancelTeam,
   inviteTeamMembers,
+  reactivateTeam,
   removeTeamMember,
   resendTeamInvite,
   revokeTeamInvite,
@@ -21,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  TEAM_LIBRARY_RETENTION_DAYS,
   TEAM_PLAN_ORDER,
   TEAM_PLANS,
   type TeamPlan,
@@ -58,6 +60,8 @@ export function TeamOwnerDashboard({
 
   return (
     <div className="space-y-6">
+      {team.status === "canceled" && <ReactivateBanner team={team} onDone={() => router.refresh()} />}
+
       <Card>
         <CardContent className="space-y-4 pt-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -119,6 +123,43 @@ export function TeamOwnerDashboard({
 
       <TransferAndCancelCard team={team} members={members} onDone={() => router.refresh()} />
     </div>
+  );
+}
+
+function ReactivateBanner({ team, onDone }: { team: Team; onDone: () => void }) {
+  const [isPending, setIsPending] = useState(false);
+
+  function handleReactivate() {
+    setIsPending(true);
+    reactivateTeam()
+      .then((result) => {
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success("Team geheractiveerd — alle teamleden hebben weer toegang.");
+        onDone();
+      })
+      .finally(() => setIsPending(false));
+  }
+
+  return (
+    <Card className="border-amber-500/40 bg-amber-500/5">
+      <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
+        <div>
+          <p className="text-sm font-medium">&quot;{team.name}&quot; is opgezegd</p>
+          <p className="text-sm text-muted-foreground">
+            Teamleden hebben geen toegang meer tot de teambibliotheek. Alle activiteiten, tags en
+            versiegeschiedenis blijven bewaard (tot {TEAM_LIBRARY_RETENTION_DAYS} dagen na opzegging) — heractiveer
+            om direct weer volledig te gebruiken.
+          </p>
+        </div>
+        <Button type="button" size="sm" disabled={isPending} onClick={handleReactivate}>
+          {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+          Heractiveren
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -553,7 +594,7 @@ function TransferAndCancelCard({
   function handleCancel() {
     if (
       !window.confirm(
-        `Team "${team.name}" opzeggen? Alle leden verliezen direct hun teamtoegang en vallen terug op hun eigen gratis-via-bijdrage-status — hun eigen activiteiten en opgeslagen items blijven behouden. Dit kan niet ongedaan gemaakt worden.`,
+        `Team "${team.name}" opzeggen? Alle leden verliezen direct hun teamtoegang en vallen terug op hun eigen gratis-via-bijdrage-status — hun eigen activiteiten en opgeslagen items blijven behouden. De teambibliotheek (activiteiten, tags, versiegeschiedenis) blijft ${TEAM_LIBRARY_RETENTION_DAYS} dagen bewaard — reactiveer binnen die periode om alles direct terug te hebben.`,
       )
     ) {
       return;
@@ -608,10 +649,12 @@ function TransferAndCancelCard({
           </div>
         )}
 
-        <Button type="button" variant="destructive" size="sm" disabled={isCanceling} onClick={handleCancel}>
-          {isCanceling ? <Loader2 className="size-4 animate-spin" /> : null}
-          Team opzeggen
-        </Button>
+        {team.status !== "canceled" && (
+          <Button type="button" variant="destructive" size="sm" disabled={isCanceling} onClick={handleCancel}>
+            {isCanceling ? <Loader2 className="size-4 animate-spin" /> : null}
+            Team opzeggen
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

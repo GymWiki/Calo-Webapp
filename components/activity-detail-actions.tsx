@@ -93,6 +93,7 @@ export function ActivityDetailActions({
   classes,
   variant = "sidebar",
   className,
+  teamLibraryButton,
 }: {
   activity: Activity;
   initiallySaved: boolean;
@@ -107,6 +108,13 @@ export function ActivityDetailActions({
    *  "icons": compacte rij icoon-knoppen (mobiel/tablet, bij de titel). */
   variant?: "sidebar" | "icons";
   className?: string;
+  /** Team-gerelateerde actie(s) — ofwel de "Team"-toevoegknop (zie
+   * components/team/TeamLibraryActionButton.tsx) voor een publieke GymWiki-
+   * activiteit, ofwel "Verwijderen"/"Delen met GymWiki" (zie
+   * components/team/TeamActivityViewActions.tsx) voor een teamactiviteit
+   * zelf. Als losse node meegegeven zodat dit component zelf niets van
+   * teams hoeft te weten. */
+  teamLibraryButton?: React.ReactNode;
 }) {
   const activityId = activity.id;
   const {
@@ -144,6 +152,7 @@ export function ActivityDetailActions({
         )}
         <AddToPlanningButton activityId={activityId} classes={classes} iconOnly />
         <ShareActivityButton title={activity.titel} iconOnly />
+        {teamLibraryButton}
       </div>
     );
   }
@@ -179,6 +188,7 @@ export function ActivityDetailActions({
         className="w-full justify-start"
       />
       <ShareActivityButton title={activity.titel} className="w-full justify-start" />
+      {teamLibraryButton}
     </div>
   );
 }

@@ -22,8 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import { getActivitySource } from "@/lib/activity-source";
@@ -148,8 +146,17 @@ export function ActivityWizardPage({
   onParticipantsBenchChange,
   isPublic,
   isOwnActivity,
-  publishToggle,
-  onPublishToggleChange,
+  destinationValue,
+  onDestinationChange,
+  hasActiveTeam,
+  teamName,
+  destinationLocked,
+  creatorName,
+  editorName,
+  sourceActivityTitle,
+  teamTagEditor,
+  teamVersionHistory,
+  teamActivityActions,
 
   goals,
   onGoalsChange,
@@ -236,11 +243,32 @@ export function ActivityWizardPage({
   onParticipantsBenchChange?: (value: number | undefined) => void;
   isPublic: boolean;
   isOwnActivity: boolean;
-  /** De "Delen in de gedeelde bibliotheek"-toggle — alleen relevant in
-   * mode="edit" (vóór opslaan). Los van `isPublic` hierboven, dat de
-   * WERKELIJKE status van een al opgeslagen activiteit toont in mode="view". */
-  publishToggle?: boolean;
-  onPublishToggleChange?: (value: boolean) => void;
+  /** De bestemmingskeuze ("Alleen ik"/"Teambibliotheek"/"Gedeelde GymWiki-
+   * bibliotheek") — alleen relevant in mode="edit" (vóór opslaan). Los van
+   * `isPublic` hierboven, dat de WERKELIJKE status van een al opgeslagen
+   * activiteit toont in mode="view". */
+  destinationValue?: "private" | "team" | "public";
+  onDestinationChange?: (value: "private" | "team" | "public") => void;
+  /** Toont "Teambibliotheek" als kiesbare bestemming — alleen voor leden van
+   * een actief team. */
+  hasActiveTeam?: boolean;
+  teamName?: string | null;
+  /** Bewerkt een AL bestaande teamactiviteit — de bestemming staat dan vast
+   * (getoond als label, niet als keuze; wijzigen gaat niet via deze editor). */
+  destinationLocked?: boolean;
+  /** mode="view", visibility='team': wie de activiteit maakte/laatst bewerkte. */
+  creatorName?: string | null;
+  editorName?: string | null;
+  /** mode="view": bronvermelding "Gebaseerd op ..." bij een teamkopie van een GymWiki-activiteit. */
+  sourceActivityTitle?: string | null;
+  /** mode="view", visibility='team': de tag-editor (zie components/team/TagEditor.tsx) — als losse node meegegeven zodat deze component zelf niets van team-tags hoeft te weten. */
+  teamTagEditor?: React.ReactNode;
+  /** mode="view", visibility='team': "Vorige versies"-lijst (zie components/team/ActivityVersionHistory.tsx). */
+  teamVersionHistory?: React.ReactNode;
+  /** mode="view", visibility='team': "Verwijderen"/"Delen met GymWiki"-knoppen
+   * (zie components/team/TeamActivityViewActions.tsx) — als losse client-
+   * component-node meegegeven, want die heeft eigen loading/toast-state nodig. */
+  teamActivityActions?: React.ReactNode;
 
   goals: string;
   onGoalsChange?: (value: string) => void;
@@ -515,6 +543,25 @@ export function ActivityWizardPage({
             )}
           </div>
         )}
+
+        {/* Teamactiviteit — wie maakte/bewerkte 'm laatst + bronvermelding
+            bij een kopie + de tag-editor, allemaal direct onder de titel. */}
+        {!isEdit && activity?.visibility === "team" && (
+          <div className="space-y-2 rounded-lg border bg-card p-3">
+            <p className="text-xs text-muted-foreground">
+              Gemaakt door {creatorName ?? "een teamlid"}
+              {editorName && editorName !== creatorName ? ` · laatst bewerkt door ${editorName}` : ""}
+              {sourceActivityTitle && (
+                <>
+                  {" "}
+                  · Gebaseerd op <span className="font-medium">{sourceActivityTitle}</span>
+                </>
+              )}
+            </p>
+            {teamTagEditor}
+            {teamVersionHistory}
+          </div>
+        )}
       </div>
 
       {/* Basisgegevens — leerlijn/thema + datum; voor welke groepen de
@@ -644,21 +691,66 @@ export function ActivityWizardPage({
             </FieldLabel>
           )}
 
-          {isEdit && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-              <div>
-                <Label htmlFor="publish-toggle">Delen in de gedeelde bibliotheek</Label>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Alleen gedeelde, goedgekeurde activiteiten tellen mee voor je maandelijkse
-                  bijdrage. Staat dit uit, dan is de activiteit alleen voor jezelf zichtbaar en
-                  slaat de kwaliteitscheck over.
-                </p>
+          {isEdit && destinationLocked && (
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Bestemming: Teambibliotheek{teamName ? ` (${teamName})` : ""}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Deze activiteit is al onderdeel van de teambibliotheek — alle teamleden kunnen &apos;m
+                bewerken. De bestemming zelf wijzig je hier niet.
+              </p>
+            </div>
+          )}
+
+          {isEdit && !destinationLocked && (
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Bestemming</p>
+              <p className="mt-0.5 mb-2.5 text-xs text-muted-foreground">
+                Bepaalt wie deze activiteit ziet. Alleen &quot;Gedeelde GymWiki-bibliotheek&quot; doorloopt de
+                kwaliteitscheck en telt mee voor je maandelijkse bijdrage.
+              </p>
+              <div className={cn("grid gap-1.5", hasActiveTeam ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2")}>
+                <button
+                  type="button"
+                  aria-pressed={(destinationValue ?? "public") === "private"}
+                  onClick={() => onDestinationChange?.("private")}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-left text-sm transition-colors duration-150 ease-brand",
+                    (destinationValue ?? "public") === "private"
+                      ? "border-primary bg-primary/10 font-medium text-primary"
+                      : "border-input text-muted-foreground hover:bg-accent",
+                  )}
+                >
+                  Alleen ik
+                </button>
+                {hasActiveTeam && (
+                  <button
+                    type="button"
+                    aria-pressed={destinationValue === "team"}
+                    onClick={() => onDestinationChange?.("team")}
+                    className={cn(
+                      "rounded-md border px-3 py-2 text-left text-sm transition-colors duration-150 ease-brand",
+                      destinationValue === "team"
+                        ? "border-primary bg-primary/10 font-medium text-primary"
+                        : "border-input text-muted-foreground hover:bg-accent",
+                    )}
+                  >
+                    Teambibliotheek{teamName ? ` (${teamName})` : ""}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  aria-pressed={destinationValue === "public"}
+                  onClick={() => onDestinationChange?.("public")}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-left text-sm transition-colors duration-150 ease-brand",
+                    destinationValue === "public"
+                      ? "border-primary bg-primary/10 font-medium text-primary"
+                      : "border-input text-muted-foreground hover:bg-accent",
+                  )}
+                >
+                  Gedeelde GymWiki-bibliotheek
+                </button>
               </div>
-              <Switch
-                id="publish-toggle"
-                checked={publishToggle ?? true}
-                onCheckedChange={(value) => onPublishToggleChange?.(value)}
-              />
             </div>
           )}
 
@@ -1117,7 +1209,7 @@ export function ActivityWizardPage({
               </Button>
             )}
             {activity && <LessonPdfButton activity={activity} authorName={authorName} className="flex-1" />}
-            {isOwnActivity && activity && (
+            {isOwnActivity && activity && activity.visibility !== "team" && (
               <ShareLessonButton
                 lessonId={activity.id}
                 lessonTitle={activity.titel}
@@ -1127,6 +1219,7 @@ export function ActivityWizardPage({
                 className="flex-1"
               />
             )}
+            {teamActivityActions}
             {activity && classes && (
               <AddToPlanningButton activityId={activity.id} classes={classes} className="flex-1" />
             )}

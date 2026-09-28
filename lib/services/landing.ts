@@ -31,12 +31,12 @@ export async function getLandingSnapshot(): Promise<LandingSnapshot> {
       .from("activiteiten")
       .select("id", { count: "exact", head: true })
       .eq("status", "approved")
-      .eq("is_public", true),
+      .eq("visibility", "public"),
     supabase
       .from("activiteiten")
       .select(ACTIVITY_LIST_SELECT)
       .eq("status", "approved")
-      .eq("is_public", true)
+      .eq("visibility", "public")
       .or("afbeelding.not.is.null,diagram_image_url.not.is.null")
       .order("created_at", { ascending: false })
       .limit(PREVIEW_COUNT)

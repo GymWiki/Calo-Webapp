@@ -10,12 +10,13 @@ import type { Activity } from "@/types/activity";
  * (app/(protected)/activiteit/[id]/page.tsx), zodat ze nooit meer uit elkaar
  * kunnen lopen.
  */
-export type ActivitySource = "gymwiki" | "publiek" | "eigen";
+export type ActivitySource = "gymwiki" | "publiek" | "team" | "eigen";
 
 export function getActivitySource(
-  activity: Pick<Activity, "author_id" | "is_public">,
+  activity: Pick<Activity, "author_id" | "visibility">,
 ): ActivitySource {
+  if (activity.visibility === "team") return "team";
   if (activity.author_id === null) return "gymwiki";
-  if (activity.is_public) return "publiek";
+  if (activity.visibility === "public") return "publiek";
   return "eigen";
 }

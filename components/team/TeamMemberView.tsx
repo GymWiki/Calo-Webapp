@@ -64,7 +64,9 @@ export function TeamMemberView({ team, ownerName }: { team: Team; ownerName: str
           <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3">
             <p className="text-sm">
               Weet je zeker dat je &quot;{team.name}&quot; wilt verlaten? Je valt terug op je eigen gratis-via-
-              bijdrage-status — je eigen activiteiten en opgeslagen items blijven behouden.
+              bijdrage-status — je eigen activiteiten en opgeslagen items blijven behouden. Activiteiten en
+              tags die je in de teambibliotheek hebt aangemaakt, blijven van het team; je verliest zelf de
+              toegang ertoe en kunt ze niet meenemen.
             </p>
             <div className="flex gap-2">
               <Button type="button" variant="destructive" size="sm" disabled={isPending} onClick={handleLeave}>

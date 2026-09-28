@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { createLesson, saveLessonDraft } from "@/actions/lesson";
+import { updateTeamActivity } from "@/actions/teamLibrary";
 import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
 import { Form } from "@/components/ui/form";
@@ -76,6 +77,10 @@ export function LessonForm({
   activeSourceCount,
   flaggedEmptyFields,
   initialUsedKnowledgeSources,
+  hasActiveTeam,
+  teamName,
+  isEditingTeamActivity,
+  initialVersion,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -104,6 +109,14 @@ export function LessonForm({
    * live chunks van een net-in-déze-sessie uitgevoerde AI-generatie
    * hieronder. */
   initialUsedKnowledgeSources?: UsedKnowledgeChunk[];
+  /** Lid van een actief team — toont "Teambibliotheek" als bestemmingskeuze. */
+  hasActiveTeam?: boolean;
+  teamName?: string | null;
+  /** Bewerkt een AL BESTAANDE teamactiviteit — opslaan gaat dan via
+   * updateTeamActivity (optimistic locking, zie actions/teamLibrary.ts)
+   * i.p.v. createLesson. */
+  isEditingTeamActivity?: boolean;
+  initialVersion?: number;
 }) {
   const router = useRouter();
 
@@ -134,6 +147,11 @@ export function LessonForm({
   // Concept-rij die auto-save aanmaakt/bijwerkt (zie saveLessonDraft) — als
   // dit formulier een bestaand concept hervat, is dat meteen die rij.
   const [activityId, setActivityId] = useState<string | null>(initialActivityId ?? null);
+  // Optimistic-locking-teller voor een bestaande teamactiviteit (zie
+  // updateTeamActivity, actions/teamLibrary.ts) — alleen relevant wanneer
+  // isEditingTeamActivity. Bijgewerkt na elke geslaagde opslag zodat een
+  // volgende "Activiteit opslaan" weer tegen de juiste versie checkt.
+  const [teamActivityVersion, setTeamActivityVersion] = useState<number | undefined>(initialVersion);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const isSavingDraftRef = useRef(false);
   // Een nieuwere wijziging kwam binnen terwijl er al een save liep — na
@@ -372,6 +390,37 @@ export function LessonForm({
     }
   }
 
+  // Zelfde kolomtoewijzing als actions/lesson.ts's toActivitiesRow (niet
+  // exporteerbaar vanuit een "use server"-bestand: elke export daar moet
+  // zelf een server action zijn) — hier lokaal herhaald, alleen de content-
+  // kolommen (geen metavelden als status/visibility/author_id), voor de
+  // updateTeamActivity-opslag hieronder.
+  function buildTeamActivityChanges(values: CreateLessonInput) {
+    return {
+      titel: values.title,
+      activity_date: values.lessonDate || null,
+      leerlijn: values.learningLine,
+      doelgroep: values.doelgroep,
+      movement_problem: values.movementProblem,
+      beweegthema: values.movementTheme || values.learningLine,
+      base_materials: values.baseMaterials,
+      rule_materials: values.ruleMaterials,
+      min_participants: values.minParticipants ? Number(values.minParticipants) : null,
+      participants_bench: values.participantsBench ? Number(values.participantsBench) : null,
+      regels: values.rules,
+      doel: values.goals,
+      learning_outcomes: values.learningOutcomes,
+      didactic_items: values.didacticItems,
+      arrangement: values.arrangement,
+      beschrijving: values.beschrijving,
+      deelnemers_regels: values.deelnemersRegels,
+      plaatje_praatje: values.plaatjePraatje,
+      aandachtspunten: values.aandachtspunten,
+      ...(diagram ? { diagram_data: diagram.data, diagram_image_url: diagram.imageDataUrl } : {}),
+      ...(afbeeldingUrl !== null ? { afbeelding: afbeeldingUrl } : {}),
+    };
+  }
+
   async function onSubmit(values: CreateLessonInput) {
     const payload: CreateLessonInput = {
       ...values,
@@ -383,12 +432,48 @@ export function LessonForm({
     };
 
     try {
+      // Een AL bestaande teamactiviteit bewerken gaat via updateTeamActivity
+      // (optimistic locking — zie de brief "samen bewerken") i.p.v.
+      // createLesson, dat alleen de author_id-eigenaar mag bijwerken.
+      if (isEditingTeamActivity && activityId && teamActivityVersion !== undefined) {
+        const changes = buildTeamActivityChanges(payload);
+        let result = await updateTeamActivity(activityId, teamActivityVersion, changes);
+
+        if ("conflict" in result) {
+          const name = result.changedByName ?? "Iemand anders";
+          const forceOverwrite = window.confirm(
+            `${name} heeft deze activiteit zojuist gewijzigd. Klik op OK om JOUW versie alsnog op te slaan ` +
+              `(overschrijft die wijziging), of op Annuleren om eerst de nieuwste versie te laden.`,
+          );
+          if (!forceOverwrite) {
+            window.location.reload();
+            return;
+          }
+          result = await updateTeamActivity(activityId, result.latestVersion, changes);
+        }
+
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
+        if ("conflict" in result) {
+          toast.error("Opslaan is opnieuw mislukt door een gelijktijdige wijziging — laad de pagina opnieuw.");
+          return;
+        }
+
+        setTeamActivityVersion(result.version);
+        toast.success("Teamactiviteit opgeslagen.");
+        router.push(`/activiteit/${activityId}`);
+        router.refresh();
+        return;
+      }
+
       const result = await createLesson(
         payload,
         diagram,
         false,
         activityId,
-        values.isPublic,
+        values.destination,
         afbeeldingUrl ?? undefined,
       );
 
@@ -403,7 +488,11 @@ export function LessonForm({
         toast.error(`Niet gedeeld: ${result.reason} Je activiteit is wel opgeslagen.`);
       } else {
         toast.success(
-          values.isPublic ? "Activiteit opgeslagen en gedeeld!" : "Activiteit opgeslagen.",
+          values.destination === "public"
+            ? "Activiteit opgeslagen en gedeeld!"
+            : values.destination === "team"
+              ? "Activiteit opgeslagen in de teambibliotheek."
+              : "Activiteit opgeslagen.",
         );
       }
       router.push("/dashboard");
@@ -422,7 +511,7 @@ export function LessonForm({
   const movementTheme = form.watch("movementTheme");
   const lessonDate = form.watch("lessonDate");
   const doelgroep = form.watch("doelgroep");
-  const isPublicToggle = form.watch("isPublic");
+  const destination = form.watch("destination");
   const minParticipants = form.watch("minParticipants") as number | undefined;
   const participantsBench = form.watch("participantsBench") as number | undefined;
   const goals = form.watch("goals");
@@ -774,11 +863,14 @@ export function LessonForm({
           onParticipantsBenchChange={(value) => form.setValue("participantsBench", value)}
           isPublic={false}
           isOwnActivity
-          publishToggle={isPublicToggle}
-          onPublishToggleChange={(value) => {
-            form.setValue("isPublic", value);
+          destinationValue={destination}
+          onDestinationChange={(value) => {
+            form.setValue("destination", value);
             scheduleAutosave();
           }}
+          hasActiveTeam={hasActiveTeam}
+          teamName={teamName}
+          destinationLocked={isEditingTeamActivity}
           goals={goals}
           onGoalsChange={(value) => form.setValue("goals", value)}
           goalsFlagged={isFieldFlagged("goals")}

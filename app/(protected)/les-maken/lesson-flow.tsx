@@ -94,6 +94,10 @@ export function LesMakenFlow({
   activeSourceCount,
   skipChoice,
   initialUsedKnowledgeSources,
+  hasActiveTeam,
+  teamName,
+  isEditingTeamActivity,
+  initialVersion,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -115,6 +119,15 @@ export function LesMakenFlow({
   initialTab?: TabValue;
   activeSourceCount?: number;
   skipChoice: boolean;
+  /** Lid van een actief team — bepaalt of "Teambibliotheek" als bestemming
+   * kiesbaar is (zie components/activity-wizard-page.tsx). */
+  hasActiveTeam?: boolean;
+  teamName?: string | null;
+  /** Bewerkt een AL BESTAANDE teamactiviteit — dan gaat opslaan via
+   * updateTeamActivity (optimistic locking), niet createLesson. Zie
+   * lesson-form.tsx. */
+  isEditingTeamActivity?: boolean;
+  initialVersion?: number;
 }) {
   const [mode, setMode] = useState<Mode>(skipChoice ? "form" : "choice");
   const [uploadedValues, setUploadedValues] = useState<Partial<CreateLessonFormInput> | null>(
@@ -173,6 +186,10 @@ export function LesMakenFlow({
       activeSourceCount={activeSourceCount}
       flaggedEmptyFields={uploadedValues ? uploadedFlaggedFields : undefined}
       initialUsedKnowledgeSources={uploadedValues ? undefined : initialUsedKnowledgeSources}
+      hasActiveTeam={hasActiveTeam}
+      teamName={teamName}
+      isEditingTeamActivity={uploadedValues ? false : isEditingTeamActivity}
+      initialVersion={initialVersion}
     />
   );
 }

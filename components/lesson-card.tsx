@@ -61,7 +61,7 @@ export function LessonCard({
           lessonId={activity.id}
           lessonTitle={activity.titel}
           isOwner={activity.author_id === currentUserId}
-          initialIsPublic={activity.is_public}
+          initialIsPublic={activity.visibility === "public"}
           isAiGenerated={activity.is_ai_generated}
           className="flex-1"
         />

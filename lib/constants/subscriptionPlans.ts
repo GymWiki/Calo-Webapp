@@ -187,3 +187,39 @@ export const TEAM_PAST_DUE_GRACE_DAYS = 14;
  * lib/ai/lescoachAccess.ts en public.get_team_ai_usage_count.
  */
 export const TEAM_AI_LESCOACH_PER_SEAT_LIMIT = 15;
+
+/**
+ * Teambibliotheek — limieten en bewaartermijn. De daadwerkelijke afdwinging
+ * van de eerste drie staat in supabase/migrations/team_library.sql
+ * (validate_team_library_item/check_team_tag_limit/
+ * check_team_library_item_tag) — deze constanten zijn de JS-kant (weergave/
+ * foutmeldingen), zelfde bewuste duplicatie-patroon als
+ * MONTHLY_CONTRIBUTION_REQUIRED_COUNT hierboven.
+ */
+export const TEAM_LIBRARY_MAX_ITEMS = 500;
+export const TEAM_LIBRARY_MAX_TAGS = 100;
+export const TEAM_LIBRARY_MAX_TAGS_PER_ITEM = 10;
+
+/**
+ * Bewaartermijn (dagen) van teambibliotheek-inhoud na opzegging — puur
+ * documentatie/weergave: deze migratie verwijdert bij opzegging bewust NIETS
+ * fysiek (zie actions/team.ts's cancelTeam), dus heractiveren brengt de
+ * teambibliotheek hoe dan ook altijd volledig terug, ongeacht hoe lang
+ * geleden opgezegd. Een daadwerkelijke opruimjob na deze termijn is bewust
+ * niet gebouwd in deze wijziging (zelfde "config, geen code"-afweging als
+ * btw bij het teamabonnement) — dat is aan de eigenaar/een toekomstige
+ * cron-taak.
+ */
+export const TEAM_LIBRARY_RETENTION_DAYS = 90;
+
+/** Klein vast palet — team_tags.color mag leeg zijn (geen kleur), of één van deze. */
+export const TEAM_TAG_COLORS = [
+  "slate",
+  "red",
+  "amber",
+  "emerald",
+  "sky",
+  "violet",
+  "pink",
+] as const;
+export type TeamTagColor = (typeof TEAM_TAG_COLORS)[number];

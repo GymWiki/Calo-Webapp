@@ -1,5 +1,16 @@
 export type ActivityReviewStatus = "draft" | "pending" | "approved" | "rejected";
 
+/**
+ * Vervangt de vroegere losse `is_public`-vlag (zie
+ * supabase/migrations/team_library.sql): 'private' = alleen de auteur,
+ * 'team' = het team in `team_id`, 'public' = de gedeelde GymWiki-bibliotheek.
+ * Een teamactiviteit ('team') is bewust een derde, onafhankelijke staat —
+ * geen combinatie van de andere twee — want delen met het team is geen
+ * bijdrage aan de publieke bibliotheek (telt niet mee voor het maandelijkse
+ * quotum) en is niet zichtbaar voor niet-teamleden.
+ */
+export type ActivityVisibility = "private" | "team" | "public";
+
 export type Activity = {
   id: string;
   titel: string;
@@ -73,12 +84,26 @@ export type Activity = {
   // met terugwerkende kracht op is_public=true gezet (waren altijd al voor
   // iedereen zichtbaar, vóór dit concept bestond).
   is_ai_generated: boolean;
-  is_public: boolean;
+  visibility: ActivityVisibility;
   public_since: string | null;
   // Gedenormaliseerd, bijgehouden door een DB-trigger op activity_likes (zie
   // supabase/migrations/activity_likes.sql) — nooit hier vanuit de app
   // opgehoogd/verlaagd, alleen gelezen.
   like_count: number;
+
+  // ---- Teambibliotheek (supabase/migrations/team_library.sql) -----------
+  /** Gevuld wanneer visibility='team' — het team waar deze activiteit bij hoort. */
+  team_id: string | null;
+  /** Gevuld bij een teamKOPIE van een GymWiki-activiteit (bronvermelding "Gebaseerd op ..."). */
+  source_activity_id: string | null;
+  /** Wie deze activiteit het laatst heeft bewerkt — author_id blijft de oorspronkelijke maker. */
+  updated_by: string | null;
+  updated_at: string;
+  /** Optimistic-locking-teller — zie actions/teamLibrary.ts's updateTeamActivity. */
+  version: number;
+  /** Zachte verwijdering (30 dagen herstelbaar) — alleen gebruikt voor teamactiviteiten. */
+  deleted_at: string | null;
+  deleted_by: string | null;
 };
 
 // `doelgroep` isn't a school-year number — it's a fixed 1-6 bucket code

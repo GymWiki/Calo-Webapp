@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceClient } from "@/utils/supabase/service";
 import { sendTeamInviteEmail } from "@/lib/email/sendTeamInvite";
+import { TEAM_PRICE_ENV_VAR, type TeamPlan } from "@/lib/constants/subscriptionPlans";
 
 type ActionResult = { error: string } | { success: true };
 
@@ -360,13 +361,24 @@ export async function transferTeamOwnership(newOwnerUserId: string): Promise<Act
 }
 
 /**
- * Team opzeggen/verwijderen — annuleert eerst het Stripe-abonnement (indien
- * aanwezig) en verwijdert dan de teams-rij, die alle leden en
- * uitnodigingen cascadeert. Leden vallen automatisch terug op hun eigen
- * gratis-via-bijdrage-status (geen aparte opruimstap nodig: dat is simpelweg
- * wat public.get_effective_access teruggeeft zodra er geen team_members-rij
- * meer bestaat) — hun eigen activiteiten/opgeslagen items blijven
- * onaangeroerd, die zijn nooit aan het team gekoppeld geweest.
+ * Team opzeggen — annuleert het Stripe-abonnement en zet de teams-rij op
+ * status 'canceled'. De rij (en team_members/team_invites/de teambibliotheek
+ * — activiteiten/tags/versies, zie supabase/migrations/team_library.sql)
+ * wordt BEWUST NIET verwijderd: dat is de retentieperiode uit de brief
+ * (TEAM_LIBRARY_RETENTION_DAYS, lib/constants/subscriptionPlans.ts) —
+ * simpelweg nooit hard-deleten bevredigt die eis al, zonder een aparte
+ * opruimjob. Zolang de rij blijft bestaan kan reactivateTeam() 'm herstellen
+ * met alle inhoud intact. (Een hard delete zou hier ook stuklopen op de
+ * activiteiten.team_id-foreign key zodra het team teambibliotheek-
+ * activiteiten heeft.)
+ *
+ * status wordt hier DIRECT gezet (niet enkel gewacht op de webhook) voor
+ * meteen zichtbare UI-feedback; het customer.subscription.deleted-event
+ * (app/api/stripe/webhook/route.ts) zet 'm best-effort nogmaals — onschadelijk
+ * dubbel werk. Leden verliezen hun teambibliotheek-toegang zodra status niet
+ * meer 'active'/coulance is (public.get_effective_access, team_plans.sql) —
+ * hun eigen activiteiten/opgeslagen items blijven onaangeroerd, die zijn
+ * nooit aan het team gekoppeld geweest.
  */
 export async function cancelTeam(): Promise<ActionResult> {
   const cookieStore = await cookies();
@@ -397,8 +409,71 @@ export async function cancelTeam(): Promise<ActionResult> {
   }
 
   const service = createServiceClient();
-  const { error } = await service.from("teams").delete().eq("id", team.id);
+  const { error } = await service.from("teams").update({ status: "canceled" }).eq("id", team.id);
   if (error) return { error: GENERIC_ERROR };
+
+  revalidatePath("/profiel/team");
+  return { success: true };
+}
+
+/**
+ * Heractiveert een opgezegd team: maakt een NIEUW Stripe-abonnement aan
+ * (send_invoice, zelfde opzet als app/api/stripe/create-team/route.ts) op
+ * de bestaande stripe_customer_id, en zet dezelfde teams-rij weer op
+ * 'active' — GEEN nieuwe rij, zodat team_id-referenties (teambibliotheek-
+ * activiteiten/items/tags) intact blijven zonder enige migratie. Alleen
+ * mogelijk terwijl de rij nog bestaat, dus effectief begrensd door hoelang
+ * "nooit hard-deleten" 'm bewaart (zie cancelTeam hierboven) — er is geen
+ * harde 90-dagen-afdwinging in code, dat getal is puur de communicatie-
+ * belofte in de brief/UI.
+ */
+export async function reactivateTeam(): Promise<ActionResult> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: NOT_LOGGED_IN_ERROR };
+
+  const { data: team } = await supabase
+    .from("teams")
+    .select("id, status, plan, stripe_customer_id")
+    .eq("owner_user_id", user.id)
+    .maybeSingle();
+  if (!team) return { error: NOT_OWNER_ERROR };
+  if (team.status !== "canceled") return { error: "Dit team is niet opgezegd." };
+  if (!team.stripe_customer_id) return { error: GENERIC_ERROR };
+
+  const priceId = process.env[TEAM_PRICE_ENV_VAR[team.plan as TeamPlan]];
+  if (!priceId) return { error: "Stripe is niet geconfigureerd voor dit pakket." };
+
+  try {
+    const { getStripeClient } = await import("@/lib/stripe/client");
+    const stripe = getStripeClient();
+
+    const subscription = await stripe.subscriptions.create({
+      customer: team.stripe_customer_id,
+      items: [{ price: priceId }],
+      collection_method: "send_invoice",
+      days_until_due: 30,
+    });
+
+    const service = createServiceClient();
+    const { error } = await service
+      .from("teams")
+      .update({
+        status: "active",
+        stripe_subscription_id: subscription.id,
+        current_period_end: null,
+      })
+      .eq("id", team.id);
+    if (error) return { error: GENERIC_ERROR };
+  } catch (cause) {
+    return {
+      error: cause instanceof Error ? `Heractiveren is mislukt: ${cause.message}` : GENERIC_ERROR,
+    };
+  }
 
   revalidatePath("/profiel/team");
   return { success: true };

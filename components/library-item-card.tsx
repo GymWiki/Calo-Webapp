@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, ImageOff, Lock, MapPinned, ThumbsUp, Users } from "lucide-react";
+import { BookOpen, ImageOff, Lock, MapPinned, ThumbsUp, Users, Users2 } from "lucide-react";
 
 import { getActivitySource, type ActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
@@ -44,6 +44,11 @@ const SOURCE_STYLES: Record<ActivitySource, { badge: string; label: string; icon
     badge: "border-transparent bg-emerald-600 text-white",
     label: "Publiek",
     icon: Users,
+  },
+  team: {
+    badge: "border-transparent bg-amber-600 text-white",
+    label: "Team",
+    icon: Users2,
   },
   eigen: {
     badge: "border-slate-300 bg-white text-slate-700",

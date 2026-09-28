@@ -46,6 +46,9 @@ export default async function ProfielPlanningClassPage({
   const today = new Date().toISOString().slice(0, 10);
 
   const { hasFullLibraryAccess } = getUserPermissions(profile);
+  // subscription_status is hier de EFFECTIEVE status (get_effective_access,
+  // team_plans.sql) — paid_subscriber dekt ook een team in coulance.
+  const hasActiveTeam = profile.team_id !== null && profile.subscription_status === "paid_subscriber";
   const slotSummary = klas.lesson_slots
     .map((slot) => `${WEEKDAY_LABELS[slot.weekday]} ${slot.startTime}`)
     .join(" · ");
@@ -78,6 +81,7 @@ export default async function ProfielPlanningClassPage({
             today={today}
             holidayRegion={profile.holiday_region}
             hasFullLibraryAccess={hasFullLibraryAccess}
+            teamId={hasActiveTeam ? profile.team_id : null}
           />
         </Suspense>
       </ClassLessonList>

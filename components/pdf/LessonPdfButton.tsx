@@ -39,7 +39,7 @@ function toLessonPdfShape(activity: Activity, authorName: string | null): Lesson
     author_id: activity.author_id ?? "",
     title: activity.titel,
     description: null,
-    is_public: activity.is_public,
+    is_public: activity.visibility === "public",
     lesson_date: activity.activity_date,
     group_name: activity.group_name,
     movement_problem: activity.movement_problem,

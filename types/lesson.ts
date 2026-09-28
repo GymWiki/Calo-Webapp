@@ -107,12 +107,15 @@ export const createLessonInputSchema = z.object({
   // Bewuste, expliciete keuze i.p.v. impliciet gedrag: bepaalt of createLesson
   // (actions/lesson.ts) deze activiteit door de AI-kwaliteitscheck/
   // duplicaatdetectie stuurt en — bij goedkeuring — publiek + meetellend voor
-  // de maandelijkse bijdrage maakt, of 'm direct alleen-voor-mezelf opslaat
-  // (geen check, niet publiek, telt niet mee). Los van `status`: die volgt
-  // hieruit, niet andersom. Default true (zie createLessonDefaultValues) —
-  // opt-out i.p.v. opt-in, want het freemium-model leunt op bijdragen; de
-  // toggle zelf maakt het wel altijd een bewuste, zichtbare keuze.
-  isPublic: z.boolean(),
+  // de maandelijkse bijdrage maakt ("public"), 'm aan het actieve team
+  // koppelt zonder check/quotum ("team"), of 'm direct alleen-voor-mezelf
+  // opslaat ("private", geen check, telt niet mee). Los van `status`: die
+  // volgt hieruit, niet andersom. Default "public" (zie
+  // createLessonDefaultValues) — opt-out i.p.v. opt-in, want het freemium-
+  // model leunt op bijdragen; de keuze zelf maakt het wel altijd bewust en
+  // zichtbaar. "team" is in de UI alleen zichtbaar/kiesbaar voor leden van
+  // een actief team (zie components/activity-wizard-page.tsx).
+  destination: z.enum(["private", "team", "public"]),
   movementProblem: requiredText("Bewegingsprobleem is verplicht."),
   // Niet .min(1): een bewegingsthema bestaat alleen als vaste select
   // wanneer BEWEGINGSTHEMAS een lijst heeft voor de gekozen leerlijn (zie
@@ -154,6 +157,7 @@ export const createLessonInputSchema = z.object({
 // action once zodResolver has run.
 export type CreateLessonFormInput = z.input<typeof createLessonInputSchema>;
 export type CreateLessonInput = z.output<typeof createLessonInputSchema>;
+export type ActivityDestination = CreateLessonInput["destination"];
 
 // ----------------------------------------------------------------------------
 // Verplichte velden — UI-metadata (label + tabsectie) voor exact dezelfde 10
@@ -192,7 +196,7 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   lessonDate: "",
   learningLine: "",
   doelgroep: [],
-  isPublic: true,
+  destination: "public",
   movementProblem: "",
   movementTheme: "",
   baseMaterials: [],

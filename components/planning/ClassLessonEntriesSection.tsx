@@ -1,6 +1,9 @@
+import { cookies } from "next/headers";
 import { LessonEntriesList } from "@/components/planning/LessonEntriesList";
-import { getAllActivities, getSavedActivities } from "@/lib/services/activities";
+import { getAllActivities, getSavedActivities, getTeamActivities } from "@/lib/services/activities";
 import { getClassLessonsForMonth } from "@/lib/services/planning";
+import { getTeamLibraryItemsByActivity, getTeamTags } from "@/lib/services/teamLibrary";
+import { createClient } from "@/utils/supabase/server";
 import type { HolidayRegion, PlanningClass } from "@/types/planning";
 
 /**
@@ -21,6 +24,7 @@ export async function ClassLessonEntriesSection({
   today,
   holidayRegion,
   hasFullLibraryAccess,
+  teamId,
 }: {
   userId: string;
   classId: string;
@@ -31,12 +35,28 @@ export async function ClassLessonEntriesSection({
   today: string;
   holidayRegion: HolidayRegion | null;
   hasFullLibraryAccess: boolean;
+  /** Actief team van de gebruiker (null = geen team) — voedt het
+   * "Teambibliotheek"-tabblad in AddActivitiesToLessonSheet, zie de brief. */
+  teamId: string | null;
 }) {
-  const [entries, savedActivities, libraryActivities] = await Promise.all([
-    getClassLessonsForMonth(userId, classId, monthStart, monthEnd, holidayRegion),
-    getSavedActivities(userId),
-    getAllActivities(),
-  ]);
+  const supabase = createClient(await cookies());
+
+  const [entries, savedActivities, libraryActivities, teamActivities, teamItemsByActivity, allTeamTags] =
+    await Promise.all([
+      getClassLessonsForMonth(userId, classId, monthStart, monthEnd, holidayRegion),
+      getSavedActivities(userId),
+      getAllActivities(),
+      teamId ? getTeamActivities(teamId) : Promise.resolve([]),
+      teamId ? getTeamLibraryItemsByActivity(supabase, teamId) : Promise.resolve(new Map()),
+      teamId ? getTeamTags(supabase, teamId) : Promise.resolve([]),
+    ]);
+
+  const teamEntries = teamActivities
+    .map((activity) => {
+      const item = teamItemsByActivity.get(activity.id);
+      return item ? { activity, item } : null;
+    })
+    .filter((entry) => entry !== null);
 
   return (
     <LessonEntriesList
@@ -48,6 +68,8 @@ export async function ClassLessonEntriesSection({
       libraryActivities={libraryActivities}
       hasFullLibraryAccess={hasFullLibraryAccess}
       currentUserId={userId}
+      teamEntries={teamEntries}
+      allTeamTags={allTeamTags}
     />
   );
 }

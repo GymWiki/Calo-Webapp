@@ -4,7 +4,7 @@ import type { Activity } from "@/types/activity";
 
 const ACTIVITY_SELECT =
   "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
-  "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, is_public, public_since, like_count";
+  "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, visibility, public_since, like_count, team_id, source_activity_id, updated_by, updated_at, version, deleted_at, deleted_by";
 
 // Voor lijst-/kaartweergaves (bibliotheek, "Mijn activiteiten", opgeslagen,
 // dashboard-secties): dezelfde velden als ACTIVITY_SELECT, MINUS de zware
@@ -23,7 +23,7 @@ const ACTIVITY_SELECT =
 // veld dus niet zelf afvangen, alleen deze lijst met opmerking.
 export const ACTIVITY_LIST_SELECT =
   "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
-  "group_name, activity_date, min_participants, participants_bench, base_materials, rule_materials, diagram_image_url, arrangement, is_public, public_since, like_count";
+  "group_name, activity_date, min_participants, participants_bench, base_materials, rule_materials, diagram_image_url, arrangement, visibility, public_since, like_count, team_id, source_activity_id, updated_by, updated_at, version, deleted_at, deleted_by";
 
 async function getServerClient() {
   const cookieStore = await cookies();
@@ -55,7 +55,7 @@ export async function getAllActivities(): Promise<Activity[]> {
     .from("activiteiten")
     .select(ACTIVITY_LIST_SELECT)
     .eq("status", "approved")
-    .eq("is_public", true)
+    .eq("visibility", "public")
     .order("titel", { ascending: true })
     .returns<Activity[]>();
 
@@ -128,6 +128,11 @@ export async function getActivityById(
     .from("activiteiten")
     .select(ACTIVITY_SELECT)
     .eq("id", activityId)
+    // Zacht verwijderde teamactiviteiten (deleted_at, zie
+    // supabase/migrations/team_library.sql) tonen zich nergens meer — een
+    // dedicated "prullenbak"-herstelscherm is in deze iteratie niet gebouwd,
+    // zie de eindsamenvatting.
+    .is("deleted_at", null)
     .maybeSingle()
     .returns<Activity>();
 
@@ -151,13 +156,51 @@ export async function getPublicActivities(): Promise<Activity[]> {
   const { data, error } = await supabase
     .from("activiteiten")
     .select(ACTIVITY_LIST_SELECT)
-    .eq("is_public", true)
+    .eq("visibility", "public")
     .not("author_id", "is", null)
     .order("public_since", { ascending: false })
     .returns<Activity[]>();
 
   if (error) {
     throw new Error(`Kon publieke activiteiten niet ophalen: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Alle activiteiten van een team: eigen teamactiviteiten ('own', niet zacht
+ * verwijderd) + de activiteiten waar het team naar verwijst ('reference',
+ * altijd publiek — zie team_library_items in supabase/migrations/
+ * team_library.sql). RLS (is_active_team_member) laat dit alleen door voor
+ * een actief lid van DIT team; voor iedereen buiten het team komt dit gewoon
+ * leeg terug, geen foutmelding nodig.
+ */
+export async function getTeamActivities(teamId: string): Promise<Activity[]> {
+  const supabase = await getServerClient();
+
+  const { data: items, error: itemsError } = await supabase
+    .from("team_library_items")
+    .select("activity_id")
+    .eq("team_id", teamId);
+
+  if (itemsError) {
+    throw new Error(`Kon teambibliotheek niet ophalen: ${itemsError.message}`);
+  }
+
+  const activityIds = (items ?? []).map((row) => row.activity_id);
+  if (activityIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("activiteiten")
+    .select(ACTIVITY_LIST_SELECT)
+    .in("id", activityIds)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .returns<Activity[]>();
+
+  if (error) {
+    throw new Error(`Kon teambibliotheek niet ophalen: ${error.message}`);
   }
 
   return data ?? [];

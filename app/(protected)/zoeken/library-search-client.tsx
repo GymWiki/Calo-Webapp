@@ -22,7 +22,7 @@ import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 
-const PAGE_SIZE = 24;
+export const PAGE_SIZE = 24;
 const WEINIG_MATERIAAL_MAX = 2;
 
 type SourceFilter = "all" | "gymwiki" | "public";
@@ -197,7 +197,7 @@ function useIsDesktop() {
   );
 }
 
-function FilterChip({
+export function FilterChip({
   active,
   onClick,
   children,
@@ -232,7 +232,7 @@ function FilterChip({
 // markeert) voor het enige facet waar kleur de primaire betekenisdrager is
 // (categorie); andere facetten (leerlijn/doelgroep/materiaal) blijven
 // kleurloos zodat categorie herkenbaar blijft als hét kleurvlak.
-function CategorySwatch({ category, className }: { category: string; className?: string }) {
+export function CategorySwatch({ category, className }: { category: string; className?: string }) {
   return (
     <span
       className={cn("inline-block size-2.5 shrink-0 rounded-[3px]", getCategoryColor(category).dot, className)}
@@ -246,7 +246,7 @@ function CategorySwatch({ category, className }: { category: string; className?:
 // de permanente sidebar op desktop (werkt direct op `filters`, instant
 // toegepast — de gangbare desktop-verwachting voor een altijd-zichtbaar
 // filterpaneel, in tegenstelling tot een drawer die je moet bevestigen).
-function FilterSections({
+export function FilterSections({
   state,
   categoryCounts,
   onCategorieAlles,
@@ -323,7 +323,7 @@ function FilterSections({
   );
 }
 
-function toggle<T>(set: Set<T>, value: T): Set<T> {
+export function toggle<T>(set: Set<T>, value: T): Set<T> {
   const next = new Set(set);
   if (next.has(value)) {
     next.delete(value);
@@ -338,7 +338,7 @@ function toggle<T>(set: Set<T>, value: T): Set<T> {
 // tekstvorm). Dit voorkomt dat een activiteit die toevallig een ander stuk
 // materiaal noemt (bijv. een rugbybal bij een tikspel) onterecht bovenaan
 // een trefwoordzoekopdracht op sportnaam verschijnt.
-function matchesActivityQuery(activity: Activity, query: string) {
+export function matchesActivityQuery(activity: Activity, query: string) {
   const doelgroepLabels = (activity.doelgroep ?? [])
     .map((code) => DOELGROEP_LABELS[code])
     .filter(Boolean);
@@ -379,7 +379,7 @@ function isItemUnlocked(
 // activiteit heeft geen eigen `categorie`-kolom, dus die wordt afgeleid uit
 // `leerlijn` via de reverse taxonomy lookup, en het materiaal is de
 // combinatie van basis- en regelmateriaal.
-function toFilterableFields(item: LibraryListItem): {
+export function toFilterableFields(item: LibraryListItem): {
   categorie: string;
   leerlijn: string;
   doelgroep: number[];
@@ -399,14 +399,14 @@ function toFilterableFields(item: LibraryListItem): {
   };
 }
 
-type FilterState = {
+export type FilterState = {
   leerlijn: Set<string>;
   categorie: Set<string>;
   doelgroep: Set<number>;
   weinigMateriaal: boolean;
 };
 
-const EMPTY_FILTERS: FilterState = {
+export const EMPTY_FILTERS: FilterState = {
   leerlijn: new Set(),
   categorie: new Set(),
   doelgroep: new Set(),
@@ -436,7 +436,7 @@ function countActive(filters: FilterState) {
 // categorie/leerlijn filter (see the OR-group in the `filtered` memo below)
 // never ends up in a contradictory state like "Turnen (helemaal)" plus
 // "Turnen: Springen" active at once.
-function applyCategorieAlles(
+export function applyCategorieAlles(
   state: FilterState,
   category: string,
   lines: string[],
@@ -455,7 +455,7 @@ function applyCategorieAlles(
   return { ...state, categorie: nextCategorie, leerlijn: nextLeerlijn };
 }
 
-function applyLeerlijnToggle(
+export function applyLeerlijnToggle(
   state: FilterState,
   category: string,
   line: string,

@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { Tags } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { TeamOwnerDashboard } from "@/components/team/TeamOwnerDashboard";
 import { TeamMemberView } from "@/components/team/TeamMemberView";
 import { TeamPlanPicker } from "@/components/team/TeamPlanPicker";
@@ -34,6 +37,17 @@ export default async function TeamPage() {
         title="Team"
         description="Eén beheerder betaalt een jaarlijks teampakket op factuur en nodigt collega's uit — zij krijgen daarmee dezelfde volledige toegang als een betalend account, zonder zelf te betalen."
       />
+
+      {myTeam && (
+        <div className="flex justify-end">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/profiel/team/tags">
+              <Tags className="size-4" />
+              Tags beheren
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {!myTeam ? (
         <TeamPlanPicker />

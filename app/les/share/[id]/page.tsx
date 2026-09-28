@@ -86,7 +86,13 @@ export default async function SharedActivityPage({
     getCurrentUserProfile(),
   ]);
 
-  if (!activity || !activity.is_public || activity.arrangement === null) {
+  // Zowel publiek gedeeld als een teamactiviteit is hier toegestaan — voor
+  // een teamactiviteit laat de RLS-SELECT-policy op activiteiten
+  // (supabase/migrations/team_library.sql) getActivityById() alleen iets
+  // teruggeven aan een lid van HET juiste, actieve team; een niet-lid (of
+  // uitgelogde bezoeker) krijgt hier dus al `activity === null` — precies
+  // "de deel-link werkt alleen voor leden van het team" uit de brief.
+  if (!activity || activity.visibility === "private" || activity.arrangement === null) {
     return (
       <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-4 text-center">
         <EmptyState

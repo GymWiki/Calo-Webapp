@@ -2,13 +2,18 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { Lock } from "lucide-react";
 
+import { cookies } from "next/headers";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LibraryScopeSwitcher } from "@/components/team/LibraryScopeSwitcher";
 import { getUserPermissions, LIBRARY_PREVIEW_LIMIT } from "@/lib/permissions";
-import { getAllActivities, getPublicActivities } from "@/lib/services/activities";
+import { getAllActivities, getPublicActivities, getTeamActivities } from "@/lib/services/activities";
 import { getOrCreateLibraryPreviewActivityIds } from "@/lib/services/libraryPreview";
+import { getTeamMembers } from "@/lib/services/teams";
+import { getTeamLibraryItemsByActivity, getTeamTags } from "@/lib/services/teamLibrary";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
+import { createClient } from "@/utils/supabase/server";
 import type { UserProfile } from "@/lib/types";
 import { LibrarySearchClient } from "./library-search-client";
 
@@ -91,6 +96,71 @@ async function ZoekenContent({
         profile.library_preview_activity_ids,
         [...new Set([...activities, ...publicActivities].map((activity) => activity.id))],
       );
+
+  // Teambibliotheek-scope-wisselaar — alleen voor leden van een actief team
+  // (subscription_status is hier de EFFECTIEVE status, zie get_effective_access,
+  // team_plans.sql). Niet-leden zien de wisselaar niet, zie de brief.
+  const hasActiveTeam = profile.team_id !== null && profile.subscription_status === "paid_subscriber";
+
+  // Lid van een team, maar het team is opgezegd/coulance verlopen: geen
+  // teambibliotheek-inhoud tonen (de leakage-eis geldt ook hier), wél een
+  // duidelijke melding i.p.v. de wisselaar stilletjes te laten verdwijnen —
+  // zie de brief, sectie 7 ("canceled/expired team: toon melding, geen
+  // inhoud"). De teambibliotheek zelf blijft bewaard (TEAM_LIBRARY_RETENTION_DAYS,
+  // lib/constants/subscriptionPlans.ts) — bij heractivering (actions/team.ts)
+  // is alles direct weer terug.
+  if (profile.team_id !== null && !hasActiveTeam) {
+    return (
+      <>
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="py-4 text-sm">
+            De teambibliotheek van {profile.team_name ?? "je team"} is momenteel niet beschikbaar — het
+            teamabonnement is opgezegd of de betaling loopt achter. Vraag de teameigenaar om het abonnement
+            te heractiveren; alle teamactiviteiten en -tags blijven ondertussen bewaard.
+          </CardContent>
+        </Card>
+        <LibrarySearchClient
+          activities={activities}
+          publicActivities={publicActivities}
+          previewActivityIds={previewActivityIds}
+          currentUserId={profile.id}
+        />
+      </>
+    );
+  }
+
+  if (hasActiveTeam && profile.team_id) {
+    const supabase = createClient(await cookies());
+    const [teamActivities, itemsByActivity, allTeamTags, teamMembers] = await Promise.all([
+      getTeamActivities(profile.team_id),
+      getTeamLibraryItemsByActivity(supabase, profile.team_id),
+      getTeamTags(supabase, profile.team_id),
+      getTeamMembers(supabase, profile.team_id),
+    ]);
+
+    const teamEntries = teamActivities
+      .map((activity) => {
+        const item = itemsByActivity.get(activity.id);
+        return item ? { activity, item } : null;
+      })
+      .filter((entry) => entry !== null);
+
+    return (
+      <LibraryScopeSwitcher
+        activities={activities}
+        publicActivities={publicActivities}
+        previewActivityIds={previewActivityIds}
+        currentUserId={profile.id}
+        teamName={profile.team_name ?? "Team"}
+        teamEntries={teamEntries}
+        allTeamTags={allTeamTags}
+        teamMembers={teamMembers.map((member) => ({
+          userId: member.user_id,
+          name: `${member.first_name} ${member.last_name}`.trim(),
+        }))}
+      />
+    );
+  }
 
   return (
     <LibrarySearchClient

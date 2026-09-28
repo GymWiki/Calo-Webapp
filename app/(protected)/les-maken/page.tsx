@@ -73,11 +73,14 @@ function mapWizardActivityToLessonInput(activity: Activity): Partial<CreateLesso
     deelnemersRegels: activity.deelnemers_regels ?? "",
     plaatjePraatje: activity.plaatje_praatje ?? "",
     aandachtspunten: activity.aandachtspunten ?? "",
-    // Bij een concept is dit altijd false (zie saveLessonDraft) — de vorige
-    // keuze van de gebruiker is dan niet bewaard, dus de toggle valt terug op
-    // de standaardwaarde (createLessonDefaultValues.isPublic). Bij een al
-    // afgeronde activiteit is dit wél de daadwerkelijke publicatiestatus.
-    isPublic: activity.status === "draft" ? true : activity.is_public,
+    // Bij een concept is dit altijd "public" (zie saveLessonDraft) — de
+    // vorige keuze van de gebruiker is dan niet bewaard, dus de bestemming
+    // valt terug op de standaardwaarde (createLessonDefaultValues.destination).
+    // Bij een al afgeronde activiteit is dit wél de daadwerkelijke bestemming
+    // — een teamactiviteit toont hier "team", al wordt die niet via déze
+    // toggle opnieuw opgeslagen (zie lesson-form.tsx: bewerken van een
+    // bestaande teamactiviteit gaat via updateTeamActivity, niet createLesson).
+    destination: activity.status === "draft" ? "public" : activity.visibility,
   };
 }
 
@@ -117,9 +120,28 @@ export default async function LesMakenPage({
   // bestaande, ANDERE activiteit naar een NIEUWE rij; dit werkt dezelfde rij
   // verder bij (createLesson's update-pad kent geen statusfilter, dus dat
   // werkt voor elke status). `isDraftResume` bepaalt alleen de koptekst.
+  // Een teamactiviteit bewerken mag elk actief teamlid, niet alleen de
+  // maker (zie de brief: "Alle teamleden mogen alle teamactiviteiten
+  // bewerken") — RLS staat het lezen al toe (get-current-profile.ts's
+  // profile.team_id komt uit dezelfde effectieve-toegangsberekening), dus
+  // hier alleen nog checken of dit team-lidmaatschap bij DEZE activiteit hoort.
+  const isOwnTeamActivity =
+    activity !== null && activity.visibility === "team" && activity.team_id === profile.team_id;
   const resumingOwnActivity =
-    activity !== null && activity.arrangement !== null && activity.author_id === profile.id;
+    activity !== null &&
+    activity.arrangement !== null &&
+    (activity.author_id === profile.id || isOwnTeamActivity);
   const isDraftResume = resumingOwnActivity && activity.status === "draft";
+  const isEditingTeamActivity = resumingOwnActivity && activity !== null && activity.visibility === "team";
+  // Zie de toelichting bij isEditingTeamActivity: alleen een lid van een
+  // ACTIEF (of coulance-)team ziet "Teambibliotheek" als bestemmingskeuze
+  // (subscription_status is hier de EFFECTIEVE status, zie get_effective_access
+  // in supabase/migrations/team_plans.sql — paid_subscriber dekt dus ook een
+  // team in coulance). Een zeldzame, geaccepteerde onnauwkeurigheid: iemand
+  // met zowel een eigen individueel abonnement ALS teamlidmaatschap ziet de
+  // optie ook als het team zelf inactief is — createLesson checkt de
+  // teamstatus zelf nogmaals server-side vóór het opslaan.
+  const hasActiveTeam = profile.team_id !== null && profile.subscription_status === "paid_subscriber";
 
   const initialValues: Partial<CreateLessonFormInput> | undefined = activity
     ? resumingOwnActivity
@@ -169,6 +191,10 @@ export default async function LesMakenPage({
         activeSourceCount={activeSourceCount}
         skipChoice={skipChoice}
         initialUsedKnowledgeSources={initialUsedKnowledgeSources}
+        hasActiveTeam={hasActiveTeam}
+        teamName={profile.team_name}
+        isEditingTeamActivity={isEditingTeamActivity}
+        initialVersion={isEditingTeamActivity && activity ? activity.version : undefined}
       />
     </main>
   );

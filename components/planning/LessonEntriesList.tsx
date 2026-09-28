@@ -8,6 +8,7 @@ import { LessonContainer } from "@/components/planning/LessonContainer";
 import { EmptyState } from "@/components/empty-state";
 import type { Activity } from "@/types/activity";
 import type { ClassLessonEntry, PlanningClass } from "@/types/planning";
+import type { TeamLibraryItem, TeamTag } from "@/types/teamLibrary";
 
 function entryDomId(date: string, startTime: string): string {
   return `les-${date}-${startTime}`;
@@ -30,6 +31,8 @@ export function LessonEntriesList({
   libraryActivities,
   hasFullLibraryAccess,
   currentUserId,
+  teamEntries,
+  allTeamTags,
 }: {
   klas: PlanningClass;
   month: string;
@@ -39,6 +42,8 @@ export function LessonEntriesList({
   libraryActivities: Activity[];
   hasFullLibraryAccess: boolean;
   currentUserId: string;
+  teamEntries: { activity: Activity; item: TeamLibraryItem }[];
+  allTeamTags: TeamTag[];
 }) {
   const [addActivitiesEntry, setAddActivitiesEntry] = useState<ClassLessonEntry | null>(null);
 
@@ -87,6 +92,8 @@ export function LessonEntriesList({
         libraryActivities={libraryActivities}
         hasFullLibraryAccess={hasFullLibraryAccess}
         currentUserId={currentUserId}
+        teamEntries={teamEntries}
+        allTeamTags={allTeamTags}
       />
     </>
   );
