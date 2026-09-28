@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bookmark, CalendarRange, ListChecks, type LucideIcon } from "lucide-react";
+import { Bookmark, CalendarRange, ListChecks, Users, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -7,6 +7,7 @@ const ACCENTS = {
   cone: "bg-primary/10 text-primary",
   blue: "bg-line-blue/10 text-line-blue",
   green: "bg-emerald-500/10 text-emerald-600",
+  amber: "bg-amber-500/10 text-amber-600",
 } as const;
 
 type NavCard = {
@@ -15,7 +16,8 @@ type NavCard = {
   description: string;
   icon: LucideIcon;
   accent: keyof typeof ACCENTS;
-  count: number;
+  /** Weggelaten voor kaarten zonder zinvol getal (bijv. Team). */
+  count?: number;
 };
 
 // Voorheen vier losse blokken (activiteiten/lessen/opgeslagen/concepten) —
@@ -59,6 +61,13 @@ export function ProfileNavGrid({
       accent: "green",
       count: classesCount,
     },
+    {
+      href: "/profiel/team",
+      label: "Team",
+      description: "Teamabonnement voor je school of vaksectie — beheren of lid worden.",
+      icon: Users,
+      accent: "amber",
+    },
   ];
 
   return (
@@ -82,9 +91,11 @@ export function ProfileNavGrid({
                 >
                   <Icon className="size-5" aria-hidden="true" />
                 </div>
-                <span className="font-mono text-xs font-semibold text-muted-foreground">
-                  {card.count}
-                </span>
+                {card.count !== undefined && (
+                  <span className="font-mono text-xs font-semibold text-muted-foreground">
+                    {card.count}
+                  </span>
+                )}
               </div>
               <div>
                 <p className="font-semibold">{card.label}</p>

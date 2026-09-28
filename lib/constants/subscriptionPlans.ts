@@ -110,3 +110,80 @@ export const FREE_PLAN_INFO: PlanCardInfo = {
   recommended: true,
   badgeLabel: "Aanbevolen",
 };
+
+/**
+ * Teamabonnement — een eigenaar betaalt jaarlijks op factuur en nodigt
+ * collega's uit; elk teamlid krijgt dezelfde toegang als paid_subscriber
+ * (zie lib/permissions.ts + de Postgres-functie public.get_effective_access,
+ * supabase/migrations/team_plans.sql), zonder zelf te betalen of aan de
+ * bijdrage-eis te voldoen. Los van SUBSCRIPTION_PLANS hierboven (dat blijft
+ * het individuele-abonnement-model) — eigen type/config zodat een
+ * toekomstige wijziging aan het ene niet per ongeluk het andere raakt.
+ */
+export type TeamPlan = "team_s" | "team_m" | "team_l";
+
+export interface TeamPlanInfo extends PlanCardInfo {
+  id: TeamPlan;
+  seatLimit: number;
+}
+
+export const TEAM_PLANS: Record<TeamPlan, TeamPlanInfo> = {
+  team_s: {
+    id: "team_s",
+    label: "Team S",
+    seatLimit: 5,
+    priceLabel: "EUR 79,-",
+    periodLabel: "/jaar",
+    description: "Tot 5 collega's — ideaal voor een kleine vaksectie.",
+  },
+  team_m: {
+    id: "team_m",
+    label: "Team M",
+    seatLimit: 15,
+    priceLabel: "EUR 179,-",
+    periodLabel: "/jaar",
+    description: "Tot 15 collega's — voor een grotere sectie of kleine school.",
+    recommended: true,
+    badgeLabel: "Meest gekozen",
+  },
+  team_l: {
+    id: "team_l",
+    label: "Team L",
+    seatLimit: 40,
+    priceLabel: "EUR 399,-",
+    periodLabel: "/jaar",
+    description: "Tot 40 collega's — voor een hele school.",
+  },
+};
+
+export const TEAM_PLAN_ORDER: TeamPlan[] = ["team_s", "team_m", "team_l"];
+
+/** Gedeeld tussen create-team-checkout en team-plan-change (upgrade/downgrade). */
+export const TEAM_PRICE_ENV_VAR: Record<TeamPlan, string> = {
+  team_s: "STRIPE_PRICE_TEAM_S",
+  team_m: "STRIPE_PRICE_TEAM_M",
+  team_l: "STRIPE_PRICE_TEAM_L",
+};
+
+/** Boven dit aantal seats: geen zelfbedieningspakket meer, alleen "Neem contact op". */
+export const TEAM_MAX_SELF_SERVICE_SEATS = TEAM_PLANS.team_l.seatLimit;
+
+export const TEAM_CONTACT_EMAIL = "info@gymwiki.nl";
+
+/**
+ * Coulanceperiode (dagen) bij een mislukte teambetaling (Stripe-status
+ * 'past_due') voordat teamleden de toegang verliezen — moet in sync
+ * blijven met de hardcoded "interval '14 days'" in
+ * public.get_effective_access (supabase/migrations/team_plans.sql). Deze
+ * JS-constante is puur weergave (bijv. een toekomstige "nog N dagen
+ * coulance"-melding); de daadwerkelijke afdwinging gebeurt in Postgres,
+ * zelfde bewuste duplicatie-patroon als MONTHLY_CONTRIBUTION_REQUIRED_COUNT.
+ */
+export const TEAM_PAST_DUE_GRACE_DAYS = 14;
+
+/**
+ * Gepoolde AI-limiet per team: seats × dit getal per maand, i.p.v.
+ * AI_LESCOACH_MONTHLY_LIMIT (lib/permissions.ts) per individu — zie
+ * lib/ai/lescoachAccess.ts en public.get_team_ai_usage_count.
+ */
+export const TEAM_AI_LESCOACH_PER_SEAT_LIMIT = 15;

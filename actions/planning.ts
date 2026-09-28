@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 import { getUserPermissions } from "@/lib/permissions";
+import { getEffectiveAccess } from "@/lib/services/teams";
+import type { UserProfile } from "@/lib/types";
 import {
   createClassInputSchema,
   updateClassInputSchema,
@@ -318,18 +320,15 @@ async function assertActivitiesAllowed(
   userId: string,
   activityIds: string[],
 ): Promise<{ error: string } | { success: true }> {
-  const { data: profile, error: profileError } = await supabase
-    .from("users")
-    .select("subscription_status")
-    .eq("id", userId)
-    .maybeSingle();
+  // Effectieve status (eigen betaling OF actief team, zie
+  // public.get_effective_access — supabase/migrations/team_plans.sql) i.p.v.
+  // rechtstreeks users.subscription_status lezen: anders zou een teamlid
+  // hier onterecht als free_contributor/free_blocked behandeld worden.
+  const access = await getEffectiveAccess(supabase);
 
-  if (profileError) {
-    logPlanningError("assertActivitiesAllowed:profile", profileError);
-    return { error: GENERIC_ERROR };
-  }
-
-  const { hasFullLibraryAccess } = getUserPermissions(profile ?? undefined);
+  const { hasFullLibraryAccess } = getUserPermissions(
+    access ? { subscription_status: access.effective_status as UserProfile["subscription_status"] } : undefined,
+  );
   if (hasFullLibraryAccess) return { success: true };
 
   const { data: activities, error: activitiesError } = await supabase

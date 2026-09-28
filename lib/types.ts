@@ -37,4 +37,16 @@ export type UserProfile = {
    * supabase/migrations/library_preview_activity_ids.sql.
    */
   library_preview_activity_ids: string[] | null;
+  /**
+   * Teamlidmaatschap (nooit meer dan één, zie team_members' unique(user_id))
+   * — null voor iedereen zonder team. subscription_status hierboven is al
+   * de EFFECTIEVE status (eigen betaling OF actief team, zie
+   * public.get_effective_access in supabase/migrations/team_plans.sql en
+   * lib/supabase/get-current-profile.ts): deze drie velden zijn puur voor
+   * team-specifieke UI (Profiel → Team, de gepoolde AI-teller), niet voor
+   * toegangscontrole zelf.
+   */
+  team_id: string | null;
+  team_role: "owner" | "member" | null;
+  team_name: string | null;
 };

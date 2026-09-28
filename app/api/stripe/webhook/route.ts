@@ -2,6 +2,13 @@ import type Stripe from "stripe";
 import { getStripeClient } from "@/lib/stripe/client";
 import { createServiceClient } from "@/utils/supabase/service";
 
+/** Stripe verplaatste `invoice.subscription` per API-versie 2025+ onder
+ *  `invoice.parent.subscription_details.subscription`. */
+function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const subscription = invoice.parent?.subscription_details?.subscription;
+  return typeof subscription === "string" ? subscription : (subscription?.id ?? null);
+}
+
 /**
  * Houdt users.subscription_status/subscription_type en de subscriptions-
  * tabel synchroon met Stripe. Draait zonder gebruikerssessie (Stripe roept
@@ -43,6 +50,11 @@ export async function POST(request: Request) {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
+
+      // Teamaankoop loopt NIET via Checkout (zie app/api/stripe/
+      // create-team/route.ts — rechtstreeks de Subscriptions-API, met de
+      // teams-rij meteen daar aangemaakt), dus dit event heeft voor teams
+      // niets te doen. Deze case blijft puur het individuele-abonnement-pad.
       const userId = session.client_reference_id ?? session.metadata?.userId;
       const subscriptionType = session.metadata?.subscription_type;
       if (
@@ -123,6 +135,42 @@ export async function POST(request: Request) {
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
+
+      // Teamabonnement? — apart, want teams staan in hun eigen tabel, niet
+      // in subscriptions (die is uitsluitend voor individuele abonnees).
+      const { data: team } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("stripe_subscription_id", subscription.id)
+        .maybeSingle();
+
+      if (team) {
+        const currentPeriodEnd = subscription.items.data[0]?.current_period_end;
+        // 'unpaid'/'incomplete_expired' behandelen we hier als past_due i.p.v.
+        // canceled — de coulanceperiode (public.get_effective_access) geeft
+        // de eigenaar alsnog de kans om de openstaande factuur te voldoen
+        // vóórdat teamleden toegang verliezen. Een expliciete opzegging
+        // komt altijd als customer.subscription.deleted binnen (status
+        // 'canceled'), dat pad blijft ongewijzigd.
+        const status =
+          subscription.status === "active" || subscription.status === "trialing"
+            ? "active"
+            : subscription.status === "canceled"
+              ? "canceled"
+              : "past_due";
+
+        await supabase
+          .from("teams")
+          .update({
+            status,
+            current_period_end: currentPeriodEnd
+              ? new Date(currentPeriodEnd * 1000).toISOString()
+              : null,
+          })
+          .eq("id", team.id);
+        break;
+      }
+
       const { data: existing } = await supabase
         .from("subscriptions")
         .select("user_id, subscription_type")
@@ -162,6 +210,50 @@ export async function POST(request: Request) {
           .update({ subscription_status: "free_contributor", subscription_type: "none" })
           .eq("id", existing.user_id);
       }
+      break;
+    }
+
+    // Teamfacturen — collection_method 'send_invoice' (zie
+    // create-team/route.ts) genereert per periode een factuur i.p.v.
+    // automatisch een kaart/iDEAL te belasten; deze twee events zijn de
+    // signalen of die factuur (op tijd) betaald is. customer.subscription.
+    // updated hierboven blijft de tweede, onafhankelijke bevestiging van
+    // dezelfde statusovergang (Stripe stuurt voor eenzelfde wijziging vaak
+    // beide) — beide handlers zijn puur idempotente UPDATE's, dus dubbel
+    // verwerken is onschadelijk.
+    case "invoice.paid":
+    case "invoice.payment_succeeded": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = getInvoiceSubscriptionId(invoice);
+      if (!subscriptionId) break;
+
+      const { data: team } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("stripe_subscription_id", subscriptionId)
+        .maybeSingle();
+      if (!team) break;
+
+      const periodEnd = invoice.lines.data[0]?.period?.end;
+      await supabase
+        .from("teams")
+        .update({
+          status: "active",
+          current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+        })
+        .eq("id", team.id);
+      break;
+    }
+
+    case "invoice.payment_failed": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = getInvoiceSubscriptionId(invoice);
+      if (!subscriptionId) break;
+
+      await supabase
+        .from("teams")
+        .update({ status: "past_due" })
+        .eq("stripe_subscription_id", subscriptionId);
       break;
     }
 

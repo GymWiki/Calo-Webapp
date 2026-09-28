@@ -24,6 +24,9 @@ export async function recordAiUsage(
     model: string;
     inputTokens: number;
     outputTokens: number;
+    /** Gezet voor een teamlid — zie supabase/migrations/team_plans.sql's
+     *  ai_usage.team_id, voor de gepoolde limiet + per-team kostenanalyse. */
+    teamId?: string | null;
   },
 ): Promise<void> {
   const estimatedCostUsd = estimateCostUsd(params.model, params.inputTokens, params.outputTokens);
@@ -35,6 +38,7 @@ export async function recordAiUsage(
     input_tokens: params.inputTokens,
     output_tokens: params.outputTokens,
     estimated_cost_usd: estimatedCostUsd,
+    team_id: params.teamId ?? null,
   });
 
   if (error) {

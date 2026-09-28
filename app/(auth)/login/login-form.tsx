@@ -67,7 +67,13 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/dashboard");
+    // ?redirectTo= komt van proxy.ts (een beschermde pagina die niet-
+    // ingelogd werd bezocht) of van een teamuitnodigingslink (zie
+    // components/team/AcceptInviteCard.tsx) — alleen een relatief pad
+    // vertrouwen (nooit een externe URL doorgeven aan router.push).
+    const redirectTo = new URLSearchParams(window.location.search).get("redirectTo");
+    const isSafeRedirect = Boolean(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//"));
+    router.push(isSafeRedirect && redirectTo ? redirectTo : "/dashboard");
     router.refresh();
   }
 

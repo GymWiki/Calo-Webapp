@@ -60,9 +60,18 @@ export function RegisterForm() {
     // useSearchParams(): zie components/subscription/ProCheckoutButton.tsx
     // voor dezelfde afweging (geen Suspense-boundary nodig voor een
     // eenmalige lezing bij submit).
-    const plan = new URLSearchParams(window.location.search).get("plan");
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get("plan");
     const isKnownPlan = plan === "monthly" || plan === "yearly" || plan === "lifetime";
-    router.push(isKnownPlan ? `/pro?plan=${plan}` : "/dashboard");
+    // redirectTo (bijv. terug naar een teamuitnodiging, zie
+    // components/team/AcceptInviteCard.tsx) heeft voorrang op ?plan= — wie
+    // via een uitnodiging registreert wil terug naar die uitnodiging, niet
+    // naar /pro.
+    const redirectTo = params.get("redirectTo");
+    const isSafeRedirect = Boolean(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//"));
+    router.push(
+      isSafeRedirect && redirectTo ? redirectTo : isKnownPlan ? `/pro?plan=${plan}` : "/dashboard",
+    );
     router.refresh();
   }
 

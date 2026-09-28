@@ -15,6 +15,7 @@ import { checkLescoachAccess } from "@/lib/ai/lescoachAccess";
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
 import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
+import { getEffectiveAccess, getSeatUsage } from "@/lib/services/teams";
 import {
   analyzeLessonInputSchema,
   lescoachAnalysisSchema,
@@ -269,16 +270,26 @@ export async function POST(request: Request) {
       return Response.json({ error: "Je bent niet ingelogd." }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from("users")
-      .select("subscription_status")
-      .eq("id", user.id)
-      .single();
+    // Effectieve status (eigen betaling OF actief team) i.p.v. rechtstreeks
+    // users.subscription_status — anders zou een teamlid hier altijd als
+    // niet-betalend afgewezen worden. Bij een teamlid ook meteen het
+    // seat_limit ophalen (get_team_seat_usage) voor de gepoolde limiet
+    // hieronder.
+    const effectiveAccess = await getEffectiveAccess(supabase);
+    const teamSeatUsage = effectiveAccess?.team_id
+      ? await getSeatUsage(supabase, effectiveAccess.team_id)
+      : null;
+    const team =
+      effectiveAccess?.team_id && teamSeatUsage
+        ? { id: effectiveAccess.team_id, seatLimit: teamSeatUsage.seatLimit }
+        : null;
 
     const access = await checkLescoachAccess(
       supabase,
       user.id,
-      profile?.subscription_status ?? "free_contributor",
+      (effectiveAccess?.effective_status as "free_contributor" | "free_blocked" | "paid_subscriber") ??
+        "free_contributor",
+      team,
     );
 
     if (!access.allowed) {
@@ -287,7 +298,9 @@ export async function POST(request: Request) {
           error:
             access.reason === "not_subscriber"
               ? "AI Lescoach is een functie van het betaalde abonnement (EUR 3,-/mnd). Upgrade om 'm te gebruiken."
-              : `Je hebt je ${access.limit} AI Lescoach-raadplegingen voor deze maand gebruikt. Volgende maand heb je weer ${access.limit} beschikbaar.`,
+              : access.pooled
+                ? `Het gepoolde teamtegoed van ${access.limit} AI Lescoach-raadplegingen voor deze maand is op. Volgende maand is er weer ${access.limit} beschikbaar.`
+                : `Je hebt je ${access.limit} AI Lescoach-raadplegingen voor deze maand gebruikt. Volgende maand heb je weer ${access.limit} beschikbaar.`,
           reason: access.reason,
         },
         { status: access.reason === "not_subscriber" ? 403 : 429 },
@@ -381,6 +394,7 @@ export async function POST(request: Request) {
       model: CHECK_MODEL,
       inputTokens: completion.usage?.prompt_tokens ?? 0,
       outputTokens: completion.usage?.completion_tokens ?? 0,
+      teamId: team?.id ?? null,
     });
 
     const analysis = lescoachAnalysisSchema.parse(JSON.parse(raw));

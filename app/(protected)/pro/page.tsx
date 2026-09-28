@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Check } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { ReturnToAppBanner } from "@/components/mobile/ReturnToAppBanner";
 import { SubscriptionPlansSection } from "@/components/subscription/SubscriptionPlansSection";
+import { Card, CardContent } from "@/components/ui/card";
 import { MONTHLY_CONTRIBUTION_REQUIRED_COUNT, type SubscriptionPlan } from "@/lib/constants/subscriptionPlans";
 import { getUserPermissions } from "@/lib/permissions";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -60,6 +62,20 @@ export default async function ProPage({
       />
 
       {returnBanner}
+
+      {profile.team_id && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="py-4 text-sm">
+            Je hebt volledige toegang via het team <span className="font-semibold">{profile.team_name}</span>
+            {profile.team_role === "owner" ? " (je bent eigenaar)" : ""} — geen eigen abonnement nodig. Beheer
+            je team via{" "}
+            <Link href="/profiel/team" className="font-medium text-primary underline-offset-4 hover:underline">
+              Profiel → Team
+            </Link>
+            .
+          </CardContent>
+        </Card>
+      )}
 
       <ul className="flex flex-wrap gap-x-6 gap-y-2">
         {SUBSCRIPTION_FEATURES.map((feature) => (

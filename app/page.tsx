@@ -17,6 +17,10 @@ import {
   FREE_PLAN_INFO,
   MONTHLY_CONTRIBUTION_REQUIRED_COUNT,
   SUBSCRIPTION_PLANS,
+  TEAM_CONTACT_EMAIL,
+  TEAM_MAX_SELF_SERVICE_SEATS,
+  TEAM_PLAN_ORDER,
+  TEAM_PLANS,
 } from "@/lib/constants/subscriptionPlans";
 import { getLandingSnapshot } from "@/lib/services/landing";
 import { cn } from "@/lib/utils";
@@ -111,6 +115,10 @@ const FAQ_ITEMS = [
     answer:
       "GymWiki is gebouwd voor vakleerkrachten lichamelijke opvoeding en CALO-studenten die hun gymles voorbereiden. Iedereen met een GymWiki-account kan de activiteitenbibliotheek gebruiken, zelf activiteiten toevoegen en delen, en de canvas-editor gebruiken om plattegronden en oefeningen te ontwerpen.",
   },
+  {
+    question: "Heeft GymWiki een teamabonnement voor scholen?",
+    answer: `Ja — een teambeheerder betaalt één jaarlijks pakket op factuur (Team S ${TEAM_PLANS.team_s.priceLabel} voor tot ${TEAM_PLANS.team_s.seatLimit} leden, Team M ${TEAM_PLANS.team_m.priceLabel} voor tot ${TEAM_PLANS.team_m.seatLimit} leden, Team L ${TEAM_PLANS.team_l.priceLabel} voor tot ${TEAM_PLANS.team_l.seatLimit} leden) en nodigt collega's uit per e-mail. Elk teamlid krijgt daarmee dezelfde volledige toegang als een individuele betalende gebruiker — inclusief de AI Lescoach — zonder zelf te betalen of aan de bijdrage-eis te hoeven voldoen. Voor meer dan ${TEAM_MAX_SELF_SERVICE_SEATS} leden stelt GymWiki een offerte op maat op.`,
+  },
 ] as const;
 
 // Eén JSON-LD-blok (@graph) i.p.v. losse <script>-tags per schema-type —
@@ -178,6 +186,18 @@ function buildStructuredData() {
             priceValidUntil: priceValidUntilIso,
             description: "Eenmalige betaling voor levenslange, volledige toegang tot GymWiki, zonder terugkerende kosten.",
           },
+          ...TEAM_PLAN_ORDER.map((planId) => {
+            const plan = TEAM_PLANS[planId];
+            return {
+              "@type": "Offer",
+              name: `${plan.label} (teamabonnement)`,
+              price: String(plan.priceLabel.replace(/[^0-9]/g, "")),
+              priceCurrency: "EUR",
+              priceValidUntil: priceValidUntilIso,
+              eligibleQuantity: { "@type": "QuantitativeValue", maxValue: plan.seatLimit },
+              description: `Jaarlijks teamabonnement op factuur, tot ${plan.seatLimit} leden — elk lid krijgt volledige toegang zonder zelf te betalen.`,
+            };
+          }),
         ],
       },
       {
@@ -529,6 +549,58 @@ export default async function LandingPage() {
               </ScrollReveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Teamabonnement — aparte sectie onder de individuele opties, zelfde
+          centrale configuratie (lib/constants/subscriptionPlans.ts) als de
+          Abonnement-pagina/checkout, zodat prijs/seat-aantallen nooit uit
+          de pas kunnen lopen. */}
+      <section id="teams" className="scroll-mt-20 border-t bg-muted/40 px-6 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto w-full max-w-6xl">
+          <ScrollReveal>
+            <p className="font-mono text-xs font-medium tracking-[0.2em] text-primary uppercase">
+              Voor scholen en teams
+            </p>
+            <h2 className="font-display mt-3 max-w-2xl text-3xl leading-[1.05] tracking-tight sm:text-4xl">
+              Eén factuur, een heel team volledige toegang.
+            </h2>
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
+              Eén beheerder betaalt een jaarlijks pakket op factuur en nodigt collega&apos;s uit — zij
+              krijgen daarmee dezelfde volledige toegang als een betalende gebruiker, zonder zelf te
+              betalen of aan de bijdrage-eis te hoeven voldoen.
+            </p>
+          </ScrollReveal>
+
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {TEAM_PLAN_ORDER.map((planId, index) => (
+              <ScrollReveal key={planId} delayMs={index * 60}>
+                <article className="h-full">
+                  <PlanCard
+                    plan={TEAM_PLANS[planId]}
+                    action={
+                      <Button asChild className="w-full">
+                        <Link href="/register?redirectTo=/profiel/team">Team aanmaken</Link>
+                      </Button>
+                    }
+                  />
+                </article>
+              </ScrollReveal>
+            ))}
+          </div>
+
+          <ScrollReveal delayMs={180}>
+            <p className="mt-6 text-sm text-muted-foreground">
+              Meer dan {TEAM_MAX_SELF_SERVICE_SEATS} collega&apos;s?{" "}
+              <a
+                href={`mailto:${TEAM_CONTACT_EMAIL}?subject=${encodeURIComponent("Teamabonnement GymWiki — offerte")}`}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Neem contact op
+              </a>{" "}
+              voor een offerte op maat.
+            </p>
+          </ScrollReveal>
         </div>
       </section>
 
