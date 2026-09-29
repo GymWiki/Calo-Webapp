@@ -39,6 +39,7 @@ export async function sendTeamInviteEmail(params: {
         to: params.to,
         subject: `${params.inviterName} nodigt je uit voor team "${params.teamName}" op GymWiki`,
         html: `
+          <img src="https://www.gymwiki.nl/gymwiki-logo.png" alt="GymWiki logo" width="48" height="48" style="display:block;margin-bottom:16px;border-radius:11px;" />
           <p>${params.inviterName} nodigt je uit om lid te worden van het GymWiki-team "${params.teamName}".</p>
           <p>Als teamlid krijg je volledige toegang tot GymWiki — inclusief de AI Lescoach — zonder zelf te hoeven betalen of maandelijks activiteiten te delen.</p>
           <p><a href="${params.inviteUrl}">Bevestig je uitnodiging</a></p>

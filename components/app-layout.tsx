@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { logout } from "@/app/(auth)/actions";
+import { GymWikiLogo } from "@/components/GymWikiLogo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -73,8 +74,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh w-full md:flex-row">
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
-        <div className="font-display px-6 py-5 text-lg tracking-wide">
-          GYMWIKI
+        <div className="px-6 py-5">
+          <GymWikiLogo size={24} wordmarkClassName="text-lg" />
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {navItems.map((item) => {

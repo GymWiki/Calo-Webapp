@@ -1,6 +1,7 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
+import { GYMWIKI_LOGO_DATA_URL } from "@/components/pdf/gymwiki-logo-data-url";
 import {
   DIDACTIC_CATEGORIES,
   DIDACTIC_CATEGORY_LABELS,
@@ -23,6 +24,9 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     color: "#111111",
   },
+  brandRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  brandLogo: { width: 20, height: 20, marginRight: 6 },
+  brandText: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#002f4f" },
   title: { fontSize: 18, fontFamily: "Helvetica-Bold", marginBottom: 2 },
   subtitle: { fontSize: 10, color: "#666666", marginBottom: 12 },
   headerGrid: {
@@ -165,6 +169,11 @@ export function LessonPdfDocument({
   return (
     <Document title={`Lesvoorbereiding - ${lesson.title}`}>
       <Page size="A4" style={styles.page}>
+        <View style={styles.brandRow} fixed>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop */}
+          <Image style={styles.brandLogo} src={GYMWIKI_LOGO_DATA_URL} />
+          <Text style={styles.brandText}>GymWiki</Text>
+        </View>
         <Text style={styles.title}>{lesson.title}</Text>
         <Text style={styles.subtitle}>Activiteitvoorbereiding</Text>
 

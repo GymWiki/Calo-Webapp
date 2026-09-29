@@ -1,5 +1,6 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
+import { GYMWIKI_LOGO_DATA_URL } from "@/components/pdf/gymwiki-logo-data-url";
 import { computeStandings, resolveTeamRef } from "@/lib/utils/tournamentGenerator";
 import type {
   TournamentSchedule,
@@ -13,6 +14,9 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     color: "#111111",
   },
+  brandRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  brandLogo: { width: 20, height: 20, marginRight: 6 },
+  brandText: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#002f4f" },
   title: { fontSize: 18, fontFamily: "Helvetica-Bold", marginBottom: 2 },
   subtitle: { fontSize: 10, color: "#666666", marginBottom: 14 },
   sectionTitle: {
@@ -81,6 +85,11 @@ export function TournamentPdfDocument({
   return (
     <Document title={`Toernooischema - ${title}`}>
       <Page size="A4" style={styles.page}>
+        <View style={styles.brandRow} fixed>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an <img>; it has no alt prop */}
+          <Image style={styles.brandLogo} src={GYMWIKI_LOGO_DATA_URL} />
+          <Text style={styles.brandText}>GymWiki</Text>
+        </View>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.subtitle}>
           {schedule.teams.length} teams · {schedule.fields.length} velden ·

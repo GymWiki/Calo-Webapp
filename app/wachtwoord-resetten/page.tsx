@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { GymWikiLogo } from "@/components/GymWikiLogo";
 import {
   Card,
   CardContent,
@@ -26,12 +25,9 @@ export default function ResetPasswordPage() {
         <div className="absolute -bottom-20 -left-16 size-56 -rotate-3 rounded-3xl border-4 border-line-blue/10 sm:size-72" />
       </div>
 
-      <Link
-        href="/"
-        className="animate-fade-up font-display relative z-10 mb-8 text-2xl tracking-wide text-ink"
-      >
-        GYMWIKI
-      </Link>
+      <div className="animate-fade-up relative z-10 mb-8">
+        <GymWikiLogo href="/" size={36} wordmarkClassName="text-2xl text-ink" />
+      </div>
 
       <div
         className="animate-fade-up relative z-10 w-full max-w-sm"

@@ -1,15 +1,19 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 // Next.js' eigen bestandsconventie voor Open Graph/Twitter-preview-
-// afbeeldingen — genereert automatisch de og:image/twitter:image-meta-tags,
-// geen handmatige asset nodig (er staat geen logo-bestand in deze repo, zie
-// scripts/generate-app-icon.mjs's toelichting daarover). Zelfde
-// kegel-beeldidioom/kleuren (--ink/--cone uit app/globals.css) als het
-// mobile-app-icoon en de landingspagina's HeroCourtIllustration, puur zodat
-// een gedeelde link herkenbaar oogt ongeacht waar 'm gedeeld wordt.
+// afbeeldingen — genereert automatisch de og:image/twitter:image-meta-tags.
+// Het logo wordt als data-URL ingelezen (ImageResponse/Satori kan geen
+// netwerk-fetch tijdens het renderen betrouwbaar garanderen) en op de
+// merk-navy achtergrond gezet i.p.v. het kale logo zelf.
 export const alt = "GymWiki — Activiteiten en lesideeën voor bewegingsonderwijs";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+
+const logoDataUrl = `data:image/png;base64,${readFileSync(
+  join(process.cwd(), "public/gymwiki-logo.png"),
+).toString("base64")}`;
 
 export default async function OpengraphImage() {
   return new ImageResponse(
@@ -22,20 +26,17 @@ export default async function OpengraphImage() {
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "flex-start",
-          backgroundColor: "#14171a",
+          backgroundColor: "#002f4f",
           padding: "80px",
           fontFamily: "sans-serif",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            width: 84,
-            height: 84,
-            borderRadius: "50%",
-            backgroundColor: "#ff5a1f",
-            marginBottom: 40,
-          }}
+        <img
+          src={logoDataUrl}
+          alt=""
+          width={120}
+          height={120}
+          style={{ marginBottom: 40, borderRadius: 28 }}
         />
         <div
           style={{

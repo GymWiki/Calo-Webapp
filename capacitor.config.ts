@@ -32,12 +32,13 @@ const config: CapacitorConfig = {
   },
   ios: {
     // Voorkomt een wit/leeg fragment tussen het native splash-screen en het
-    // moment dat de WebView content toont — de body-achtergrond in
-    // www/index.html en de webapp zelf zijn allebei donker/ink-kleurig.
-    backgroundColor: "#14171a",
+    // moment dat de WebView content toont — het gegenereerde splash-scherm
+    // (scripts/generate-app-icon.mjs) gebruikt dezelfde navy merkkleur als
+    // het logo zelf.
+    backgroundColor: "#002f4f",
   },
   android: {
-    backgroundColor: "#14171a",
+    backgroundColor: "#002f4f",
   },
   plugins: {
     SplashScreen: {
@@ -47,14 +48,14 @@ const config: CapacitorConfig = {
       // verbinding een leeg/wit scherm tonen vóórdat de live pagina geladen
       // is.
       launchAutoHide: false,
-      backgroundColor: "#14171a",
+      backgroundColor: "#002f4f",
       androidSplashResourceName: "splash",
       androidScaleType: "CENTER_CROP",
       showSpinner: false,
     },
     StatusBar: {
       style: "DARK",
-      backgroundColor: "#14171a",
+      backgroundColor: "#002f4f",
     },
   },
 };

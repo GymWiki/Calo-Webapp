@@ -2,6 +2,7 @@ import Link from "next/link";
 import { EyeOff, Sparkles } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
+import { GymWikiLogo } from "@/components/GymWikiLogo";
 import { LessonPdfButton } from "@/components/pdf/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { UsedSourcesList } from "@/components/UsedSourcesList";
@@ -136,9 +137,7 @@ export default async function SharedActivityPage({
   return (
     <div className="min-h-screen bg-paper text-ink">
       <header className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 py-5 sm:px-8">
-        <Link href="/" className="font-display text-lg tracking-wide">
-          GYMWIKI
-        </Link>
+        <GymWikiLogo href="/" size={24} wordmarkClassName="text-lg" />
         <Button asChild variant="outline" size="sm">
           <Link href={profile ? "/dashboard" : "/login"}>
             {profile ? "Naar mijn dashboard" : "Inloggen"}

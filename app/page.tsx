@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { GymWikiLogo } from "@/components/GymWikiLogo";
 import { LibraryItemCard } from "@/components/library-item-card";
 import { PlanCard } from "@/components/subscription/PlanCard";
 import { ScrollReveal } from "@/components/ScrollReveal";
@@ -356,7 +357,7 @@ export default async function LandingPage() {
       />
 
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6 sm:px-8">
-        <span className="font-display text-xl tracking-wide">GYMWIKI</span>
+        <GymWikiLogo size={32} wordmarkClassName="text-xl" />
         <nav className="flex items-center gap-5">
           <a
             href="#hoe-het-werkt"

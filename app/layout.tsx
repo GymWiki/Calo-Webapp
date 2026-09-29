@@ -33,6 +33,17 @@ export const metadata: Metadata = {
   title: "GymWiki",
   description: "GymWiki 2.0 — platform voor CALO-studenten en vakdocenten lichamelijke opvoeding.",
   manifest: "/manifest.json",
+  // Expliciete set i.p.v. Next.js' app/icon.png-bestandsconventie (die zou
+  // een tweede, overlappende <link rel="icon"> genereren naast deze) — zie
+  // scripts/generate-favicons.mjs voor hoe elk bestand tot stand komt.
+  // app/favicon.ico wordt door Next.js sowieso automatisch meegenomen.
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 // viewportFit: "cover" — zonder dit blijven env(safe-area-inset-*) overal 0,
