@@ -110,15 +110,23 @@ export default async function SharedActivityPage({
   }
 
   let authorName = "Een GymWiki-gebruiker";
+  // Aparte weergavenaam mét rol/functie (indien ingevuld) — alleen voor de
+  // twee tekstplekken hieronder ("Docent"-veld + introzin). De kale
+  // authorName blijft ongewijzigd: LessonPdfButton splitst 'm terug in
+  // voor-/achternaam, een toegevoegde "(rol)" zou dat verkeerd knippen.
+  let authorDisplayName = authorName;
   if (activity.author_id) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     const { data: author } = await supabase
       .from("users")
-      .select("first_name, last_name")
+      .select("first_name, last_name, role_label")
       .eq("id", activity.author_id)
       .maybeSingle();
-    if (author) authorName = `${author.first_name} ${author.last_name}`.trim();
+    if (author) {
+      authorName = `${author.first_name} ${author.last_name}`.trim();
+      authorDisplayName = author.role_label ? `${authorName} (${author.role_label})` : authorName;
+    }
   }
 
   const usedKnowledgeSources = await getActivityKnowledgeSources(activity.id);
@@ -144,7 +152,7 @@ export default async function SharedActivityPage({
             Gedeelde activiteit
           </Badge>
           <p className="text-sm text-muted-foreground">
-            Je bekijkt een openbaar gedeelde activiteit van {authorName} op GymWiki.
+            Je bekijkt een openbaar gedeelde activiteit van {authorDisplayName} op GymWiki.
           </p>
         </div>
 
@@ -162,7 +170,7 @@ export default async function SharedActivityPage({
           </CardHeader>
           <CardContent>
             <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <HeaderField label="Docent" value={authorName} />
+              <HeaderField label="Docent" value={authorDisplayName} />
               <HeaderField label="Datum" value={formatDate(activity.activity_date) ?? "-"} />
               <HeaderField label="Bewegingsprobleem" value={activity.movement_problem ?? "-"} />
               <HeaderField label="Bewegingsthema" value={activity.beweegthema ?? "-"} />

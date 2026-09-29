@@ -18,6 +18,13 @@ export type UserProfile = {
   last_name: string;
   avatar_url: string | null;
   available_for_internship: boolean;
+  /**
+   * Vrij invulbare rol/functie (bijv. "Student CALO Zwolle", "Docent
+   * bewegingsonderwijs bij [schoolnaam]") — optioneel, null = niet
+   * ingevuld, toont dan geen badge. Zie components/profile/RoleLabelBadge.tsx
+   * en supabase/migrations/user_role_label.sql (max 60 tekens).
+   */
+  role_label: string | null;
   subscription_status: SubscriptionStatus;
   subscription_type: SubscriptionType;
   email: string | null;

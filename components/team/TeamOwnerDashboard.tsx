@@ -349,11 +349,10 @@ function MembersCard({ members, onDone }: { members: TeamMember[]; onDone: () =>
               <p className="font-medium">
                 {member.first_name} {member.last_name}
               </p>
-              {member.role === "owner" && (
-                <Badge variant="outline" className="mt-0.5">
-                  Eigenaar
-                </Badge>
-              )}
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                {member.role === "owner" && <Badge variant="outline">Eigenaar</Badge>}
+                {member.role_label && <Badge variant="secondary">{member.role_label}</Badge>}
+              </div>
             </div>
             {member.role !== "owner" && (
               <Button

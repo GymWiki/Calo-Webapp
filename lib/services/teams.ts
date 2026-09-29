@@ -75,7 +75,7 @@ export async function getTeamMembers(
 ): Promise<TeamMember[]> {
   const { data, error } = await supabase
     .from("team_members")
-    .select("id, team_id, user_id, role, joined_at, users(first_name, last_name)")
+    .select("id, team_id, user_id, role, joined_at, users(first_name, last_name, role_label)")
     .eq("team_id", teamId)
     .order("joined_at", { ascending: true });
 
@@ -84,7 +84,11 @@ export async function getTeamMembers(
   }
 
   return (data ?? []).map((row) => {
-    const user = row.users as unknown as { first_name: string; last_name: string } | null;
+    const user = row.users as unknown as {
+      first_name: string;
+      last_name: string;
+      role_label: string | null;
+    } | null;
     return {
       id: row.id,
       team_id: row.team_id,
@@ -93,6 +97,7 @@ export async function getTeamMembers(
       joined_at: row.joined_at,
       first_name: user?.first_name ?? "",
       last_name: user?.last_name ?? "",
+      role_label: user?.role_label ?? null,
     };
   });
 }

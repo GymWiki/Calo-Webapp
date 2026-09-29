@@ -170,6 +170,28 @@ async function getAuthorName(authorId: string): Promise<string | null> {
   return author ? `${author.first_name} ${author.last_name}`.trim() : null;
 }
 
+/**
+ * Zoals getAuthorName, maar met de vrij invulbare rol/functie erachter
+ * ("Pieter Kluvers (Student CALO Zwolle)") — uitsluitend voor de "Gemaakt
+ * door"/"laatst bewerkt door"-regel op teamactiviteiten hieronder. Bewust
+ * een aparte functie i.p.v. getAuthorName zelf uitbreiden: die plain naam
+ * wordt ook gebruikt voor de PDF-export (LessonPdfButton splitst 'm naïef
+ * terug in voor-/achternaam) en het "Auteur"-veld van een eigen activiteit,
+ * waar een toegevoegde "(rol)" ongewenst zou zijn.
+ */
+async function getAuthorNameWithRole(userId: string): Promise<string | null> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const { data: author } = await supabase
+    .from("users")
+    .select("first_name, last_name, role_label")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!author) return null;
+  const name = `${author.first_name} ${author.last_name}`.trim();
+  return author.role_label ? `${name} (${author.role_label})` : name;
+}
+
 export default async function ActiviteitDetailPage({
   params,
 }: {
@@ -249,6 +271,8 @@ export default async function ActiviteitDetailPage({
     teamTags,
     teamLibraryItem,
     activityVersions,
+    creatorDisplayName,
+    editorDisplayName,
   ] = await Promise.all([
     isActivitySaved(profile.id, activity.id),
     isActivityLiked(profile.id, activity.id),
@@ -265,6 +289,13 @@ export default async function ActiviteitDetailPage({
       ? getTeamLibraryItemForActivity(supabase, profile.team_id, activity.id)
       : Promise.resolve(null),
     isOwnTeamActivity ? getActivityVersions(supabase, activity.id) : Promise.resolve([]),
+    // "Gemaakt door"/"laatst bewerkt door" op teamactiviteiten toont de rol/
+    // functie erbij indien ingevuld (zie getAuthorNameWithRole hierboven) —
+    // uitsluitend hiervoor, dus alleen opgehaald wanneer het ook getoond wordt.
+    isOwnTeamActivity && activity.author_id ? getAuthorNameWithRole(activity.author_id) : Promise.resolve(null),
+    isOwnTeamActivity && activity.updated_by && activity.updated_by !== activity.author_id
+      ? getAuthorNameWithRole(activity.updated_by)
+      : Promise.resolve(null),
   ]);
 
   // Wizard-activiteiten delen hun volledige weergave met de inline-editor
@@ -290,8 +321,8 @@ export default async function ActiviteitDetailPage({
           participantsBench={activity.participants_bench}
           isPublic={activity.visibility === "public"}
           isOwnActivity={canEditActivity}
-          creatorName={authorName}
-          editorName={editorName}
+          creatorName={creatorDisplayName ?? authorName}
+          editorName={editorDisplayName ?? editorName}
           sourceActivityTitle={sourceActivity?.titel ?? null}
           teamTagEditor={
             teamLibraryItem ? (
@@ -465,8 +496,10 @@ export default async function ActiviteitDetailPage({
             {isOwnTeamActivity && (
               <div className="space-y-2 rounded-lg border bg-card p-3">
                 <p className="text-xs text-muted-foreground">
-                  Gemaakt door {authorName ?? "een teamlid"}
-                  {editorName && editorName !== authorName ? ` · laatst bewerkt door ${editorName}` : ""}
+                  Gemaakt door {creatorDisplayName ?? authorName ?? "een teamlid"}
+                  {(editorDisplayName ?? editorName) && (editorDisplayName ?? editorName) !== (creatorDisplayName ?? authorName)
+                    ? ` · laatst bewerkt door ${editorDisplayName ?? editorName}`
+                    : ""}
                   {sourceActivity && (
                     <>
                       {" "}

@@ -29,6 +29,8 @@ export type TeamMember = {
   joined_at: string;
   first_name: string;
   last_name: string;
+  /** Vrij invulbare rol/functie (zie lib/types.ts) — null = niet ingevuld. */
+  role_label: string | null;
 };
 
 export type TeamInvite = {
