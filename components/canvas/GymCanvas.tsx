@@ -548,6 +548,14 @@ function LineElementNode({
       )}
       {selected && (
         <>
+          {/* `cancelBubble = true` op alle drie de handlers hier: Konva laat
+              drag-events van een kind bubbelen naar een draggable ouder, dus
+              zonder dit vuurt de Group's eigen onDragEnd (whole-line-move,
+              hierboven) ook mee — met `e.target` nog steeds dit Circle-
+              handvat. Die leest dan de handvat-eindpositie als een
+              tijdelijke offset en telt 'm er nogmaals bovenop, waardoor de
+              hele pijl na loslaten naar een andere plek "springt" terwijl
+              tijdens het slepen alles nog goed leek te gaan. */}
           <Circle
             ref={(node) => registerHandle(`${element.id}-0`, node)}
             x={x1}
@@ -557,9 +565,18 @@ function LineElementNode({
             stroke={element.stroke}
             strokeWidth={2}
             draggable
-            onDragStart={onInteractionStart}
-            onDragMove={(e) => onPointMove(0, e.target.x(), e.target.y())}
-            onDragEnd={onInteractionEnd}
+            onDragStart={(e) => {
+              e.cancelBubble = true;
+              onInteractionStart();
+            }}
+            onDragMove={(e) => {
+              e.cancelBubble = true;
+              onPointMove(0, e.target.x(), e.target.y());
+            }}
+            onDragEnd={(e) => {
+              e.cancelBubble = true;
+              onInteractionEnd();
+            }}
           />
           <Circle
             ref={(node) => registerHandle(`${element.id}-1`, node)}
@@ -570,9 +587,18 @@ function LineElementNode({
             stroke={element.stroke}
             strokeWidth={2}
             draggable
-            onDragStart={onInteractionStart}
-            onDragMove={(e) => onPointMove(1, e.target.x(), e.target.y())}
-            onDragEnd={onInteractionEnd}
+            onDragStart={(e) => {
+              e.cancelBubble = true;
+              onInteractionStart();
+            }}
+            onDragMove={(e) => {
+              e.cancelBubble = true;
+              onPointMove(1, e.target.x(), e.target.y());
+            }}
+            onDragEnd={(e) => {
+              e.cancelBubble = true;
+              onInteractionEnd();
+            }}
           />
         </>
       )}
