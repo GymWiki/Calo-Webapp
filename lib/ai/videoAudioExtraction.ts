@@ -1,24 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
-import ffmpeg from "fluent-ffmpeg";
-
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-
-// Permissie-bits van een geïnstalleerd binary kunnen verloren gaan tijdens
-// Vercel's deploy-packaging — zelfde klasse risico als eerder trof
-// (pdf.worker.mjs, zie next.config.ts). Defensief, geen harde aanname dat
-// het al uitvoerbaar is.
-try {
-  if (existsSync(ffmpegInstaller.path)) {
-    chmodSync(ffmpegInstaller.path, 0o755);
-  }
-} catch {
-  // Best-effort — als dit faalt, faalt de eerste echte ffmpeg-aanroep
-  // vanzelf met een duidelijke fout.
-}
+import { ffmpeg } from "@/lib/ai/ffmpegSetup";
 
 const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   "video/mp4": "mp4",

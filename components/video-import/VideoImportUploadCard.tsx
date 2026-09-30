@@ -4,10 +4,9 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { FileVideo, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
-import { advanceVideoImportJobAction, createVideoImportJob, getVideoImportJobStatus } from "@/actions/videoImport";
+import { createVideoImportJob } from "@/actions/videoImport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
 import { estimateAudioCostUsd } from "@/lib/ai/audioModelPricing";
 import {
   SUPPORTED_VIDEO_MIME_TYPES,
@@ -16,11 +15,11 @@ import {
   VIDEO_MAX_FILE_SIZE_BYTES,
   computeFrameIntervalSeconds,
 } from "@/lib/ai/videoTypes";
+import { pollVideoImportJob, type VideoImportProcessedResult } from "@/lib/ai/videoImportPolling";
 import { createClient } from "@/utils/supabase/client";
 
 const ACCEPT = ".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm";
 const BUCKET = "activity-video-imports";
-const POLL_INTERVAL_MS = 1500;
 // Video-verwerking doorloopt meerdere fasen (ffmpeg + transcriptie +
 // AI-mapping + frame-beoordeling) — ruimer dan het document-pad se 90s.
 const POLL_TIMEOUT_MS = 5 * 60_000;
@@ -42,8 +41,6 @@ const PROCESSING_LABELS: Record<string, string> = {
   mapped: "Tekst wordt geanalyseerd...",
   scoring_frames: "Beste overzichtsframe wordt gekozen...",
 };
-
-const COMPLETED_PHASE_STATUSES = new Set(["audio_extracted", "transcribed", "mapped"]);
 
 function sanitizeFileName(name: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -115,13 +112,6 @@ async function captureCandidateFrames(video: HTMLVideoElement, duration: number)
   }
   return blobs;
 }
-
-export type VideoImportProcessedResult = {
-  jobId: string;
-  activity: ExtractedActivity | null;
-  lowAudioContent: boolean;
-  hasProposedFrame: boolean;
-};
 
 const DEFAULT_DESCRIPTION =
   "MP4, MOV of WebM — we halen de gesproken uitleg en een overzichtsframe van de opstelling " +
@@ -215,51 +205,18 @@ export function VideoImportUploadCard({
   }
 
   async function pollAndAdvance(jobId: string): Promise<void> {
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
-    let lastAdvancedStatus: string | null = null;
-
-    advanceVideoImportJobAction(jobId).catch((cause) => {
-      console.error("VideoImportUploadCard: fase-aanroep mislukt:", cause);
+    const outcome = await pollVideoImportJob(jobId, {
+      timeoutMs: POLL_TIMEOUT_MS,
+      isCancelled: () => cancelledRef.current,
+      onStatusChange: (status) => setStatusLabel(PROCESSING_LABELS[status] ?? PROCESSING_LABELS.uploaded),
     });
 
-    while (!cancelledRef.current) {
-      if (Date.now() > deadline) {
-        toast.error("Verwerken duurt langer dan verwacht. Probeer het opnieuw of vul de activiteit handmatig in.");
-        return;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      if (cancelledRef.current) return;
-
-      const result = await getVideoImportJobStatus(jobId);
-      if ("error" in result) {
-        toast.error(result.error);
-        return;
-      }
-
-      if (result.status === "done") {
-        onProcessed({
-          jobId,
-          activity: result.result?.activity ?? null,
-          lowAudioContent: result.lowAudioContent,
-          hasProposedFrame: Boolean(result.result && !result.result.frameSelectionFailed),
-        });
-        return;
-      }
-
-      if (result.status === "failed") {
-        toast.error(result.errorMessage ?? "Verwerken van deze video is mislukt.");
-        return;
-      }
-
-      setStatusLabel(PROCESSING_LABELS[result.status] ?? PROCESSING_LABELS.uploaded);
-
-      if (COMPLETED_PHASE_STATUSES.has(result.status) && result.status !== lastAdvancedStatus) {
-        lastAdvancedStatus = result.status;
-        advanceVideoImportJobAction(jobId).catch((cause) => {
-          console.error("VideoImportUploadCard: fase-aanroep mislukt:", cause);
-        });
-      }
+    if (outcome.outcome === "done") {
+      onProcessed(outcome.result);
+    } else if (outcome.outcome === "failed") {
+      toast.error(outcome.message);
+    } else if (outcome.outcome === "timeout") {
+      toast.error("Verwerken duurt langer dan verwacht. Probeer het opnieuw of vul de activiteit handmatig in.");
     }
   }
 

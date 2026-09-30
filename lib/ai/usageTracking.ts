@@ -10,7 +10,11 @@ export type AiUsageFeature =
   | "taalcheck"
   | "activity_video_transcription"
   | "activity_video_text_extraction"
-  | "activity_video_frame_scoring";
+  | "activity_video_frame_scoring"
+  | "activity_youtube_transcript_only_extraction"
+  | "activity_youtube_full_transcription"
+  | "activity_youtube_full_text_extraction"
+  | "activity_youtube_full_frame_scoring";
 
 /**
  * Losstaande, herbruikbare logservice voor elke betaalde AI-aanroep — vult

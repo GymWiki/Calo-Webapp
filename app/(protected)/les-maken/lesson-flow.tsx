@@ -6,9 +6,13 @@ import { ArrowLeft, FileUp, NotebookPen, Video, type LucideIcon } from "lucide-r
 import { cancelVideoImportJob, findDanglingVideoImportJob } from "@/actions/videoImport";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
-import { VideoImportUploadCard, type VideoImportProcessedResult } from "@/components/video-import/VideoImportUploadCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VideoImportUploadCard } from "@/components/video-import/VideoImportUploadCard";
+import { YoutubeLinkImportCard } from "@/components/video-import/YoutubeLinkImportCard";
 import { mapExtractedActivityToLessonInput, computeFlaggedEmptyFields } from "@/lib/ai/extractedActivityMapping";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
+import type { VideoImportProcessedResult } from "@/lib/ai/videoImportPolling";
+import type { VideoSourceType } from "@/lib/ai/videoImportProcessor";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { ActivityUploadStep, type RequiredLessonFormField } from "./activity-upload-step";
 import { LessonForm } from "./lesson-form";
@@ -149,13 +153,16 @@ export function LesMakenFlow({
   // al een quotum-slot zodra transcriptie start) — een gesloten tab mag hier
   // dus niet stilzwijgend genegeerd worden, i.t.t. dat pad. Alleen gecheckt
   // op het keuzescherm van een verse sessie (niet bij skipChoice).
-  const [danglingJobId, setDanglingJobId] = useState<string | null>(null);
+  const [danglingJob, setDanglingJob] = useState<{ jobId: string; sourceType: VideoSourceType } | null>(null);
   const [resumeJobId, setResumeJobId] = useState<string | undefined>(undefined);
+  // Welke invoerkaart actief is binnen "upload-video" (DEEL1-eis: YouTube-
+  // link als TWEEDE optie NAAST bestandsupload, niet erin plaats van).
+  const [uploadSubTab, setUploadSubTab] = useState<"file" | "youtube">("file");
 
   useEffect(() => {
     if (skipChoice) return;
     findDanglingVideoImportJob().then((result) => {
-      if (result) setDanglingJobId(result.jobId);
+      if (result) setDanglingJob(result);
     });
   }, [skipChoice]);
 
@@ -165,14 +172,16 @@ export function LesMakenFlow({
       setUploadedValues(values);
       setUploadedFlaggedFields(computeFlaggedEmptyFields(values));
     } else {
-      // Geen bruikbare transcriptie (stille video) — tekstvelden blijven
-      // leeg, formulier valt terug op initialValues. Het voorgestelde frame
-      // (indien aanwezig) blijft wel bruikbaar.
+      // Geen bruikbare transcriptie (stille video, of geen ondertiteling bij
+      // een YouTube-link) — tekstvelden blijven leeg, formulier valt terug
+      // op initialValues. Een voorgesteld/handmatig frame blijft wel
+      // bruikbaar via de reviewstap (VideoFrameReviewBanner toont zelf een
+      // upload-aanbod als er nog geen frame is).
       setUploadedValues(null);
       setUploadedFlaggedFields(undefined);
     }
-    setUploadedReferenceJobId(result.hasProposedFrame ? result.jobId : undefined);
-    setDanglingJobId(null);
+    setUploadedReferenceJobId(result.jobId);
+    setDanglingJob(null);
     setResumeJobId(undefined);
     setMode("form");
   }
@@ -180,7 +189,7 @@ export function LesMakenFlow({
   if (mode === "choice") {
     return (
       <div className="space-y-4">
-        {danglingJobId && (
+        {danglingJob && (
           <div className="flex flex-col gap-2 rounded-xl border border-amber-400/60 bg-amber-50 p-4 text-sm dark:bg-amber-950/20 sm:flex-row sm:items-center sm:justify-between">
             <p>Je hebt een nog niet afgeronde video-verwerking staan.</p>
             <div className="flex gap-2">
@@ -188,7 +197,8 @@ export function LesMakenFlow({
                 type="button"
                 className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
                 onClick={() => {
-                  setResumeJobId(danglingJobId);
+                  setUploadSubTab(danglingJob.sourceType === "upload" ? "file" : "youtube");
+                  setResumeJobId(danglingJob.jobId);
                   setMode("upload-video");
                 }}
               >
@@ -198,8 +208,8 @@ export function LesMakenFlow({
                 type="button"
                 className="rounded-md border px-3 py-1.5 text-xs font-medium"
                 onClick={() => {
-                  void cancelVideoImportJob(danglingJobId);
-                  setDanglingJobId(null);
+                  void cancelVideoImportJob(danglingJob.jobId);
+                  setDanglingJob(null);
                 }}
               >
                 Annuleren
@@ -261,7 +271,30 @@ export function LesMakenFlow({
           <ArrowLeft className="size-4" />
           Terug
         </button>
-        <VideoImportUploadCard onProcessed={handleVideoProcessed} resumeJobId={resumeJobId} />
+        {resumeJobId ? (
+          // Een hervatte job weet zelf al welke kaart erbij hoort
+          // (uploadSubTab is al gezet vóór setMode hierboven) — geen tabs
+          // tonen tijdens het hervatten, dat zou verwarrend suggereren dat
+          // er nog gekozen kan worden.
+          uploadSubTab === "file" ? (
+            <VideoImportUploadCard onProcessed={handleVideoProcessed} resumeJobId={resumeJobId} />
+          ) : (
+            <YoutubeLinkImportCard onProcessed={handleVideoProcessed} resumeJobId={resumeJobId} />
+          )
+        ) : (
+          <Tabs value={uploadSubTab} onValueChange={(value) => setUploadSubTab(value as "file" | "youtube")}>
+            <TabsList className="grid w-full grid-cols-2 sm:w-auto">
+              <TabsTrigger value="file">Bestand uploaden</TabsTrigger>
+              <TabsTrigger value="youtube">YouTube-link plakken</TabsTrigger>
+            </TabsList>
+            <TabsContent value="file" className="mt-4">
+              <VideoImportUploadCard onProcessed={handleVideoProcessed} />
+            </TabsContent>
+            <TabsContent value="youtube" className="mt-4">
+              <YoutubeLinkImportCard onProcessed={handleVideoProcessed} />
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     );
   }
