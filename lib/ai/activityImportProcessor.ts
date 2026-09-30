@@ -3,6 +3,7 @@ import { extractActivityFromText } from "@/lib/ai/activityImportExtraction";
 import { CHECK_MODEL } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
+import { aiMappingUserMessage as sharedAiMappingUserMessage, logAiFailure } from "@/lib/ai/aiErrorMessages";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BUCKET = "activity-imports";
@@ -14,38 +15,12 @@ const AI_MAPPING_ERROR =
 const QUOTA_ERROR =
   "Je hebt je AI-checks voor deze maand gebruikt. Probeer het volgende maand opnieuw.";
 
-type OpenAiLikeError = { status?: number; type?: string; code?: string; message: string };
-
-function isOpenAiApiError(cause: unknown): cause is OpenAiLikeError {
-  return (
-    typeof cause === "object" &&
-    cause !== null &&
-    "message" in cause &&
-    ("status" in cause || "type" in cause || "code" in cause)
-  );
-}
-
 function logFailure(jobId: string, stage: string, cause: unknown) {
-  if (isOpenAiApiError(cause)) {
-    console.error(
-      `activity-import[${jobId}] (${stage}): OpenAI API-fout (status ${cause.status ?? "onbekend"}, ` +
-        `type ${cause.type ?? "onbekend"}, code ${cause.code ?? "onbekend"}): ${cause.message}`,
-    );
-    return;
-  }
-  console.error(`activity-import[${jobId}] (${stage}): onverwachte fout:`, cause);
+  logAiFailure(`activity-import[${jobId}]`, stage, cause);
 }
 
 function aiMappingUserMessage(cause: unknown): string {
-  if (isOpenAiApiError(cause)) {
-    if (cause.status === 429) {
-      return "De AI-service zit tijdelijk aan de limiet. Probeer het over een paar minuten opnieuw.";
-    }
-    if (cause.status && cause.status >= 500) {
-      return "De AI-service is momenteel niet bereikbaar. Probeer het opnieuw.";
-    }
-  }
-  return AI_MAPPING_ERROR;
+  return sharedAiMappingUserMessage(cause, AI_MAPPING_ERROR);
 }
 
 async function updateJob(

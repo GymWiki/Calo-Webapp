@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { FileUp, NotebookPen, type LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, FileUp, NotebookPen, Video, type LucideIcon } from "lucide-react";
 
+import { cancelVideoImportJob, findDanglingVideoImportJob } from "@/actions/videoImport";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
+import { VideoImportUploadCard, type VideoImportProcessedResult } from "@/components/video-import/VideoImportUploadCard";
+import { mapExtractedActivityToLessonInput, computeFlaggedEmptyFields } from "@/lib/ai/extractedActivityMapping";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { ActivityUploadStep, type RequiredLessonFormField } from "./activity-upload-step";
 import { LessonForm } from "./lesson-form";
 
 type TabValue = "context" | "organisatie" | "didactiek" | "voorbereiding";
-type Mode = "choice" | "form" | "upload-activity";
+type Mode = "choice" | "form" | "upload-activity" | "upload-video";
 
 function ChoiceCard({
   icon: Icon,
@@ -136,26 +139,100 @@ export function LesMakenFlow({
   const [uploadedFlaggedFields, setUploadedFlaggedFields] = useState<
     Set<RequiredLessonFormField> | undefined
   >(undefined);
+  // "Activiteit uit video" (STAP7): job-id van een AI-voorgesteld
+  // overzichtsframe, doorgegeven aan LessonForm zodra de video-verwerking
+  // klaar is. Blijft null wanneer de video geen bruikbaar frame opleverde.
+  const [uploadedReferenceJobId, setUploadedReferenceJobId] = useState<string | undefined>(
+    undefined,
+  );
+  // Video-verwerking is kostbaarder dan het document-uploadpad (verbruikt
+  // al een quotum-slot zodra transcriptie start) — een gesloten tab mag hier
+  // dus niet stilzwijgend genegeerd worden, i.t.t. dat pad. Alleen gecheckt
+  // op het keuzescherm van een verse sessie (niet bij skipChoice).
+  const [danglingJobId, setDanglingJobId] = useState<string | null>(null);
+  const [resumeJobId, setResumeJobId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (skipChoice) return;
+    findDanglingVideoImportJob().then((result) => {
+      if (result) setDanglingJobId(result.jobId);
+    });
+  }, [skipChoice]);
+
+  function handleVideoProcessed(result: VideoImportProcessedResult) {
+    if (result.activity) {
+      const values = mapExtractedActivityToLessonInput(result.activity);
+      setUploadedValues(values);
+      setUploadedFlaggedFields(computeFlaggedEmptyFields(values));
+    } else {
+      // Geen bruikbare transcriptie (stille video) — tekstvelden blijven
+      // leeg, formulier valt terug op initialValues. Het voorgestelde frame
+      // (indien aanwezig) blijft wel bruikbaar.
+      setUploadedValues(null);
+      setUploadedFlaggedFields(undefined);
+    }
+    setUploadedReferenceJobId(result.hasProposedFrame ? result.jobId : undefined);
+    setDanglingJobId(null);
+    setResumeJobId(undefined);
+    setMode("form");
+  }
 
   if (mode === "choice") {
     return (
-      <div className="grid gap-4 sm:grid-cols-2">
-        <ChoiceCard
-          icon={NotebookPen}
-          title="Zelf een activiteit samenstellen"
-          description="Bouw je activiteit vanaf nul op met de plattegrond-tekenaar, 3 L'en en lesblokken."
-          actionLabel="Beginnen →"
-          accent="primary"
-          onClick={() => setMode("form")}
-        />
-        <ChoiceCard
-          icon={FileUp}
-          title="Upload een bestaande activiteit"
-          description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een ingevulde activiteit."
-          actionLabel="Uploaden →"
-          accent="neutral"
-          onClick={() => setMode("upload-activity")}
-        />
+      <div className="space-y-4">
+        {danglingJobId && (
+          <div className="flex flex-col gap-2 rounded-xl border border-amber-400/60 bg-amber-50 p-4 text-sm dark:bg-amber-950/20 sm:flex-row sm:items-center sm:justify-between">
+            <p>Je hebt een nog niet afgeronde video-verwerking staan.</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+                onClick={() => {
+                  setResumeJobId(danglingJobId);
+                  setMode("upload-video");
+                }}
+              >
+                Doorgaan
+              </button>
+              <button
+                type="button"
+                className="rounded-md border px-3 py-1.5 text-xs font-medium"
+                onClick={() => {
+                  void cancelVideoImportJob(danglingJobId);
+                  setDanglingJobId(null);
+                }}
+              >
+                Annuleren
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <ChoiceCard
+            icon={NotebookPen}
+            title="Zelf een activiteit samenstellen"
+            description="Bouw je activiteit vanaf nul op met de plattegrond-tekenaar, 3 L'en en lesblokken."
+            actionLabel="Beginnen →"
+            accent="primary"
+            onClick={() => setMode("form")}
+          />
+          <ChoiceCard
+            icon={FileUp}
+            title="Upload een bestaande activiteit"
+            description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een ingevulde activiteit."
+            actionLabel="Uploaden →"
+            accent="neutral"
+            onClick={() => setMode("upload-activity")}
+          />
+          <ChoiceCard
+            icon={Video}
+            title="Activiteit uit video"
+            description="Upload een instructievideo — we halen de uitleg en een overzichtsframe van de opstelling automatisch uit de video."
+            actionLabel="Uploaden →"
+            accent="neutral"
+            onClick={() => setMode("upload-video")}
+          />
+        </div>
       </div>
     );
   }
@@ -170,6 +247,22 @@ export function LesMakenFlow({
           setMode("form");
         }}
       />
+    );
+  }
+
+  if (mode === "upload-video") {
+    return (
+      <div className="animate-fade-up space-y-4">
+        <button
+          type="button"
+          onClick={() => setMode("choice")}
+          className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Terug
+        </button>
+        <VideoImportUploadCard onProcessed={handleVideoProcessed} resumeJobId={resumeJobId} />
+      </div>
     );
   }
 
@@ -190,6 +283,7 @@ export function LesMakenFlow({
       teamName={teamName}
       isEditingTeamActivity={uploadedValues ? false : isEditingTeamActivity}
       initialVersion={initialVersion}
+      initialReferenceJobId={uploadedReferenceJobId}
     />
   );
 }

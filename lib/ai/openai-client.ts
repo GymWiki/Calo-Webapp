@@ -11,6 +11,11 @@ export const EMBEDDING_MODEL =
 // kosten per model.
 export const CHECK_MODEL = process.env.OPENAI_CHECK_MODEL || "gpt-4o-mini";
 
+// Video-transcriptie (lib/ai/videoTranscription.ts) — zie
+// audioModelPricing.ts voor de kosten-/kwaliteitsafweging t.o.v. whisper-1.
+export const TRANSCRIBE_MODEL =
+  process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe";
+
 // Tied to the fallback embedding model above (text-embedding-3-small) and
 // to the `vector(1536)` column width in schema_kennisbank.sql — if
 // OPENAI_EMBEDDING_MODEL is set to a model with a different output

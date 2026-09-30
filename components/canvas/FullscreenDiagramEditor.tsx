@@ -35,11 +35,15 @@ export function FullscreenDiagramEditor({
   onOpenChange,
   initialData,
   onSave,
+  referenceImageUrl,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialData: DiagramData | null;
   onSave: (data: DiagramData, imageDataUrl: string) => void;
+  /** Videoframe uit "Activiteit uit video" ("Zelf aanpassen"-keuze, STAP7) —
+   *  toont op lage dekking als natekenreferentie, wordt nooit opgeslagen. */
+  referenceImageUrl?: string | null;
 }) {
   const canvasRef = useRef<GymCanvasHandle>(null);
 
@@ -77,7 +81,9 @@ export function FullscreenDiagramEditor({
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-          {open && <GymCanvas ref={canvasRef} initialData={initialData} />}
+          {open && (
+            <GymCanvas ref={canvasRef} initialData={initialData} referenceImageUrl={referenceImageUrl} />
+          )}
         </div>
       </DialogContent>
     </Dialog>

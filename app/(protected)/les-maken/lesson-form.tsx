@@ -81,6 +81,7 @@ export function LessonForm({
   teamName,
   isEditingTeamActivity,
   initialVersion,
+  initialReferenceJobId,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -117,6 +118,11 @@ export function LessonForm({
    * i.p.v. createLesson. */
   isEditingTeamActivity?: boolean;
   initialVersion?: number;
+  /** "Activiteit uit video" (STAP7): job-id van een AI-voorgesteld
+   * overzichtsframe, zie lesson-flow.tsx. Alleen gezet bij het net
+   * afronden van een video-upload — geseed één keer bij mount, net als
+   * initialDiagram hierboven. */
+  initialReferenceJobId?: string | null;
 }) {
   const router = useRouter();
 
@@ -143,6 +149,13 @@ export function LessonForm({
   // de bestaande `afbeelding`-kolom van een hervatte activiteit niet
   // overschrijft (zie actions/lesson.ts's afbeeldingUrl-parameter).
   const [afbeeldingUrl, setAfbeeldingUrl] = useState<string | null>(null);
+  // "Activiteit uit video" (STAP7-review) — job-id van een nog niet
+  // gekozen voorgesteld overzichtsframe. `null` zodra de gebruiker een van
+  // de 3 keuzes maakt (rechtstreeks gebruiken/zelf aanpassen -> diagram
+  // opgeslagen/niet gebruiken), zodat de banner nooit dubbel getoond wordt.
+  const [pendingReferenceJobId, setPendingReferenceJobId] = useState<string | null>(
+    () => initialReferenceJobId ?? null,
+  );
 
   // Concept-rij die auto-save aanmaakt/bijwerkt (zie saveLessonDraft) — als
   // dit formulier een bestaand concept hervat, is dat meteen die rij.
@@ -248,7 +261,11 @@ export function LessonForm({
       if (!user) return null;
 
       const blob = await (await fetch(imageDataUrl)).blob();
-      const extension = blob.type === "image/webp" ? "webp" : "png";
+      // "Activiteit uit video" (STAP7, "direct gebruiken"-pad) hergebruikt
+      // deze functie ongewijzigd met een JPEG-videoframe i.p.v. een canvas-
+      // export — dus de extensie moet ook dat geval correct afleiden i.p.v.
+      // een jpeg-blob stilzwijgend als ".png" op te slaan.
+      const extension = blob.type === "image/webp" ? "webp" : blob.type === "image/jpeg" ? "jpg" : "png";
       const path = `${user.id}/${forActivityId}.${extension}`;
       const { error } = await supabase.storage
         .from("activiteit-afbeeldingen")
@@ -278,6 +295,9 @@ export function LessonForm({
   // dus zonder concept wordt die eerst aangemaakt.
   async function handleDiagramSave(data: DiagramData, imageDataUrl: string) {
     setDiagram({ data, imageDataUrl });
+    // Het videoframe (indien gebruikt als referentielaag) heeft zijn doel nu
+    // gediend — de banner mag niet opnieuw verschijnen na deze save.
+    setPendingReferenceJobId(null);
 
     if (isEditingSavedActivity) {
       // Geen conceptrij om bij te werken (saveLessonDraft raakt alleen
@@ -341,6 +361,50 @@ export function LessonForm({
         void performSave();
       }
     }
+  }
+
+  // STAP7-keuze (a) "Gebruiken als arrangement-afbeelding": hergebruikt
+  // uploadDiagramImage ONGEWIJZIGD met de (signed) frame-URL i.p.v. een
+  // canvas-export-data-URL — fetch() werkt met beide even goed. Raakt
+  // bewust geen `diagram`/`diagram_data` aan (geen canvas-tekening gemaakt),
+  // exact het bestaande "afbeelding-alleen"-legacy-precedent.
+  async function handleUseReferenceImageDirectly(frameUrl: string) {
+    let currentActivityId = activityId;
+    if (!currentActivityId && !isEditingSavedActivity) {
+      const values = form.getValues();
+      const payload: CreateLessonFormInput = {
+        ...values,
+        baseMaterials,
+        ruleMaterials,
+        rules,
+        learningOutcomes,
+        didacticItems,
+      };
+      const created = await saveLessonDraft(payload, diagram, false, null);
+      if ("error" in created) {
+        toast.error("Afbeelding overnemen is mislukt. Probeer het opnieuw.");
+        return;
+      }
+      currentActivityId = created.activityId;
+      setActivityId(currentActivityId);
+    }
+    if (!currentActivityId) return;
+
+    const uploadedUrl = await uploadDiagramImage(frameUrl, currentActivityId);
+    if (!uploadedUrl) {
+      toast.error("Afbeelding overnemen is mislukt. Probeer het opnieuw.");
+      return;
+    }
+    setAfbeeldingUrl(uploadedUrl);
+    setPendingReferenceJobId(null);
+    scheduleAutosave();
+  }
+
+  // STAP7-keuze (c) "Niet gebruiken": verbergt de banner permanent voor
+  // deze sessie — zonder dit zou hij, zolang er nog geen diagramImageUrl
+  // is, telkens opnieuw verschijnen.
+  function handleDiscardReferenceImage() {
+    setPendingReferenceJobId(null);
   }
 
   // Gedebouncet: pas ~1,3s na de laatste wijziging daadwerkelijk opslaan, in
@@ -902,6 +966,9 @@ export function LessonForm({
           diagramData={diagram?.data ?? null}
           diagramImageUrl={diagram?.imageDataUrl ?? null}
           onDiagramExport={(data, imageDataUrl) => void handleDiagramSave(data, imageDataUrl)}
+          pendingReferenceJobId={pendingReferenceJobId}
+          onUseReferenceImageDirectly={(frameUrl) => void handleUseReferenceImageDirectly(frameUrl)}
+          onDiscardReferenceImage={handleDiscardReferenceImage}
           didacticItems={didacticItems}
           onDidacticItemsChange={setDidacticItems}
           onCommit={scheduleAutosave}

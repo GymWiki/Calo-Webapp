@@ -36,6 +36,7 @@ import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/acti
 import { REQUIRED_LESSON_FIELDS, type DidacticItem } from "@/types/lesson";
 import type { PlanningClass } from "@/types/planning";
 import { FullscreenDiagramEditor } from "@/components/canvas/FullscreenDiagramEditor";
+import { VideoFrameReviewBanner } from "@/components/video-import/VideoFrameReviewBanner";
 
 const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
 
@@ -190,6 +191,9 @@ export function ActivityWizardPage({
   diagramData,
   diagramImageUrl,
   onDiagramExport,
+  pendingReferenceJobId,
+  onUseReferenceImageDirectly,
+  onDiscardReferenceImage,
 
   didacticItems,
   onDidacticItemsChange,
@@ -309,6 +313,16 @@ export function ActivityWizardPage({
   diagramData?: DiagramData | null;
   diagramImageUrl: string | null;
   onDiagramExport?: (data: DiagramData, imageDataUrl: string) => void;
+  /** "Activiteit uit video" (STAP7): job-id van een AI-voorgesteld
+   * overzichtsframe dat nog geen keuze kreeg — toont VideoFrameReviewBanner
+   * boven de Plattegrond-kaart, alleen zolang er nog geen diagramImageUrl
+   * is. Bewust een job-id, geen kant-en-klare URL: VideoFrameReviewBanner
+   * ondertekent de Storage-URL pas op het moment dat hij écht rendert (een
+   * vooraf opgehaalde signed URL kan allang verlopen zijn tegen de tijd dat
+   * de gebruiker hier daadwerkelijk op klikt). */
+  pendingReferenceJobId?: string | null;
+  onUseReferenceImageDirectly?: (frameUrl: string) => void;
+  onDiscardReferenceImage?: () => void;
 
   didacticItems: DidacticItem[];
   onDidacticItemsChange?: (items: DidacticItem[]) => void;
@@ -399,6 +413,12 @@ export function ActivityWizardPage({
   // de vroegere altijd-ingebedde DiagramEditorCard; de kaart hieronder toont
   // nu enkel nog een compacte preview + knop die dit opent.
   const [diagramModalOpen, setDiagramModalOpen] = useState(false);
+  // Alleen gezet via VideoFrameReviewBanner's "Zelf aanpassen"-keuze — de
+  // banner heeft de signed URL al voor de preview opgehaald, dus die wordt
+  // hier hergebruikt i.p.v. nogmaals te ondertekenen. Nooit uit
+  // DiagramData/persistente state afgeleid (zie GymCanvas.tsx's
+  // referenceImageUrl-commentaar): dit is een eenmalig teken-hulpmiddel.
+  const [referenceImageUrlForEditor, setReferenceImageUrlForEditor] = useState<string | null>(null);
 
   // Puur DOM-werk, geen setState — mag dus gewoon in een effect (zie
   // hieronder) zonder de react-hooks/set-state-in-effect-regel te raken.
@@ -807,6 +827,18 @@ export function ActivityWizardPage({
         </Card>
       )}
 
+      {isEdit && pendingReferenceJobId && !diagramImageUrl && (
+        <VideoFrameReviewBanner
+          jobId={pendingReferenceJobId}
+          onUseDirectly={(frameUrl) => onUseReferenceImageDirectly?.(frameUrl)}
+          onOpenInEditor={(frameUrl) => {
+            setReferenceImageUrlForEditor(frameUrl);
+            setDiagramModalOpen(true);
+          }}
+          onDiscard={() => onDiscardReferenceImage?.()}
+        />
+      )}
+
       {/* Plattegrond — vaste kaart, zelfde positie in beide modi: in
           mode="view" de geëxporteerde afbeelding, in mode="edit" de
           canvas-tekenaar zelf. */}
@@ -853,8 +885,12 @@ export function ActivityWizardPage({
               </Button>
               <FullscreenDiagramEditor
                 open={diagramModalOpen}
-                onOpenChange={setDiagramModalOpen}
+                onOpenChange={(next) => {
+                  setDiagramModalOpen(next);
+                  if (!next) setReferenceImageUrlForEditor(null);
+                }}
                 initialData={diagramData ?? null}
+                referenceImageUrl={referenceImageUrlForEditor}
                 onSave={(data, imageDataUrl) => onDiagramExport?.(data, imageDataUrl)}
               />
             </>
