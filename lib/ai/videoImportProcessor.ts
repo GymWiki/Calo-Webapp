@@ -349,14 +349,35 @@ async function runYoutubeTranscriptFetchPhase(supabase: SupabaseClient, userId: 
     return;
   }
 
-  console.log(`video-import[${jobId}]: transcript opgehaald — ${result.transcript.length} tekens.`);
+  console.log(
+    `video-import[${jobId}]: transcript opgehaald — ${result.transcript.length} tekens, taal ${result.language ?? "onbekend"}.`,
+  );
+  // BELANGRIJK: isLowContent moet op de RUWE transcript-tekst berekend
+  // worden, vóórdat hieronder een taal-prefix wordt toegevoegd — die
+  // prefix is zelf al langer dan MIN_USEFUL_TRANSCRIPT_CHARS, dus zou een
+  // bijna-lege transcriptie anders ten onrechte als "bruikbaar" door de
+  // drempel komen.
   const isLowContent = result.transcript.trim().length < MIN_USEFUL_TRANSCRIPT_CHARS;
   if (isLowContent) {
     console.log(`video-import[${jobId}]: transcript te kort (${result.transcript.length} tekens) — terugvallen op handmatig invullen.`);
   }
+
+  // STAP3-eis: de gedetecteerde brontaal expliciet doorgeven aan de
+  // AI-mapping-stap (relevant voor de kwaliteit van de Nederlandse
+  // formuliertekst bij bijv. een Engelstalige auto-ondertiteling) — zonder
+  // het gedeelde extractActivityFromText-contract te wijzigen, door de
+  // informatie als korte contextregel in de opgeslagen transcript-tekst
+  // zelf op te nemen. Alleen toegevoegd wanneer er daadwerkelijk bruikbare
+  // tekst is (anders heeft de prefix niets om aan vast te zitten en gaat
+  // low_audio_content-gedrag gewoon door zoals voorheen).
+  const transcriptToStore =
+    !isLowContent && result.language
+      ? `[Bron: ondertiteld transcript opgehaald via YouTube, gedetecteerde taal: ${result.language}]\n\n${result.transcript}`
+      : result.transcript;
+
   await updateJob(supabase, jobId, {
     status: "transcribed",
-    transcript: result.transcript,
+    transcript: transcriptToStore,
     low_audio_content: isLowContent,
   });
 }
