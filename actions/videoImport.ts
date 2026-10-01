@@ -396,6 +396,7 @@ export async function createYoutubeImportJob(input: {
   if (!videoId) {
     return { error: "Dit lijkt geen geldige YouTube-link." };
   }
+  console.log(`createYoutubeImportJob: video-ID geëxtraheerd uit link: ${videoId}`);
 
   let metadata: YoutubeVideoMetadata | null;
   try {

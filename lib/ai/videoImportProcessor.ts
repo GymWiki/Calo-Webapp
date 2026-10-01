@@ -12,7 +12,7 @@ import { extractFramesFromVideoFile } from "@/lib/ai/videoFrameExtraction";
 import { MIN_USEFUL_TRANSCRIPT_CHARS, transcribeAudio } from "@/lib/ai/videoTranscription";
 import { pickWinningFrame, scoreCandidateFrames } from "@/lib/ai/videoFrameScoring";
 import { cleanupYoutubeDownload, downloadYoutubeVideoToTemp } from "@/lib/ai/youtubeDownload";
-import { fetchYoutubeTranscript } from "@/lib/ai/youtubeTranscriptFetch";
+import { FETCH_FAILED_MESSAGES, NO_CAPTIONS_MESSAGES, fetchYoutubeTranscript } from "@/lib/ai/youtubeTranscriptFetch";
 
 const BUCKET = "activity-video-imports";
 
@@ -325,18 +325,35 @@ async function runYoutubeTranscriptFetchPhase(supabase: SupabaseClient, userId: 
     return;
   }
 
+  console.log(`video-import[${jobId}]: video-ID ${claimed.youtube_video_id} — ondertiteling wordt opgehaald.`);
   const result = await fetchYoutubeTranscript(claimed.youtube_video_id);
 
-  if (!result.available) {
-    // Geen ondertiteling — geen fout (STAP3/DEEL3-eis): de gebruiker kan
-    // nog steeds gewoon door met een leeg/minimaal formulier, precies als
-    // de "stille video"-fallback bij bestandsuploads.
-    console.log(`video-import[${jobId}]: geen ondertiteling beschikbaar (${result.reason}).`);
+  if (result.outcome === "fetch_failed") {
+    // Technische mislukking (netwerk/blokkade/onverwacht) — géén "geen
+    // ondertiteling"-gedrag: de job faalt zichtbaar met een eigen melding
+    // i.p.v. stilzwijgend een leeg formulier op te leveren (de bug die dit
+    // fixt — zie het commentaar in youtubeTranscriptFetch.ts).
+    console.error(
+      `video-import[${jobId}]: ondertiteling ophalen TECHNISCH mislukt (${result.reason}): ${result.detail}`,
+    );
+    await failJob(supabase, jobId, "transcription", FETCH_FAILED_MESSAGES[result.reason]);
+    return;
+  }
+
+  if (result.outcome === "no_captions") {
+    // Écht geen ondertiteling — geen fout (STAP3/DEEL3-eis): de gebruiker
+    // kan nog steeds gewoon door met een leeg/minimaal formulier, precies
+    // als de "stille video"-fallback bij bestandsuploads.
+    console.log(`video-import[${jobId}]: geen ondertiteling beschikbaar (${result.reason}) — ${NO_CAPTIONS_MESSAGES[result.reason]}`);
     await updateJob(supabase, jobId, { status: "transcribed", transcript: "", low_audio_content: true });
     return;
   }
 
+  console.log(`video-import[${jobId}]: transcript opgehaald — ${result.transcript.length} tekens.`);
   const isLowContent = result.transcript.trim().length < MIN_USEFUL_TRANSCRIPT_CHARS;
+  if (isLowContent) {
+    console.log(`video-import[${jobId}]: transcript te kort (${result.transcript.length} tekens) — terugvallen op handmatig invullen.`);
+  }
   await updateJob(supabase, jobId, {
     status: "transcribed",
     transcript: result.transcript,
@@ -439,13 +456,20 @@ async function runMappingPhase(
   if (!claimed) return;
 
   if (claimed.low_audio_content || !claimed.transcript?.trim()) {
+    console.log(`video-import[${jobId}]: mapping overgeslagen (low_audio_content of lege transcript) — resultaat blijft leeg.`);
     const result: VideoImportResult = { activity: null, lowAudioContent: true, frameSelectionFailed: false };
     await updateJob(supabase, jobId, { status: "mapped", result });
     return;
   }
 
+  console.log(`video-import[${jobId}]: transcript (${claimed.transcript.length} tekens) naar AI-mapping-service gestuurd.`);
+
   try {
     const { activity, inputTokens, outputTokens } = await extractActivityFromText(claimed.transcript, jobId);
+    console.log(
+      `video-import[${jobId}]: AI-mapping-respons ontvangen — isMovementActivity=${activity.isMovementActivity}, ` +
+        `title=${activity.title ? JSON.stringify(activity.title) : "null"}, inputTokens=${inputTokens}, outputTokens=${outputTokens}.`,
+    );
 
     await recordAiUsage(supabase, {
       userId,
@@ -467,6 +491,7 @@ async function runMappingPhase(
 
     const result: VideoImportResult = { activity, lowAudioContent: false, frameSelectionFailed: false };
     await updateJob(supabase, jobId, { status: "mapped", result });
+    console.log(`video-import[${jobId}]: mapping-resultaat weggeschreven naar job (status=mapped, activity aanwezig).`);
   } catch (cause) {
     logFailure(jobId, "AI-mapping", cause);
     await failJob(supabase, jobId, "mapping", sharedAiMappingUserMessage(cause, AI_MAPPING_ERROR));
