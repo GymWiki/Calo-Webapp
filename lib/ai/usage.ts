@@ -14,21 +14,11 @@ export type AiUsageResult =
  * to its own dedicated, paid-subscriber-only quota (ai_usage-table-based —
  * see lib/ai/lescoachAccess.ts) once it became a paid-subscriber feature
  * with its own cost profile, so this is now extract-activity's alone.
- *
- * "video-import" (Activiteit uit video) deelt dezelfde pool — één quotum-
- * slot per verwerkte video (niet per fase), afgeschreven zodra transcriptie
- * daadwerkelijk start (zie videoImportProcessor.ts).
- *
- * "youtube-transcript-import"/"youtube-full-import" (YouTube-linkinvoer,
- * zie lib/ai/youtubeImportMode.ts) delen dezelfde pool — losse endpoint-
- * waarden puur voor herkenbaarheid per invoerroute in de logs, de
- * quotumberekening hierboven telt sowieso ALLE ai_usage_log-rijen van de
- * gebruiker deze maand, ongeacht endpoint.
  */
 export async function checkAndRecordAiUsage(
   supabase: SupabaseClient,
   userId: string,
-  endpoint: "extract-activity" | "video-import" | "youtube-transcript-import" | "youtube-full-import",
+  endpoint: "extract-activity",
 ): Promise<AiUsageResult> {
   const monthlyAiLimit = MONTHLY_AI_LIMIT;
 

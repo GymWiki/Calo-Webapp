@@ -28,23 +28,7 @@ const nextConfig: NextConfig = {
   // voor serverless/edge gecompileerde PDF.js-build gebruikt zonder los
   // worker-bestand of native canvas-afhankelijkheid — zie
   // lib/ai/documentText.ts.)
-  // fluent-ffmpeg/@ffmpeg-installer/ffmpeg (video-import audio-extractie,
-  // lib/ai/videoAudioExtraction.ts): zelfde risicoklasse als hierboven —
-  // @ffmpeg-installer/ffmpeg bundelt een platform-specifiek ffmpeg-binary
-  // dat Next's file-tracer anders kan laten vallen uit de gedeployde
-  // functie-bundle.
-  // youtubei.js (YouTube-download, full_auto-modus, lib/ai/youtubeDownload.ts)
-  // en youtube-transcript (ondertiteling ophalen, transcript_only-modus,
-  // lib/ai/youtubeTranscriptFetch.ts): zelfde risicoklasse als de andere
-  // packages hier — youtubei.js bundelt protobuf-definitiebestanden die
-  // Next's file-tracer kan missen.
-  serverExternalPackages: [
-    "mammoth",
-    "fluent-ffmpeg",
-    "@ffmpeg-installer/ffmpeg",
-    "youtubei.js",
-    "youtube-transcript",
-  ],
+  serverExternalPackages: ["mammoth"],
   // Activiteit-/materiaalafbeeldingen komen van twee externe hosts: de
   // oorspronkelijk geïmporteerde bibliotheek-activiteiten verwijzen nog naar
   // de vroegere Firebase Storage-bucket, alles wat ná de Supabase-migratie

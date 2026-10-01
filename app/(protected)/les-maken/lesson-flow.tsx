@@ -1,24 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowLeft, FileUp, NotebookPen, Video, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { FileUp, NotebookPen, type LucideIcon } from "lucide-react";
 
-import { cancelVideoImportJob, findDanglingVideoImportJob } from "@/actions/videoImport";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { VideoImportUploadCard } from "@/components/video-import/VideoImportUploadCard";
-import { YoutubeLinkImportCard } from "@/components/video-import/YoutubeLinkImportCard";
-import { mapExtractedActivityToLessonInput, computeFlaggedEmptyFields } from "@/lib/ai/extractedActivityMapping";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
-import type { VideoImportProcessedResult } from "@/lib/ai/videoImportPolling";
-import type { VideoSourceType } from "@/lib/ai/videoImportProcessor";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { ActivityUploadStep, type RequiredLessonFormField } from "./activity-upload-step";
 import { LessonForm } from "./lesson-form";
 
 type TabValue = "context" | "organisatie" | "didactiek" | "voorbereiding";
-type Mode = "choice" | "form" | "upload-activity" | "upload-video";
+type Mode = "choice" | "form" | "upload-activity";
 
 function ChoiceCard({
   icon: Icon,
@@ -143,106 +136,26 @@ export function LesMakenFlow({
   const [uploadedFlaggedFields, setUploadedFlaggedFields] = useState<
     Set<RequiredLessonFormField> | undefined
   >(undefined);
-  // "Activiteit uit video" (STAP7): job-id van een AI-voorgesteld
-  // overzichtsframe, doorgegeven aan LessonForm zodra de video-verwerking
-  // klaar is. Blijft null wanneer de video geen bruikbaar frame opleverde.
-  const [uploadedReferenceJobId, setUploadedReferenceJobId] = useState<string | undefined>(
-    undefined,
-  );
-  // Video-verwerking is kostbaarder dan het document-uploadpad (verbruikt
-  // al een quotum-slot zodra transcriptie start) — een gesloten tab mag hier
-  // dus niet stilzwijgend genegeerd worden, i.t.t. dat pad. Alleen gecheckt
-  // op het keuzescherm van een verse sessie (niet bij skipChoice).
-  const [danglingJob, setDanglingJob] = useState<{ jobId: string; sourceType: VideoSourceType } | null>(null);
-  const [resumeJobId, setResumeJobId] = useState<string | undefined>(undefined);
-  // Welke invoerkaart actief is binnen "upload-video" (DEEL1-eis: YouTube-
-  // link als TWEEDE optie NAAST bestandsupload, niet erin plaats van).
-  const [uploadSubTab, setUploadSubTab] = useState<"file" | "youtube">("file");
-
-  useEffect(() => {
-    if (skipChoice) return;
-    findDanglingVideoImportJob().then((result) => {
-      if (result) setDanglingJob(result);
-    });
-  }, [skipChoice]);
-
-  function handleVideoProcessed(result: VideoImportProcessedResult) {
-    if (result.activity) {
-      const values = mapExtractedActivityToLessonInput(result.activity);
-      setUploadedValues(values);
-      setUploadedFlaggedFields(computeFlaggedEmptyFields(values));
-    } else {
-      // Geen bruikbare transcriptie (stille video, of geen ondertiteling bij
-      // een YouTube-link) — tekstvelden blijven leeg, formulier valt terug
-      // op initialValues. Een voorgesteld/handmatig frame blijft wel
-      // bruikbaar via de reviewstap (VideoFrameReviewBanner toont zelf een
-      // upload-aanbod als er nog geen frame is).
-      setUploadedValues(null);
-      setUploadedFlaggedFields(undefined);
-    }
-    setUploadedReferenceJobId(result.jobId);
-    setDanglingJob(null);
-    setResumeJobId(undefined);
-    setMode("form");
-  }
 
   if (mode === "choice") {
     return (
-      <div className="space-y-4">
-        {danglingJob && (
-          <div className="flex flex-col gap-2 rounded-xl border border-amber-400/60 bg-amber-50 p-4 text-sm dark:bg-amber-950/20 sm:flex-row sm:items-center sm:justify-between">
-            <p>Je hebt een nog niet afgeronde video-verwerking staan.</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
-                onClick={() => {
-                  setUploadSubTab(danglingJob.sourceType === "upload" ? "file" : "youtube");
-                  setResumeJobId(danglingJob.jobId);
-                  setMode("upload-video");
-                }}
-              >
-                Doorgaan
-              </button>
-              <button
-                type="button"
-                className="rounded-md border px-3 py-1.5 text-xs font-medium"
-                onClick={() => {
-                  void cancelVideoImportJob(danglingJob.jobId);
-                  setDanglingJob(null);
-                }}
-              >
-                Annuleren
-              </button>
-            </div>
-          </div>
-        )}
-        <div className="grid gap-4 sm:grid-cols-3">
-          <ChoiceCard
-            icon={NotebookPen}
-            title="Zelf een activiteit samenstellen"
-            description="Bouw je activiteit vanaf nul op met de plattegrond-tekenaar, 3 L'en en lesblokken."
-            actionLabel="Beginnen →"
-            accent="primary"
-            onClick={() => setMode("form")}
-          />
-          <ChoiceCard
-            icon={FileUp}
-            title="Upload een bestaande activiteit"
-            description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een ingevulde activiteit."
-            actionLabel="Uploaden →"
-            accent="neutral"
-            onClick={() => setMode("upload-activity")}
-          />
-          <ChoiceCard
-            icon={Video}
-            title="Activiteit uit video"
-            description="Upload een instructievideo — we halen de uitleg en een overzichtsframe van de opstelling automatisch uit de video."
-            actionLabel="Uploaden →"
-            accent="neutral"
-            onClick={() => setMode("upload-video")}
-          />
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ChoiceCard
+          icon={NotebookPen}
+          title="Zelf een activiteit samenstellen"
+          description="Bouw je activiteit vanaf nul op met de plattegrond-tekenaar, 3 L'en en lesblokken."
+          actionLabel="Beginnen →"
+          accent="primary"
+          onClick={() => setMode("form")}
+        />
+        <ChoiceCard
+          icon={FileUp}
+          title="Upload een bestaande activiteit"
+          description="Heb je al een lesvoorbereiding? Upload het bestand en we zetten het automatisch om naar een ingevulde activiteit."
+          actionLabel="Uploaden →"
+          accent="neutral"
+          onClick={() => setMode("upload-activity")}
+        />
       </div>
     );
   }
@@ -257,45 +170,6 @@ export function LesMakenFlow({
           setMode("form");
         }}
       />
-    );
-  }
-
-  if (mode === "upload-video") {
-    return (
-      <div className="animate-fade-up space-y-4">
-        <button
-          type="button"
-          onClick={() => setMode("choice")}
-          className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Terug
-        </button>
-        {resumeJobId ? (
-          // Een hervatte job weet zelf al welke kaart erbij hoort
-          // (uploadSubTab is al gezet vóór setMode hierboven) — geen tabs
-          // tonen tijdens het hervatten, dat zou verwarrend suggereren dat
-          // er nog gekozen kan worden.
-          uploadSubTab === "file" ? (
-            <VideoImportUploadCard onProcessed={handleVideoProcessed} resumeJobId={resumeJobId} />
-          ) : (
-            <YoutubeLinkImportCard onProcessed={handleVideoProcessed} resumeJobId={resumeJobId} />
-          )
-        ) : (
-          <Tabs value={uploadSubTab} onValueChange={(value) => setUploadSubTab(value as "file" | "youtube")}>
-            <TabsList className="grid w-full grid-cols-2 sm:w-auto">
-              <TabsTrigger value="file">Bestand uploaden</TabsTrigger>
-              <TabsTrigger value="youtube">YouTube-link plakken</TabsTrigger>
-            </TabsList>
-            <TabsContent value="file" className="mt-4">
-              <VideoImportUploadCard onProcessed={handleVideoProcessed} />
-            </TabsContent>
-            <TabsContent value="youtube" className="mt-4">
-              <YoutubeLinkImportCard onProcessed={handleVideoProcessed} />
-            </TabsContent>
-          </Tabs>
-        )}
-      </div>
     );
   }
 
@@ -316,7 +190,6 @@ export function LesMakenFlow({
       teamName={teamName}
       isEditingTeamActivity={uploadedValues ? false : isEditingTeamActivity}
       initialVersion={initialVersion}
-      initialReferenceJobId={uploadedReferenceJobId}
     />
   );
 }

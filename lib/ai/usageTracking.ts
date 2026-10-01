@@ -7,14 +7,7 @@ export type AiUsageFeature =
   | "ai_lescoach"
   | "knowledge_base_embedding"
   | "activity_import_extraction"
-  | "taalcheck"
-  | "activity_video_transcription"
-  | "activity_video_text_extraction"
-  | "activity_video_frame_scoring"
-  | "activity_youtube_transcript_only_extraction"
-  | "activity_youtube_full_transcription"
-  | "activity_youtube_full_text_extraction"
-  | "activity_youtube_full_frame_scoring";
+  | "taalcheck";
 
 /**
  * Losstaande, herbruikbare logservice voor elke betaalde AI-aanroep — vult
@@ -34,14 +27,9 @@ export async function recordAiUsage(
     /** Gezet voor een teamlid — zie supabase/migrations/team_plans.sql's
      *  ai_usage.team_id, voor de gepoolde limiet + per-team kostenanalyse. */
     teamId?: string | null;
-    /** Voor niet-token-gebaseerde kosten (bijv. audiotranscriptie, die per
-     *  minuut rekent — zie lib/ai/audioModelPricing.ts). Wanneer gezet,
-     *  overschrijft dit de normale token-gebaseerde estimateCostUsd-berekening. */
-    costUsdOverride?: number;
   },
 ): Promise<void> {
-  const estimatedCostUsd =
-    params.costUsdOverride ?? estimateCostUsd(params.model, params.inputTokens, params.outputTokens);
+  const estimatedCostUsd = estimateCostUsd(params.model, params.inputTokens, params.outputTokens);
 
   const { error } = await supabase.from("ai_usage").insert({
     user_id: params.userId,

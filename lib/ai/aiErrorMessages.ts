@@ -1,7 +1,5 @@
 // Gedeelde OpenAI-foutafhandeling, geëxtraheerd uit activityImportProcessor.ts
-// (nu ook nodig voor video-transcriptie en frame-scoring in
-// videoImportProcessor.ts) — geen gedragswijziging t.o.v. de oorspronkelijke,
-// niet-geëxporteerde versie.
+// — geen gedragswijziging t.o.v. de oorspronkelijke, niet-geëxporteerde versie.
 export type OpenAiLikeError = { status?: number; type?: string; code?: string; message: string };
 
 export function isOpenAiApiError(cause: unknown): cause is OpenAiLikeError {
