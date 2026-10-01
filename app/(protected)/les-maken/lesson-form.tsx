@@ -6,16 +6,20 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import { logImportFeedback } from "@/actions/activityImport";
 import { createLesson, saveLessonDraft } from "@/actions/lesson";
 import { updateTeamActivity } from "@/actions/teamLibrary";
 import { ActivityWizardPage } from "@/components/activity-wizard-page";
+import { ImportImageReviewBanner } from "@/components/ImportImageReviewBanner";
 import { KnowledgeSourceHint } from "@/components/KnowledgeSourceHint";
+import { UnplacedContentPanel, type UnplacedTargetField } from "@/components/UnplacedContentPanel";
 import { Form } from "@/components/ui/form";
 import { BEWEGINGSTHEMAS } from "@/lib/constants/learningLines";
 import { createClient } from "@/utils/supabase/client";
 import { applyDoelgroepToggle } from "@/types/activity";
 import type { AnalyzeLessonInput, DidacticSuggestion, LescoachSuggestion } from "@/types/ai";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
+import type { UnplacedContentItem } from "@/lib/ai/extractedActivityMapping";
 import {
   createLessonDefaultValues,
   createLessonInputSchema,
@@ -26,6 +30,32 @@ import {
 } from "@/types/lesson";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import type { RequiredLessonFormField } from "./activity-upload-step";
+
+// Welke velden deze mapping bijhoudt voor de import-feedbacklus (zie
+// logImportFeedback hieronder) — dezelfde velden die
+// mapExtractedActivityToLessonInput daadwerkelijk vult, zodat een diff tegen
+// de oorspronkelijke import-waarden exact aangeeft wat de gebruiker heeft
+// aangepast.
+const IMPORT_TRACKED_FIELDS: (keyof CreateLessonFormInput)[] = [
+  "title",
+  "learningLine",
+  "doelgroep",
+  "movementProblem",
+  "movementTheme",
+  "baseMaterials",
+  "ruleMaterials",
+  "minParticipants",
+  "participantsBench",
+  "rules",
+  "goals",
+  "beschrijving",
+  "learningOutcomes",
+  "arrangement",
+  "deelnemersRegels",
+  "plaatjePraatje",
+  "aandachtspunten",
+  "didacticItems",
+];
 
 // Zelfde smalle sleuteltype als components/activity-wizard-page.tsx afleidt
 // uit dezelfde REQUIRED_LESSON_FIELDS-import — hier lokaal herhaald i.p.v.
@@ -81,6 +111,9 @@ export function LessonForm({
   teamName,
   isEditingTeamActivity,
   initialVersion,
+  initialLowConfidenceFields,
+  initialUnplacedContent,
+  initialImportJobId,
 }: {
   authorName: string;
   initialValues?: Partial<CreateLessonFormInput>;
@@ -117,6 +150,17 @@ export function LessonForm({
    * i.p.v. createLesson. */
   isEditingTeamActivity?: boolean;
   initialVersion?: number;
+  /** Herbouwde documentimport: velden die de AI wél invulde maar zelf als
+   * onzeker aanmerkte (confidence:"low") — zie
+   * lib/ai/extractedActivityMapping.ts's computeLowConfidenceFields. */
+  initialLowConfidenceFields?: Set<string>;
+  /** Brontekst die de AI nergens kon plaatsen — de dekkingscheck ("geen
+   * dataverlies"), zie computeUnplacedContent. */
+  initialUnplacedContent?: UnplacedContentItem[];
+  /** Het job-id van de net-voltooide import — alleen gezet ná een upload,
+   * gebruikt voor de afbeeldingenbanner (ImportImageReviewBanner) en om bij
+   * opslaan de feedbacklus te loggen (logImportFeedback). */
+  initialImportJobId?: string;
 }) {
   const router = useRouter();
 
@@ -143,6 +187,29 @@ export function LessonForm({
   // de bestaande `afbeelding`-kolom van een hervatte activiteit niet
   // overschrijft (zie actions/lesson.ts's afbeeldingUrl-parameter).
   const [afbeeldingUrl, setAfbeeldingUrl] = useState<string | null>(null);
+
+  // Herbouwde documentimport: "Niet geplaatst"-brontekst die de gebruiker
+  // handmatig kan verplaatsen/negeren (zie UnplacedContentPanel hieronder).
+  const [unplacedContent, setUnplacedContent] = useState<UnplacedContentItem[]>(
+    initialUnplacedContent ?? [],
+  );
+  // Welke velden de gebruiker ná import heeft bewerkt resp. met een
+  // "Niet geplaatst"-item heeft aangevuld — zonder tekstinhoud, alleen
+  // veldnamen (zie logImportFeedback in onSubmit hieronder).
+  const [movedFromUnplacedFields, setMovedFromUnplacedFields] = useState<Set<string>>(new Set());
+  // Plaatje & Praatje is bij een import NOOIT uit het document gehaald maar
+  // altijd apart gegenereerd (zie activityImportExtraction.ts's
+  // generatePlaatjePraatjeSuggestion) — dit seedt een "AI-voorstel —
+  // controleer"-badge, verwijderd zodra de gebruiker het veld voor het eerst
+  // zelf wijzigt.
+  const [pendingAiSuggestionFields, setPendingAiSuggestionFields] = useState<Set<string>>(
+    () => (initialImportJobId ? new Set(["plaatjePraatje"]) : new Set()),
+  );
+  // Uit het document geëxtraheerd beeld (plattegrond/foto), gekozen via
+  // ImportImageReviewBanner — getoond als semi-transparante natekenreferentie
+  // in de canvas-editor, nooit zelf opgeslagen.
+  const [referenceImageUrlForEditor, setReferenceImageUrlForEditor] = useState<string | null>(null);
+  const [imagesBannerDismissed, setImagesBannerDismissed] = useState(false);
 
   // Concept-rij die auto-save aanmaakt/bijwerkt (zie saveLessonDraft) — als
   // dit formulier een bestaand concept hervat, is dat meteen die rij.
@@ -175,6 +242,50 @@ export function LessonForm({
 
   function toggleDoelgroep(waarde: number) {
     form.setValue("doelgroep", applyDoelgroepToggle(form.getValues("doelgroep"), waarde));
+  }
+
+  function appendText(current: string, addition: string): string {
+    return current.trim().length === 0 ? addition : `${current}\n${addition}`;
+  }
+
+  // Verplaatst een "Niet geplaatst"-item alsnog naar een veld — tekstvelden
+  // krijgen het als nieuwe regel toegevoegd, lijstvelden (rules/
+  // learningOutcomes) als nieuw item, zie UnplacedContentPanel.
+  function handlePlaceUnplaced(index: number, field: UnplacedTargetField) {
+    const item = unplacedContent[index];
+    if (!item) return;
+
+    switch (field) {
+      case "rules":
+        setRules((prev) => [...prev, item.text]);
+        break;
+      case "learningOutcomes":
+        setLearningOutcomes((prev) => [...prev, item.text]);
+        break;
+      default:
+        form.setValue(field, appendText(form.getValues(field), item.text));
+        break;
+    }
+
+    setMovedFromUnplacedFields((prev) => new Set(prev).add(field));
+    setUnplacedContent((prev) => prev.filter((_, i) => i !== index));
+    scheduleAutosave();
+  }
+
+  function handleDiscardUnplaced(index: number) {
+    setUnplacedContent((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleUseImageAsBackground(imageUrl: string) {
+    setReferenceImageUrlForEditor(imageUrl);
+    setImagesBannerDismissed(true);
+    toast.success(
+      "Afbeelding ingesteld als natekenreferentie — open 'Plattegrond bewerken' om 'm te zien.",
+    );
+  }
+
+  function handleDiscardImportImages() {
+    setImagesBannerDismissed(true);
   }
 
   // Auto-save: slaat de huidige stand van het formulier op als concept
@@ -484,6 +595,18 @@ export function LessonForm({
       if ("error" in result) {
         toast.error(result.error);
         return;
+      }
+
+      // Feedbacklus (zie de brief "Herbouw de activiteit-import", Deel 5):
+      // zonder persoonsgegevens loggen welke velden de gebruiker ná import
+      // heeft aangepast t.o.v. wat de AI had ingevuld, plus welke "Niet
+      // geplaatst"-items alsnog verplaatst zijn — zichtbaar op
+      // /beheer/ai-import om probleemdocumenten/-velden te herkennen.
+      if (initialImportJobId) {
+        const editedFields = IMPORT_TRACKED_FIELDS.filter(
+          (field) => JSON.stringify(payload[field]) !== JSON.stringify(initialValues?.[field]),
+        );
+        void logImportFeedback(initialImportJobId, editedFields, Array.from(movedFromUnplacedFields));
       }
 
       if (result.status === "rejected") {
@@ -834,6 +957,20 @@ export function LessonForm({
           </div>
         )}
 
+        {initialImportJobId && !imagesBannerDismissed && (
+          <ImportImageReviewBanner
+            jobId={initialImportJobId}
+            onUseAsBackground={handleUseImageAsBackground}
+            onDiscard={handleDiscardImportImages}
+          />
+        )}
+
+        <UnplacedContentPanel
+          items={unplacedContent}
+          onPlace={handlePlaceUnplaced}
+          onDiscard={handleDiscardUnplaced}
+        />
+
         <ActivityWizardPage
           mode="edit"
           defaultTab={initialScrollTarget}
@@ -889,8 +1026,18 @@ export function LessonForm({
           onDeelnemersRegelsChange={(value) => form.setValue("deelnemersRegels", value)}
           deelnemersRegelsFlagged={isFieldFlagged("deelnemersRegels")}
           plaatjePraatje={plaatjePraatje}
-          onPlaatjePraatjeChange={(value) => form.setValue("plaatjePraatje", value)}
+          onPlaatjePraatjeChange={(value) => {
+            form.setValue("plaatjePraatje", value);
+            if (pendingAiSuggestionFields.has("plaatjePraatje")) {
+              setPendingAiSuggestionFields((prev) => {
+                const next = new Set(prev);
+                next.delete("plaatjePraatje");
+                return next;
+              });
+            }
+          }}
           plaatjePraatjeFlagged={isFieldFlagged("plaatjePraatje")}
+          plaatjePraatjeIsAiSuggestion={pendingAiSuggestionFields.has("plaatjePraatje")}
           aandachtspunten={aandachtspunten}
           onAandachtspuntenChange={(value) => form.setValue("aandachtspunten", value)}
           aandachtspuntenFlagged={isFieldFlagged("aandachtspunten")}
@@ -906,6 +1053,8 @@ export function LessonForm({
           diagramData={diagram?.data ?? null}
           diagramImageUrl={diagram?.imageDataUrl ?? null}
           onDiagramExport={(data, imageDataUrl) => void handleDiagramSave(data, imageDataUrl)}
+          referenceImageUrl={referenceImageUrlForEditor}
+          lowConfidenceFields={initialLowConfidenceFields}
           didacticItems={didacticItems}
           onDidacticItemsChange={setDidacticItems}
           onCommit={scheduleAutosave}

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "check:bundle-size": "node scripts/check-bundle-size.mjs",
     "migrate:activiteiten": "node --env-file=.env.local scripts/migrate-activiteiten.mjs",
+    "eval:import": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file=.env.local scripts/eval-import.mjs",
     "mobile:icons": "node scripts/generate-app-icon.mjs",
     "mobile:sync": "cap sync",
     "mobile:ios": "cap open ios",

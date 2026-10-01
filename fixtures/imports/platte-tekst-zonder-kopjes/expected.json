@@ -1,0 +1,9 @@
+{
+  "fields": {
+    "title": ["Kooitikkertje"],
+    "beschrijving": ["kooi"],
+    "aandachtspunten": ["duwen"],
+    "arrangement": ["pionnen"],
+    "baseMaterials": ["pionnen"]
+  }
+}

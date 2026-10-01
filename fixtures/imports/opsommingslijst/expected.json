@@ -1,0 +1,9 @@
+{
+  "fields": {
+    "title": ["Vossenjacht"],
+    "rules": ["tikken"],
+    "arrangement": ["basketbalveld"],
+    "baseMaterials": ["foamballen"],
+    "aandachtspunten": ["hoofd"]
+  }
+}

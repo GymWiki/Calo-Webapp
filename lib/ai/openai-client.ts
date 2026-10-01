@@ -6,10 +6,19 @@ export const EMBEDDING_MODEL =
   process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
 
 // CHECK_MODEL is voor de goedkopere, structureel eenvoudigere "check"-taken
-// — kwaliteitscontrole, AI Lescoach-feedback en document-extractie — die
-// geen gpt-4o-niveau nodig hebben. Zie modelPricing.ts voor de bijbehorende
-// kosten per model.
+// — kwaliteitscontrole, AI Lescoach-feedback en de "Plaatje & Praatje"-
+// suggestiegeneratie bij documentimport (lib/ai/activityImportExtraction.ts)
+// — die geen gpt-4o-niveau nodig hebben. Zie modelPricing.ts voor de
+// bijbehorende kosten per model.
 export const CHECK_MODEL = process.env.OPENAI_CHECK_MODEL || "gpt-4o-mini";
+
+// DOCUMENT_EXTRACTION_MODEL is specifiek voor de hoofdstap van "Activiteit uit
+// document": het model krijgt een PDF/foto rechtstreeks als bestand/afbeelding
+// (OpenAI Responses API, input_file/input_image) en moet zowel tekst als
+// visuele lay-out (tabellen, kolommen, plattegronden) correct lezen — dat
+// vereist een volwaardig GPT-4o-niveau model, bewust NIET de -mini-variant
+// die elders in dit project voor "check"-taken gebruikt wordt.
+export const DOCUMENT_EXTRACTION_MODEL = process.env.OPENAI_DOCUMENT_EXTRACTION_MODEL || "gpt-4o";
 
 // Tied to the fallback embedding model above (text-embedding-3-small) and
 // to the `vector(1536)` column width in schema_kennisbank.sql — if

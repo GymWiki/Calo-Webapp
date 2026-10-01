@@ -1,6 +1,11 @@
-import { extractDocumentText } from "@/lib/ai/documentText";
-import { extractActivityFromText } from "@/lib/ai/activityImportExtraction";
-import { CHECK_MODEL } from "@/lib/ai/openai-client";
+import { ImportNormalizationError, normalizeForImport } from "@/lib/ai/documentNormalization";
+import {
+  extractActivityFromDocument,
+  generatePlaatjePraatjeSuggestion,
+  type ExtractedActivity,
+} from "@/lib/ai/activityImportExtraction";
+import { computeUnplacedContent, type UnplacedContentItem } from "@/lib/ai/extractedActivityMapping";
+import { CHECK_MODEL, DOCUMENT_EXTRACTION_MODEL } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
 import { checkAndRecordAiUsage } from "@/lib/ai/usage";
 import { aiMappingUserMessage as sharedAiMappingUserMessage, logAiFailure } from "@/lib/ai/aiErrorMessages";
@@ -8,12 +13,24 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BUCKET = "activity-imports";
 
-const EXTRACTION_ERROR =
-  "Kon geen tekst uit dit bestand halen. Probeer een ander bestand of vul de activiteit handmatig in.";
 const AI_MAPPING_ERROR =
   "De AI kon de inhoud van dit bestand niet goed omzetten naar een activiteit. Probeer het opnieuw of vul de activiteit handmatig in.";
 const QUOTA_ERROR =
   "Je hebt je AI-checks voor deze maand gebruikt. Probeer het volgende maand opnieuw.";
+
+const ATTACHMENT_EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/bmp": "bmp",
+};
+
+export type ActivityImportResult = {
+  activity: ExtractedActivity;
+  plaatjePraatjeSuggestion: string;
+  unplacedContent: UnplacedContentItem[];
+  extractedImages: { storagePath: string }[];
+};
 
 function logFailure(jobId: string, stage: string, cause: unknown) {
   logAiFailure(`activity-import[${jobId}]`, stage, cause);
@@ -48,16 +65,47 @@ async function failJob(
   });
 }
 
+// Uploadt de uit het document gehaalde afbeeldingen (plattegronden, foto's —
+// zie lib/ai/documentNormalization.ts) naar dezelfde Storage-bucket als het
+// brondocument, onder een losse images/-submap. Eén falende afbeelding faalt
+// niet de hele job — dat is bijvangst, geen kernresultaat.
+async function uploadExtractedImages(
+  supabase: SupabaseClient,
+  userId: string,
+  jobId: string,
+  attachments: Array<{ mimeType: string; base64: string }>,
+): Promise<{ storagePath: string }[]> {
+  const uploaded: { storagePath: string }[] = [];
+  for (const [index, attachment] of attachments.entries()) {
+    const extension = ATTACHMENT_EXTENSIONS[attachment.mimeType];
+    if (!extension) continue;
+
+    const storagePath = `${userId}/${jobId}/images/${index}.${extension}`;
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(storagePath, Buffer.from(attachment.base64, "base64"), {
+        contentType: attachment.mimeType,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error(`activity-import[${jobId}]: upload van geëxtraheerde afbeelding ${index} mislukt:`, error.message);
+      continue;
+    }
+    uploaded.push({ storagePath });
+  }
+  return uploaded;
+}
+
 /**
  * Voert de volledige verwerkingspijplijn van een activity-import-job uit:
- * bestand ophalen uit Storage -> tekst extraheren -> AI-mapping -> resultaat
- * wegschrijven. Bewust NIET een "use server"-bestand en niet rechtstreeks
- * geïmporteerd door een route/actie die zelf de request-body zou moeten
- * verwerken — dit ontvangt alleen een jobId, en haalt het bestand zelf op
- * uit Storage (uitgaand verkeer vanuit de functie, dus geen inkomend-
- * request-bodylimiet meer relevant). Elke stap logt expliciet met het jobId
- * erin, zodat een toekomstig probleem in seconden te lokaliseren is i.p.v.
- * dagen puzzelen over welke stap precies faalde.
+ * bestand ophalen uit Storage -> normaliseren (lib/ai/documentNormalization.ts)
+ * -> AI-extractie + Plaatje&Praatje-generatie -> resultaat wegschrijven.
+ * Bewust NIET een "use server"-bestand en niet rechtstreeks geïmporteerd
+ * door een route/actie die zelf de request-body zou moeten verwerken — dit
+ * ontvangt alleen een jobId, en haalt het bestand zelf op uit Storage
+ * (uitgaand verkeer vanuit de functie, dus geen inkomend-request-
+ * bodylimiet meer relevant). Elke stap logt expliciet met het jobId erin.
  */
 export async function runActivityImportJob(
   supabase: SupabaseClient,
@@ -74,7 +122,7 @@ export async function runActivityImportJob(
     .eq("id", jobId)
     .eq("user_id", userId)
     .eq("status", "uploaded")
-    .select("storage_path, mime_type")
+    .select("storage_path, mime_type, original_filename")
     .maybeSingle();
 
   if (claimError) {
@@ -104,27 +152,35 @@ export async function runActivityImportJob(
     return;
   }
 
-  let text: string;
+  let normalized: Awaited<ReturnType<typeof normalizeForImport>>;
   try {
     const buffer = Buffer.from(await fileBlob.arrayBuffer());
-    text = await extractDocumentText(buffer, claimed.mime_type);
+    normalized = await normalizeForImport(buffer, claimed.mime_type, claimed.original_filename);
   } catch (cause) {
-    logFailure(jobId, "extractie", cause);
-    await failJob(supabase, jobId, "extraction", cause instanceof Error ? cause.message : EXTRACTION_ERROR);
+    logFailure(jobId, "normalisatie", cause);
+    const message =
+      cause instanceof ImportNormalizationError
+        ? cause.message
+        : "Kon dit bestand niet lezen. Probeer een ander bestand of vul de activiteit handmatig in.";
+    await failJob(supabase, jobId, "extraction", message);
     return;
   }
 
-  if (!text.trim()) {
+  if (normalized.input.kind === "text" && !normalized.input.text.trim()) {
     await failJob(
       supabase,
       jobId,
       "extraction",
-      "Er is geen leesbare tekst gevonden in dit bestand. Is het een gescand document zonder tekstlaag? Vul de activiteit dan handmatig in.",
+      "Er is geen leesbare tekst gevonden in dit bestand. Is het een gescand document zonder tekstlaag? Vul de activiteit dan handmatig in, of upload een foto zodat de AI het visueel kan lezen.",
     );
     return;
   }
 
-  console.log(`activity-import[${jobId}]: extractie klaar (${text.length} tekens) — AI-mapping gestart`);
+  const extractedImages = await uploadExtractedImages(supabase, userId, jobId, normalized.attachments);
+
+  console.log(
+    `activity-import[${jobId}]: normalisatie klaar (${normalized.input.kind}, ${extractedImages.length} afbeelding(en)) — AI-extractie gestart`,
+  );
   await updateJob(supabase, jobId, { status: "mapping" });
 
   const usage = await checkAndRecordAiUsage(supabase, userId, "extract-activity");
@@ -134,12 +190,12 @@ export async function runActivityImportJob(
   }
 
   try {
-    const { activity, inputTokens, outputTokens } = await extractActivityFromText(text, jobId);
+    const { activity, inputTokens, outputTokens } = await extractActivityFromDocument(normalized.input, jobId);
 
     await recordAiUsage(supabase, {
       userId,
       feature: "activity_import_extraction",
-      model: CHECK_MODEL,
+      model: DOCUMENT_EXTRACTION_MODEL,
       inputTokens,
       outputTokens,
     });
@@ -154,19 +210,26 @@ export async function runActivityImportJob(
       return;
     }
 
-    // Stap 4 van de brief: een leeg gebleven titel terwijl het document
-    // duidelijk substantiële inhoud had, is het duidelijkste signaal dat de
-    // AI iets miste (situatie a, geen bug in het document zelf) — apart
-    // loggen zodat dit patroon herkenbaar blijft voor toekomstige
-    // promptverfijning, los van de gewone jobstatus.
-    if (!activity.title && text.trim().length > 200) {
-      console.warn(
-        `activity-import[${jobId}]: AI-mapping gaf geen titel terug ondanks ${text.trim().length} tekens brontekst — mogelijk gemist veld, controleer de prompt.`,
-      );
-    }
+    const plaatjePraatje = await generatePlaatjePraatjeSuggestion(activity, jobId);
+    await recordAiUsage(supabase, {
+      userId,
+      feature: "activity_import_plaatjepraatje_generation",
+      model: CHECK_MODEL,
+      inputTokens: plaatjePraatje.inputTokens,
+      outputTokens: plaatjePraatje.outputTokens,
+    });
 
-    console.log(`activity-import[${jobId}]: AI-mapping klaar`);
-    await updateJob(supabase, jobId, { status: "done", result: activity });
+    const result: ActivityImportResult = {
+      activity,
+      plaatjePraatjeSuggestion: plaatjePraatje.value,
+      unplacedContent: computeUnplacedContent(activity),
+      extractedImages,
+    };
+
+    console.log(
+      `activity-import[${jobId}]: AI-extractie klaar — ${result.unplacedContent.length} niet-geplaatst item(s)`,
+    );
+    await updateJob(supabase, jobId, { status: "done", result });
   } catch (cause) {
     logFailure(jobId, "AI-mapping", cause);
     await failJob(supabase, jobId, "mapping", aiMappingUserMessage(cause));

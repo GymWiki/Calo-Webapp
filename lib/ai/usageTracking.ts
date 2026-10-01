@@ -7,6 +7,7 @@ export type AiUsageFeature =
   | "ai_lescoach"
   | "knowledge_base_embedding"
   | "activity_import_extraction"
+  | "activity_import_plaatjepraatje_generation"
   | "taalcheck";
 
 /**

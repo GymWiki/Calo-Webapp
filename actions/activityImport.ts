@@ -2,9 +2,8 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import { SUPPORTED_DOCUMENT_MIME_TYPES } from "@/lib/ai/documentTypes";
-import { runActivityImportJob } from "@/lib/ai/activityImportProcessor";
-import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
+import { SUPPORTED_IMPORT_MIME_TYPES } from "@/lib/ai/documentNormalization";
+import { runActivityImportJob, type ActivityImportResult } from "@/lib/ai/activityImportProcessor";
 
 // Serverless functions (Vercel) hebben een harde request-bodylimiet van
 // 4,5MB, ONGEACHT Next's eigen `serverActions.bodySizeLimit`-config — die
@@ -62,8 +61,11 @@ export async function createActivityImportJob(input: {
     return { error: "Je bent niet ingelogd." };
   }
 
-  if (!(SUPPORTED_DOCUMENT_MIME_TYPES as readonly string[]).includes(input.mimeType)) {
-    return { error: "Alleen PDF, Word (.docx), PowerPoint (.pptx) en tekstbestanden worden ondersteund." };
+  if (!(SUPPORTED_IMPORT_MIME_TYPES as readonly string[]).includes(input.mimeType)) {
+    return {
+      error:
+        "Alleen PDF, Word (.docx), PowerPoint (.pptx), OpenDocument (.odt), tekst-/markdownbestanden en JPG/PNG-foto's worden ondersteund.",
+    };
   }
 
   // De storage-path hoort te beginnen met de eigen user id — zo niet, dan
@@ -126,7 +128,7 @@ export type ActivityImportJobStatus = {
   status: "uploaded" | "extracting" | "mapping" | "done" | "failed";
   errorStage: "extraction" | "mapping" | null;
   errorMessage: string | null;
-  result: ExtractedActivity | null;
+  result: ActivityImportResult | null;
 };
 
 export async function getActivityImportJobStatus(
@@ -161,4 +163,96 @@ export async function getActivityImportJobStatus(
     errorMessage: data.error_message,
     result: data.result,
   };
+}
+
+const IMAGE_SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 uur
+
+/**
+ * Ondertekent de Storage-paden van de uit het document gehaalde afbeeldingen
+ * (zie activityImportProcessor.ts's uploadExtractedImages) — opnieuw
+ * opgevraagd bij elke render van ImportImageReviewBanner i.p.v. één keer bij
+ * job-voltooiing gecachet, want de gebruiker kan pas veel later (na de rest
+ * van het formulier in te vullen) hierop klikken, ruim voorbij de geldigheid
+ * van een eerder ondertekende URL.
+ */
+export async function getActivityImportImageUrls(
+  jobId: string,
+): Promise<{ error: string } | { success: true; images: { storagePath: string; url: string }[] }> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Je bent niet ingelogd." };
+  }
+
+  const { data, error } = await supabase
+    .from("activity_import_jobs")
+    .select("result")
+    .eq("id", jobId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error || !data?.result) {
+    return { error: "Verwerkingsresultaat niet gevonden." };
+  }
+
+  const result = data.result as ActivityImportResult;
+  const images: { storagePath: string; url: string }[] = [];
+
+  for (const { storagePath } of result.extractedImages) {
+    const { data: signed, error: signError } = await supabase.storage
+      .from("activity-imports")
+      .createSignedUrl(storagePath, IMAGE_SIGNED_URL_TTL_SECONDS);
+
+    if (signError || !signed) {
+      console.error(`getActivityImportImageUrls[${jobId}]: ondertekenen van ${storagePath} mislukt:`, signError?.message);
+      continue;
+    }
+    images.push({ storagePath, url: signed.signedUrl });
+  }
+
+  return { success: true, images };
+}
+
+// Welke velden een gebruiker na import heeft aangepast/verplaatst — zonder
+// persoonsgegevens (alleen veldnaam + wijzigingstype, geen tekstinhoud), zie
+// supabase/migrations/activity_import_feedback.sql. Gebruikt door
+// lib/services/importFeedback.ts's admin-aggregatie op /beheer/ai-import om
+// probleemvelden/-documenten te herkennen voor de testset.
+export async function logImportFeedback(
+  jobId: string,
+  editedFields: string[],
+  movedFromUnplacedFields: string[],
+): Promise<{ error: string } | { success: true }> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Je bent niet ingelogd." };
+  }
+
+  const rows = [
+    ...editedFields.map((field_name) => ({ field_name, change_type: "edited" as const })),
+    ...movedFromUnplacedFields.map((field_name) => ({ field_name, change_type: "moved_from_unplaced" as const })),
+  ].map((row) => ({ ...row, job_id: jobId, user_id: user.id }));
+
+  if (rows.length === 0) {
+    return { success: true };
+  }
+
+  const { error } = await supabase.from("activity_import_feedback").insert(rows);
+  if (error) {
+    console.error("logImportFeedback: kon feedback niet loggen:", error.message);
+    return { error: "Kon feedback niet loggen." };
+  }
+
+  return { success: true };
 }

@@ -8,18 +8,21 @@ import {
   useState,
   useSyncExternalStore,
   type PointerEvent as ReactPointerEvent,
+  type RefObject,
 } from "react";
 import type Konva from "konva";
 import {
   Arrow,
   Circle,
   Group,
+  Image as KonvaImage,
   Layer,
   Line,
   Rect,
   Stage,
   Transformer,
 } from "react-konva";
+import useImage from "use-image";
 import {
   ArrowLeftRight,
   ArrowRight,
@@ -184,6 +187,34 @@ function clamp(value: number, min: number, max: number) {
 export type GymCanvasHandle = {
   exportDiagram: () => { data: DiagramData; imageDataUrl: string };
 };
+
+// Referentielaag ("Activiteit uit document"): toont een geëxtraheerd
+// document-beeld (plattegrond/foto, zie lib/ai/documentNormalization.ts) op
+// lage dekking tussen de achtergrond en de elementen, zodat de gebruiker het
+// kan natekenen met echte materiaal-iconen/lijnen i.p.v. een letterlijke
+// foto als eindresultaat te houden. Los subcomponentje i.p.v. de
+// useImage-hook direct in GymCanvas aanroepen — useImage mag niet
+// voorwaardelijk aangeroepen worden, en referenceImageUrl is vaak null/undefined.
+function ReferenceImageLayer({
+  url,
+  width,
+  height,
+  layerRef,
+}: {
+  url: string;
+  width: number;
+  height: number;
+  layerRef: RefObject<Konva.Layer | null>;
+}) {
+  const [image] = useImage(url, "anonymous");
+  if (!image) return null;
+
+  return (
+    <Layer ref={layerRef} listening={false} opacity={0.32}>
+      <KonvaImage image={image} x={0} y={0} width={width} height={height} />
+    </Layer>
+  );
+}
 
 function createId() {
   return `el-${Math.random().toString(36).slice(2, 10)}`;
@@ -741,8 +772,8 @@ function resolveSnap(
 
 export const GymCanvas = forwardRef<
   GymCanvasHandle,
-  { initialData?: DiagramData | null }
->(function GymCanvas({ initialData }, ref) {
+  { initialData?: DiagramData | null; referenceImageUrl?: string | null }
+>(function GymCanvas({ initialData, referenceImageUrl }, ref) {
   const [elements, setElements] = useState<DiagramElement[]>(
     initialData?.elements ?? [],
   );
@@ -800,6 +831,10 @@ export const GymCanvas = forwardRef<
   // worden vóór het exporteren (zie exportDiagram hieronder), net als de
   // Transformer zelf.
   const lineHandleRefs = useRef<Map<string, Konva.Circle>>(new Map());
+  // Referentielaag (zie ReferenceImageLayer) — moet expliciet verborgen
+  // worden vóór export, net als de Transformer/lijn-handles, anders zou de
+  // referentiefoto in de opgeslagen vector-plattegrond-afbeelding lekken.
+  const referenceLayerRef = useRef<Konva.Layer | null>(null);
   // Pinch-to-zoom-gebaar-status — bewaart de vorige frame-afstand/middelpunt
   // tussen de twee vingers, zodat elke touchmove alleen het VERSCHIL sinds
   // de vorige frame hoeft te verwerken. null = geen 2-vinger-gebaar bezig.
@@ -885,6 +920,11 @@ export const GymCanvas = forwardRef<
       // niet op tijd voor deze synchrone toDataURL-aanroep (React rendert
       // pas ná deze functie) — daarom hier ook expliciet, imperatief.
       lineHandleRefs.current.forEach((circle) => circle.visible(false));
+      // Referentielaag verbergen vóór export: een document-beeld is een
+      // hulpmiddel om na te tekenen, geen onderdeel van het uiteindelijke
+      // vector-plattegrond-eindresultaat — zelfde patroon als de
+      // Transformer/lijn-handles hierboven.
+      referenceLayerRef.current?.visible(false);
       stageRef.current?.batchDraw();
       setSelectedId(null);
 
@@ -1877,6 +1917,14 @@ export const GymCanvas = forwardRef<
               <Layer>
                 <GymBackground viewMode={viewMode} locationType={locationType} />
               </Layer>
+              {referenceImageUrl && (
+                <ReferenceImageLayer
+                  url={referenceImageUrl}
+                  width={BASE_WIDTH}
+                  height={BASE_HEIGHT}
+                  layerRef={referenceLayerRef}
+                />
+              )}
               <Layer>
                 {elements.map((el) => {
                   if (el.kind === "line") {

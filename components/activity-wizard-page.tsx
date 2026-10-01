@@ -63,10 +63,36 @@ const SAVE_STATUS_LABELS: Record<"saving" | "saved" | "error", string> = {
 // de "verrassing" die de brief wil voorkomen.
 const WIZARD_CATEGORY_COLOR = getCategoryColor(null);
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+function SectionHeading({
+  children,
+  lowConfidence,
+  aiSuggestion,
+}: {
+  children: React.ReactNode;
+  /** Herbouwde documentimport: de AI vulde dit veld wél, maar merkte het
+   * zelf als onzeker aan (confidence:"low") — zie
+   * lib/ai/extractedActivityMapping.ts's computeLowConfidenceFields. Los van
+   * de bestaande amber "verplicht"-rand (IMPORT_FLAG_CLASS), die alleen bij
+   * een LEGE waarde iets toont. */
+  lowConfidence?: boolean;
+  /** Plaatje & Praatje: dit veld komt nooit uit het document, maar is apart
+   * gegenereerd — ander label/kleur dan lowConfidence (dat betekent "AI
+   * twijfelde over een WEL gevonden waarde"). */
+  aiSuggestion?: boolean;
+}) {
   return (
-    <h3 className="mb-2 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+    <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
       {children}
+      {lowConfidence && (
+        <Badge variant="secondary" className="normal-case tracking-normal text-amber-700 dark:text-amber-300">
+          AI onzeker — controleer
+        </Badge>
+      )}
+      {aiSuggestion && (
+        <Badge variant="secondary" className="normal-case tracking-normal text-primary">
+          AI-voorstel — controleer
+        </Badge>
+      )}
     </h3>
   );
 }
@@ -190,6 +216,7 @@ export function ActivityWizardPage({
   diagramData,
   diagramImageUrl,
   onDiagramExport,
+  referenceImageUrl,
 
   didacticItems,
   onDidacticItemsChange,
@@ -199,6 +226,8 @@ export function ActivityWizardPage({
   isSubmitting,
   missingFields,
   jumpToFieldTrigger,
+  lowConfidenceFields,
+  plaatjePraatjeIsAiSuggestion,
   usedKnowledgeSources,
   lescoachSuggestions,
   onApplyLescoachSuggestion,
@@ -309,6 +338,11 @@ export function ActivityWizardPage({
   diagramData?: DiagramData | null;
   diagramImageUrl: string | null;
   onDiagramExport?: (data: DiagramData, imageDataUrl: string) => void;
+  /** Uit een geüpload document gehaald beeld ("Activiteit uit document",
+   * ImportImageReviewBanner) — getoond als semi-transparante natekenreferentie
+   * in de canvas-editor, nooit zelf opgeslagen. Alleen relevant in
+   * mode="edit". */
+  referenceImageUrl?: string | null;
 
   didacticItems: DidacticItem[];
   onDidacticItemsChange?: (items: DidacticItem[]) => void;
@@ -333,6 +367,16 @@ export function ActivityWizardPage({
    * naar het genoemde veld (tab wisselen indien nodig + scrollen + focus),
    * ook als het dezelfde veldnaam is als de vorige mislukte poging. */
   jumpToFieldTrigger?: { field: RequiredFieldKey; requestId: number } | null;
+  /** Herbouwde documentimport: velden die de AI wél invulde maar zelf als
+   * onzeker aanmerkte — toont een amber "AI onzeker — controleer"-badge naast
+   * de sectiekop, los van de bestaande "verplicht"-markering. Alleen
+   * relevant in mode="edit". */
+  lowConfidenceFields?: Set<string>;
+  /** Plaatje & Praatje wordt bij een import NOOIT uit het document gehaald
+   * maar altijd apart gegenereerd — toont een "AI-voorstel — controleer"-
+   * badge totdat de gebruiker het veld zelf wijzigt. Alleen relevant in
+   * mode="edit". */
+  plaatjePraatjeIsAiSuggestion?: boolean;
   /** De Kennisbank-fragmenten die de AI daadwerkelijk gebruikte voor deze
    * activiteit (generatie, kwaliteitscheck en/of AI Lescoach) — backt de
    * "Gebruikte bronnen"-sectie hieronder. Leeg/undefined toont geen sectie. */
@@ -389,6 +433,10 @@ export function ActivityWizardPage({
   const hasBeginsituatieSection = Boolean(movementProblem) || doelgroepLabels.length > 0;
   const normalizedLearningOutcomes = splitLearningOutcomeItems(learningOutcomes);
   const showThemeField = isEdit ? themeOptions.length > 0 : Boolean(movementTheme);
+
+  function isLowConfidence(field: string): boolean {
+    return isEdit && Boolean(lowConfidenceFields?.has(field));
+  }
 
   // Gecontroleerd i.p.v. Tabs' eigen `defaultValue`-state, zodat jumpToField
   // hieronder een tab kan omschakelen wanneer het gevraagde veld daarin
@@ -856,6 +904,7 @@ export function ActivityWizardPage({
                 onOpenChange={setDiagramModalOpen}
                 initialData={diagramData ?? null}
                 onSave={(data, imageDataUrl) => onDiagramExport?.(data, imageDataUrl)}
+                referenceImageUrl={referenceImageUrl}
               />
             </>
           ) : (
@@ -906,7 +955,7 @@ export function ActivityWizardPage({
             <CardContent className="space-y-5 pt-6">
               {(isEdit || goals) && (
                 <div id="field-goals">
-                  <SectionHeading>Doel</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("goals")}>Doel</SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={goals}
@@ -925,7 +974,7 @@ export function ActivityWizardPage({
 
               {(isEdit || beschrijving) && (
                 <div id="field-beschrijving">
-                  <SectionHeading>Beschrijving</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("beschrijving")}>Beschrijving</SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={beschrijving}
@@ -942,7 +991,9 @@ export function ActivityWizardPage({
 
               {(isEdit || hasBeginsituatieSection) && (
                 <div id="field-movementProblem">
-                  <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("movementProblem") || isLowConfidence("doelgroep")}>
+                    Beginsituatie &amp; Doelgroep
+                  </SectionHeading>
                   {doelgroepLabels.length > 0 && (
                     <div className={movementProblem || isEdit ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
                       {doelgroepLabels.map((label) => (
@@ -972,7 +1023,9 @@ export function ActivityWizardPage({
 
               {(isEdit || normalizedLearningOutcomes.length > 0) && (
                 <div>
-                  <SectionHeading>Leeruitkomsten</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("learningOutcomes")}>
+                    Leeruitkomsten
+                  </SectionHeading>
                   {isEdit ? (
                     <EditableList
                       items={learningOutcomes}
@@ -1000,7 +1053,9 @@ export function ActivityWizardPage({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div id="field-deelnemersRegels">
-                  <SectionHeading>Deelnemers &amp; Regels</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("deelnemersRegels")}>
+                    Deelnemers &amp; Regels
+                  </SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={deelnemersRegels}
@@ -1016,7 +1071,9 @@ export function ActivityWizardPage({
                   {renderSuggestions("deelnemersRegels")}
                 </div>
                 <div id="field-plaatjePraatje">
-                  <SectionHeading>Plaatje &amp; Praatje</SectionHeading>
+                  <SectionHeading aiSuggestion={isEdit && plaatjePraatjeIsAiSuggestion}>
+                    Plaatje &amp; Praatje
+                  </SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={plaatjePraatje}
@@ -1032,7 +1089,9 @@ export function ActivityWizardPage({
                   {renderSuggestions("plaatjePraatje")}
                 </div>
                 <div id="field-aandachtspunten" className="sm:col-span-2">
-                  <SectionHeading>Aandachtspunten</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("aandachtspunten")}>
+                    Aandachtspunten
+                  </SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={aandachtspunten}
@@ -1050,7 +1109,7 @@ export function ActivityWizardPage({
               </div>
 
               <div>
-                <SectionHeading>Regels</SectionHeading>
+                <SectionHeading lowConfidence={isLowConfidence("rules")}>Regels</SectionHeading>
                 {isEdit ? (
                   <EditableList
                     items={regels}
@@ -1083,7 +1142,9 @@ export function ActivityWizardPage({
           <Card>
             <CardContent className="space-y-5 pt-6">
               <div id="field-arrangement">
-                <SectionHeading>Veldafmetingen &amp; opstelling</SectionHeading>
+                <SectionHeading lowConfidence={isLowConfidence("arrangement")}>
+                  Veldafmetingen &amp; opstelling
+                </SectionHeading>
                 {isEdit ? (
                   <InlineEditText
                     value={arrangement}
@@ -1100,7 +1161,9 @@ export function ActivityWizardPage({
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <SectionHeading>Basismateriaal</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("baseMaterials")}>
+                    Basismateriaal
+                  </SectionHeading>
                   {isEdit ? (
                     <EditableList
                       items={baseMaterials}
@@ -1120,7 +1183,9 @@ export function ActivityWizardPage({
                   {renderSuggestions("baseMaterials")}
                 </div>
                 <div>
-                  <SectionHeading>Regelmateriaal</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("ruleMaterials")}>
+                    Regelmateriaal
+                  </SectionHeading>
                   {isEdit ? (
                     <EditableList
                       items={ruleMaterials}

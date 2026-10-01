@@ -6,6 +6,7 @@ import { FileUp, NotebookPen, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
+import type { UnplacedContentItem } from "@/lib/ai/extractedActivityMapping";
 import type { CreateLessonFormInput } from "@/types/lesson";
 import { ActivityUploadStep, type RequiredLessonFormField } from "./activity-upload-step";
 import { LessonForm } from "./lesson-form";
@@ -136,6 +137,17 @@ export function LesMakenFlow({
   const [uploadedFlaggedFields, setUploadedFlaggedFields] = useState<
     Set<RequiredLessonFormField> | undefined
   >(undefined);
+  // Herbouwde documentimport ("Activiteit uit document"): confidence-
+  // markering per veld, niet-geplaatste brontekst, en het jobId (voor de
+  // afbeeldingenbanner + feedbacklogging) — alleen gezet na een upload, niet
+  // na handmatig starten.
+  const [uploadedLowConfidenceFields, setUploadedLowConfidenceFields] = useState<Set<string> | undefined>(
+    undefined,
+  );
+  const [uploadedUnplacedContent, setUploadedUnplacedContent] = useState<UnplacedContentItem[] | undefined>(
+    undefined,
+  );
+  const [uploadedImportJobId, setUploadedImportJobId] = useState<string | undefined>(undefined);
 
   if (mode === "choice") {
     return (
@@ -164,9 +176,12 @@ export function LesMakenFlow({
     return (
       <ActivityUploadStep
         onCancel={() => setMode("choice")}
-        onExtracted={(values, flaggedEmptyFields) => {
-          setUploadedValues(values);
-          setUploadedFlaggedFields(flaggedEmptyFields);
+        onExtracted={(outcome) => {
+          setUploadedValues(outcome.values);
+          setUploadedFlaggedFields(outcome.flaggedEmptyFields);
+          setUploadedLowConfidenceFields(outcome.lowConfidenceFields);
+          setUploadedUnplacedContent(outcome.unplacedContent);
+          setUploadedImportJobId(outcome.jobId);
           setMode("form");
         }}
       />
@@ -190,6 +205,9 @@ export function LesMakenFlow({
       teamName={teamName}
       isEditingTeamActivity={uploadedValues ? false : isEditingTeamActivity}
       initialVersion={initialVersion}
+      initialLowConfidenceFields={uploadedValues ? uploadedLowConfidenceFields : undefined}
+      initialUnplacedContent={uploadedValues ? uploadedUnplacedContent : undefined}
+      initialImportJobId={uploadedValues ? uploadedImportJobId : undefined}
     />
   );
 }

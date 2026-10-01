@@ -1,201 +1,182 @@
 import { z } from "zod";
+import { zodTextFormat } from "openai/helpers/zod";
 
-import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
+import { CHECK_MODEL, DOCUMENT_EXTRACTION_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { BEWEGINGSTHEMAS, ALL_LEARNING_LINES } from "@/lib/constants/learningLines";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN } from "@/types/activity";
 import { DIDACTIC_CATEGORIES, DIDACTIC_SUBTHEMES } from "@/types/lesson";
+import type { NormalizedImportInput } from "@/lib/ai/documentNormalization";
 
-// De doelvelden zijn nu een (bijna) 1-op-1 spiegel van CreateLessonFormInput
-// (types/lesson.ts) — vóór deze herziening had ExtractedActivity maar ~10
-// velden terwijl het wizardformulier (de ENIGE plek waar een activiteit
-// wordt aangemaakt, zie les-maken/lesson-flow.tsx) er ~20 heeft. Dat
-// structurele gat was de daadwerkelijke oorzaak van "het document bevat dit
-// wel, maar het veld blijft leeg": de AI had voor movementTheme,
-// ruleMaterials, minParticipants/participantsBench, aandachtspunten,
-// didacticItems letterlijk geen plek om iets in te zetten, ongeacht hoe goed
-// de brontekst was.
+// Herbouw van "Activiteit uit document": elk veld is hieronder gedefinieerd op
+// BETEKENIS ("wat betekent dit veld, functioneel"), niet op een verwacht
+// kopje — de vorige versie van dit bestand ging ervan uit dat een document
+// ongeveer dezelfde koppen/volgorde gebruikte als de twee few-shot-
+// voorbeelden, en viel daarbuiten grotendeels stil. Zie het plan-bestand van
+// deze sessie voor de volledige veld-voor-veld-herleiding uit de echte
+// UI-labels/placeholders in components/activity-wizard-page.tsx (niet geraden).
+//
+// Twee onafhankelijke, bewuste ontwerpkeuzes:
+// 1. Elk inhoudelijk veld is gewrapt in {value, confidence, sourceFragment} —
+//    "confidence" laat het formulier later markeren welke velden de
+//    gebruiker extra moet controleren, "sourceFragment" is een (kort,
+//    letterlijk) citaat uit het document dat de waarde onderbouwt, puur voor
+//    menselijke verificatie. Strict Structured Outputs staat GEEN .optional()
+//    toe (elke key moet aanwezig zijn) — vandaar overal .nullable() i.p.v.
+//    .optional() voor "niet gevonden".
+// 2. "unplacedContent" is de dekkingscheck: in plaats van een eigen
+//    tekst-vergelijkingsalgoritme (brontekst vs. ingevulde velden) te bouwen
+//    — notoir onbetrouwbaar zodra het model ook maar licht herformuleert,
+//    herordent, of opmaak toevoegt — rapporteert het model dit ZELF. Het
+//    heeft de volledige brontekst al gezien; een zelfrapportage is
+//    betrouwbaarder (hoger bereik, geen valse positieven door toevallige
+//    woordoverlap) dan een na-de-feit-diff. Bewust gedocumenteerd hier zodat
+//    een latere lezer niet alsnog een fragiele heuristiek erbovenop bouwt.
+const confidenceSchema = z.enum(["high", "low"]);
+
+function field<T extends z.ZodTypeAny>(valueSchema: T) {
+  return z.object({
+    value: valueSchema,
+    confidence: confidenceSchema,
+    sourceFragment: z.string().nullable(),
+  });
+}
+
 const didacticItemExtractionSchema = z.object({
   category: z.enum(DIDACTIC_CATEGORIES),
-  subTheme: z.string().trim().nullable(),
-  observation: z.string().trim().nullable(),
-  action: z.string().trim().nullable(),
+  subTheme: z.string().nullable(),
+  observation: z.string(),
+  action: z.string(),
 });
 
-const rawExtractionSchema = z.object({
+const extractedActivitySchema = z.object({
   isMovementActivity: z.boolean(),
-  title: z.string().trim().nullable(),
-  learningLine: z.string().trim().nullable(),
-  doelgroep: z.array(z.number()).nullable(),
-  movementProblem: z.string().trim().nullable(),
-  movementTheme: z.string().trim().nullable(),
-  baseMaterials: z.array(z.string().trim()).nullable(),
-  ruleMaterials: z.array(z.string().trim()).nullable(),
-  minParticipants: z.number().int().nullable(),
-  participantsBench: z.number().int().nullable(),
-  rules: z.array(z.string().trim()).nullable(),
-  goals: z.string().trim().nullable(),
-  arrangement: z.string().trim().nullable(),
-  deelnemersRegels: z.string().trim().nullable(),
-  plaatjePraatje: z.string().trim().nullable(),
-  aandachtspunten: z.string().trim().nullable(),
-  didacticItems: z.array(didacticItemExtractionSchema).nullable(),
+
+  title: field(z.string().nullable()),
+  movementTheme: field(z.string().nullable()),
+  learningLine: field(z.string().nullable()),
+
+  goals: field(z.string().nullable()),
+  beschrijving: field(z.string().nullable()),
+  rules: field(z.array(z.string())),
+  learningOutcomes: field(z.array(z.string())),
+  aandachtspunten: field(z.string().nullable()),
+
+  movementProblem: field(z.string().nullable()),
+  doelgroep: field(z.array(z.number().int())),
+  minParticipants: field(z.number().int().nullable()),
+  participantsBench: field(z.number().int().nullable()),
+
+  baseMaterials: field(z.array(z.string())),
+  ruleMaterials: field(z.array(z.string())),
+
+  didacticItems: field(z.array(didacticItemExtractionSchema)),
+
+  deelnemersRegels: field(z.string().nullable()),
+  arrangement: field(z.string().nullable()),
+
+  // "duur" heeft in dit datamodel geen bestemmingsveld (geen duration-kolom
+  // nergens in types/lesson.ts of de activiteiten-tabel) — toch extraheren
+  // zodat het niet verloren gaat; de processor zet een gevonden waarde zelf
+  // om in een unplacedContent-item (zie extractedActivityMapping.ts).
+  durationMinutes: field(z.number().int().nullable()),
+
+  unplacedContent: z.array(
+    z.object({
+      text: z.string(),
+      note: z.string().nullable(),
+    }),
+  ),
 });
 
-export type ExtractedActivity = {
-  isMovementActivity: boolean;
-  title: string | null;
-  learningLine: string | null;
-  doelgroep: number[] | null;
-  movementProblem: string | null;
-  movementTheme: string | null;
-  baseMaterials: string[] | null;
-  ruleMaterials: string[] | null;
-  minParticipants: number | null;
-  participantsBench: number | null;
-  rules: string[] | null;
-  goals: string | null;
-  arrangement: string | null;
-  deelnemersRegels: string | null;
-  plaatjePraatje: string | null;
-  aandachtspunten: string | null;
-  didacticItems: Array<{
-    category: (typeof DIDACTIC_CATEGORIES)[number];
-    subTheme: string | null;
-    observation: string;
-    action: string;
-  }> | null;
-};
-
-// Ruim boven wat een normale (zelfs uitgebreide, 10-20 pagina's) lesvoorbe-
-// reiding aan tekens bevat, maar ver onder gpt-4o-mini's 128k-tokencontext
-// — eerder stond dit op 12.000 tekens (~3.000 tokens), wat een langer
-// document met meerdere lesblokken/bijlagen kon afkappen nog vóórdat de AI
-// de kans kreeg om bijvoorbeeld een "aandachtspunten"-sectie aan het einde
-// te zien. Geen inhoudelijke reden om hier zuinig op te zijn: de kosten
-// schalen met tokens, en een gemiddeld document blijft ruim onder deze
-// grens (afkapping wordt hieronder expliciet gelogd zodat dit zichtbaar
-// blijft als het toch een keer gebeurt).
-const MAX_SOURCE_CHARS = 60_000;
+export type ExtractedActivity = z.infer<typeof extractedActivitySchema>;
 
 const FIELD_DESCRIPTIONS = `
-Vul dit exacte veldenschema in — gebruik voor ELK veld null (of [] voor lijsten) als het écht niet in het document staat, maar laat NOOIT een key weg uit je JSON-antwoord:
-- "title": titel van de activiteit — een korte, herkenbare naam.
-- "learningLine": de leerlijn/het vakgebied. Kies bij voorkeur EXACT één van de bestaande leerlijnen die GymWiki al gebruikt: ${ALL_LEARNING_LINES.join(", ")}. Staat er in het document een vergelijkbare maar net anders geformuleerde naam (bijv. "Hardlopen" i.p.v. "Lopen", "Vechtspelen" i.p.v. "Stoeispelen"/"Trefspelen"), kies dan de dichtstbijzijnde uit deze lijst in plaats van de letterlijke documenttekst over te nemen — verzin nooit een leerlijn die niet in deze lijst staat.
-- "doelgroep": array met codes uit ${DOELGROEP_WAARDEN.map((code) => `${code}=${DOELGROEP_LABELS[code]}`).join(", ")} — alleen invullen als het document dit ondubbelzinnig aangeeft.
-- "movementProblem": het bewegingsprobleem/de kernvraag die leerlingen moeten oplossen.
-- "movementTheme": het bewegingsthema van de les — een verfijning BINNEN de gekozen "learningLine", geen los begrip ernaast. Sommige leerlijnen hebben een vaste thema-lijst: ${Object.entries(
+Elk veld hieronder is gedefinieerd op FUNCTIE/BETEKENIS, niet op een verwacht kopje. Documenten gebruiken wisselende sjablonen: kopjes kunnen anders heten, ontbreken, of de waarde kan onder/naast/in dezelfde tabelcel als het kopje staan in plaats van erna. Zoek naar de BETEKENIS, niet naar een letterlijke koptekst-match.
+
+- "title": de naam/titel van de activiteit.
+- "movementTheme" (type activiteit): het bewegingsthema. Sommige leerlijnen hebben een vaste thema-lijst: ${Object.entries(
   BEWEGINGSTHEMAS,
 )
   .map(([line, themes]) => `${line} -> ${themes.join("/")}`)
-  .join("; ")}. Valt "learningLine" onder een leerlijn met zo'n lijst, kies dan exact één daaruit. Anders: zet "movementTheme" gelijk aan "learningLine", of een korte, specifieke variant die duidelijk BIJ die leerlijn hoort — verzin geen nieuwe, losstaande themanaam.
-- "baseMaterials": array met basismateriaal (bijv. "8 kleine doeltjes", "4 ballen") — doorzoek het HELE document hiervoor, dit staat soms verspreid over een inleiding én een aparte materialenlijst; combineer alles wat je vindt in één lijst zonder dubbele items.
-- "ruleMaterials": materiaal specifiek voor afbakening/regelhandhaving (bijv. pionnen voor een middengebied) — laat leeg ([]) als het document geen apart onderscheid met basismateriaal maakt.
-- "minParticipants": aantal leerlingen dat tegelijk actief meedoet (getal, of null).
-- "participantsBench": aantal wisselspelers/leerlingen op de bank (getal, of null).
-- "rules": array met spelregels.
-- "goals": motorische en/of sociale leerdoelen, als lopende tekst.
-- "arrangement": de fysieke opstelling/het speelveld.
-- "deelnemersRegels": rolverdeling, teamindeling, wisselregels — let op: dit is vaak uitgebreidere, beschrijvende tekst en niet hetzelfde als de losse "rules"-lijst hierboven.
-- "plaatjePraatje": hoe de instructie visueel getoond en mondeling uitgelegd wordt, wisselafspraken.
-- "aandachtspunten": veiligheid, houding, tactiek — waar moet de docent op letten? Dit staat vaak in een apart "let op"/"aandachtspunten"-kopje, soms pas aan het einde van het document — mis dit niet.
-- "didacticItems": array van 3L's-analyse-items, ALLEEN als het document expliciet deze differentiatie-structuur bevat (bijv. "wat als het niet lukt", "loopt het", "leeft het" of duidelijk vergelijkbare taal). Elk item: {"category": exact "loopt_het"|"lukt_het"|"leeft_het", "subTheme": een van ${Object.entries(
+  .join("; ")}. Valt "learningLine" onder zo'n leerlijn, kies dan exact één daaruit; anders een korte, specifieke variant die duidelijk bij die leerlijn hoort.
+- "learningLine": de leerlijn/het vakgebied. Kies bij voorkeur exact één van: ${ALL_LEARNING_LINES.join(", ")}. Staat er een vergelijkbare maar anders geformuleerde naam in het document, kies de dichtstbijzijnde uit deze lijst.
+- "goals" (doel): wat leerlingen in het spel proberen te bereiken — de opdracht/winvoorwaarde, en/of wat ze ervan leren.
+- "beschrijving": het VOLLEDIGE spelverloop als lopende tekst — opstelling, hoe het spel start, wat spelers precies doen, hoe gescoord/gewisseld wordt. Dit is vaak de langste, centrale tekst in het document; neem het zo volledig en letterlijk mogelijk over, vat niet samen.
+- "rules" (regels): array met afspraken die tijdens het spel gelden — ÉÉN afspraak per item, geen volledige verloopzinnen (die horen bij "beschrijving"). Niet hetzelfde als "deelnemersRegels" hieronder.
+- "learningOutcomes" (leeruitkomsten): array met wat leerlingen ontwikkelen/leren — motorisch, sociaal, cognitief, etc.
+- "aandachtspunten": veiligheid en aandachtspunten voor de docent (houding, tactiek, risico's) — staat vaak in een apart "let op"-kopje, soms pas aan het einde; mis dit niet.
+- "movementProblem" (beginsituatie): wat wordt verondersteld dat leerlingen al kunnen/hebben gedaan — voorkennis, context, niveau-aanname. Onderdeel van "beginsituatie & doelgroep" samen met de drie velden hieronder.
+- "doelgroep": array met codes uit ${DOELGROEP_WAARDEN.map((code) => `${code}=${DOELGROEP_LABELS[code]}`).join(", ")} — alleen invullen als het document dit ondubbelzinnig aangeeft.
+- "minParticipants"/"participantsBench": aantal actieve spelers / aantal wisselspelers-op-de-bank, als getallen genoemd worden.
+- "baseMaterials"/"ruleMaterials" (materiaal): benodigdheden. Doorzoek het HELE document (vaak verspreid over inleiding én een aparte materialenlijst). Groepeer zoals het document dat zelf doet als het een onderscheid maakt tussen basismateriaal en materiaal specifiek voor een regel/afbakening ("ruleMaterials") — anders alles in "baseMaterials".
+- "didacticItems" (leerhulp): array van differentiatie-items (moeilijker/makkelijker maken, hulp voor leerlingen), ALLEEN als het document deze structuur expliciet bevat (bijv. "wat als het niet lukt", "loopt het"/"lukt het"/"leeft het" of duidelijk vergelijkbare taal). Elk item: {"category": exact "loopt_het"|"lukt_het"|"leeft_het", "subTheme": een van ${Object.entries(
   DIDACTIC_SUBTHEMES,
 )
   .map(([category, subthemes]) => `${category}: ${subthemes.join("/")}`)
-  .join("; ")} (of null als niet duidelijk), "observation": wat je ziet/wat er misgaat, "action": wat je als docent doet}. Laat dit [] als het document deze structuur niet gebruikt.`;
+  .join("; ")} (of null), "observation": wat je ziet/wat er misgaat, "action": wat de docent doet}.
+- "deelnemersRegels": WIE welke rol heeft tijdens het spel — posities, wissel-/rotatieafspraken, scheidsrechter-/tellerrol. NIET de algemene spelregels (die horen bij "rules") en NIET het volledige spelverloop (dat hoort bij "beschrijving").
+- "arrangement": tekstuele beschrijving van de fysieke opstelling/het speelveld (veldafmetingen, indeling) — los van een eventuele getekende plattegrond.
+- "durationMinutes": de duur van de activiteit in minuten, als genoemd.
 
-const FEW_SHOT_EXAMPLES: Array<{ user: string; assistant: Record<string, unknown> }> = [
-  {
-    user:
-      "Chaosdoelenspel\n\nGroep 7/8. Leerlijn: Doelspelen (aanvallen/verdedigen op meerdere doelen).\n" +
-      "Bewegingsprobleem: overzicht houden en kiezen tussen aanvallen en verdedigen in wisselende spelsituaties.\n" +
-      "Bewegingsthema: doelen maken en verdedigen in chaos.\n\n" +
-      "Inleiding: we spelen op een veld van 20x20m met 8 kleine doeltjes verspreid over het veld, in twee kleurgroepen " +
-      "(4 rood, 4 blauw). Materiaal: 4 ballen, hesjes in 2 kleuren.\n\n" +
-      "Twee teams van 4-6 spelers vallen de doeltjes van de andere kleur aan en verdedigen de eigen kleur. " +
-      "Wisselspelers op de bank wisselen elke 2 minuten in. Elk doelpunt telt 1 punt, niet hard op de keeper schieten.\n\n" +
-      "Doel: leerlingen kunnen doelpogingen op meerdere doelen afwisselen en spelen samen zonder ruzie over de telling.\n\n" +
-      "Toon op het bord waar de doeltjes staan en welke kleur bij welk team hoort.\n\n" +
-      "Materialenlijst (bijlage): 8 kleine doeltjes, 4 pionnen voor het middengebied.\n\n" +
-      "Aandachtspunten: let op overbelasting bij het duiken/keepen; wissel keepers regelmatig.\n\n" +
-      "Lukt het niet: speler mist het doel of durft niet te schieten -> laat de zwakkere speler dichterbij een groter " +
-      "doel starten.",
-    assistant: {
-      isMovementActivity: true,
-      title: "Chaosdoelenspel",
-      // Document noemt "Doelspelen", maar dat staat niet in GymWiki's eigen
-      // leerlijnlijst — "Passeren en onderscheppen" (Spel) is de
-      // dichtstbijzijnde bestaande leerlijn voor dit aanvallen/verdedigen-op-
-      // meerdere-doelen-spel.
-      learningLine: "Passeren en onderscheppen",
-      doelgroep: [4],
-      movementProblem:
-        "Overzicht houden en kiezen tussen aanvallen en verdedigen in wisselende spelsituaties",
-      movementTheme: "Doelen maken en verdedigen in chaos",
-      baseMaterials: ["8 kleine doeltjes", "4 ballen", "hesjes in 2 kleuren"],
-      ruleMaterials: ["4 pionnen voor het middengebied"],
-      minParticipants: null,
-      participantsBench: null,
-      rules: ["Elk doelpunt telt 1 punt", "Niet hard op de keeper schieten"],
-      goals:
-        "Motorisch: leerlingen kunnen doelpogingen op meerdere doelen afwisselen. Sociaal: leerlingen spelen samen zonder ruzie over de telling.",
-      arrangement:
-        "Speelveld van ongeveer 20x20m met 8 kleine doeltjes verspreid over het veld, in twee kleurgroepen (4 rood, 4 blauw).",
-      deelnemersRegels:
-        "Twee teams van elk 4-6 spelers. Iedereen valt de doeltjes van de andere kleur aan en verdedigt de eigen kleur. Wisselspelers op de bank wisselen elke 2 minuten in.",
-      plaatjePraatje: "Toon op het bord waar de doeltjes staan en welke kleur bij welk team hoort.",
-      aandachtspunten: "Let op overbelasting bij het duiken/keepen; wissel keepers regelmatig.",
-      didacticItems: [
-        {
-          category: "lukt_het",
-          subTheme: "Differentiatie (zwakke vs betere beweger)",
-          observation: "Speler mist het doel of durft niet te schieten.",
-          action: "Laat de zwakkere speler dichterbij een groter doel starten.",
-        },
-      ],
-    },
-  },
-  {
-    user:
-      "Tikspel opwarmer\n\n- Groep: onbekend, gewone gymles\n- Tikkertje met 2 tikkers, hesjes\n- Regels: getikte spelers " +
-      "zitten tot een medespeler ze bevrijdt",
-    assistant: {
-      isMovementActivity: true,
-      title: "Tikspel opwarmer",
-      learningLine: null,
-      doelgroep: null,
-      movementProblem: null,
-      movementTheme: null,
-      baseMaterials: ["hesjes"],
-      ruleMaterials: [],
-      minParticipants: null,
-      participantsBench: null,
-      rules: ["Getikte spelers zitten tot een medespeler ze bevrijdt"],
-      goals: null,
-      arrangement: null,
-      deelnemersRegels: "2 tikkers tikken de rest van de groep.",
-      plaatjePraatje: null,
-      aandachtspunten: null,
-      didacticItems: [],
-    },
-  },
-];
+Vul voor ELK veld hierboven een object {"value": ..., "confidence": "high"|"low", "sourceFragment": "..."} in:
+- "value": null (of [] voor lijsten) als het écht niet in het document staat — verzin NOOIT een waarde.
+- "confidence": "high" als de waarde expliciet en ondubbelzinnig in het document staat; "low" als je een redelijke afleiding/interpretatie deed (bijv. een leerlijn/thema dichtstbijzijnd gekozen, of informatie uit context afgeleid in plaats van letterlijk genoemd).
+- "sourceFragment": een kort (max ~15 woorden), LETTERLIJK citaat uit het document dat deze waarde onderbouwt, of null als "value" null is of puur afgeleid.
+
+"unplacedContent": array van {"text": "...", "note": "..."|null} — noteer hier ELK betekenisvol stuk brontekst dat NERGENS in een veld hierboven past (bijv. een duur die je al wel in "durationMinutes" zet maar ook hier als controle, een los stukje tekst dat niet bij een van de bovenstaande categorieën hoort). Laat niets relevants weg — dit is de enige vangnet tegen dataverlies.`;
 
 const SYSTEM_PROMPT =
   "Je zet een geüploade lesvoorbereiding (bewegingsonderwijs) om naar het GymWiki-activiteitenformaat. " +
-  "Haal ALLEEN informatie op die daadwerkelijk in de tekst staat — verzin NOOIT een waarde die je niet kunt " +
-  "onderbouwen uit de tekst. Zet een veld op null (of [] voor lijsten) als het niet met voldoende zekerheid " +
-  "is af te leiden; de gebruiker vult dat daarna zelf aan vóór het indienen. Dit is BELANGRIJKER dan " +
-  "volledigheid: liever een terecht leeg veld dan een gegokte waarde.\n\n" +
-  "Het document kan de informatie over meerdere secties of pagina's verspreid hebben (bijv. materiaal dat " +
-  "zowel in een inleiding als in een aparte materialenlijst genoemd wordt, of aandachtspunten die pas aan " +
-  "het einde van het document staan) — lees en gebruik de VOLLEDIGE tekst, niet alleen het eerste deel.\n\n" +
+  "Je ontvangt het document mogelijk als bestand/afbeelding (lees dan ook de VISUELE lay-out: tabellen, " +
+  "kolommen, plattegronden) of als tekst. Haal ALLEEN informatie op die daadwerkelijk in het document staat " +
+  "— verzin nooit een waarde die je niet kunt onderbouwen. Lees het VOLLEDIGE document (informatie staat vaak " +
+  "verspreid over een inleiding, een tabel, en een los aandachtspunten-/materialenblok aan het einde), niet " +
+  "alleen het eerste deel.\n\n" +
   FIELD_DESCRIPTIONS +
-  "\n\nZet \"isMovementActivity\" op false wanneer het document duidelijk geen bewegingsactiviteit of " +
+  '\n\nZet "isMovementActivity" op false wanneer het document duidelijk geen bewegingsactiviteit of ' +
   "lesvoorbereiding bewegingsonderwijs bevat (bijv. een factuur, een heel ander vak, willekeurige tekst) — " +
-  "vul in dat geval alle overige velden met null/[].\n\n" +
-  "Antwoord uitsluitend met geldige JSON die ALLE bovenstaande keys bevat, zonder extra tekst of " +
-  "markdown-opmaak.";
+  "vul in dat geval alle overige velden met null/[] en laat unplacedContent leeg.";
+
+// Ruim boven wat een normale (zelfs uitgebreide) lesvoorbereiding aan tekens
+// bevat, ver onder de modelcontext — alleen relevant voor het kind:"text"-pad
+// (docx/pptx/odt/txt/md via officeparser); een PDF/foto gaat als heel
+// bestand naar het model, daar is geen tekstlimiet op toe te passen.
+const MAX_SOURCE_CHARS = 60_000;
+
+function buildUserContent(input: NormalizedImportInput) {
+  const instruction = { type: "input_text" as const, text: "Hier is de lesvoorbereiding om te verwerken:" };
+
+  if (input.kind === "file") {
+    return [
+      instruction,
+      {
+        type: "input_file" as const,
+        filename: input.filename,
+        file_data: `data:${input.mimeType};base64,${input.base64}`,
+      },
+    ];
+  }
+
+  if (input.kind === "image") {
+    return [
+      instruction,
+      {
+        type: "input_image" as const,
+        detail: "auto" as const,
+        image_url: `data:${input.mimeType};base64,${input.base64}`,
+      },
+    ];
+  }
+
+  const wasTruncated = input.text.length > MAX_SOURCE_CHARS;
+  const text = wasTruncated ? input.text.slice(0, MAX_SOURCE_CHARS) : input.text;
+  if (wasTruncated) {
+    console.warn(
+      `activityImportExtraction: brontekst afgekapt van ${input.text.length} naar ${MAX_SOURCE_CHARS} tekens.`,
+    );
+  }
+  return [instruction, { type: "input_text" as const, text }];
+}
 
 export type ExtractActivityResult = {
   activity: ExtractedActivity;
@@ -204,93 +185,117 @@ export type ExtractActivityResult = {
 };
 
 /**
- * Losstaande AI-extractie/mapping-service: zet ruwe documenttekst (uit
- * lib/ai/documentText.ts) om naar de GymWiki-activiteitenstructuur. Bewust
- * hier geïsoleerd van actions/activityImport.ts zodat dezelfde mapping later
- * voor andere import-functionaliteit hergebruikt kan worden. Geeft ook de
- * token-usage terug zodat de aanroeper dit als echte AI-kosten kan loggen
- * (zie lib/ai/usageTracking.ts).
- *
- * `logContext` is puur voor diagnose (bijv. een jobId) — verschijnt alleen
- * in de afkap-waarschuwing hieronder.
+ * Hoofdextractie: stuurt het genormaliseerde document (lib/ai/documentNormalization.ts)
+ * naar GPT-4o via OpenAI's Responses API met strict Structured Outputs
+ * (zodTextFormat) — geen losse json_object-mode + handmatige zod-validatie
+ * achteraf meer, het model kan nu structureel geen ongeldige vorm teruggeven.
+ * "Plaatje & Praatje" zit hier BEWUST niet in — zie generatePlaatjePraatjeSuggestion
+ * hieronder, dat veld wordt nooit uit het document gehaald.
  */
-export async function extractActivityFromText(
-  sourceText: string,
+export async function extractActivityFromDocument(
+  input: NormalizedImportInput,
   logContext = "onbekend",
 ): Promise<ExtractActivityResult> {
   const client = getOpenAIClient();
-  const wasTruncated = sourceText.length > MAX_SOURCE_CHARS;
-  const truncated = wasTruncated ? sourceText.slice(0, MAX_SOURCE_CHARS) : sourceText;
 
-  if (wasTruncated) {
-    console.warn(
-      `extractActivityFromText[${logContext}]: brontekst afgekapt van ${sourceText.length} naar ${MAX_SOURCE_CHARS} tekens — mogelijk mist de AI hierdoor informatie verderop in het document.`,
-    );
-  }
-
-  const fewShotMessages = FEW_SHOT_EXAMPLES.flatMap(({ user, assistant }) => [
-    { role: "user" as const, content: user },
-    { role: "assistant" as const, content: JSON.stringify(assistant) },
-  ]);
-
-  const completion = await client.chat.completions.create({
-    model: CHECK_MODEL,
-    response_format: { type: "json_object" },
-    messages: [
+  const response = await client.responses.parse({
+    model: DOCUMENT_EXTRACTION_MODEL,
+    input: [
       { role: "system", content: SYSTEM_PROMPT },
-      ...fewShotMessages,
-      { role: "user", content: truncated },
+      { role: "user", content: buildUserContent(input) },
     ],
+    text: { format: zodTextFormat(extractedActivitySchema, "extracted_activity") },
   });
 
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) {
-    throw new Error("Geen antwoord van de AI-extractie ontvangen.");
+  const parsed = response.output_parsed;
+  if (!parsed) {
+    throw new Error(`extractActivityFromDocument[${logContext}]: geen geparseerd antwoord van de AI-extractie.`);
   }
 
-  const parsed = rawExtractionSchema.parse(JSON.parse(raw));
-
-  // De AI-output valideren tegen de echte, vaste waardelijsten — een
-  // gehallucineerde code/categorie wordt stilzwijgend null (of uit de
-  // lijst gefilterd) i.p.v. een ongeldige waarde het formulier in te laten
-  // stromen.
-  const geldigeDoelgroep = (parsed.doelgroep ?? []).filter((code) =>
+  // Zelfde discipline als vóór deze herbouw: AI-output opnieuw valideren
+  // tegen de echte, vaste waardelijsten — een gehallucineerde code/categorie
+  // wordt stilzwijgend null (of uit de lijst gefilterd) i.p.v. een ongeldige
+  // waarde het formulier in te laten stromen.
+  const geldigeDoelgroep = parsed.doelgroep.value.filter((code) =>
     (DOELGROEP_WAARDEN as readonly number[]).includes(code),
   );
+  const geldigeDidacticItems = parsed.didacticItems.value.map((item) => ({
+    ...item,
+    subTheme:
+      item.subTheme && (DIDACTIC_SUBTHEMES[item.category] as readonly string[]).includes(item.subTheme)
+        ? item.subTheme
+        : null,
+  }));
 
-  const didacticItems = (parsed.didacticItems ?? [])
-    .filter((item) => item.observation && item.action)
-    .map((item) => ({
-      category: item.category,
-      subTheme:
-        item.subTheme && (DIDACTIC_SUBTHEMES[item.category] as readonly string[]).includes(item.subTheme)
-          ? item.subTheme
-          : null,
-      observation: item.observation as string,
-      action: item.action as string,
-    }));
+  // learningLine wordt NIET tegen ALL_LEARNING_LINES gefilterd (zelfde
+  // gedrag als vóór deze herbouw) — de prompt vraagt al om een bestaande
+  // leerlijn, en een harde filter zou een AI-genormaliseerde-maar-net-niet-
+  // letterlijke variant onterecht wegvangen.
+  const activity: ExtractedActivity = {
+    ...parsed,
+    doelgroep: { ...parsed.doelgroep, value: geldigeDoelgroep },
+    didacticItems: { ...parsed.didacticItems, value: geldigeDidacticItems },
+  };
 
   return {
-    activity: {
-      isMovementActivity: parsed.isMovementActivity,
-      title: parsed.title || null,
-      learningLine: parsed.learningLine || null,
-      doelgroep: geldigeDoelgroep.length > 0 ? geldigeDoelgroep : null,
-      movementProblem: parsed.movementProblem || null,
-      movementTheme: parsed.movementTheme || null,
-      baseMaterials: parsed.baseMaterials && parsed.baseMaterials.length > 0 ? parsed.baseMaterials : null,
-      ruleMaterials: parsed.ruleMaterials && parsed.ruleMaterials.length > 0 ? parsed.ruleMaterials : null,
-      minParticipants: parsed.minParticipants ?? null,
-      participantsBench: parsed.participantsBench ?? null,
-      rules: parsed.rules && parsed.rules.length > 0 ? parsed.rules : null,
-      goals: parsed.goals || null,
-      arrangement: parsed.arrangement || null,
-      deelnemersRegels: parsed.deelnemersRegels || null,
-      plaatjePraatje: parsed.plaatjePraatje || null,
-      aandachtspunten: parsed.aandachtspunten || null,
-      didacticItems: didacticItems.length > 0 ? didacticItems : null,
-    },
-    inputTokens: completion.usage?.prompt_tokens ?? 0,
-    outputTokens: completion.usage?.completion_tokens ?? 0,
+    activity,
+    inputTokens: response.usage?.input_tokens ?? 0,
+    outputTokens: response.usage?.output_tokens ?? 0,
+  };
+}
+
+const plaatjePraatjeSchema = z.object({ plaatjePraatje: z.string() });
+
+/**
+ * "Plaatje & Praatje" beschrijft HOE de docent de instructie visueel toont en
+ * mondeling uitlegt — dat staat vrijwel nooit letterlijk in een
+ * lesvoorbereiding, dus wordt het (anders dan elk ander veld) nooit uit het
+ * document geëxtraheerd maar altijd apart GEGENEREERD als suggestie, op basis
+ * van de net geëxtraheerde velden. Bewust een tweede, goedkope call
+ * (CHECK_MODEL i.p.v. DOCUMENT_EXTRACTION_MODEL — geen bestand/afbeelding
+ * nodig, puur tekst-naar-tekst) zodat de hoofdextractie-call dit niet hoeft
+ * mee te dragen. De aanroeper markeert het resultaat als AI-voorstel (nooit
+ * als "confidence" uit het document, want het IS nooit uit het document).
+ */
+export async function generatePlaatjePraatjeSuggestion(
+  activity: ExtractedActivity,
+  logContext = "onbekend",
+): Promise<{ value: string; inputTokens: number; outputTokens: number }> {
+  const client = getOpenAIClient();
+
+  const context = [
+    activity.goals.value && `Doel: ${activity.goals.value}`,
+    activity.beschrijving.value && `Beschrijving: ${activity.beschrijving.value}`,
+    activity.rules.value.length > 0 && `Regels: ${activity.rules.value.join("; ")}`,
+    activity.arrangement.value && `Arrangement: ${activity.arrangement.value}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const response = await client.responses.parse({
+    model: CHECK_MODEL,
+    input: [
+      {
+        role: "system",
+        content:
+          'Je schrijft een korte "Plaatje & Praatje" voor een bewegingsonderwijs-activiteit: hoe de docent de ' +
+          "instructie visueel toont (bijv. op een bord/plattegrond) en mondeling uitlegt aan leerlingen, inclusief " +
+          "eventuele wisselafspraken. Baseer je ALLEEN op de meegegeven activiteitgegevens, verzin geen nieuwe " +
+          "spelregels. Kort en praktisch, 2-4 zinnen.",
+      },
+      { role: "user", content: context || "Geen verdere gegevens beschikbaar." },
+    ],
+    text: { format: zodTextFormat(plaatjePraatjeSchema, "plaatje_praatje") },
+  });
+
+  const parsed = response.output_parsed;
+  if (!parsed) {
+    throw new Error(`generatePlaatjePraatjeSuggestion[${logContext}]: geen geparseerd antwoord van de AI.`);
+  }
+
+  return {
+    value: parsed.plaatjePraatje,
+    inputTokens: response.usage?.input_tokens ?? 0,
+    outputTokens: response.usage?.output_tokens ?? 0,
   };
 }
