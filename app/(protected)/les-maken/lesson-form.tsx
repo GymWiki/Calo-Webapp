@@ -81,6 +81,7 @@ const LESCOACH_COOLDOWN_SECONDS = 20;
 // hieronder).
 type LescoachContentSnapshot = {
   goals?: string;
+  beschrijving?: string;
   learningOutcomes: string[];
   deelnemersRegels?: string;
   plaatjePraatje?: string;
@@ -736,6 +737,7 @@ export function LessonForm({
   function buildContentSnapshot(): LescoachContentSnapshot {
     return {
       goals: goals || undefined,
+      beschrijving: beschrijving || undefined,
       learningOutcomes,
       deelnemersRegels: deelnemersRegels || undefined,
       plaatjePraatje: plaatjePraatje || undefined,
@@ -883,6 +885,9 @@ export function LessonForm({
     switch (suggestion.section) {
       case "goals":
         form.setValue("goals", suggestion.suggestion);
+        break;
+      case "beschrijving":
+        form.setValue("beschrijving", suggestion.suggestion);
         break;
       case "movementProblem":
         form.setValue("movementProblem", suggestion.suggestion);

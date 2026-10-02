@@ -21,6 +21,7 @@ import { didacticCategorySchema, didacticItemSchema } from "@/types/lesson";
 // maar een lijst gestructureerde items per categorie.
 export const LESCOACH_SECTIONS = [
   "goals",
+  "beschrijving",
   "movementProblem",
   "learningOutcomes",
   "deelnemersRegels",
@@ -56,6 +57,11 @@ export const analyzeLessonInputSchema = z.object({
   movementTheme: z.string().trim().optional(),
   doelgroep: z.array(z.number().int()).optional(),
   goals: z.string().trim().optional(),
+  // Het volledige spelverloop (mapt op de `beschrijving`-kolom, zie
+  // types/lesson.ts) — stond hier eerder NIET bij, waardoor de AI Lescoach
+  // dit veld nooit kon analyseren/becommentariëren, ondanks dat het een
+  // eigen sectie in de editor heeft (components/activity-wizard-page.tsx).
+  beschrijving: z.string().trim().optional(),
   learningOutcomes: z.array(z.string()).optional(),
   deelnemersRegels: z.string().trim().optional(),
   plaatjePraatje: z.string().trim().optional(),
@@ -102,7 +108,11 @@ export const lescoachSuggestionSchema = z.object({
   // voegen item.
   suggestion: z.string().trim().min(1),
   reasoning: z.string().trim().min(1),
-  sourceLabel: z.string().trim().optional(),
+  // .nullable() i.p.v. .optional(): nodig voor OpenAI's strict Structured
+  // Outputs (zie app/api/ai/analyze-lesson/route.ts), dat vereist dat ELKE
+  // property aanwezig is — "ontbreekt" kan dus niet, "null" wel. Zelfde
+  // discipline als lib/ai/activityImportExtraction.ts se field()-helper.
+  sourceLabel: z.string().trim().nullable(),
 });
 export type LescoachSuggestion = z.infer<typeof lescoachSuggestionSchema> & {
   /** Client-side toegekend (niet door de AI) — voor Toepassen/Negeren. */
@@ -121,8 +131,12 @@ export const didacticSuggestionSchema = z.object({
 });
 export type DidacticSuggestion = z.infer<typeof didacticSuggestionSchema> & { id: string };
 
+// Het ENDRESULTAAT dat de route teruggeeft — niet meer rechtstreeks
+// `.parse()`-t tegen de ruwe AI-respons (zie route.ts: dat gebeurt nu
+// item-voor-item, zodat één ongeldige suggestie niet de hele analyse laat
+// falen), dus altijd volledige (mogelijk lege) arrays.
 export const lescoachAnalysisSchema = z.object({
-  suggestions: z.array(lescoachSuggestionSchema).optional().default([]),
-  didacticSuggestions: z.array(didacticSuggestionSchema).optional().default([]),
+  suggestions: z.array(lescoachSuggestionSchema),
+  didacticSuggestions: z.array(didacticSuggestionSchema),
 });
 export type LescoachAnalysis = z.infer<typeof lescoachAnalysisSchema>;

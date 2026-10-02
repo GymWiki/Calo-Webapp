@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
 import {
   buildKnowledgePromptSection,
@@ -18,11 +20,91 @@ import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
 import { getEffectiveAccess, getSeatUsage } from "@/lib/services/teams";
 import {
   analyzeLessonInputSchema,
-  lescoachAnalysisSchema,
+  didacticSuggestionSchema,
+  lescoachSuggestionSchema,
   LESCOACH_SECTIONS,
   type AnalyzeLessonInput,
+  type DidacticSuggestion,
+  type LescoachSuggestion,
 } from "@/types/ai";
-import { DIDACTIC_CATEGORY_LABELS } from "@/types/lesson";
+import { DIDACTIC_CATEGORY_LABELS, didacticCategorySchema } from "@/types/lesson";
+
+// Nederlandse labels per section-code, zoals buildActivitySnapshot hieronder
+// ze ook gebruikt — hergebruikt in JSON_FORMAT_INSTRUCTION zodat de AI de
+// labels die het in het user-bericht ZIET 1-op-1 kan terugvertalen naar de
+// vereiste code (zie de toelichting bij die instructie: de root cause van
+// `section: "beginsituatie"` was dat het model het Nederlandse label
+// "Beginsituatie" teruggaf i.p.v. de code "movementProblem").
+const SECTION_LABELS: Record<(typeof LESCOACH_SECTIONS)[number], string> = {
+  goals: "Doel",
+  beschrijving: "Beschrijving",
+  movementProblem: "Beginsituatie",
+  learningOutcomes: "Leeruitkomsten",
+  deelnemersRegels: "Deelnemers & Regels",
+  plaatjePraatje: "Plaatje & Praatje",
+  aandachtspunten: "Aandachtspunten",
+  rules: "Regels",
+  arrangement: "Veldafmetingen & opstelling",
+  baseMaterials: "Basismateriaal",
+  ruleMaterials: "Regelmateriaal",
+};
+
+// "Wire"-schema's — uitsluitend gebruikt om de Structured Outputs-aanroep
+// hieronder te sturen (zodTextFormat). Bewust ZONDER de .trim().min(1)-
+// verfijningen van de "business"-schema's (lescoachSuggestionSchema/
+// didacticSuggestionSchema, @/types/ai) — OpenAI's strict JSON Schema-modus
+// begrijpt alleen type/enum/required, geen zod-verfijningen zoals minLength;
+// zou je die verfijningen hier toch meegeven, dan zou de OpenAI SDK's eigen
+// interne re-parse (client.responses.parse) ALSNOG een harde zod-exception
+// kunnen gooien zodra het model een leeg-maar-verder geldig veld teruggeeft
+// — en dat zou precies de "één ongeldig item laat de hele aanroep crashen"-
+// fout reproduceren die deze herbouw juist oplost. De striktere kwaliteits-
+// checks gebeuren hierna zelf, item-voor-item (zie filterValid), zodat zo'n
+// geval netjes wordt overgeslagen i.p.v. de aanroep te laten crashen.
+const lescoachSectionWireSchema = z.enum(LESCOACH_SECTIONS);
+const lescoachSuggestionWireSchema = z.object({
+  section: lescoachSectionWireSchema,
+  type: z.string(),
+  suggestion: z.string(),
+  reasoning: z.string(),
+  sourceLabel: z.string().nullable(),
+});
+const didacticSuggestionWireSchema = z.object({
+  category: didacticCategorySchema,
+  observation: z.string(),
+  action: z.string(),
+  reasoning: z.string(),
+});
+const lescoachAnalysisWireSchema = z.object({
+  suggestions: z.array(lescoachSuggestionWireSchema),
+  didacticSuggestions: z.array(didacticSuggestionWireSchema),
+});
+
+// Valideert een array item-voor-item tegen het striktere "business"-schema —
+// een item dat niet voldoet (bijv. een leeg "suggestion"-veld) wordt eruit
+// gefilterd MET een duidelijke log, in plaats van de volledige analyse te
+// laten falen op één zwak item (zie de brief "Fix de Zod-validatiefout bij
+// de AI Lescoach", Stap 3). Draait ONGEACHT of Structured Outputs de
+// structurele fouten (ongeldige section-waarde, ontbrekend verplicht veld)
+// al voorkomt — dit vangt resterende kwaliteitsproblemen (bijv. een lege
+// string) die de strict-mode JSON Schema niet kan afdwingen.
+function filterValid<T>(
+  items: readonly unknown[],
+  schema: z.ZodType<T>,
+  describe: (item: unknown) => string,
+): T[] {
+  const valid: T[] = [];
+  for (const item of items) {
+    const result = schema.safeParse(item);
+    if (result.success) {
+      valid.push(result.data);
+      continue;
+    }
+    const issues = result.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; ");
+    console.error(`AI Lescoach: suggestie verworpen (${describe(item)}) — ${issues}`);
+  }
+  return valid;
+}
 
 // Herontworpen (zie de brief "Herontwerp de AI-activiteitengenerator naar AI
 // Lescoach"): dit was een AI-oordeel over de HELE les (score + samenvatting +
@@ -50,6 +132,34 @@ const FLEXIBLE_ADVICE_INSTRUCTION =
 
 const SECTION_LIST = LESCOACH_SECTIONS.join('" | "');
 
+// Root cause van `section: "beginsituatie"` (zie de brief "Fix de Zod-
+// validatiefout bij de AI Lescoach"): het model zag in het user-bericht
+// (buildActivitySnapshot) het Nederlandse label "Beginsituatie" en gaf dát
+// terug als section-waarde, i.p.v. de vereiste code "movementProblem" — de
+// SECTION_LIST hierboven somt alleen de codes op, zonder te laten zien welk
+// Nederlands label daar in het user-bericht bij hoort. Deze toelichting
+// koppelt ze expliciet aan elkaar.
+const SECTION_CODE_EXPLANATION =
+  'Gebruik voor "section" ALTIJD EXACT een van deze codes — nooit het Nederlandse label, een ' +
+  "synoniem, of een eigen verzonnen naam: " +
+  LESCOACH_SECTIONS.map((section) => `"${section}" (= ${SECTION_LABELS[section]})`).join(", ") +
+  '. Voorbeeld: een suggestie over de "Beginsituatie"-sectie krijgt section: "movementProblem" — ' +
+  'NOOIT section: "beginsituatie".';
+
+// "suggestions" en "didacticSuggestions" zijn twee STRUCTUREEL verschillende
+// top-level arrays (zie types/ai.ts) — de gemelde fout `section:
+// "didacticSuggestions"` met ontbrekende type/suggestion-velden wijst erop
+// dat het model een leerhulp-item per ongeluk in de verkeerde array, met de
+// verkeerde vorm, probeerde te proppen. Deze alinea benoemt dat expliciet
+// als fout i.p.v. het alleen impliciet via het JSON-voorbeeld te laten zien.
+const ARRAY_SEPARATION_WARNING =
+  '"suggestions" en "didacticSuggestions" zijn TWEE VOLLEDIG GESCHEIDEN arrays met VERSCHILLENDE ' +
+  'item-vormen — verwar ze nooit. Een item in "suggestions" heeft ALTIJD de velden section/type/' +
+  'suggestion/reasoning/sourceLabel. Een item in "didacticSuggestions" heeft ALTIJD de velden ' +
+  "category/observation/action/reasoning — GEEN type, GEEN suggestion, GEEN section. Zet nooit een " +
+  'leerhulp-suggestie in de "suggestions"-array, en gebruik "didacticSuggestions" NOOIT als waarde ' +
+  'van "section" — dat is de naam van de ANDERE array, geen sectie van de activiteit.';
+
 const JSON_FORMAT_INSTRUCTION =
   "Antwoord uitsluitend met geldige JSON in dit exacte formaat, zonder extra tekst of " +
   'markdown-opmaak: {"suggestions": [{"section": "' +
@@ -58,11 +168,12 @@ const JSON_FORMAT_INSTRUCTION =
   '"Concreetheid", "Aansluiting doel-leeruitkomst"), "suggestion": string (voor tekstsecties: de ' +
   "volledige voorgestelde VERVANGENDE tekst voor dat veld; voor learningOutcomes/rules/" +
   'baseMaterials/ruleMaterials: precies ÉÉN nieuw toe te voegen item), "reasoning": string (kort, ' +
-  'concreet, waarom), "sourceLabel": string (optioneel, alleen als een vakliteratuur-fragment ' +
-  'de directe basis is)}], "didacticSuggestions": [{"category": "loopt_het" | "lukt_het" | ' +
+  'concreet, waarom), "sourceLabel": string of null (null als geen vakliteratuur-fragment de ' +
+  'directe basis is)}], "didacticSuggestions": [{"category": "loopt_het" | "lukt_het" | ' +
   '"leeft_het", "observation": string ("Wat zie je?"), "action": string ("Wat doe je?"), ' +
   '"reasoning": string}]} (2-3 ALTERNATIEVE didacticSuggestions per categorie die aanvulling ' +
-  "verdient — als aanvulling op eventuele bestaande items, nooit als vervanging).";
+  "verdient — als aanvulling op eventuele bestaande items, nooit als vervanging).\n\n" +
+  `${SECTION_CODE_EXPLANATION}\n\n${ARRAY_SEPARATION_WARNING}`;
 
 // Eén volledig uitgewerkt voorbeeld van het gewenste kritische, concrete
 // adviesniveau — bewust een PARTIEEL ingevulde activiteit als input (niet
@@ -98,6 +209,7 @@ const FEW_SHOT_EXAMPLE = {
         reasoning:
           "\"Iedereen speelt om de beurt\" legt geen vaste rolverdeling per ronde vast — zonder " +
           "dat weten leerlingen bij de start van elke ronde niet waar ze moeten staan.",
+        sourceLabel: null,
       },
       {
         section: "rules",
@@ -106,6 +218,7 @@ const FEW_SHOT_EXAMPLE = {
         reasoning:
           "Zonder deze regel kan een leerling de bal naar een medeleerling gooien, wat bij dit " +
           "type spel een reëel verwondingsrisico geeft.",
+        sourceLabel: null,
       },
       {
         section: "aandachtspunten",
@@ -116,6 +229,7 @@ const FEW_SHOT_EXAMPLE = {
         reasoning:
           "Aandachtspunten ontbrak volledig, terwijl \"insluiten\" als leeruitkomst juist om een " +
           "specifieke coach-observatie vraagt om te bepalen of het daadwerkelijk lukt.",
+        sourceLabel: null,
       },
     ],
     didacticSuggestions: [
@@ -191,6 +305,7 @@ function buildActivitySnapshot(input: AnalyzeLessonInput): string {
   if (input.minParticipants !== undefined) lines.push(`Aantal in het veld: ${input.minParticipants}`);
   if (input.participantsBench !== undefined) lines.push(`Aantal op de bank: ${input.participantsBench}`);
   addText("Doel", input.goals);
+  addText("Beschrijving", input.beschrijving);
   addList("Leeruitkomsten", input.learningOutcomes);
   addText("Deelnemers & Regels", input.deelnemersRegels);
   addText("Plaatje & Praatje", input.plaatjePraatje);
@@ -373,35 +488,64 @@ export async function POST(request: Request) {
       (followUpInstruction ? `\n\n${followUpInstruction}` : "");
     const userPrompt = `Huidige stand van de activiteit:\n${buildActivitySnapshot(input)}`;
 
+    // Structured Outputs (strict JSON Schema, via zodTextFormat) i.p.v. de
+    // eerdere losse `response_format: {type:"json_object"}` + handmatige
+    // Zod-validatie achteraf — zelfde patroon als lib/ai/activityImportExtraction.ts.
+    // Dit voorkomt de GEMELDE fouten STRUCTUREEL: de OpenAI API dwingt de
+    // "section"-enum en alle verplichte velden al tijdens het genereren af,
+    // dus een ongeldige section-waarde of een ontbrekend veld kan het model
+    // simpelweg niet meer teruggeven.
     const client = getOpenAIClient();
-    const completion = await client.chat.completions.create({
+    const response = await client.responses.parse({
       model: CHECK_MODEL,
-      response_format: { type: "json_object" },
-      messages: [
+      input: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      text: { format: zodTextFormat(lescoachAnalysisWireSchema, "lescoach_analysis") },
     });
-
-    const raw = completion.choices[0]?.message?.content;
-    if (!raw) {
-      throw new Error("Geen antwoord van de AI Lescoach ontvangen.");
-    }
 
     await recordAiUsage(supabase, {
       userId: user.id,
       feature: "ai_lescoach",
       model: CHECK_MODEL,
-      inputTokens: completion.usage?.prompt_tokens ?? 0,
-      outputTokens: completion.usage?.completion_tokens ?? 0,
+      inputTokens: response.usage?.input_tokens ?? 0,
+      outputTokens: response.usage?.output_tokens ?? 0,
       teamId: team?.id ?? null,
     });
 
-    const analysis = lescoachAnalysisSchema.parse(JSON.parse(raw));
+    const analysisResult = response.output_parsed;
+    if (!analysisResult) {
+      throw new Error("Geen antwoord van de AI Lescoach ontvangen.");
+    }
+
+    // Stap 1 (zie de brief): de volledige, ruwe respons loggen VÓÓR de
+    // striktere business-validatie hieronder — zodat een toekomstig
+    // afwijkend geval (bijv. een leeg verplicht veld dat de strict JSON
+    // Schema niet kan afdwingen) direct met de exacte payload te
+    // onderzoeken is, i.p.v. opnieuw te moeten reproduceren.
+    console.log(`AI Lescoach[raw]: ${JSON.stringify(analysisResult)}`);
+
+    // Stap 3: item-voor-item valideren tegen het striktere business-schema
+    // (@/types/ai) — een item dat niet voldoet wordt eruit gefilterd MET een
+    // duidelijke log, in plaats van de hele analyse te laten crashen op één
+    // zwak item. Dit is de robuustheidslaag ONGEACHT of Structured Outputs
+    // de structurele fouten al voorkomt.
+    const suggestions: Omit<LescoachSuggestion, "id">[] = filterValid(
+      analysisResult.suggestions,
+      lescoachSuggestionSchema,
+      (item) => `section=${(item as { section?: unknown })?.section ?? "onbekend"}`,
+    );
+    const didacticSuggestions: Omit<DidacticSuggestion, "id">[] = filterValid(
+      analysisResult.didacticSuggestions,
+      didacticSuggestionSchema,
+      (item) => `category=${(item as { category?: unknown })?.category ?? "onbekend"}`,
+    );
+
     return Response.json({
       success: true,
-      suggestions: analysis.suggestions,
-      didacticSuggestions: analysis.didacticSuggestions,
+      suggestions,
+      didacticSuggestions,
       usedKnowledgeChunks: toUsedKnowledgeChunks(matches),
       remaining: Math.max(access.remaining - 1, 0),
     });

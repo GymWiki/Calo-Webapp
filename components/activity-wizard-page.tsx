@@ -986,6 +986,7 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{beschrijving}</p>
                   )}
+                  {renderSuggestions("beschrijving")}
                 </div>
               )}
 
