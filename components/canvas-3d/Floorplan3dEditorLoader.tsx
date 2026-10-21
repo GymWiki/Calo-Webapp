@@ -27,6 +27,7 @@ export function Floorplan3dEditorLoader(props: {
   models: MaterialModel[];
   initialFloorplans: Floorplan3dSummary[];
   initialFloorplan: { id: string; naam: string; data: Floorplan3dData } | null;
+  debug?: boolean;
 }) {
   return <Floorplan3dEditor {...props} />;
 }

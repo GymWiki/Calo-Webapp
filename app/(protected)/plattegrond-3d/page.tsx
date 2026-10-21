@@ -27,14 +27,14 @@ import type { Floorplan3dData } from "@/types/floorplan3d";
 export default async function Plattegrond3dPage({
   searchParams,
 }: {
-  searchParams: Promise<{ open?: string }>;
+  searchParams: Promise<{ open?: string; debug?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
   if (!profile) {
     redirect("/login");
   }
 
-  const { open } = await searchParams;
+  const { open, debug } = await searchParams;
 
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -65,6 +65,7 @@ export default async function Plattegrond3dPage({
       models={effectiveModels}
       initialFloorplans={initialFloorplans}
       initialFloorplan={initialFloorplan}
+      debug={debug === "1"}
     />
   );
 }

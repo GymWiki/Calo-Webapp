@@ -39,8 +39,6 @@ import { MaterialModelPicker3D } from "@/components/canvas-3d/MaterialModelPicke
 import { MyFloorplans3dList } from "@/components/canvas-3d/MyFloorplans3dList";
 import { Scene3D } from "@/components/canvas-3d/Scene3D";
 import {
-  applySnapping,
-  computeStackY,
   dimsLookupFromModels,
   findItemsResting,
   findNearestFreeSpot,
@@ -50,6 +48,7 @@ import {
   ROTATION_STEP_SMALL_DEG,
   type SnapGridSize,
 } from "@/components/canvas-3d/floorplan3d-geometry";
+import { resolvePlacement, type SnapGuide } from "@/components/canvas-3d/resolvePlacement";
 import { useFloorplan3dHistory, type Floorplan3dSnapshot } from "@/components/canvas-3d/useFloorplan3dHistory";
 
 const AUTOSAVE_DEBOUNCE_MS = 2000;
@@ -66,11 +65,14 @@ export function Floorplan3dEditor({
   models,
   initialFloorplans,
   initialFloorplan,
+  debug = false,
 }: {
   models: MaterialModel[];
   initialFloorplans: Floorplan3dSummary[];
   /** Al geopend vanuit "Mijn 3D-plattegronden" (server-side via ?open=<id>) — anders start de editor met een nieuwe, nog niet opgeslagen plattegrond. */
   initialFloorplan: { id: string; naam: string; data: Floorplan3dData } | null;
+  /** `?debug=1`: voetafdrukken, snaplijnen en een log per drop. */
+  debug?: boolean;
 }) {
   const router = useRouter();
   const lookup = useMemo(() => dimsLookupFromModels(models), [models]);
@@ -90,6 +92,7 @@ export function Floorplan3dEditor({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("angled");
+  const [debugGuides, setDebugGuides] = useState<SnapGuide[]>([]);
   const [snapGrid, setSnapGrid] = useState<SnapGridSize>(0.1);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -209,30 +212,19 @@ export function Floorplan3dEditor({
     const dragged = items.find((item) => item.id === draggingId);
     if (!dragged) return;
 
-    const dims = lookup(dragged.slug) ?? { length_m: 0.5, width_m: 0.5, height_m: 0.5, stackable: true };
-    const others = items.filter((item) => item.id !== draggingId);
-    const snapped = applySnapping(
-      event.point.x,
-      event.point.z,
-      dims,
-      dragged.rot_y_deg,
-      snapGrid,
-      others,
+    const placement = resolvePlacement({
+      pointer: { x: event.point.x, z: event.point.z },
+      dragged: { slug: dragged.slug, rot_y_deg: dragged.rot_y_deg },
+      others: items.filter((item) => item.id !== draggingId),
       room,
+      grid: snapGrid,
       lookup,
-    );
-    const stacked = computeStackY(
-      { x: snapped.x, z: snapped.z, rot_y_deg: dragged.rot_y_deg },
-      dims,
-      others,
-      lookup,
-    );
+    });
+    if (debug) setDebugGuides(placement.guides);
 
     setItems((prev) =>
       prev.map((item) =>
-        item.id === draggingId
-          ? { ...item, x: snapped.x, z: snapped.z, y: stacked.fits ? stacked.y : item.y }
-          : item,
+        item.id === draggingId ? { ...item, x: placement.x, y: placement.y, z: placement.z } : item,
       ),
     );
   }
@@ -241,6 +233,7 @@ export function Floorplan3dEditor({
     if (!draggingId) return;
     const id = draggingId;
     setDraggingId(null);
+    setDebugGuides([]);
 
     const startItem = dragStartItemRef.current;
     const startSnapshot = dragStartSnapshotRef.current;
@@ -252,21 +245,22 @@ export function Floorplan3dEditor({
       const dragged = prev.find((item) => item.id === id);
       if (!dragged) return prev;
 
-      const dims = lookup(dragged.slug) ?? { length_m: 0.5, width_m: 0.5, height_m: 0.5, stackable: true };
-      const others = prev.filter((item) => item.id !== id);
-      const stacked = computeStackY({ x: dragged.x, z: dragged.z, rot_y_deg: dragged.rot_y_deg }, dims, others, lookup);
-
-      let finalX = dragged.x;
-      let finalZ = dragged.z;
-      let finalY = dragged.y;
-      if (stacked.fits) {
-        finalY = stacked.y;
-      } else {
-        const spot = findNearestFreeSpot(dragged.x, dragged.z, dims, dragged.rot_y_deg, others, room, lookup);
-        finalX = spot.x;
-        finalZ = spot.z;
-        finalY = 0;
+      const placement = resolvePlacement({
+        pointer: { x: dragged.x, z: dragged.z },
+        dragged: { slug: dragged.slug, rot_y_deg: dragged.rot_y_deg },
+        others: prev.filter((item) => item.id !== id),
+        room,
+        grid: snapGrid,
+        lookup,
+        final: true,
+      });
+      if (debug) {
+        console.info(`[3D-plaatsing] ${dragged.slug}: ${placement.log}`, placement);
       }
+
+      const finalX = placement.x;
+      const finalY = placement.y;
+      const finalZ = placement.z;
 
       const dx = finalX - startItem.x;
       const dy = finalY - startItem.y;
@@ -588,6 +582,9 @@ export function Floorplan3dEditor({
             onFloorPointerUp={handleFloorPointerUp}
             onSelect={handleSelect}
             onBackgroundClick={handleBackgroundClick}
+            debug={debug}
+            debugGuides={debugGuides}
+            lookup={lookup}
           />
 
           <div className="absolute inset-x-0 bottom-0 flex gap-2 p-2 lg:hidden">

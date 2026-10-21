@@ -1,5 +1,7 @@
 "use client";
 
+import * as THREE from "three";
+import { Line } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import { CameraRig, type CameraMode } from "@/components/canvas-3d/CameraRig";
@@ -7,6 +9,56 @@ import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
 import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
 import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
+import { dimsOf, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
+import type { SnapGuide } from "@/components/canvas-3d/resolvePlacement";
+
+/** `?debug=1`: voetafdrukken als platte vlakken op de vloer (de exacte
+ * rechthoeken waarmee plaatsen/snappen rekent) + de actieve snaplijnen. */
+function DebugOverlay({
+  items,
+  lookup,
+  guides,
+  draggingId,
+}: {
+  items: Floorplan3dItem[];
+  lookup: DimsLookup;
+  guides: SnapGuide[];
+  draggingId: string | null;
+}) {
+  return (
+    <group>
+      {items.map((item) => {
+        const dims = dimsOf(item, lookup);
+        return (
+          <group key={item.id} position={[item.x, 0.004 + item.y, item.z]} rotation={[0, THREE.MathUtils.degToRad(item.rot_y_deg), 0]}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[dims.length_m, dims.width_m]} />
+              <meshBasicMaterial
+                color={item.id === draggingId ? "#f97316" : "#22c55e"}
+                transparent
+                opacity={0.35}
+                depthTest={false}
+              />
+            </mesh>
+          </group>
+        );
+      })}
+      {guides.map((guide, index) => (
+        <Line
+          key={index}
+          points={
+            guide.axis === "x"
+              ? [[guide.at, 0.02, guide.from], [guide.at, 0.02, guide.to]]
+              : [[guide.from, 0.02, guide.at], [guide.to, 0.02, guide.at]]
+          }
+          color={guide.targetSlug ? "#e11d48" : "#2563eb"}
+          lineWidth={2}
+          depthTest={false}
+        />
+      ))}
+    </group>
+  );
+}
 
 /**
  * De R3F-canvas zelf — bewust "dom": alle sleep-/selectie-/geschiedenis-
@@ -28,6 +80,9 @@ export function Scene3D({
   onFloorPointerUp,
   onSelect,
   onBackgroundClick,
+  debug = false,
+  debugGuides = [],
+  lookup,
 }: {
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
@@ -40,6 +95,9 @@ export function Scene3D({
   onFloorPointerUp: (event: ThreeEvent<PointerEvent>) => void;
   onSelect: (id: string) => void;
   onBackgroundClick: () => void;
+  debug?: boolean;
+  debugGuides?: SnapGuide[];
+  lookup: DimsLookup;
 }) {
   return (
     <Canvas frameloop="demand" dpr={[1, 2]} onPointerMissed={onBackgroundClick}>
@@ -70,6 +128,7 @@ export function Scene3D({
           onSelect={onSelect}
         />
       ))}
+      {debug && <DebugOverlay items={items} lookup={lookup} guides={debugGuides} draggingId={isDragging ? selectedId : null} />}
     </Canvas>
   );
 }

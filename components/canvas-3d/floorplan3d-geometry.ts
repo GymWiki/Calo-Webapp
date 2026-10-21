@@ -1,12 +1,14 @@
 // Pure, R3F/three-onafhankelijke geometrie-helpers voor de 3D-plattegrond:
-// snappen (raster/randen/muren), stapel-overlaptest (SAT, geen fysica) en
-// de "dichtstbijzijnde vrije plek"-zoekfunctie. Los van React/drei
+// voetafdrukken, overlaptest (SAT, geen fysica), de "dichtstbijzijnde vrije
+// plek"-zoekfunctie en stapelhoogtes bij laden. Plaatsen/snappen zelf:
+// resolvePlacement.ts. Los van React/drei
 // gehouden zodat dit zonder een canvas te renderen te doorlopen is, en
 // zodat Floorplan3dEditor.tsx zich puur met orchestratie/state bezig kan
 // houden.
 
 import type { MaterialModel } from "@/types/materialModel";
 import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
+import { EPS_M, OVERLAP_IGNORE_M } from "@/components/canvas-3d/placement-config";
 
 export type ItemDims = { length_m: number; width_m: number; height_m: number; stackable: boolean };
 
@@ -22,7 +24,7 @@ export function dimsLookupFromModels(models: MaterialModel[]): DimsLookup {
 
 const UNKNOWN_DIMS: ItemDims = { length_m: 0.5, width_m: 0.5, height_m: 0.5, stackable: true };
 
-function dimsOf(item: Floorplan3dItem, lookup: DimsLookup): ItemDims {
+export function dimsOf(item: Floorplan3dItem, lookup: DimsLookup): ItemDims {
   return lookup(item.slug) ?? UNKNOWN_DIMS;
 }
 
@@ -72,19 +74,22 @@ export function footprintAabb(x: number, z: number, lengthM: number, widthM: num
 }
 
 // ----------------------------------------------------------------------------
-// SAT-overlaptest voor twee geroteerde rechthoeken (XZ-vlak) — geen fysica,
-// puur "overlappen hun voetafdrukken wel of niet" (zie Stap 4.5 van de brief).
+// Overlap tussen twee geroteerde rechthoeken (XZ-vlak): SAT-indringdiepte,
+// overlapoppervlak en punt-in-voetafdruk. Geen fysica, puur geometrie.
 // ----------------------------------------------------------------------------
 
-function axesOf(corners: Point2D[]): Point2D[] {
+function unitAxesOf(corners: Point2D[]): Point2D[] {
   // Twee onafhankelijke randnormalen per rechthoek (de andere twee zijn
-  // hun tegenovergestelde, niet nodig voor SAT).
-  const edge1 = { x: corners[1].x - corners[0].x, z: corners[1].z - corners[0].z };
-  const edge2 = { x: corners[2].x - corners[1].x, z: corners[2].z - corners[1].z };
-  return [
-    { x: -edge1.z, z: edge1.x },
-    { x: -edge2.z, z: edge2.x },
+  // hun tegenovergestelde, niet nodig voor SAT), genormaliseerd zodat de
+  // projectie-overlap in meters is.
+  const edges = [
+    { x: corners[1].x - corners[0].x, z: corners[1].z - corners[0].z },
+    { x: corners[2].x - corners[1].x, z: corners[2].z - corners[1].z },
   ];
+  return edges.map((edge) => {
+    const length = Math.hypot(edge.x, edge.z) || 1;
+    return { x: -edge.z / length, z: edge.x / length };
+  });
 }
 
 function projectOntoAxis(corners: Point2D[], axis: Point2D) {
@@ -92,65 +97,93 @@ function projectOntoAxis(corners: Point2D[], axis: Point2D) {
   return { min: Math.min(...dots), max: Math.max(...dots) };
 }
 
-export function footprintsOverlap(a: Point2D[], b: Point2D[]): boolean {
-  const axes = [...axesOf(a), ...axesOf(b)];
-  for (const axis of axes) {
+/** Indringdiepte (m): hoe ver de voetafdrukken minimaal in elkaar steken.
+ * <= 0 betekent gescheiden of precies rakend. */
+export function footprintOverlapDepth(a: Point2D[], b: Point2D[]): number {
+  let depth = Infinity;
+  for (const axis of [...unitAxesOf(a), ...unitAxesOf(b)]) {
     const projA = projectOntoAxis(a, axis);
     const projB = projectOntoAxis(b, axis);
-    if (projA.max < projB.min || projB.max < projA.min) {
-      return false; // Separerende as gevonden — geen overlap.
+    depth = Math.min(depth, Math.min(projA.max, projB.max) - Math.max(projA.min, projB.min));
+  }
+  return depth;
+}
+
+/** Overlappen de voetafdrukken SIGNIFICANT? Overlap kleiner dan `minDepthM`
+ * (standaard OVERLAP_IGNORE_M) telt niet, zodat rakende items en
+ * afrondingsfouten nooit als "over elkaar" gelden. */
+export function footprintsOverlap(a: Point2D[], b: Point2D[], minDepthM: number = OVERLAP_IGNORE_M): boolean {
+  return footprintOverlapDepth(a, b) >= minDepthM;
+}
+
+function signedArea(poly: Point2D[]): number {
+  let sum = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const q = poly[(i + 1) % poly.length];
+    sum += p.x * q.z - q.x * p.z;
+  }
+  return sum / 2;
+}
+
+export function polygonArea(poly: Point2D[]): number {
+  return Math.abs(signedArea(poly));
+}
+
+/** Oppervlak van de doorsnede van twee convexe polygonen (Sutherland–Hodgman). */
+export function overlapArea(subject: Point2D[], clip: Point2D[]): number {
+  const clipPoly = signedArea(clip) < 0 ? [...clip].reverse() : clip;
+  let output = subject;
+
+  for (let i = 0; i < clipPoly.length && output.length > 0; i++) {
+    const a = clipPoly[i];
+    const b = clipPoly[(i + 1) % clipPoly.length];
+    const inside = (p: Point2D) => (b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x) >= 0;
+    const intersect = (p: Point2D, q: Point2D): Point2D => {
+      const dx = q.x - p.x;
+      const dz = q.z - p.z;
+      const denom = (b.x - a.x) * dz - (b.z - a.z) * dx;
+      const t = ((b.x - a.x) * (a.z - p.z) - (b.z - a.z) * (a.x - p.x)) / denom;
+      return { x: p.x + t * dx, z: p.z + t * dz };
+    };
+
+    const input = output;
+    output = [];
+    for (let j = 0; j < input.length; j++) {
+      const current = input[j];
+      const previous = input[(j + input.length - 1) % input.length];
+      if (inside(current)) {
+        if (!inside(previous)) output.push(intersect(previous, current));
+        output.push(current);
+      } else if (inside(previous)) {
+        output.push(intersect(previous, current));
+      }
     }
+  }
+
+  return output.length < 3 ? 0 : polygonArea(output);
+}
+
+export function pointInFootprint(point: Point2D, footprint: Point2D[]): boolean {
+  const orientation = signedArea(footprint) < 0 ? -1 : 1;
+  for (let i = 0; i < footprint.length; i++) {
+    const a = footprint[i];
+    const b = footprint[(i + 1) % footprint.length];
+    const cross = ((b.x - a.x) * (point.z - a.z) - (b.z - a.z) * (point.x - a.x)) * orientation;
+    if (cross < -EPS_M * Math.hypot(b.x - a.x, b.z - a.z)) return false;
   }
   return true;
 }
 
-function itemFootprint(item: Floorplan3dItem, lookup: DimsLookup): Point2D[] {
+export function itemFootprint(item: Floorplan3dItem, lookup: DimsLookup): Point2D[] {
   const dims = dimsOf(item, lookup);
   return footprintCorners(item.x, item.z, dims.length_m, dims.width_m, item.rot_y_deg);
 }
 
 // ----------------------------------------------------------------------------
-// Stapelhoogte: y wordt de hoogste bovenkant van overlappende, stapelbare
-// items; overlapt het met een niet-stapelbaar item, dan past deze plek niet
-// (de aanroeper valt terug op findNearestFreeSpot — zie Floorplan3dEditor.tsx).
-// ----------------------------------------------------------------------------
-
-export type StackResult = { fits: true; y: number } | { fits: false };
-
-export function computeStackY(
-  candidate: { x: number; z: number; rot_y_deg: number },
-  candidateDims: ItemDims,
-  otherItems: Floorplan3dItem[],
-  lookup: DimsLookup,
-): StackResult {
-  const candidateFootprint = footprintCorners(
-    candidate.x,
-    candidate.z,
-    candidateDims.length_m,
-    candidateDims.width_m,
-    candidate.rot_y_deg,
-  );
-
-  let highestTop = 0;
-  for (const other of otherItems) {
-    const otherFootprint = itemFootprint(other, lookup);
-    if (!footprintsOverlap(candidateFootprint, otherFootprint)) continue;
-
-    const otherDims = dimsOf(other, lookup);
-    if (!otherDims.stackable) {
-      return { fits: false };
-    }
-    const otherTop = other.y + otherDims.height_m;
-    if (otherTop > highestTop) highestTop = otherTop;
-  }
-
-  return { fits: true, y: highestTop };
-}
-
-// ----------------------------------------------------------------------------
 // Dichtstbijzijnde vrije plek — spiraalvormige ring-zoektocht rond een
-// startpunt, puur op XZ-overlap (ongeacht stapelbaarheid: dit is het
-// "leg het ernaast op de vloer"-pad, zie Stap 4.5).
+// startpunt, puur op (significante) XZ-overlap (ongeacht stapelbaarheid: dit
+// is het "leg het ernaast op de vloer"-pad, zie Stap 4.5).
 // ----------------------------------------------------------------------------
 
 export function findNearestFreeSpot(
@@ -196,89 +229,9 @@ export function findNearestFreeSpot(
   return { x: startX, z: startZ };
 }
 
-// ----------------------------------------------------------------------------
-// Snappen: raster + randen van andere items + muren, binnen een tolerantie.
-// ----------------------------------------------------------------------------
-
+// Snappen en stapelen zelf staan in resolvePlacement.ts (drempels in
+// placement-config.ts).
 export type SnapGridSize = 0 | 0.1 | 0.5;
-const EDGE_SNAP_TOLERANCE_M = 0.1;
-
-function snapToGrid(value: number, grid: SnapGridSize): number {
-  if (grid === 0) return value;
-  return Math.round(value / grid) * grid;
-}
-
-/**
- * Past raster- en rand/muur-snapping toe op een kandidaat-positie (het
- * MIDDELPUNT van het item). Rand/muur-snapping werkt op de AABB van de
- * voetafdruk (zie footprintAabb hierboven) — elke AABB-rand van het
- * gesleepte item wordt los tegen elke AABB-rand van andere items én de 4
- * muren getest; de kleinste correctie binnen de tolerantie wint per as.
- */
-export function applySnapping(
-  x: number,
-  z: number,
-  dims: ItemDims,
-  rotYDeg: number,
-  grid: SnapGridSize,
-  otherItems: Floorplan3dItem[],
-  room: Floorplan3dRoom,
-  lookup: DimsLookup,
-): Point2D {
-  let snappedX = snapToGrid(x, grid);
-  let snappedZ = snapToGrid(z, grid);
-
-  const halfL = dims.length_m / 2;
-  const halfW = dims.width_m / 2;
-  const aabb = footprintAabb(snappedX, snappedZ, dims.length_m, dims.width_m, rotYDeg);
-  const halfRoomX = room.width_m / 2;
-  const halfRoomZ = room.length_m / 2;
-
-  const targetXs = [-halfRoomX, halfRoomX, ...otherItems.flatMap((other) => {
-    const otherDims = dimsOf(other, lookup);
-    const otherAabb = footprintAabb(other.x, other.z, otherDims.length_m, otherDims.width_m, other.rot_y_deg);
-    return [otherAabb.minX, otherAabb.maxX];
-  })];
-  const targetZs = [-halfRoomZ, halfRoomZ, ...otherItems.flatMap((other) => {
-    const otherDims = dimsOf(other, lookup);
-    const otherAabb = footprintAabb(other.x, other.z, otherDims.length_m, otherDims.width_m, other.rot_y_deg);
-    return [otherAabb.minZ, otherAabb.maxZ];
-  })];
-
-  let bestXCorrection = 0;
-  let bestXDistance = EDGE_SNAP_TOLERANCE_M;
-  for (const targetX of targetXs) {
-    for (const ownEdge of [aabb.minX, aabb.maxX]) {
-      const distance = Math.abs(ownEdge - targetX);
-      if (distance < bestXDistance) {
-        bestXDistance = distance;
-        bestXCorrection = targetX - ownEdge;
-      }
-    }
-  }
-
-  let bestZCorrection = 0;
-  let bestZDistance = EDGE_SNAP_TOLERANCE_M;
-  for (const targetZ of targetZs) {
-    for (const ownEdge of [aabb.minZ, aabb.maxZ]) {
-      const distance = Math.abs(ownEdge - targetZ);
-      if (distance < bestZDistance) {
-        bestZDistance = distance;
-        bestZCorrection = targetZ - ownEdge;
-      }
-    }
-  }
-
-  snappedX += bestXCorrection;
-  snappedZ += bestZCorrection;
-
-  // Blijf binnen de kamer, ook na snapping (een rand/raster-snap mag een
-  // item nooit buiten de muren duwen).
-  snappedX = Math.min(Math.max(snappedX, -halfRoomX + halfL), halfRoomX - halfL);
-  snappedZ = Math.min(Math.max(snappedZ, -halfRoomZ + halfW), halfRoomZ - halfW);
-
-  return { x: snappedX, z: snappedZ };
-}
 
 /** Items die (nu, vóór een verplaatsing) op `baseId` rusten — rechtstreeks
  * of via een ander item ertussen (recursief) — zodat een stapel als geheel
@@ -293,7 +246,7 @@ export function findItemsResting(baseId: string, items: Floorplan3dItem[], looku
   const directlyOn = items.filter(
     (item) =>
       item.id !== baseId &&
-      Math.abs(item.y - baseTop) < 0.001 &&
+      Math.abs(item.y - baseTop) < EPS_M &&
       footprintsOverlap(baseFootprint, itemFootprint(item, lookup)),
   );
 
@@ -316,23 +269,32 @@ export function normalizeRotationDeg(deg: number): number {
  * Herberekent `y` voor elk item op basis van stapeloverlap — opgeslagen
  * `y`-waarden worden NOOIT blind vertrouwd bij het laden (zie Stap 4.9):
  * een model se hoogte kan sindsdien gewijzigd zijn, of de opslag kan van
- * een eerdere, iets andere berekening stammen. Simpele fixed-point-
- * iteratie (een paar passes over de volledige set, elke keer met de
- * nieuwste y-waarden) i.p.v. een topologische sortering — convergeert
- * voor elke eindige stapelhoogte binnen een handvol passes, en blijft
- * puur geometrisch (geen fysica/simulatie).
+ * een eerdere, iets andere berekening stammen.
+ *
+ * Items worden in volgorde van opgeslagen `y` (laagste eerst, daarna
+ * opslagvolgorde) afgehandeld en rusten alleen op items die al aan de beurt
+ * waren. Zo blijft de oorspronkelijke onder/boven-volgorde behouden; een
+ * symmetrische berekening (alles tegelijk) liet twee overlappende items
+ * elkaar juist omhoog duwen.
  */
 export function recomputeStackedYs(items: Floorplan3dItem[], lookup: DimsLookup): Floorplan3dItem[] {
-  let working = items.map((item) => ({ ...item, y: 0 }));
+  const order = items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => a.item.y - b.item.y || a.index - b.index);
 
-  for (let pass = 0; pass < 5; pass++) {
-    working = working.map((item) => {
-      const others = working.filter((other) => other.id !== item.id);
-      const result = computeStackY(item, dimsOf(item, lookup), others, lookup);
-      return { ...item, y: result.fits ? result.y : 0 };
-    });
+  const placed: Floorplan3dItem[] = [];
+  for (const { item } of order) {
+    const footprint = itemFootprint(item, lookup);
+    let y = 0;
+    for (const base of placed) {
+      if (!footprintsOverlap(footprint, itemFootprint(base, lookup))) continue;
+      const baseDims = dimsOf(base, lookup);
+      if (!baseDims.stackable) continue;
+      y = Math.max(y, base.y + baseDims.height_m);
+    }
+    placed.push({ ...item, y });
   }
 
-  return working;
+  const yById = new Map(placed.map((item) => [item.id, item.y]));
+  return items.map((item) => ({ ...item, y: yById.get(item.id) ?? 0 }));
 }
-
