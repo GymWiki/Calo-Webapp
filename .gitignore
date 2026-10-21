@@ -70,3 +70,7 @@ fastlane/*.log
 *.ipa
 *.apk
 *.aab
+
+# 3D-materiaalbronnen voor `npm run import:materials` (scripts/import-materials.mts)
+# — eigen bestanden van de beheerder, nooit in de repo zelf.
+/materiaal-import/

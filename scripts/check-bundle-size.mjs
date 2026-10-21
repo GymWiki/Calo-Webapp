@@ -23,7 +23,20 @@ const CHUNKS_DIR = ".next/static/chunks";
 // Baseline (na de performance-opschoning van september 2026) was ~3,36MB.
 // Ruimte voor groei zonder meteen te falen bij elke kleine toevoeging, maar
 // wel een harde grens tegen sluipende bundle-groei.
-const TOTAL_BUDGET_BYTES = 4.5 * 1024 * 1024; // 4,5MB
+//
+// Opgehoogd naar 5,5MB bij de 3D-plattegrondeditor (oktober 2026): three +
+// @react-three/fiber + @react-three/drei voegen ~0,7MB toe, verdeeld over 2
+// chunks (bevestigd: beide bevatten "WebGLRenderer", geen van de bestaande
+// chunks groeide mee) — ELK ruim onder PER_CHUNK_BUDGET_BYTES hieronder, dus
+// dit is geen per-ongeluk-niet-code-gesplitste import (de eigenlijke zorg
+// die dit budget bewaakt): Floorplan3dEditor.tsx wordt uitsluitend via
+// next/dynamic(ssr:false) geladen vanaf /plattegrond-3d (zie
+// Floorplan3dEditorLoader.tsx), dus geen andere pagina laadt deze chunks
+// ooit mee. Dit is de onvermijdelijke, bewust geaccepteerde kostprijs van
+// een hele nieuwe editor met de voorgeschreven 3D-stack, niet een
+// stilzwijgende regressie — vandaar hier het budget optrekken i.p.v. de
+// (al correcte) code-splitsing nog verder te forceren.
+const TOTAL_BUDGET_BYTES = 5.5 * 1024 * 1024; // 5,5MB
 const PER_CHUNK_BUDGET_BYTES = 0.85 * 1024 * 1024; // 0,85MB — ruim boven de huidige grootste (react-pdf, async-geladen, ~0,7MB)
 
 function collectJsFiles(dir) {

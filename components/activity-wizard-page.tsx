@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bot, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
+import { Bot, Box, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
 
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { BackButton } from "@/components/BackButton";
@@ -857,15 +857,27 @@ export function ActivityWizardPage({
 
       {/* Plattegrond — vaste kaart, zelfde positie in beide modi: in
           mode="view" de geëxporteerde afbeelding, in mode="edit" de
-          canvas-tekenaar zelf. */}
+          canvas-tekenaar zelf. De "3D (beta)"-link hieronder is de ENIGE
+          wijziging die deze kaart voor de nieuwe 3D-plattegrondeditor
+          (app/(protected)/plattegrond-3d) krijgt — een losse, eigen route
+          met eigen opslag (floorplans_3d), niet verbonden met deze
+          2D-tekening/diagramData. */}
       <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span
-              className={cn("size-2.5 shrink-0 rounded-[3px]", WIZARD_CATEGORY_COLOR.dot)}
-              aria-hidden="true"
-            />
-            Plattegrond
+          <CardTitle className="flex items-center justify-between gap-2 text-base">
+            <span className="flex items-center gap-2">
+              <span
+                className={cn("size-2.5 shrink-0 rounded-[3px]", WIZARD_CATEGORY_COLOR.dot)}
+                aria-hidden="true"
+              />
+              Plattegrond
+            </span>
+            <Button asChild variant="outline" size="sm" className="print:hidden">
+              <Link href="/plattegrond-3d">
+                <Box className="size-4" />
+                3D (beta)
+              </Link>
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
