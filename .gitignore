@@ -74,3 +74,7 @@ fastlane/*.log
 # 3D-materiaalbronnen voor `npm run import:materials` (scripts/import-materials.mts)
 # — eigen bestanden van de beheerder, nooit in de repo zelf.
 /materiaal-import/
+
+# Claude Code lokale/persoonlijke overrides (bv. MCP-server-approvals) — niet
+# team-breed, nooit in de repo.
+.claude/settings.local.json
