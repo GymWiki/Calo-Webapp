@@ -43,7 +43,7 @@ function UnknownItemBox() {
   );
 }
 
-/** Dev-only placeholder (zie lib/devFloorplan3dSeed.ts) — een gekleurde
+/** Dev-only placeholder (zie components/canvas-3d/devPlaceholderModels.ts) — een gekleurde
  * doos op de echte tafelafmetingen, duidelijk anders dan UnknownItemBox
  * (die altijd 0,5×0,5×0,5 grijs is, ongeacht afmetingen). */
 function DevPlaceholderBox({ dims, color }: { dims: ItemDims; color: string }) {

@@ -20,7 +20,7 @@ export type MaterialModel = {
   stackable: boolean;
   sort_order: number;
   /** Alleen gezet door de dev-only placeholder-seed (zie
-   * lib/devFloorplan3dSeed.ts) wanneer material_models leeg is — ItemMesh
+   * components/canvas-3d/devPlaceholderModels.ts) wanneer material_models leeg is — ItemMesh
    * rendert dan een gekleurd blokje i.p.v. useGLTF op een niet-bestaande
    * URL te proberen. Nooit gezet voor echte, geïmporteerde modellen. */
   devColor?: string;
