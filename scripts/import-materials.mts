@@ -255,23 +255,24 @@ async function main() {
   }
 
   console.log(`\n${resolved.length} item(en) gevonden:\n`);
-  const columnWidths = [12, 20, 12, 10, 10, 10, 11];
-  const padRow = (values: string[]) =>
-    values.map((v, i) => v.padEnd(columnWidths[i])).join("");
+  const header = ["slug", "naam", "categorie", "lengte", "breedte", "hoogte", "stapelbaar"];
+  const rows = resolved.map((r) => [
+    r.slug,
+    r.naam,
+    r.categorie,
+    `${r.length_m}m`,
+    `${r.width_m}m`,
+    `${r.height_m}m`,
+    r.stackable ? "ja" : "nee",
+  ]);
+  const columnWidths = header.map((h, i) =>
+    Math.max(h.length, ...rows.map((row) => row[i].length)) + 2,
+  );
+  const padRow = (values: string[]) => values.map((v, i) => v.padEnd(columnWidths[i])).join("");
 
-  console.log(padRow(["slug", "naam", "categorie", "lengte", "breedte", "hoogte", "stapelbaar"]));
-  for (const r of resolved) {
-    console.log(
-      padRow([
-        r.slug,
-        r.naam,
-        r.categorie,
-        `${r.length_m}m`,
-        `${r.width_m}m`,
-        `${r.height_m}m`,
-        r.stackable ? "ja" : "nee",
-      ]),
-    );
+  console.log(padRow(header));
+  for (const row of rows) {
+    console.log(padRow(row));
   }
 
   if (args.dryRun) {

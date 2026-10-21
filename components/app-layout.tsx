@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Box,
   Crown,
   Database,
   LayoutDashboard,
@@ -38,6 +39,11 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECONDARY_NAV_ITEMS: NavItem[] = [
   { href: "/kennisbank", label: "Kennisbank", icon: Database },
+  // Eigen, losse ingang naar de 3D-plattegrondeditor — niet alleen bereikbaar
+  // via de "3D (beta)"-knop op een activiteit (activity-wizard-page.tsx),
+  // zodat een plattegrond maken en een lesvoorbereiding maken volledig los
+  // van elkaar kunnen bestaan (floorplans_3d.activiteit_id is al optioneel).
+  { href: "/plattegrond-3d", label: "Plattegronden", icon: Box },
   { href: "/pro", label: "Abonnement", icon: Crown },
 ];
 
