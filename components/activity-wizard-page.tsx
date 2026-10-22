@@ -1,34 +1,41 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, Pencil } from "lucide-react";
+import { Bot, Box, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
 
-import { AiLescoachButton, type AnalyzeLessonPayload } from "@/components/AiLescoachSheet";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
+import { BackButton } from "@/components/BackButton";
 import { DidacticsForm } from "@/components/DidacticsForm";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
 import { EditableList } from "@/components/editable-list";
 import { InlineEditText } from "@/components/inline-edit-text";
-import { LessonPdfButton } from "@/components/LessonPdfButton";
+import { SuggestionCardList } from "@/components/LescoachSuggestionCard";
+import { AddToPlanningButton } from "@/components/planning/AddToPlanningButton";
+import { LessonPdfButton } from "@/components/pdf/LessonPdfButton";
+import { MaterialChecklist } from "@/components/material-checklist";
 import { SourceBadge } from "@/components/library-item-card";
 import { ShareLessonButton } from "@/components/ShareLessonButton";
+import { UsedSourcesList } from "@/components/UsedSourcesList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DiagramData } from "@/components/canvas/gym-canvas-types";
+import { getActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { BEWEGINGSTHEMAS, LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
 import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
+import type { DidacticSuggestion, LescoachSection, LescoachSuggestion } from "@/types/ai";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import { REQUIRED_LESSON_FIELDS, type DidacticItem } from "@/types/lesson";
-import { DiagramEditorCard } from "@/app/(protected)/les-maken/diagram-editor-card";
+import type { PlanningClass } from "@/types/planning";
+import { FullscreenDiagramEditor } from "@/components/canvas/FullscreenDiagramEditor";
 
 const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
 
@@ -56,10 +63,36 @@ const SAVE_STATUS_LABELS: Record<"saving" | "saved" | "error", string> = {
 // de "verrassing" die de brief wil voorkomen.
 const WIZARD_CATEGORY_COLOR = getCategoryColor(null);
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+function SectionHeading({
+  children,
+  lowConfidence,
+  aiSuggestion,
+}: {
+  children: React.ReactNode;
+  /** Herbouwde documentimport: de AI vulde dit veld wél, maar merkte het
+   * zelf als onzeker aan (confidence:"low") — zie
+   * lib/ai/extractedActivityMapping.ts's computeLowConfidenceFields. Los van
+   * de bestaande amber "verplicht"-rand (IMPORT_FLAG_CLASS), die alleen bij
+   * een LEGE waarde iets toont. */
+  lowConfidence?: boolean;
+  /** Plaatje & Praatje: dit veld komt nooit uit het document, maar is apart
+   * gegenereerd — ander label/kleur dan lowConfidence (dat betekent "AI
+   * twijfelde over een WEL gevonden waarde"). */
+  aiSuggestion?: boolean;
+}) {
   return (
-    <h3 className="mb-2 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+    <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
       {children}
+      {lowConfidence && (
+        <Badge variant="secondary" className="normal-case tracking-normal text-amber-700 dark:text-amber-300">
+          AI onzeker — controleer
+        </Badge>
+      )}
+      {aiSuggestion && (
+        <Badge variant="secondary" className="normal-case tracking-normal text-primary">
+          AI-voorstel — controleer
+        </Badge>
+      )}
     </h3>
   );
 }
@@ -115,6 +148,7 @@ const DOELGROEP_CHIP_CLASS =
 export function ActivityWizardPage({
   mode,
   activity,
+  classes,
   defaultTab = "lesinhoud",
 
   title,
@@ -126,9 +160,6 @@ export function ActivityWizardPage({
   movementTheme,
   onMovementThemeChange,
   movementThemeFlagged,
-  groupName,
-  onGroupNameChange,
-  groupNameFlagged,
   activityDate,
   onActivityDateChange,
   activityDateFlagged,
@@ -141,8 +172,17 @@ export function ActivityWizardPage({
   onParticipantsBenchChange,
   isPublic,
   isOwnActivity,
-  publishToggle,
-  onPublishToggleChange,
+  destinationValue,
+  onDestinationChange,
+  hasActiveTeam,
+  teamName,
+  destinationLocked,
+  creatorName,
+  editorName,
+  sourceActivityTitle,
+  teamTagEditor,
+  teamVersionHistory,
+  teamActivityActions,
 
   goals,
   onGoalsChange,
@@ -152,6 +192,8 @@ export function ActivityWizardPage({
   movementProblemFlagged,
   learningOutcomes,
   onLearningOutcomesChange,
+  beschrijving,
+  onBeschrijvingChange,
   deelnemersRegels,
   onDeelnemersRegelsChange,
   deelnemersRegelsFlagged,
@@ -171,22 +213,39 @@ export function ActivityWizardPage({
   onBaseMaterialsChange,
   ruleMaterials,
   onRuleMaterialsChange,
+  diagramData,
   diagramImageUrl,
   onDiagramExport,
+  referenceImageUrl,
 
   didacticItems,
   onDidacticItemsChange,
 
   onCommit,
   saveStatus,
-  analyzePayload,
   isSubmitting,
   missingFields,
   jumpToFieldTrigger,
+  lowConfidenceFields,
+  plaatjePraatjeIsAiSuggestion,
+  usedKnowledgeSources,
+  lescoachSuggestions,
+  onApplyLescoachSuggestion,
+  onDismissLescoachSuggestion,
+  lescoachDidacticSuggestions,
+  onApplyDidacticSuggestion,
+  onDismissDidacticSuggestion,
+  onRunLescoach,
+  isRunningLescoach,
+  canRunLescoach,
+  lescoachButtonLabel,
+  onBeforeBack,
 }: {
   mode: "view" | "edit";
   /** Alleen nodig in mode="view" — voor LessonPdfButton, dat de volledige rij verwacht. */
   activity?: Activity;
+  /** Alleen nodig in mode="view" — voor AddToPlanningButton in de actiebalk. */
+  classes?: PlanningClass[];
   /** Welke tab standaard open staat — gebruikt door de "Zaal-Plattegrond
    * Tekenen"-snelkoppeling op het dashboard, die direct bij "Materiaal"
    * (waar de plattegrondtekenaar in mode="edit" staat) wil uitkomen. */
@@ -201,9 +260,6 @@ export function ActivityWizardPage({
   movementTheme: string;
   onMovementThemeChange?: (value: string) => void;
   movementThemeFlagged?: boolean;
-  groupName: string;
-  onGroupNameChange?: (value: string) => void;
-  groupNameFlagged?: boolean;
   activityDate: string;
   onActivityDateChange?: (value: string) => void;
   activityDateFlagged?: boolean;
@@ -216,11 +272,32 @@ export function ActivityWizardPage({
   onParticipantsBenchChange?: (value: number | undefined) => void;
   isPublic: boolean;
   isOwnActivity: boolean;
-  /** De "Delen in de gedeelde bibliotheek"-toggle — alleen relevant in
-   * mode="edit" (vóór opslaan). Los van `isPublic` hierboven, dat de
-   * WERKELIJKE status van een al opgeslagen activiteit toont in mode="view". */
-  publishToggle?: boolean;
-  onPublishToggleChange?: (value: boolean) => void;
+  /** De bestemmingskeuze ("Alleen ik"/"Teambibliotheek"/"Gedeelde GymWiki-
+   * bibliotheek") — alleen relevant in mode="edit" (vóór opslaan). Los van
+   * `isPublic` hierboven, dat de WERKELIJKE status van een al opgeslagen
+   * activiteit toont in mode="view". */
+  destinationValue?: "private" | "team" | "public";
+  onDestinationChange?: (value: "private" | "team" | "public") => void;
+  /** Toont "Teambibliotheek" als kiesbare bestemming — alleen voor leden van
+   * een actief team. */
+  hasActiveTeam?: boolean;
+  teamName?: string | null;
+  /** Bewerkt een AL bestaande teamactiviteit — de bestemming staat dan vast
+   * (getoond als label, niet als keuze; wijzigen gaat niet via deze editor). */
+  destinationLocked?: boolean;
+  /** mode="view", visibility='team': wie de activiteit maakte/laatst bewerkte. */
+  creatorName?: string | null;
+  editorName?: string | null;
+  /** mode="view": bronvermelding "Gebaseerd op ..." bij een teamkopie van een GymWiki-activiteit. */
+  sourceActivityTitle?: string | null;
+  /** mode="view", visibility='team': de tag-editor (zie components/team/TagEditor.tsx) — als losse node meegegeven zodat deze component zelf niets van team-tags hoeft te weten. */
+  teamTagEditor?: React.ReactNode;
+  /** mode="view", visibility='team': "Vorige versies"-lijst (zie components/team/ActivityVersionHistory.tsx). */
+  teamVersionHistory?: React.ReactNode;
+  /** mode="view", visibility='team': "Verwijderen"/"Delen met GymWiki"-knoppen
+   * (zie components/team/TeamActivityViewActions.tsx) — als losse client-
+   * component-node meegegeven, want die heeft eigen loading/toast-state nodig. */
+  teamActivityActions?: React.ReactNode;
 
   goals: string;
   onGoalsChange?: (value: string) => void;
@@ -230,6 +307,11 @@ export function ActivityWizardPage({
   movementProblemFlagged?: boolean;
   learningOutcomes: string[];
   onLearningOutcomesChange?: (items: string[]) => void;
+  /** Mapt op de `beschrijving`-kolom (activiteiten) — het spelverloop zelf:
+   * start, wat de leerlingen doen, hoe er gescoord/gewisseld wordt. Optioneel
+   * (geen `required`-markering), los van deelnemersRegels hieronder. */
+  beschrijving: string;
+  onBeschrijvingChange?: (value: string) => void;
   deelnemersRegels: string;
   onDeelnemersRegelsChange?: (value: string) => void;
   deelnemersRegelsFlagged?: boolean;
@@ -249,8 +331,18 @@ export function ActivityWizardPage({
   onBaseMaterialsChange?: (items: string[]) => void;
   ruleMaterials: string[];
   onRuleMaterialsChange?: (items: string[]) => void;
+  /** Ruwe canvas-state — nodig om de volledig-scherm editor te heropenen
+   * met het bestaande arrangement (zie FullscreenDiagramEditor). Alleen
+   * relevant in mode="edit"; in mode="view" wordt enkel diagramImageUrl
+   * getoond. */
+  diagramData?: DiagramData | null;
   diagramImageUrl: string | null;
   onDiagramExport?: (data: DiagramData, imageDataUrl: string) => void;
+  /** Uit een geüpload document gehaald beeld ("Activiteit uit document",
+   * ImportImageReviewBanner) — getoond als semi-transparante natekenreferentie
+   * in de canvas-editor, nooit zelf opgeslagen. Alleen relevant in
+   * mode="edit". */
+  referenceImageUrl?: string | null;
 
   didacticItems: DidacticItem[];
   onDidacticItemsChange?: (items: DidacticItem[]) => void;
@@ -264,7 +356,6 @@ export function ActivityWizardPage({
    * eigen toast (zie lesson-form.tsx); dit is puur de rustige "bezig.../
    * opgeslagen"-indicatie voor het normale geval. */
   saveStatus?: "idle" | "saving" | "saved" | "error";
-  analyzePayload: AnalyzeLessonPayload;
   isSubmitting?: boolean;
   /** Welke verplichte velden (zie REQUIRED_LESSON_FIELDS) op dit moment nog
    * leeg zijn — live bijgewerkt terwijl de gebruiker typt. Drijft zowel de
@@ -276,8 +367,62 @@ export function ActivityWizardPage({
    * naar het genoemde veld (tab wisselen indien nodig + scrollen + focus),
    * ook als het dezelfde veldnaam is als de vorige mislukte poging. */
   jumpToFieldTrigger?: { field: RequiredFieldKey; requestId: number } | null;
+  /** Herbouwde documentimport: velden die de AI wél invulde maar zelf als
+   * onzeker aanmerkte — toont een amber "AI onzeker — controleer"-badge naast
+   * de sectiekop, los van de bestaande "verplicht"-markering. Alleen
+   * relevant in mode="edit". */
+  lowConfidenceFields?: Set<string>;
+  /** Plaatje & Praatje wordt bij een import NOOIT uit het document gehaald
+   * maar altijd apart gegenereerd — toont een "AI-voorstel — controleer"-
+   * badge totdat de gebruiker het veld zelf wijzigt. Alleen relevant in
+   * mode="edit". */
+  plaatjePraatjeIsAiSuggestion?: boolean;
+  /** De Kennisbank-fragmenten die de AI daadwerkelijk gebruikte voor deze
+   * activiteit (generatie, kwaliteitscheck en/of AI Lescoach) — backt de
+   * "Gebruikte bronnen"-sectie hieronder. Leeg/undefined toont geen sectie. */
+  usedKnowledgeSources?: UsedKnowledgeChunk[];
+  /** AI Lescoach — alleen relevant in mode="edit" (zie lesson-form.tsx, dat
+   * de fetch/apply/dismiss/cooldown-logica bezit). Suggesties worden hier
+   * per sectie gefilterd en direct onder het bijbehorende veld getoond. */
+  lescoachSuggestions?: LescoachSuggestion[];
+  onApplyLescoachSuggestion?: (suggestion: LescoachSuggestion) => void;
+  onDismissLescoachSuggestion?: (id: string) => void;
+  /** Leerhulp-variant-suggesties — apart kanaal, zie DidacticsForm. */
+  lescoachDidacticSuggestions?: DidacticSuggestion[];
+  onApplyDidacticSuggestion?: (suggestion: DidacticSuggestion) => void;
+  onDismissDidacticSuggestion?: (id: string) => void;
+  /** Triggert een nieuwe analyse (de knop in de actiebalk hieronder). */
+  onRunLescoach?: () => void;
+  isRunningLescoach?: boolean;
+  /** Cooldown/content-ongewijzigd-gate — door lesson-form.tsx berekend, hier
+   * puur gebruikt om de knop te (de)activeren. */
+  canRunLescoach?: boolean;
+  /** Overschrijft het standaardlabel "AI Lescoach raadplegen" (bijv. een
+   * cooldown-aftelling) — zie lesson-form.tsx. */
+  lescoachButtonLabel?: string;
+  /** Best-effort hook vóór de "Terug"-knop daadwerkelijk navigeert (bijv.
+   * een lopende autosave laten afronden) — alleen relevant in mode="edit".
+   * Zie BackButton. */
+  onBeforeBack?: () => void | Promise<void>;
 }) {
   const isEdit = mode === "edit";
+
+  // AI Lescoach-suggesties gefilterd per sectie — alleen in mode="edit"
+  // (nooit gezet voor mode="view", zie de callers), null-safe zodat elke
+  // sectie hieronder gewoon `{renderSuggestions("...")}` kan aanroepen.
+  function renderSuggestions(section: LescoachSection) {
+    if (!isEdit || !onApplyLescoachSuggestion || !onDismissLescoachSuggestion) return null;
+    const matches = (lescoachSuggestions ?? []).filter((suggestion) => suggestion.section === section);
+    if (matches.length === 0) return null;
+    return (
+      <SuggestionCardList
+        suggestions={matches}
+        onApply={onApplyLescoachSuggestion}
+        onDismiss={onDismissLescoachSuggestion}
+      />
+    );
+  }
+
   // Bewegingsthema is een verfijning BINNEN de gekozen leerlijn (zie
   // lib/constants/learningLines.ts) — alleen tonen als een select wanneer er
   // voor deze leerlijn een gecorroboreerde thema-lijst bestaat; anders is er
@@ -289,11 +434,19 @@ export function ActivityWizardPage({
   const normalizedLearningOutcomes = splitLearningOutcomeItems(learningOutcomes);
   const showThemeField = isEdit ? themeOptions.length > 0 : Boolean(movementTheme);
 
+  function isLowConfidence(field: string): boolean {
+    return isEdit && Boolean(lowConfidenceFields?.has(field));
+  }
+
   // Gecontroleerd i.p.v. Tabs' eigen `defaultValue`-state, zodat jumpToField
   // hieronder een tab kan omschakelen wanneer het gevraagde veld daarin
   // staat — nodig voor zowel de klikbare missing-fields-lijst als een
   // mislukte submit-poging elders (lesson-form.tsx's onInvalid).
   const [activeTab, setActiveTab] = useState<"lesinhoud" | "materiaal" | "leerhulp">(defaultTab);
+  // Volledig-scherm canvas-editor (zie FullscreenDiagramEditor) — vervangt
+  // de vroegere altijd-ingebedde DiagramEditorCard; de kaart hieronder toont
+  // nu enkel nog een compacte preview + knop die dit opent.
+  const [diagramModalOpen, setDiagramModalOpen] = useState(false);
 
   // Puur DOM-werk, geen setState — mag dus gewoon in een effect (zie
   // hieronder) zonder de react-hooks/set-state-in-effect-regel te raken.
@@ -349,12 +502,12 @@ export function ActivityWizardPage({
   return (
     <>
       <div className="print:hidden">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground">
-          <Link href="/zoeken">
-            <ArrowLeft className="size-4" />
-            Bibliotheek
-          </Link>
-        </Button>
+        <BackButton
+          fallbackHref="/zoeken"
+          fallbackLabel="Bibliotheek"
+          className="-ml-2"
+          onBeforeNavigate={onBeforeBack}
+        />
       </div>
 
       {/* Header — eyebrow (alleen-lezen preview van leerlijn/thema) + titel
@@ -389,7 +542,7 @@ export function ActivityWizardPage({
             )}
           </div>
           {!isEdit && (
-            <SourceBadge source={activity?.author_id ? (isPublic ? "public" : "gymwiki") : "gymwiki"} className="mt-1 shrink-0" />
+            <SourceBadge source={activity ? getActivitySource(activity) : "gymwiki"} className="mt-1 shrink-0" />
           )}
         </div>
 
@@ -438,13 +591,31 @@ export function ActivityWizardPage({
             )}
           </div>
         )}
+
+        {/* Teamactiviteit — wie maakte/bewerkte 'm laatst + bronvermelding
+            bij een kopie + de tag-editor, allemaal direct onder de titel. */}
+        {!isEdit && activity?.visibility === "team" && (
+          <div className="space-y-2 rounded-lg border bg-card p-3">
+            <p className="text-xs text-muted-foreground">
+              Gemaakt door {creatorName ?? "een teamlid"}
+              {editorName && editorName !== creatorName ? ` · laatst bewerkt door ${editorName}` : ""}
+              {sourceActivityTitle && (
+                <>
+                  {" "}
+                  · Gebaseerd op <span className="font-medium">{sourceActivityTitle}</span>
+                </>
+              )}
+            </p>
+            {teamTagEditor}
+            {teamVersionHistory}
+          </div>
+        )}
       </div>
 
-      {/* Basisgegevens — leerlijn/thema, groep/klas (vrije klasnaam, bijv.
-          "Klas 2C" — voor eigen overzicht) vs. doelgroep (vaste
-          bibliotheekfilter-categorieën) zijn bewust twee verschillende
-          dingen, geen dubbeling: elk krijgt hier een eigen label + korte
-          uitleg i.p.v. naast elkaar te staan zonder duidelijke relatie. */}
+      {/* Basisgegevens — leerlijn/thema + datum; voor welke groepen de
+          activiteit bedoeld is, staat verderop bij de doelgroep-chips
+          hieronder (geen los vrij-tekst "Groep/klas"-veld meer — dat was een
+          dubbeling van diezelfde doelgroep-keuze). */}
       <Card className="animate-fade-up" style={{ animationDelay: "20ms" }}>
         <CardHeader>
           <CardTitle className="text-base">Basisgegevens</CardTitle>
@@ -510,45 +681,25 @@ export function ActivityWizardPage({
             )}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FieldLabel label="Groep/klas" hint="De naam zoals jij 'm noemt, voor je eigen overzicht — bijv. 'Klas 2C'.">
+          {(isEdit || activityDate) && (
+            <FieldLabel label="Datum">
               {isEdit ? (
                 <>
                   <Input
-                    id="field-groupName"
-                    value={groupName}
-                    onChange={(event) => onGroupNameChange?.(event.target.value)}
+                    id="field-lessonDate"
+                    type="date"
+                    value={activityDate}
+                    onChange={(event) => onActivityDateChange?.(event.target.value)}
                     onBlur={() => onCommit?.()}
-                    placeholder="Bijv. Klas 2C"
-                    className={cn(groupNameFlagged && IMPORT_FLAG_CLASS)}
+                    className={cn(activityDateFlagged && IMPORT_FLAG_CLASS)}
                   />
-                  <RequiredFieldHint show={groupNameFlagged} />
+                  <RequiredFieldHint show={activityDateFlagged} />
                 </>
               ) : (
-                <p className="text-sm">{groupName || "-"}</p>
+                <p className="text-sm">{formatDate(activityDate) ?? "-"}</p>
               )}
             </FieldLabel>
-
-            {(isEdit || activityDate) && (
-              <FieldLabel label="Datum">
-                {isEdit ? (
-                  <>
-                    <Input
-                      id="field-lessonDate"
-                      type="date"
-                      value={activityDate}
-                      onChange={(event) => onActivityDateChange?.(event.target.value)}
-                      onBlur={() => onCommit?.()}
-                      className={cn(activityDateFlagged && IMPORT_FLAG_CLASS)}
-                    />
-                    <RequiredFieldHint show={activityDateFlagged} />
-                  </>
-                ) : (
-                  <p className="text-sm">{formatDate(activityDate) ?? "-"}</p>
-                )}
-              </FieldLabel>
-            )}
-          </div>
+          )}
 
           {(isEdit || doelgroepLabels.length > 0) && (
             <FieldLabel
@@ -588,21 +739,66 @@ export function ActivityWizardPage({
             </FieldLabel>
           )}
 
-          {isEdit && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-              <div>
-                <Label htmlFor="publish-toggle">Delen in de gedeelde bibliotheek</Label>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Alleen gedeelde, goedgekeurde activiteiten tellen mee voor je maandelijkse
-                  bijdrage. Staat dit uit, dan is de activiteit alleen voor jezelf zichtbaar en
-                  slaat de kwaliteitscheck over.
-                </p>
+          {isEdit && destinationLocked && (
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Bestemming: Teambibliotheek{teamName ? ` (${teamName})` : ""}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Deze activiteit is al onderdeel van de teambibliotheek — alle teamleden kunnen &apos;m
+                bewerken. De bestemming zelf wijzig je hier niet.
+              </p>
+            </div>
+          )}
+
+          {isEdit && !destinationLocked && (
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Bestemming</p>
+              <p className="mt-0.5 mb-2.5 text-xs text-muted-foreground">
+                Bepaalt wie deze activiteit ziet. Alleen &quot;Gedeelde GymWiki-bibliotheek&quot; doorloopt de
+                kwaliteitscheck en telt mee voor je maandelijkse bijdrage.
+              </p>
+              <div className={cn("grid gap-1.5", hasActiveTeam ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2")}>
+                <button
+                  type="button"
+                  aria-pressed={(destinationValue ?? "public") === "private"}
+                  onClick={() => onDestinationChange?.("private")}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-left text-sm transition-colors duration-150 ease-brand",
+                    (destinationValue ?? "public") === "private"
+                      ? "border-primary bg-primary/10 font-medium text-primary"
+                      : "border-input text-muted-foreground hover:bg-accent",
+                  )}
+                >
+                  Alleen ik
+                </button>
+                {hasActiveTeam && (
+                  <button
+                    type="button"
+                    aria-pressed={destinationValue === "team"}
+                    onClick={() => onDestinationChange?.("team")}
+                    className={cn(
+                      "rounded-md border px-3 py-2 text-left text-sm transition-colors duration-150 ease-brand",
+                      destinationValue === "team"
+                        ? "border-primary bg-primary/10 font-medium text-primary"
+                        : "border-input text-muted-foreground hover:bg-accent",
+                    )}
+                  >
+                    Teambibliotheek{teamName ? ` (${teamName})` : ""}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  aria-pressed={destinationValue === "public"}
+                  onClick={() => onDestinationChange?.("public")}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-left text-sm transition-colors duration-150 ease-brand",
+                    destinationValue === "public"
+                      ? "border-primary bg-primary/10 font-medium text-primary"
+                      : "border-input text-muted-foreground hover:bg-accent",
+                  )}
+                >
+                  Gedeelde GymWiki-bibliotheek
+                </button>
               </div>
-              <Switch
-                id="publish-toggle"
-                checked={publishToggle ?? true}
-                onCheckedChange={(value) => onPublishToggleChange?.(value)}
-              />
             </div>
           )}
 
@@ -661,25 +857,68 @@ export function ActivityWizardPage({
 
       {/* Plattegrond — vaste kaart, zelfde positie in beide modi: in
           mode="view" de geëxporteerde afbeelding, in mode="edit" de
-          canvas-tekenaar zelf. */}
+          canvas-tekenaar zelf. De "3D (beta)"-link hieronder is de ENIGE
+          wijziging die deze kaart voor de nieuwe 3D-plattegrondeditor
+          (app/(protected)/plattegrond-3d) krijgt — een losse, eigen route
+          met eigen opslag (floorplans_3d), niet verbonden met deze
+          2D-tekening/diagramData. */}
       <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span
-              className={cn("size-2.5 shrink-0 rounded-[3px]", WIZARD_CATEGORY_COLOR.dot)}
-              aria-hidden="true"
-            />
-            Plattegrond
+          <CardTitle className="flex items-center justify-between gap-2 text-base">
+            <span className="flex items-center gap-2">
+              <span
+                className={cn("size-2.5 shrink-0 rounded-[3px]", WIZARD_CATEGORY_COLOR.dot)}
+                aria-hidden="true"
+              />
+              Plattegrond
+            </span>
+            <Button asChild variant="outline" size="sm" className="print:hidden">
+              <Link href="/plattegrond-3d">
+                <Box className="size-4" />
+                3D (beta)
+              </Link>
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {isEdit ? (
-            <DiagramEditorCard
-              onExport={(data, imageDataUrl) => {
-                onDiagramExport?.(data, imageDataUrl);
-                onCommit?.();
-              }}
-            />
+            <>
+              {diagramImageUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setDiagramModalOpen(true)}
+                  className="group relative block h-48 w-full overflow-hidden rounded-2xl border bg-muted"
+                >
+                  <Image
+                    src={diagramImageUrl}
+                    alt="Plattegrond van het arrangement"
+                    fill
+                    sizes="(min-width: 768px) 700px, 100vw"
+                    className="object-contain transition-transform duration-200 ease-brand group-hover:scale-[1.01]"
+                  />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDiagramModalOpen(true)}
+                  className="flex h-48 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed text-muted-foreground transition-colors duration-150 ease-brand hover:border-primary/50 hover:text-foreground"
+                >
+                  <ImageOff className="size-6" aria-hidden="true" />
+                  <p className="text-sm">Nog geen plattegrond — maak er één</p>
+                </button>
+              )}
+              <Button type="button" className="mt-3 w-full sm:w-auto" onClick={() => setDiagramModalOpen(true)}>
+                <MapPinned className="size-4" />
+                Plattegrond bewerken
+              </Button>
+              <FullscreenDiagramEditor
+                open={diagramModalOpen}
+                onOpenChange={setDiagramModalOpen}
+                initialData={diagramData ?? null}
+                onSave={(data, imageDataUrl) => onDiagramExport?.(data, imageDataUrl)}
+                referenceImageUrl={referenceImageUrl}
+              />
+            </>
           ) : (
             <ActivityImageLightbox
               src={diagramImageUrl}
@@ -728,7 +967,7 @@ export function ActivityWizardPage({
             <CardContent className="space-y-5 pt-6">
               {(isEdit || goals) && (
                 <div id="field-goals">
-                  <SectionHeading>Doel</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("goals")}>Doel</SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={goals}
@@ -741,12 +980,33 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{goals}</p>
                   )}
+                  {renderSuggestions("goals")}
+                </div>
+              )}
+
+              {(isEdit || beschrijving) && (
+                <div id="field-beschrijving">
+                  <SectionHeading lowConfidence={isLowConfidence("beschrijving")}>Beschrijving</SectionHeading>
+                  {isEdit ? (
+                    <InlineEditText
+                      value={beschrijving}
+                      onChange={(value) => onBeschrijvingChange?.(value)}
+                      onCommit={onCommit}
+                      placeholder="Beschrijf hoe het spel verloopt: start, wat de leerlingen doen, hoe er gescoord en gewisseld wordt."
+                      minRows={6}
+                    />
+                  ) : (
+                    <p className="text-sm whitespace-pre-line text-foreground">{beschrijving}</p>
+                  )}
+                  {renderSuggestions("beschrijving")}
                 </div>
               )}
 
               {(isEdit || hasBeginsituatieSection) && (
                 <div id="field-movementProblem">
-                  <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("movementProblem") || isLowConfidence("doelgroep")}>
+                    Beginsituatie &amp; Doelgroep
+                  </SectionHeading>
                   {doelgroepLabels.length > 0 && (
                     <div className={movementProblem || isEdit ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
                       {doelgroepLabels.map((label) => (
@@ -770,12 +1030,15 @@ export function ActivityWizardPage({
                       <p className="text-sm whitespace-pre-line text-foreground">{movementProblem}</p>
                     )
                   )}
+                  {renderSuggestions("movementProblem")}
                 </div>
               )}
 
               {(isEdit || normalizedLearningOutcomes.length > 0) && (
                 <div>
-                  <SectionHeading>Leeruitkomsten</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("learningOutcomes")}>
+                    Leeruitkomsten
+                  </SectionHeading>
                   {isEdit ? (
                     <EditableList
                       items={learningOutcomes}
@@ -797,12 +1060,15 @@ export function ActivityWizardPage({
                       ))}
                     </ol>
                   )}
+                  {renderSuggestions("learningOutcomes")}
                 </div>
               )}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div id="field-deelnemersRegels">
-                  <SectionHeading>Deelnemers &amp; Regels</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("deelnemersRegels")}>
+                    Deelnemers &amp; Regels
+                  </SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={deelnemersRegels}
@@ -815,9 +1081,12 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{deelnemersRegels || "-"}</p>
                   )}
+                  {renderSuggestions("deelnemersRegels")}
                 </div>
                 <div id="field-plaatjePraatje">
-                  <SectionHeading>Plaatje &amp; Praatje</SectionHeading>
+                  <SectionHeading aiSuggestion={isEdit && plaatjePraatjeIsAiSuggestion}>
+                    Plaatje &amp; Praatje
+                  </SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={plaatjePraatje}
@@ -830,9 +1099,12 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{plaatjePraatje || "-"}</p>
                   )}
+                  {renderSuggestions("plaatjePraatje")}
                 </div>
                 <div id="field-aandachtspunten" className="sm:col-span-2">
-                  <SectionHeading>Aandachtspunten</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("aandachtspunten")}>
+                    Aandachtspunten
+                  </SectionHeading>
                   {isEdit ? (
                     <InlineEditText
                       value={aandachtspunten}
@@ -845,11 +1117,12 @@ export function ActivityWizardPage({
                   ) : (
                     <p className="text-sm whitespace-pre-line text-foreground">{aandachtspunten || "-"}</p>
                   )}
+                  {renderSuggestions("aandachtspunten")}
                 </div>
               </div>
 
               <div>
-                <SectionHeading>Regels</SectionHeading>
+                <SectionHeading lowConfidence={isLowConfidence("rules")}>Regels</SectionHeading>
                 {isEdit ? (
                   <EditableList
                     items={regels}
@@ -871,6 +1144,7 @@ export function ActivityWizardPage({
                     ))}
                   </ul>
                 )}
+                {renderSuggestions("rules")}
               </div>
             </CardContent>
           </Card>
@@ -881,7 +1155,9 @@ export function ActivityWizardPage({
           <Card>
             <CardContent className="space-y-5 pt-6">
               <div id="field-arrangement">
-                <SectionHeading>Veldafmetingen &amp; opstelling</SectionHeading>
+                <SectionHeading lowConfidence={isLowConfidence("arrangement")}>
+                  Veldafmetingen &amp; opstelling
+                </SectionHeading>
                 {isEdit ? (
                   <InlineEditText
                     value={arrangement}
@@ -894,10 +1170,13 @@ export function ActivityWizardPage({
                 ) : (
                   <p className="text-sm whitespace-pre-line text-foreground">{arrangement || "-"}</p>
                 )}
+                {renderSuggestions("arrangement")}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <SectionHeading>Basismateriaal</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("baseMaterials")}>
+                    Basismateriaal
+                  </SectionHeading>
                   {isEdit ? (
                     <EditableList
                       items={baseMaterials}
@@ -907,20 +1186,19 @@ export function ActivityWizardPage({
                       addLabel="Voeg materiaal toe"
                       emptyHint="Nog geen basismateriaal."
                     />
-                  ) : baseMaterials.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">-</p>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {baseMaterials.map((item, index) => (
-                        <Badge key={`${item}-${index}`} variant="secondary">
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
+                    <MaterialChecklist
+                      items={baseMaterials}
+                      storageKey={`materiaal-checklist:${activity?.id ?? ""}:basis`}
+                      emptyLabel="Geen materiaal nodig."
+                    />
                   )}
+                  {renderSuggestions("baseMaterials")}
                 </div>
                 <div>
-                  <SectionHeading>Regelmateriaal</SectionHeading>
+                  <SectionHeading lowConfidence={isLowConfidence("ruleMaterials")}>
+                    Regelmateriaal
+                  </SectionHeading>
                   {isEdit ? (
                     <EditableList
                       items={ruleMaterials}
@@ -930,19 +1208,19 @@ export function ActivityWizardPage({
                       addLabel="Voeg materiaal toe"
                       emptyHint="Nog geen regelmateriaal."
                     />
-                  ) : ruleMaterials.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">-</p>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {ruleMaterials.map((item, index) => (
-                        <Badge key={`${item}-${index}`} variant="secondary">
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
+                    <MaterialChecklist
+                      items={ruleMaterials}
+                      storageKey={`materiaal-checklist:${activity?.id ?? ""}:regel`}
+                      emptyLabel="Geen materiaal nodig."
+                    />
                   )}
+                  {renderSuggestions("ruleMaterials")}
                 </div>
               </div>
+              {usedKnowledgeSources && usedKnowledgeSources.length > 0 && (
+                <UsedSourcesList chunks={usedKnowledgeSources} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -959,6 +1237,9 @@ export function ActivityWizardPage({
                 onCommit?.();
               }}
               styleOverrides={LEERHULP_DIDACTIC_STYLE_OVERRIDES}
+              suggestions={lescoachDidacticSuggestions}
+              onApplySuggestion={onApplyDidacticSuggestion}
+              onDismissSuggestion={onDismissDidacticSuggestion}
             />
           ) : (
             <DidacticsMatrix items={didacticItems} styleOverrides={LEERHULP_DIDACTIC_STYLE_OVERRIDES} />
@@ -975,7 +1256,22 @@ export function ActivityWizardPage({
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-2 border-t bg-card p-2.5 shadow-brand-lg md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))] print:hidden">
         {isEdit ? (
           <>
-            <AiLescoachButton payload={analyzePayload} className="flex-1" />
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={onRunLescoach}
+              disabled={!canRunLescoach || isRunningLescoach}
+            >
+              {isRunningLescoach ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Bot className="size-4" />
+              )}
+              {isRunningLescoach
+                ? "Bezig met analyseren..."
+                : lescoachButtonLabel ?? "AI Lescoach raadplegen"}
+            </Button>
             <Button type="submit" disabled={isSubmitting} className="flex-[1.4] gap-2">
               {isSubmitting && <Loader2 className="size-4 animate-spin" />}
               {isSubmitting ? "Bezig met opslaan..." : "Activiteit opslaan"}
@@ -990,9 +1286,8 @@ export function ActivityWizardPage({
                 </Link>
               </Button>
             )}
-            <AiLescoachButton payload={analyzePayload} className="flex-1" />
             {activity && <LessonPdfButton activity={activity} authorName={authorName} className="flex-1" />}
-            {isOwnActivity && activity && (
+            {isOwnActivity && activity && activity.visibility !== "team" && (
               <ShareLessonButton
                 lessonId={activity.id}
                 lessonTitle={activity.titel}
@@ -1001,6 +1296,10 @@ export function ActivityWizardPage({
                 isAiGenerated={activity.is_ai_generated}
                 className="flex-1"
               />
+            )}
+            {teamActivityActions}
+            {activity && classes && (
+              <AddToPlanningButton activityId={activity.id} classes={classes} className="flex-1" />
             )}
           </>
         )}

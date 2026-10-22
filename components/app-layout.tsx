@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Box,
   Crown,
   Database,
   LayoutDashboard,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { logout } from "@/app/(auth)/actions";
+import { GymWikiLogo } from "@/components/GymWikiLogo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,11 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECONDARY_NAV_ITEMS: NavItem[] = [
   { href: "/kennisbank", label: "Kennisbank", icon: Database },
+  // Eigen, losse ingang naar de 3D-plattegrondeditor — niet alleen bereikbaar
+  // via de "3D (beta)"-knop op een activiteit (activity-wizard-page.tsx),
+  // zodat een plattegrond maken en een lesvoorbereiding maken volledig los
+  // van elkaar kunnen bestaan (floorplans_3d.activiteit_id is al optioneel).
+  { href: "/plattegrond-3d", label: "Plattegronden", icon: Box },
   { href: "/pro", label: "Abonnement", icon: Crown },
 ];
 
@@ -73,8 +80,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh w-full md:flex-row">
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
-        <div className="font-display px-6 py-5 text-lg tracking-wide">
-          GYMWIKI
+        <div className="px-6 py-5">
+          <GymWikiLogo size={24} wordmarkClassName="text-lg" />
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {navItems.map((item) => {

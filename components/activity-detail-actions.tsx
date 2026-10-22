@@ -1,55 +1,171 @@
 "use client";
 
-import Link from "next/link";
-import { useState, useTransition } from "react";
-import { Bookmark, BookmarkCheck, Copy } from "lucide-react";
-import { toast } from "sonner";
+import { Bookmark, BookmarkCheck, ThumbsUp } from "lucide-react";
 
-import { toggleSavedActivity } from "@/actions/activity";
-import { ActivityPdfButton } from "@/components/ActivityPdfButton";
+import { toggleActivityLike, toggleSavedActivity } from "@/actions/activity";
+import { AddToPlanningButton } from "@/components/planning/AddToPlanningButton";
+import { ShareActivityButton } from "@/components/ShareActivityButton";
 import { Button } from "@/components/ui/button";
+import { useOptimisticAction } from "@/lib/hooks/useOptimisticAction";
+import { cn } from "@/lib/utils";
 import type { Activity } from "@/types/activity";
+import type { PlanningClass } from "@/types/planning";
+
+// Losstaand van de andere drie acties — heeft eigen optimistic state (de
+// knop-status ÉN het aantal moeten allebei instant bijwerken) en wordt
+// helemaal niet gerenderd voor de eigen activiteit van de gebruiker (zie
+// ActivityDetailActions hieronder), dus makkelijker als eigen component dan
+// er nog een vertakking in de andere knoppen-lus bij te bouwen.
+function ActivityLikeButton({
+  activityId,
+  initiallyLiked,
+  likeCount,
+  variant,
+}: {
+  activityId: string;
+  initiallyLiked: boolean;
+  likeCount: number;
+  variant: "sidebar" | "icons";
+}) {
+  const {
+    value: liked,
+    run: toggleLike,
+    isPending,
+  } = useOptimisticAction(initiallyLiked, () => toggleActivityLike(activityId));
+
+  // Afgeleid van `liked` i.p.v. een los stukje state: useOptimisticAction
+  // regelt de optimistic update/revert-bij-fout al voor `liked` zelf, dus
+  // deze berekening erft die correctheid gratis mee (geen apart revert-pad
+  // voor het aantal nodig).
+  const displayedCount = likeCount + (liked ? 1 : 0) - (initiallyLiked ? 1 : 0);
+  const label = liked ? "Werkte goed" : "Dit werkte goed";
+
+  if (variant === "icons") {
+    return (
+      <div className="relative">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-pressed={liked}
+          aria-label={label}
+          title={label}
+          disabled={isPending}
+          onClick={() => toggleLike(!liked)}
+        >
+          <ThumbsUp className={cn("size-4", liked && "fill-current text-primary")} />
+        </Button>
+        {displayedCount > 0 && (
+          <span
+            className="pointer-events-none absolute -right-1 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+            aria-hidden="true"
+          >
+            {displayedCount}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full justify-start"
+      aria-pressed={liked}
+      disabled={isPending}
+      onClick={() => toggleLike(!liked)}
+    >
+      <ThumbsUp className={cn("size-4", liked && "fill-current text-primary")} />
+      {label}
+      {displayedCount > 0 && (
+        <span className="ml-auto text-xs text-muted-foreground">{displayedCount}</span>
+      )}
+    </Button>
+  );
+}
 
 export function ActivityDetailActions({
   activity,
   initiallySaved,
+  initiallyLiked,
+  isOwnActivity,
+  classes,
+  variant = "sidebar",
+  className,
+  teamLibraryButton,
 }: {
   activity: Activity;
   initiallySaved: boolean;
+  /** Weggelaten voor de eigen activiteit — geen server-call/optimistic state
+   *  nodig voor een knop die toch niet gerenderd wordt. */
+  initiallyLiked?: boolean;
+  /** Eigen activiteit: geen like-knop (zelf-like-preventie, ook
+   *  server-side afgedwongen — zie actions/activity.ts). */
+  isOwnActivity: boolean;
+  classes: PlanningClass[];
+  /** "sidebar": full-width knoppen met label, gestapeld (desktop-zijbalk).
+   *  "icons": compacte rij icoon-knoppen (mobiel/tablet, bij de titel). */
+  variant?: "sidebar" | "icons";
+  className?: string;
+  /** Team-gerelateerde actie(s) — ofwel de "Team"-toevoegknop (zie
+   * components/team/TeamLibraryActionButton.tsx) voor een publieke GymWiki-
+   * activiteit, ofwel "Verwijderen"/"Delen met GymWiki" (zie
+   * components/team/TeamActivityViewActions.tsx) voor een teamactiviteit
+   * zelf. Als losse node meegegeven zodat dit component zelf niets van
+   * teams hoeft te weten. */
+  teamLibraryButton?: React.ReactNode;
 }) {
   const activityId = activity.id;
-  const [saved, setSaved] = useState(initiallySaved);
-  const [pending, startTransition] = useTransition();
+  const {
+    value: saved,
+    run: toggleSave,
+    isPending: pending,
+  } = useOptimisticAction(initiallySaved, () => toggleSavedActivity(activityId));
 
-  function handleToggleSave() {
-    const next = !saved;
-    setSaved(next); // optimistic
-
-    startTransition(async () => {
-      const result = await toggleSavedActivity(activityId);
-      if ("error" in result) {
-        setSaved(!next); // revert
-        toast.error(result.error);
-      }
-    });
+  if (variant === "icons") {
+    return (
+      <div className={cn("flex items-center gap-2", className)}>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-pressed={saved}
+          aria-label={saved ? "Opgeslagen" : "Bewaren"}
+          title={saved ? "Opgeslagen" : "Bewaren"}
+          disabled={pending}
+          onClick={() => toggleSave(!saved)}
+        >
+          {saved ? (
+            <BookmarkCheck className="size-4 text-primary" />
+          ) : (
+            <Bookmark className="size-4" />
+          )}
+        </Button>
+        {!isOwnActivity && (
+          <ActivityLikeButton
+            activityId={activityId}
+            initiallyLiked={initiallyLiked ?? false}
+            likeCount={activity.like_count}
+            variant="icons"
+          />
+        )}
+        <AddToPlanningButton activityId={activityId} classes={classes} iconOnly />
+        <ShareActivityButton title={activity.titel} iconOnly />
+        {teamLibraryButton}
+      </div>
+    );
   }
 
   return (
-    // Eén vaste onderbalk, op elke breedte — geen aparte desktop-variant.
-    // bottom-[calc(4rem+env(safe-area-inset-bottom))] op mobiel om boven de
-    // bottom-navigatie te blijven (die is md:hidden en zelf ook
-    // safe-area-bewust, zie components/app-layout.tsx), md:bottom-0 daarna
-    // — op mobiel reserveert de nav er al onder al de veilige zone, dus
-    // deze balk heeft daar zelf geen extra pb voor nodig; op desktop, waar
-    // 'm wél de echte schermrand raakt, wel.
-    <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex gap-2 border-t bg-card p-2.5 shadow-brand-lg md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
+    <div className={cn("flex flex-col gap-2", className)}>
       <Button
+        type="button"
         variant="outline"
-        size="sm"
-        className="flex-1"
+        className="w-full justify-start"
         aria-pressed={saved}
         disabled={pending}
-        onClick={handleToggleSave}
+        onClick={() => toggleSave(!saved)}
       >
         {saved ? (
           <BookmarkCheck className="size-4 text-primary" />
@@ -58,14 +174,21 @@ export function ActivityDetailActions({
         )}
         {saved ? "Opgeslagen" : "Bewaren"}
       </Button>
-      <Button asChild size="sm" className="flex-[1.4]">
-        <Link href={`/les-maken?vanuit=${activityId}`}>
-          <Copy className="size-4" />
-          <span className="hidden sm:inline">Kopieer &amp; bewerk</span>
-          <span className="sm:hidden">Kopiëren</span>
-        </Link>
-      </Button>
-      <ActivityPdfButton activity={activity} className="flex-1" size="sm" />
+      {!isOwnActivity && (
+        <ActivityLikeButton
+          activityId={activityId}
+          initiallyLiked={initiallyLiked ?? false}
+          likeCount={activity.like_count}
+          variant="sidebar"
+        />
+      )}
+      <AddToPlanningButton
+        activityId={activityId}
+        classes={classes}
+        className="w-full justify-start"
+      />
+      <ShareActivityButton title={activity.titel} className="w-full justify-start" />
+      {teamLibraryButton}
     </div>
   );
 }

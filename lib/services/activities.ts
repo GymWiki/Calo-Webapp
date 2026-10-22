@@ -4,7 +4,26 @@ import type { Activity } from "@/types/activity";
 
 const ACTIVITY_SELECT =
   "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
-  "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, is_public, public_since";
+  "group_name, activity_date, movement_problem, min_participants, participants_bench, base_materials, rule_materials, diagram_data, diagram_image_url, game_category, game_dimensions, tactical_questions, didactic_items, arrangement, deelnemers_regels, plaatje_praatje, aandachtspunten, is_ai_generated, visibility, public_since, like_count, team_id, source_activity_id, updated_by, updated_at, version, deleted_at, deleted_by";
+
+// Voor lijst-/kaartweergaves (bibliotheek, "Mijn activiteiten", opgeslagen,
+// dashboard-secties): dezelfde velden als ACTIVITY_SELECT, MINUS de zware
+// velden die uitsluitend op de detail-/editweergave gebruikt worden
+// (diagram_data is de volledige canvas-plattegrond-JSON, didactic_items/
+// tactical_questions/deelnemers_regels/plaatje_praatje/aandachtspunten/
+// movement_problem/game_category/game_dimensions/is_ai_generated zijn
+// detail-only vrije tekst/metadata). Geverifieerd met een repo-brede grep
+// dat geen van deze velden ergens in een kaart- of zoek/filter-component
+// wordt gebruikt (o.a. library-search-client.tsx, library-item-card.tsx,
+// my-activity-card.tsx, recent-activities-list.tsx, community-lessons-
+// section.tsx) — voeg een veld hier terug toe zodra een lijstweergave het
+// nodig heeft. Het resultaat wordt nog steeds als `Activity[]` getypeerd
+// (geen apart, smaller type) — dat is een bewuste, gedocumenteerde
+// afweging: TypeScript kan een toekomstig gebruik van een hier weggelaten
+// veld dus niet zelf afvangen, alleen deze lijst met opmerking.
+export const ACTIVITY_LIST_SELECT =
+  "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
+  "group_name, activity_date, min_participants, participants_bench, base_materials, rule_materials, diagram_image_url, arrangement, visibility, public_since, like_count, team_id, source_activity_id, updated_by, updated_at, version, deleted_at, deleted_by";
 
 async function getServerClient() {
   const cookieStore = await cookies();
@@ -13,10 +32,14 @@ async function getServerClient() {
 
 /**
  * De gedeelde, doorzoekbare bibliotheek — alleen goedgekeurde, publiek
- * gedeelde activiteiten. Voor free_blocked-gebruikers (bijdrage-eis niet
- * gehaald) filtert de aanroepende pagina hier apart op via
- * getOwnSubmissions, zie lib/permissions.ts's hasFullLibraryAccess.
+ * gedeelde activiteiten. Wordt voor ELKE gebruiker volledig opgehaald,
+ * ongeacht toegangsniveau: het preview-slot voor free_blocked-gebruikers
+ * (bijdrage-eis niet gehaald, zie lib/permissions.ts's hasFullLibraryAccess
+ * en LIBRARY_PREVIEW_LIMIT) beperkt hoeveel kaarten LibrarySearchClient
+ * ervan RENDERT, niet welke rijen hier worden opgehaald — de daadwerkelijke
+ * inhoud-blokkade zit op /activiteit/[id] zelf.
  *
+
  * `is_public=true` is hier bewust expliciet toegevoegd (naast
  * `status='approved'`): sinds de "Delen in de gedeelde bibliotheek"-toggle
  * (zie actions/lesson.ts's createLesson) kan een eigen activiteit
@@ -30,9 +53,9 @@ export async function getAllActivities(): Promise<Activity[]> {
 
   const { data, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .eq("status", "approved")
-    .eq("is_public", true)
+    .eq("visibility", "public")
     .order("titel", { ascending: true })
     .returns<Activity[]>();
 
@@ -45,16 +68,16 @@ export async function getAllActivities(): Promise<Activity[]> {
 
 /**
  * Eigen ingediende activiteiten (pending/approved/rejected) — gebruikt voor
- * "Mijn activiteiten" en voor de beperkte bibliotheekweergave van
- * free_blocked-accounts. Sluit concepten (status 'draft') bewust uit — die
- * zijn nog niet ingediend, zie getActivityDrafts hieronder.
+ * "Mijn activiteiten" en het dashboard/profiel. Sluit concepten (status
+ * 'draft') bewust uit — die zijn nog niet ingediend, zie getActivityDrafts
+ * hieronder.
  */
 export async function getOwnSubmissions(authorId: string): Promise<Activity[]> {
   const supabase = await getServerClient();
 
   const { data, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .eq("author_id", authorId)
     .neq("status", "draft")
     .order("submitted_at", { ascending: false })
@@ -83,7 +106,7 @@ export async function getActivityDrafts(authorId: string): Promise<Activity[]> {
 
   const { data, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .eq("author_id", authorId)
     .eq("status", "draft")
     .order("created_at", { ascending: false })
@@ -105,6 +128,11 @@ export async function getActivityById(
     .from("activiteiten")
     .select(ACTIVITY_SELECT)
     .eq("id", activityId)
+    // Zacht verwijderde teamactiviteiten (deleted_at, zie
+    // supabase/migrations/team_library.sql) tonen zich nergens meer — een
+    // dedicated "prullenbak"-herstelscherm is in deze iteratie niet gebouwd,
+    // zie de eindsamenvatting.
+    .is("deleted_at", null)
     .maybeSingle()
     .returns<Activity>();
 
@@ -127,14 +155,52 @@ export async function getPublicActivities(): Promise<Activity[]> {
 
   const { data, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
-    .eq("is_public", true)
+    .select(ACTIVITY_LIST_SELECT)
+    .eq("visibility", "public")
     .not("author_id", "is", null)
     .order("public_since", { ascending: false })
     .returns<Activity[]>();
 
   if (error) {
     throw new Error(`Kon publieke activiteiten niet ophalen: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Alle activiteiten van een team: eigen teamactiviteiten ('own', niet zacht
+ * verwijderd) + de activiteiten waar het team naar verwijst ('reference',
+ * altijd publiek — zie team_library_items in supabase/migrations/
+ * team_library.sql). RLS (is_active_team_member) laat dit alleen door voor
+ * een actief lid van DIT team; voor iedereen buiten het team komt dit gewoon
+ * leeg terug, geen foutmelding nodig.
+ */
+export async function getTeamActivities(teamId: string): Promise<Activity[]> {
+  const supabase = await getServerClient();
+
+  const { data: items, error: itemsError } = await supabase
+    .from("team_library_items")
+    .select("activity_id")
+    .eq("team_id", teamId);
+
+  if (itemsError) {
+    throw new Error(`Kon teambibliotheek niet ophalen: ${itemsError.message}`);
+  }
+
+  const activityIds = (items ?? []).map((row) => row.activity_id);
+  if (activityIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("activiteiten")
+    .select(ACTIVITY_LIST_SELECT)
+    .in("id", activityIds)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .returns<Activity[]>();
+
+  if (error) {
+    throw new Error(`Kon teambibliotheek niet ophalen: ${error.message}`);
   }
 
   return data ?? [];
@@ -201,7 +267,7 @@ export async function getSavedActivities(userId: string): Promise<Activity[]> {
 
   const { data: activities, error } = await supabase
     .from("activiteiten")
-    .select(ACTIVITY_SELECT)
+    .select(ACTIVITY_LIST_SELECT)
     .in("id", orderedIds)
     .returns<Activity[]>();
 
@@ -213,4 +279,45 @@ export async function getSavedActivities(userId: string): Promise<Activity[]> {
   return orderedIds
     .map((id) => byId.get(id))
     .filter((activity): activity is Activity => activity !== undefined);
+}
+
+// Zelfde patroon als isActivitySaved/getSavedActivityIds hierboven —
+// activity_likes is een aparte junction-tabel (zie
+// supabase/migrations/activity_likes.sql), het geaggregeerde aantal staat
+// gedenormaliseerd op activiteiten.like_count (al onderdeel van
+// ACTIVITY_SELECT/ACTIVITY_LIST_SELECT), dus deze functies geven alleen
+// terug OF de huidige gebruiker al geliket heeft — nooit het aantal zelf.
+export async function isActivityLiked(
+  userId: string,
+  activityId: string,
+): Promise<boolean> {
+  const supabase = await getServerClient();
+
+  const { data, error } = await supabase
+    .from("activity_likes")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("activity_id", activityId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Kon like-status niet ophalen: ${error.message}`);
+  }
+
+  return data !== null;
+}
+
+export async function getLikedActivityIds(userId: string): Promise<Set<string>> {
+  const supabase = await getServerClient();
+
+  const { data, error } = await supabase
+    .from("activity_likes")
+    .select("activity_id")
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(`Kon geliket activiteiten niet ophalen: ${error.message}`);
+  }
+
+  return new Set((data ?? []).map((row) => row.activity_id));
 }

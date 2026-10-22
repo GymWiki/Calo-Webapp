@@ -150,11 +150,79 @@ export type TextDiagramElement = BaseElement & {
   fontStyle: TextFontStyle;
 };
 
+/**
+ * Veldpresets — kant-en-klare, correct geschaalde sportveldbelijning
+ * (Volleybal, Basketbal, Badminton, Handbal, Zaalvoetbal). Net als
+ * MaterialDiagramElement een BaseElement (x/y/rotation/scaleX/scaleY), zodat
+ * een geplaatst preset via dezelfde generieke Group+Transformer-flow
+ * verplaatst/geschaald/geroteerd kan worden als elk ander element — de
+ * belijning zelf komt uit FIELD_PRESETS (field-presets.ts) en wordt hier
+ * alleen met zijn sport-sleutel gerefereerd, niet gekopieerd.
+ */
+export type FieldPresetSport =
+  | "volleybal"
+  | "basketbal"
+  | "badminton"
+  | "handbal"
+  | "zaalvoetbal";
+
+export type FieldPresetDiagramElement = BaseElement & {
+  kind: "field_preset";
+  sport: FieldPresetSport;
+  /**
+   * Lijnkleur van dít geplaatste preset-exemplaar (alle lijnen/cirkels
+   * samen — niet de veldachtergrond, die blijft aan LocationType
+   * gekoppeld). Optioneel voor achterwaartse compatibiliteit: tekeningen
+   * die vóór deze functionaliteit zijn opgeslagen hebben dit veld niet;
+   * element-icons.tsx valt in dat geval terug op de oorspronkelijke,
+   * hardgecodeerde "#ffffff".
+   */
+  stroke?: string;
+};
+
+/**
+ * Vrije tekenvormen (rechthoek/driehoek/cirkel) — net als MaterialDiagramElement
+ * een BaseElement, dus verplaatsbaar/roteerbaar/schaalbaar via hetzelfde
+ * generieke Group+Transformer-pad als elk ander element (geen aparte
+ * lijn-achtige eindpunt-logica nodig, zie LineDiagramElement hierboven).
+ * `width`/`height` zijn de ongeschaalde afmetingen bij plaatsing (net als
+ * MaterialDiagramElement); scaleX/scaleY passen daarna de werkelijke grootte
+ * aan. Konva's Transformer houdt scaleX/scaleY standaard aan elkaar gelijk
+ * bij een hoek-handle (keepRatio, alleen doorbroken met Shift ingedrukt),
+ * dus "eenvoudig schalen" vervormt de vormverhouding niet — bewust géén
+ * eigen aanpassing nodig om dat gedrag te krijgen.
+ */
+export type ShapeKind = "rectangle" | "triangle" | "circle";
+
+export const SHAPE_KINDS: ShapeKind[] = ["rectangle", "triangle", "circle"];
+
+export const SHAPE_KIND_LABELS: Record<ShapeKind, string> = {
+  rectangle: "Rechthoek",
+  triangle: "Driehoek",
+  circle: "Cirkel",
+};
+
+export type ShapeDiagramElement = BaseElement & {
+  kind: "shape";
+  shape: ShapeKind;
+  width: number;
+  height: number;
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+};
+
 export type DiagramElement =
   | SystemDiagramElement
   | MaterialDiagramElement
   | LineDiagramElement
-  | TextDiagramElement;
+  | TextDiagramElement
+  | FieldPresetDiagramElement
+  | ShapeDiagramElement;
+
+export function isShapeElement(element: DiagramElement): element is ShapeDiagramElement {
+  return element.kind === "shape";
+}
 
 export function isMaterialElement(
   element: DiagramElement,
@@ -170,10 +238,36 @@ export function isTextElement(element: DiagramElement): element is TextDiagramEl
   return element.kind === "text";
 }
 
+export function isFieldPresetElement(
+  element: DiagramElement,
+): element is FieldPresetDiagramElement {
+  return element.kind === "field_preset";
+}
+
+/**
+ * Ondergrond van het canvas — stuurt alleen de achtergrond, nooit de
+ * geplaatste elementen/materialen/lijnen/presets (zie GymBackground in
+ * GymCanvas.tsx). "pool"/"track" zijn later toegevoegd naast de
+ * oorspronkelijke indoor/outdoor — zie field-presets.ts's
+ * POOL_BACKGROUND/TRACK_BACKGROUND voor de belijning.
+ */
+export type LocationType = "indoor" | "outdoor" | "pool" | "track";
+
+export const LOCATION_TYPES: LocationType[] = ["indoor", "outdoor", "pool", "track"];
+
+export const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
+  indoor: "Binnen",
+  outdoor: "Buiten",
+  pool: "Zwembad",
+  track: "Atletiekbaan",
+};
+
 export type DiagramData = {
   width: number;
   height: number;
   /** Absent on older saved diagrams — treat as "top". */
   viewMode?: ViewMode;
+  /** Absent op oudere tekeningen — behandel als "indoor" (bestaande zaalvloer). */
+  locationType?: LocationType;
   elements: DiagramElement[];
 };

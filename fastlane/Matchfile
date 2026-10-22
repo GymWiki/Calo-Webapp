@@ -1,0 +1,21 @@
+# fastlane match beheert iOS-certificaten/provisioning-profiles via een
+# versleutelde, PRIVATE git-repo (of Google Cloud Storage — zie de
+# storage_mode-optie in fastlane's docs als je geen apart git-repo wilt).
+# Deze repo is NIET dit GymWiki-repo: certificaten horen nooit in dezelfde
+# repo als applicatiecode. Zie docs/mobile-app/README.md "Match instellen"
+# voor hoe je 'm eenmalig aanmaakt (`fastlane match init`).
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+type("appstore") # per lane overschreven waar nodig (zie fastlane/Fastfile)
+# Geen `ENV["IOS_BUNDLE_ID"] || fallback`: in GitHub Actions substitueert
+# een ongezette `vars.X` als lege string, niet als afwezig, dus `||` zou
+# die lege string ten onrechte als "gezet" behandelen (zie fastlane/Appfile's
+# env()-helper voor dezelfde valkuil).
+bundle_id = ENV["IOS_BUNDLE_ID"]
+app_identifier([bundle_id.nil? || bundle_id.empty? ? "com.mycompany.gymwiki" : bundle_id])
+username(ENV["APPLE_ID"])
+
+# Zonder wachtwoord kan match de certificaten-repo niet decrypten — vereist
+# in CI (geen interactieve prompt mogelijk), optioneel lokaal (fastlane
+# vraagt er dan gewoon om).
+readonly(ENV["CI"] ? true : false)

@@ -51,6 +51,8 @@ async function matchKnowledgeBase(
     ...match,
     document_title: titleById.get(match.document_id) ?? "Onbekend document",
     source_label: OWN_KNOWLEDGE_BASE_LABEL,
+    source_type: "knowledge_base" as const,
+    package_id: null,
   }));
 }
 
@@ -77,6 +79,7 @@ async function matchKnowledgePackages(
       id: string;
       document_id: string;
       document_title: string;
+      package_id: string;
       package_name: string;
       content: string;
       similarity: number;
@@ -88,6 +91,8 @@ async function matchKnowledgePackages(
     content: match.content,
     similarity: match.similarity,
     source_label: match.package_name,
+    source_type: "knowledge_package" as const,
+    package_id: match.package_id,
   }));
 }
 
@@ -100,8 +105,7 @@ async function matchKnowledgePackages(
  * worden samengevoegd en puur op relevantie (similarity) geherrangschikt —
  * geen quotum per bron — en afgekapt op matchCount totaal, voor
  * voorspelbare tokenkosten. Gedeeld door de AI-activiteitenchecker
- * (lib/ai/activityQualityCheck.ts), de AI Lescoach (analyze-lesson/route.ts)
- * en de AI-activiteitengenerator (generate-activity/route.ts).
+ * (lib/ai/activityQualityCheck.ts) en de AI Lescoach (analyze-lesson/route.ts).
  */
 export async function getRelevantKnowledge(
   supabase: SupabaseClient,

@@ -99,7 +99,6 @@ export const createLessonInputSchema = z.object({
   // Tab 1 — Context & Thema
   title: requiredText("Titel is verplicht."),
   lessonDate: requiredText("Datum is verplicht."),
-  groupName: requiredText("Groep/klas is verplicht."),
   learningLine: requiredText("Leerlijn is verplicht."),
   // Zelfde 1-6 doelgroepcodes als activiteiten (types/activity.ts) — nodig
   // zodat de samengevoegde bibliotheekpagina (/zoeken) hierop kan filteren
@@ -108,12 +107,15 @@ export const createLessonInputSchema = z.object({
   // Bewuste, expliciete keuze i.p.v. impliciet gedrag: bepaalt of createLesson
   // (actions/lesson.ts) deze activiteit door de AI-kwaliteitscheck/
   // duplicaatdetectie stuurt en — bij goedkeuring — publiek + meetellend voor
-  // de maandelijkse bijdrage maakt, of 'm direct alleen-voor-mezelf opslaat
-  // (geen check, niet publiek, telt niet mee). Los van `status`: die volgt
-  // hieruit, niet andersom. Default true (zie createLessonDefaultValues) —
-  // opt-out i.p.v. opt-in, want het freemium-model leunt op bijdragen; de
-  // toggle zelf maakt het wel altijd een bewuste, zichtbare keuze.
-  isPublic: z.boolean(),
+  // de maandelijkse bijdrage maakt ("public"), 'm aan het actieve team
+  // koppelt zonder check/quotum ("team"), of 'm direct alleen-voor-mezelf
+  // opslaat ("private", geen check, telt niet mee). Los van `status`: die
+  // volgt hieruit, niet andersom. Default "public" (zie
+  // createLessonDefaultValues) — opt-out i.p.v. opt-in, want het freemium-
+  // model leunt op bijdragen; de keuze zelf maakt het wel altijd bewust en
+  // zichtbaar. "team" is in de UI alleen zichtbaar/kiesbaar voor leden van
+  // een actief team (zie components/activity-wizard-page.tsx).
+  destination: z.enum(["private", "team", "public"]),
   movementProblem: requiredText("Bewegingsprobleem is verplicht."),
   // Niet .min(1): een bewegingsthema bestaat alleen als vaste select
   // wanneer BEWEGINGSTHEMAS een lijst heeft voor de gekozen leerlijn (zie
@@ -137,6 +139,12 @@ export const createLessonInputSchema = z.object({
 
   // Tab 4 — Activiteitsvoorbereiding (de 4 kernelementen)
   arrangement: requiredText("Arrangement is verplicht."),
+  // Mapt op de `beschrijving`-kolom (activiteiten) — het spelverloop zelf,
+  // los van deelnemersRegels (de aanvullende rolverdeling/wisselregels).
+  // Bewust géén requiredText: de kolom is nullable en bij 3 van de 206
+  // bestaande activiteiten leeg, dus een verplichte validatie hier zou het
+  // opslaan van die bestaande concepten/activiteiten blokkeren.
+  beschrijving: z.string().trim(),
   deelnemersRegels: requiredText("Deelnemers & regels is verplicht."),
   plaatjePraatje: requiredText("Plaatje & praatje is verplicht."),
   aandachtspunten: requiredText("Aandachtspunten is verplicht."),
@@ -149,6 +157,7 @@ export const createLessonInputSchema = z.object({
 // action once zodResolver has run.
 export type CreateLessonFormInput = z.input<typeof createLessonInputSchema>;
 export type CreateLessonInput = z.output<typeof createLessonInputSchema>;
+export type ActivityDestination = CreateLessonInput["destination"];
 
 // ----------------------------------------------------------------------------
 // Verplichte velden — UI-metadata (label + tabsectie) voor exact dezelfde 10
@@ -169,7 +178,6 @@ export type CreateLessonInput = z.output<typeof createLessonInputSchema>;
 export const REQUIRED_LESSON_FIELDS = [
   { field: "title", label: "Titel", section: null },
   { field: "learningLine", label: "Leerlijn", section: null },
-  { field: "groupName", label: "Groep/klas", section: null },
   { field: "lessonDate", label: "Datum", section: null },
   { field: "goals", label: "Doel", section: "lesinhoud" },
   { field: "movementProblem", label: "Beginsituatie", section: "lesinhoud" },
@@ -186,10 +194,9 @@ export const REQUIRED_LESSON_FIELDS = [
 export const createLessonDefaultValues: CreateLessonFormInput = {
   title: "",
   lessonDate: "",
-  groupName: "",
   learningLine: "",
   doelgroep: [],
-  isPublic: true,
+  destination: "public",
   movementProblem: "",
   movementTheme: "",
   baseMaterials: [],
@@ -201,6 +208,7 @@ export const createLessonDefaultValues: CreateLessonFormInput = {
   learningOutcomes: [],
   didacticItems: [],
   arrangement: "",
+  beschrijving: "",
   deelnemersRegels: "",
   plaatjePraatje: "",
   aandachtspunten: "",
@@ -217,6 +225,9 @@ export type Lesson = {
   description: string | null;
   is_public: boolean;
   lesson_date: string | null;
+  // Deprecated: vervangen door de doelgroep-chips (types/activity.ts's
+  // DOELGROEP_LABELS) — niet meer ingevuld of getoond, kolom blijft bestaan
+  // zodat bestaande activiteiten hun oude vrije-tekst-klasnaam behouden.
   group_name: string | null;
   movement_problem: string | null;
   movement_theme: string | null;

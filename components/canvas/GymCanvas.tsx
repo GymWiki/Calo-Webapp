@@ -8,23 +8,27 @@ import {
   useState,
   useSyncExternalStore,
   type PointerEvent as ReactPointerEvent,
+  type RefObject,
 } from "react";
 import type Konva from "konva";
 import {
   Arrow,
   Circle,
   Group,
+  Image as KonvaImage,
   Layer,
   Line,
   Rect,
   Stage,
   Transformer,
 } from "react-konva";
+import useImage from "use-image";
 import {
   ArrowLeftRight,
   ArrowRight,
   Bold,
   BringToFront,
+  Circle as CircleShapeIcon,
   Copy,
   Eraser,
   Italic,
@@ -35,7 +39,9 @@ import {
   RotateCcw,
   RotateCw,
   SendToBack,
+  Square,
   Trash2,
+  Triangle,
   Type,
   X,
   ZoomIn,
@@ -64,18 +70,43 @@ import {
   ELEMENT_DEFS,
   LEGACY_LINE_TYPES,
   LINE_VARIANT_LABELS,
+  LOCATION_TYPES,
+  LOCATION_TYPE_LABELS,
+  SHAPE_KINDS,
+  SHAPE_KIND_LABELS,
   type DiagramData,
   type DiagramElement,
   type ElementType,
+  type FieldPresetDiagramElement,
+  type FieldPresetSport,
   type LineDiagramElement,
   type LineVariant,
+  type LocationType,
+  type ShapeDiagramElement,
+  type ShapeKind,
   type TextDiagramElement,
   type TextFontStyle,
   type ViewMode,
 } from "./gym-canvas-types";
+import {
+  FIELD_PRESET_LABELS,
+  FIELD_PRESET_SPORTS,
+  FIELD_PRESETS,
+  POOL_BACKGROUND,
+  TRACK_BACKGROUND,
+} from "./field-presets";
 
 const BASE_WIDTH = 800;
 const BASE_HEIGHT = 560;
+// Bovengrens voor de "pas in containerbreedte"-schaal (zie `scale`
+// verderop) — voorheen gelijk aan BASE_WIDTH, wat het canvas nooit groter
+// dan zijn eigen 800×560-canvaseenheden liet renderen, ook niet in een
+// brede desktop-kolom met veel meer beschikbare ruimte. GymCanvas draait nu
+// alleen nog binnen FullscreenDiagramEditor (volledig scherm), dus een
+// hogere bovengrens is hier veilig: 1200 geeft op desktop een merkbaar
+// groter, preciezer canvas (scale tot 1,5×) zonder op de meeste
+// schermformaten al buiten de zichtbare hoogte te vallen.
+const MAX_STAGE_WIDTH = 1200;
 const MAX_HISTORY = 30;
 const THUMB_BOX = 40;
 // Vaste weergavegrootte voor materiaal-elementen — de echte foto-
@@ -95,6 +126,31 @@ const LINE_POINTER_WIDTH = 12;
 const DEFAULT_TEXT_FONT_SIZE = 22;
 const DEFAULT_TEXT_COLOR = "#1b1d21";
 
+// Vrije tekenvormen — width/height bij plaatsing (zie ShapeDiagramElement),
+// daarna gewoon via de gedeelde Transformer aan te passen. Driehoek start
+// als een gelijkzijdige driehoek: bij breedte w is de "natuurlijke" hoogte
+// w * sqrt(3)/2 (hoogte van een gelijkzijdige driehoek), afgerond.
+const SHAPE_DEFAULT_SIZE: Record<ShapeKind, { width: number; height: number }> = {
+  rectangle: { width: 120, height: 80 },
+  triangle: { width: 100, height: Math.round(100 * (Math.sqrt(3) / 2)) },
+  circle: { width: 90, height: 90 },
+};
+const DEFAULT_SHAPE_FILL = "#dbeafe";
+const DEFAULT_SHAPE_STROKE = "#1c7ed6";
+const DEFAULT_SHAPE_STROKE_WIDTH = 3;
+
+// Veldpreset-belijning: vaste, veelgebruikte markeringskleuren als snelkeuze
+// (zie de kleurkiezer bij een geselecteerd preset hieronder) — wit is de
+// oorspronkelijke, altijd gebruikte kleur en blijft daarom de standaard bij
+// plaatsing.
+const DEFAULT_FIELD_PRESET_STROKE = "#ffffff";
+const FIELD_PRESET_STROKE_PRESETS: { label: string; value: string }[] = [
+  { label: "Wit", value: "#ffffff" },
+  { label: "Geel", value: "#facc15" },
+  { label: "Blauw", value: "#1c7ed6" },
+  { label: "Rood", value: "#e03131" },
+];
+
 // Pan/zoom — los van `scale` (de "pas-in-container-breedte"-factor
 // hieronder), zie effectiveScale verderop. MIN/MAX in "keer scale", dus
 // zoom=1 betekent altijd "de responsive fit-breedte", niet "100% van
@@ -103,6 +159,12 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_BUTTON_STEP = 1.25;
 const WHEEL_ZOOM_STEP = 1.06;
+
+// Smart alignment guides ("snap-lijnen", Canva-stijl) — 6 schermpixels,
+// omgerekend naar canvas-eenheden via /effectiveScale bij gebruik, zodat de
+// vangafstand visueel gelijk aanvoelt ongeacht in-/uitzoomniveau.
+const SNAP_THRESHOLD_PX = 6;
+const SNAP_GUIDE_COLOR = "#ff3b30";
 
 // Zwevende-controls-afmetingen (canvas-container-relatieve pixels, niet
 // canvas-eenheden) — gebruikt om de actiebalk/rotate-move-knoppen boven of
@@ -125,6 +187,34 @@ function clamp(value: number, min: number, max: number) {
 export type GymCanvasHandle = {
   exportDiagram: () => { data: DiagramData; imageDataUrl: string };
 };
+
+// Referentielaag ("Activiteit uit document"): toont een geëxtraheerd
+// document-beeld (plattegrond/foto, zie lib/ai/documentNormalization.ts) op
+// lage dekking tussen de achtergrond en de elementen, zodat de gebruiker het
+// kan natekenen met echte materiaal-iconen/lijnen i.p.v. een letterlijke
+// foto als eindresultaat te houden. Los subcomponentje i.p.v. de
+// useImage-hook direct in GymCanvas aanroepen — useImage mag niet
+// voorwaardelijk aangeroepen worden, en referenceImageUrl is vaak null/undefined.
+function ReferenceImageLayer({
+  url,
+  width,
+  height,
+  layerRef,
+}: {
+  url: string;
+  width: number;
+  height: number;
+  layerRef: RefObject<Konva.Layer | null>;
+}) {
+  const [image] = useImage(url, "anonymous");
+  if (!image) return null;
+
+  return (
+    <Layer ref={layerRef} listening={false} opacity={0.32}>
+      <KonvaImage image={image} x={0} y={0} width={width} height={height} />
+    </Layer>
+  );
+}
 
 function createId() {
   return `el-${Math.random().toString(36).slice(2, 10)}`;
@@ -174,30 +264,106 @@ function useIsCoarsePointer() {
   );
 }
 
-function GymBackground({ viewMode }: { viewMode: ViewMode }) {
+// Grasmat-textuur voor de buiten-ondergrond — afwisselende maaistroken
+// (zoals op een echt gemaaid grasveld), een gangbare vectortruc om "gras" te
+// suggereren zonder een afbeelding te laden.
+function GrassStripes() {
+  const stripeCount = 10;
+  const stripeWidth = BASE_WIDTH / stripeCount;
+  return (
+    <>
+      {Array.from({ length: stripeCount }, (_, i) => (
+        <Rect
+          key={i}
+          x={i * stripeWidth}
+          y={0}
+          width={stripeWidth}
+          height={BASE_HEIGHT}
+          fill={i % 2 === 0 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}
+          listening={false}
+        />
+      ))}
+    </>
+  );
+}
+
+// Vloerkleur per ondergrond voor het zijaanzicht — indoor/outdoor bleven
+// ongewijzigd (eef2f6/dceefb resp. e4dcc8/7bab52), zwembad/atletiekbaan
+// krijgen elk hun eigen herkenbare kleurpaar (waterblauw resp. sintelrood).
+// Alleen indoor toont het materiaalrek (zie rungCount/rackX hieronder) — dat
+// hoort bij een gymzaal, niet bij de andere drie ondergronden.
+const SIDE_VIEW_COLORS: Record<LocationType, { ceiling: string; floor: string }> = {
+  indoor: { ceiling: "#eef2f6", floor: "#e4dcc8" },
+  outdoor: { ceiling: "#dceefb", floor: "#7bab52" },
+  pool: { ceiling: "#dceefb", floor: "#3a8fc4" },
+  track: { ceiling: "#eef2f6", floor: "#b5502e" },
+};
+
+function GymBackground({ viewMode, locationType }: { viewMode: ViewMode; locationType: LocationType }) {
+  const outdoor = locationType === "outdoor";
+
   if (viewMode === "side") {
     const floorY = BASE_HEIGHT - 90;
     const rungCount = 8;
     const rackX = BASE_WIDTH - 40;
+    const colors = SIDE_VIEW_COLORS[locationType];
 
     return (
       <>
-        <Rect x={0} y={0} width={BASE_WIDTH} height={floorY} fill="#eef2f6" listening={false} />
-        <Rect x={0} y={floorY} width={BASE_WIDTH} height={BASE_HEIGHT - floorY} fill="#e4dcc8" listening={false} />
+        <Rect x={0} y={0} width={BASE_WIDTH} height={floorY} fill={colors.ceiling} listening={false} />
+        <Rect x={0} y={floorY} width={BASE_WIDTH} height={BASE_HEIGHT - floorY} fill={colors.floor} listening={false} />
         <Line points={[0, floorY, BASE_WIDTH, floorY]} stroke="#adb5bd" strokeWidth={3} listening={false} />
-        <Rect x={rackX} y={40} width={14} height={floorY - 60} fill="#c99a52" stroke="rgba(0,0,0,0.15)" strokeWidth={1} listening={false} />
-        {Array.from({ length: rungCount }, (_, i) => {
-          const ry = 50 + i * ((floorY - 80) / (rungCount - 1));
-          return (
-            <Line
-              key={i}
-              points={[rackX, ry, rackX - 14, ry]}
-              stroke="#8b5e34"
-              strokeWidth={2}
-              listening={false}
-            />
-          );
-        })}
+        {locationType === "indoor" && (
+          <>
+            <Rect x={rackX} y={40} width={14} height={floorY - 60} fill="#c99a52" stroke="rgba(0,0,0,0.15)" strokeWidth={1} listening={false} />
+            {Array.from({ length: rungCount }, (_, i) => {
+              const ry = 50 + i * ((floorY - 80) / (rungCount - 1));
+              return (
+                <Line
+                  key={i}
+                  points={[rackX, ry, rackX - 14, ry]}
+                  stroke="#8b5e34"
+                  strokeWidth={2}
+                  listening={false}
+                />
+              );
+            })}
+          </>
+        )}
+      </>
+    );
+  }
+
+  // Zwembad/atletiekbaan: eigen baan-belijning (zie POOL_BACKGROUND/
+  // TRACK_BACKGROUND, field-presets.ts) i.p.v. de generieke rand+middencirkel
+  // hieronder — die zou over de baanlijnen heen een niet-bestaand "veld"
+  // suggereren.
+  if (locationType === "pool" || locationType === "track") {
+    const geometry = locationType === "pool" ? POOL_BACKGROUND : TRACK_BACKGROUND;
+    const bgFill = locationType === "pool" ? "#3a8fc4" : "#8a8a86";
+    const laneFill = locationType === "pool" ? "#2f7fb8" : "#b5502e";
+
+    return (
+      <>
+        <Rect x={0} y={0} width={BASE_WIDTH} height={BASE_HEIGHT} fill={bgFill} listening={false} />
+        <Group
+          x={BASE_WIDTH / 2}
+          y={BASE_HEIGHT / 2}
+          scaleX={geometry.fitScale}
+          scaleY={geometry.fitScale}
+          listening={false}
+        >
+          <Rect
+            x={-geometry.width / 2}
+            y={-geometry.height / 2}
+            width={geometry.width}
+            height={geometry.height}
+            fill={laneFill}
+          />
+          {geometry.lines.map((line, i) => (
+            <Line key={i} points={line.points} stroke="#ffffff" strokeWidth={2.5} lineJoin="round" />
+          ))}
+        </Group>
       </>
     );
   }
@@ -218,11 +384,31 @@ function GymBackground({ viewMode }: { viewMode: ViewMode }) {
 
   return (
     <>
-      <Rect x={0} y={0} width={BASE_WIDTH} height={BASE_HEIGHT} fill="#fafaf9" listening={false} />
-      {gridLines}
-      <Rect x={30} y={30} width={BASE_WIDTH - 60} height={BASE_HEIGHT - 60} stroke="#d4d4d4" strokeWidth={2} listening={false} />
-      <Circle x={BASE_WIDTH / 2} y={BASE_HEIGHT / 2} radius={50} stroke="#d4d4d4" strokeWidth={2} listening={false} />
-      <Line points={[BASE_WIDTH / 2, 30, BASE_WIDTH / 2, BASE_HEIGHT - 30]} stroke="#d4d4d4" strokeWidth={2} listening={false} />
+      <Rect x={0} y={0} width={BASE_WIDTH} height={BASE_HEIGHT} fill={outdoor ? "#79ab55" : "#fafaf9"} listening={false} />
+      {outdoor ? <GrassStripes /> : gridLines}
+      <Rect
+        x={30}
+        y={30}
+        width={BASE_WIDTH - 60}
+        height={BASE_HEIGHT - 60}
+        stroke={outdoor ? "#f8f9fa" : "#d4d4d4"}
+        strokeWidth={2}
+        listening={false}
+      />
+      <Circle
+        x={BASE_WIDTH / 2}
+        y={BASE_HEIGHT / 2}
+        radius={50}
+        stroke={outdoor ? "#f8f9fa" : "#d4d4d4"}
+        strokeWidth={2}
+        listening={false}
+      />
+      <Line
+        points={[BASE_WIDTH / 2, 30, BASE_WIDTH / 2, BASE_HEIGHT - 30]}
+        stroke={outdoor ? "#f8f9fa" : "#d4d4d4"}
+        strokeWidth={2}
+        listening={false}
+      />
     </>
   );
 }
@@ -288,6 +474,36 @@ function LineVariantPickerButton({
       </div>
       <span className="w-full leading-tight font-medium text-[11px] break-words">
         {LINE_VARIANT_LABELS[variant]}
+      </span>
+    </button>
+  );
+}
+
+const SHAPE_KIND_ICONS: Record<ShapeKind, typeof Square> = {
+  rectangle: Square,
+  triangle: Triangle,
+  circle: CircleShapeIcon,
+};
+
+function ShapeKindPickerButton({
+  shape,
+  onSelect,
+}: {
+  shape: ShapeKind;
+  onSelect: (shape: ShapeKind) => void;
+}) {
+  const Icon = SHAPE_KIND_ICONS[shape];
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(shape)}
+      className="flex min-h-24 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg border bg-background p-2 text-center transition-colors duration-150 ease-brand hover:bg-accent active:scale-95"
+    >
+      <div className="flex size-10 items-center justify-center rounded-md bg-muted text-foreground">
+        <Icon className="size-5" aria-hidden="true" />
+      </div>
+      <span className="w-full leading-tight font-medium text-[11px] break-words">
+        {SHAPE_KIND_LABELS[shape]}
       </span>
     </button>
   );
@@ -363,6 +579,14 @@ function LineElementNode({
       )}
       {selected && (
         <>
+          {/* `cancelBubble = true` op alle drie de handlers hier: Konva laat
+              drag-events van een kind bubbelen naar een draggable ouder, dus
+              zonder dit vuurt de Group's eigen onDragEnd (whole-line-move,
+              hierboven) ook mee — met `e.target` nog steeds dit Circle-
+              handvat. Die leest dan de handvat-eindpositie als een
+              tijdelijke offset en telt 'm er nogmaals bovenop, waardoor de
+              hele pijl na loslaten naar een andere plek "springt" terwijl
+              tijdens het slepen alles nog goed leek te gaan. */}
           <Circle
             ref={(node) => registerHandle(`${element.id}-0`, node)}
             x={x1}
@@ -372,9 +596,18 @@ function LineElementNode({
             stroke={element.stroke}
             strokeWidth={2}
             draggable
-            onDragStart={onInteractionStart}
-            onDragMove={(e) => onPointMove(0, e.target.x(), e.target.y())}
-            onDragEnd={onInteractionEnd}
+            onDragStart={(e) => {
+              e.cancelBubble = true;
+              onInteractionStart();
+            }}
+            onDragMove={(e) => {
+              e.cancelBubble = true;
+              onPointMove(0, e.target.x(), e.target.y());
+            }}
+            onDragEnd={(e) => {
+              e.cancelBubble = true;
+              onInteractionEnd();
+            }}
           />
           <Circle
             ref={(node) => registerHandle(`${element.id}-1`, node)}
@@ -385,9 +618,18 @@ function LineElementNode({
             stroke={element.stroke}
             strokeWidth={2}
             draggable
-            onDragStart={onInteractionStart}
-            onDragMove={(e) => onPointMove(1, e.target.x(), e.target.y())}
-            onDragEnd={onInteractionEnd}
+            onDragStart={(e) => {
+              e.cancelBubble = true;
+              onInteractionStart();
+            }}
+            onDragMove={(e) => {
+              e.cancelBubble = true;
+              onPointMove(1, e.target.x(), e.target.y());
+            }}
+            onDragEnd={(e) => {
+              e.cancelBubble = true;
+              onInteractionEnd();
+            }}
           />
         </>
       )}
@@ -431,22 +673,116 @@ function getElementBounds(element: DiagramElement): {
     return { x: element.x - width / 2, y: element.y - height / 2, width, height };
   }
 
+  if (element.kind === "field_preset") {
+    const geometry = FIELD_PRESETS[element.sport];
+    const width = geometry.width * geometry.initialScale * element.scaleX;
+    const height = geometry.height * geometry.initialScale * element.scaleY;
+    return { x: element.x - width / 2, y: element.y - height / 2, width, height };
+  }
+
+  if (element.kind === "shape") {
+    const width = element.width * element.scaleX;
+    const height = element.height * element.scaleY;
+    return { x: element.x - width / 2, y: element.y - height / 2, width, height };
+  }
+
   const def = ELEMENT_DEFS[element.type];
   const width = def.width * element.scaleX;
   const height = def.height * element.scaleY;
   return { x: element.x - width / 2, y: element.y - height / 2, width, height };
 }
 
+type SnapGuide = { orientation: "vertical" | "horizontal"; position: number };
+
+/**
+ * Vangpunten voor smart alignment guides — links/midden/rechts (x-as) en
+ * boven/midden/onder (y-as) van elk ANDER element (via de al bestaande
+ * getElementBounds hierboven, dus een sportveld-preset telt automatisch als
+ * ÉÉN groep-buitenrand i.p.v. de losse belijning erbinnen), plus het
+ * horizontale/verticale midden van het canvas zelf. Eén keer berekend bij
+ * het BEGIN van een sleep-/schaalgebaar (zie startInteraction-aanroepen
+ * hieronder) i.p.v. bij elke pointer-move — de andere elementen bewegen
+ * toch niet mee tijdens dat gebaar, dus dit is de enige plek waar de O(n)-
+ * kosten (getElementBounds per element) vallen; elke volgende frame
+ * vergelijkt alleen nog tegen deze al-berekende, kleine array met getallen.
+ */
+function buildSnapTargets(
+  elements: DiagramElement[],
+  excludeId: string,
+): { x: number[]; y: number[] } {
+  const xs = new Set<number>([BASE_WIDTH / 2]);
+  const ys = new Set<number>([BASE_HEIGHT / 2]);
+  for (const item of elements) {
+    if (item.id === excludeId) continue;
+    const bounds = getElementBounds(item);
+    xs.add(bounds.x);
+    xs.add(bounds.x + bounds.width / 2);
+    xs.add(bounds.x + bounds.width);
+    ys.add(bounds.y);
+    ys.add(bounds.y + bounds.height / 2);
+    ys.add(bounds.y + bounds.height);
+  }
+  return { x: [...xs], y: [...ys] };
+}
+
+/**
+ * Vergelijkt de linker/midden/rechter- en boven/midden/onderrand van het
+ * GESLEEPTE element (`bounds`, op zijn actuele, ongesnapte positie) met de
+ * vangpunten hierboven. Geeft per as de kleinste correctie terug die één
+ * van die randen exact op een vangpunt legt — "licht doorbreekbaar": zodra
+ * geen van de randen binnen `threshold` van een vangpunt valt, is dx/dy 0 en
+ * verdwijnen de guides, dus verder slepen voelt meteen weer als vrij
+ * bewegen. Maximaal één guide per as (net als de meeste ontwerptools: een
+ * rechte verplaatsing kan toch niet op twee x-doelen tegelijk uitkomen).
+ */
+function resolveSnap(
+  bounds: { x: number; y: number; width: number; height: number },
+  targets: { x: number[]; y: number[] },
+  threshold: number,
+): { dx: number; dy: number; guides: SnapGuide[] } {
+  const xCandidates = [bounds.x, bounds.x + bounds.width / 2, bounds.x + bounds.width];
+  const yCandidates = [bounds.y, bounds.y + bounds.height / 2, bounds.y + bounds.height];
+
+  let bestX: { diff: number; dx: number; target: number } | null = null;
+  for (const candidate of xCandidates) {
+    for (const target of targets.x) {
+      const diff = Math.abs(target - candidate);
+      if (diff <= threshold && (!bestX || diff < bestX.diff)) {
+        bestX = { diff, dx: target - candidate, target };
+      }
+    }
+  }
+
+  let bestY: { diff: number; dy: number; target: number } | null = null;
+  for (const candidate of yCandidates) {
+    for (const target of targets.y) {
+      const diff = Math.abs(target - candidate);
+      if (diff <= threshold && (!bestY || diff < bestY.diff)) {
+        bestY = { diff, dy: target - candidate, target };
+      }
+    }
+  }
+
+  const guides: SnapGuide[] = [];
+  if (bestX) guides.push({ orientation: "vertical", position: bestX.target });
+  if (bestY) guides.push({ orientation: "horizontal", position: bestY.target });
+
+  return { dx: bestX?.dx ?? 0, dy: bestY?.dy ?? 0, guides };
+}
+
 export const GymCanvas = forwardRef<
   GymCanvasHandle,
-  { initialData?: DiagramData | null }
->(function GymCanvas({ initialData }, ref) {
+  { initialData?: DiagramData | null; referenceImageUrl?: string | null }
+>(function GymCanvas({ initialData, referenceImageUrl }, ref) {
   const [elements, setElements] = useState<DiagramElement[]>(
     initialData?.elements ?? [],
   );
   const [history, setHistory] = useState<DiagramElement[][]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>(
     initialData?.viewMode ?? "top",
+  );
+  const [locationType, setLocationType] = useState<LocationType>(
+    initialData?.locationType ?? "indoor",
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -475,6 +811,10 @@ export const GymCanvas = forwardRef<
   // zichtbaar en live-gesynchroniseerd (setTextLive), dus een export tijdens
   // het bewerken toont altijd de laatst getypte tekst.
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  // Actieve smart alignment guides ("snap-lijnen") — alleen gezet tijdens een
+  // sleep-/schaalgebaar, altijd leeg zodra dat stopt (zie endInteraction
+  // hieronder, dat dit voor elk sleep-/schaal-/rotatiepad in één keer regelt).
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 
   const isDesktop = useIsDesktop();
   const isCoarsePointer = useIsCoarsePointer();
@@ -482,11 +822,19 @@ export const GymCanvas = forwardRef<
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const nodeRefs = useRef<Map<string, Konva.Node>>(new Map());
+  // Vangpunten van alle ANDERE elementen — één keer gevuld bij het begin van
+  // een sleep-/schaalgebaar (zie buildSnapTargets hierboven), hergebruikt
+  // door elke daaropvolgende pointer-move van dat gebaar.
+  const dragSnapTargetsRef = useRef<{ x: number[]; y: number[] }>({ x: [], y: [] });
   // Eindpunt-handles van lijn/pijl-elementen — apart van nodeRefs omdat ze
   // geen Transformer-doelwit zijn, maar wél expliciet verborgen moeten
   // worden vóór het exporteren (zie exportDiagram hieronder), net als de
   // Transformer zelf.
   const lineHandleRefs = useRef<Map<string, Konva.Circle>>(new Map());
+  // Referentielaag (zie ReferenceImageLayer) — moet expliciet verborgen
+  // worden vóór export, net als de Transformer/lijn-handles, anders zou de
+  // referentiefoto in de opgeslagen vector-plattegrond-afbeelding lekken.
+  const referenceLayerRef = useRef<Konva.Layer | null>(null);
   // Pinch-to-zoom-gebaar-status — bewaart de vorige frame-afstand/middelpunt
   // tussen de twee vingers, zodat elke touchmove alleen het VERSCHIL sinds
   // de vorige frame hoeft te verwerken. null = geen 2-vinger-gebaar bezig.
@@ -496,7 +844,7 @@ export const GymCanvas = forwardRef<
     function updateSize() {
       const container = containerRef.current;
       if (!container) return;
-      setStageWidth(Math.max(240, Math.min(container.clientWidth, BASE_WIDTH)));
+      setStageWidth(Math.max(240, Math.min(container.clientWidth, MAX_STAGE_WIDTH)));
     }
 
     updateSize();
@@ -572,6 +920,11 @@ export const GymCanvas = forwardRef<
       // niet op tijd voor deze synchrone toDataURL-aanroep (React rendert
       // pas ná deze functie) — daarom hier ook expliciet, imperatief.
       lineHandleRefs.current.forEach((circle) => circle.visible(false));
+      // Referentielaag verbergen vóór export: een document-beeld is een
+      // hulpmiddel om na te tekenen, geen onderdeel van het uiteindelijke
+      // vector-plattegrond-eindresultaat — zelfde patroon als de
+      // Transformer/lijn-handles hierboven.
+      referenceLayerRef.current?.visible(false);
       stageRef.current?.batchDraw();
       setSelectedId(null);
 
@@ -580,9 +933,19 @@ export const GymCanvas = forwardRef<
       // huidige pan/zoom-viewport-stand — anders zou heen-en-weer inzoomen
       // vóór het opslaan de geëxporteerde plattegrond-afbeelding beïnvloeden.
       const currentScale = scale;
+      // WebP i.p.v. PNG: doorgaans 25-35% kleiner voor dezelfde
+      // plattegrond-tekening (vlakke kleuren/lijnen), zonder zichtbaar
+      // kwaliteitsverlies bij quality 0.92. Browsers zonder WebP-encode-
+      // ondersteuning in <canvas>.toDataURL() (met name oudere Safari-
+      // versies) vallen hier automatisch en stilzwijgend op PNG terug — dat
+      // is ingebouwd canvas-toDataURL-gedrag, geen aparte foutafhandeling
+      // nodig. uploadDiagramImage (lesson-form.tsx) leest het echte
+      // MIME-type van de resulterende blob i.p.v. PNG aan te nemen, dus
+      // beide uitkomsten worden correct opgeslagen.
       const imageDataUrl = stage
         ? stage.toDataURL({
-            mimeType: "image/png",
+            mimeType: "image/webp",
+            quality: 0.92,
             pixelRatio: 1 / currentScale,
             x: 0,
             y: 0,
@@ -592,7 +955,7 @@ export const GymCanvas = forwardRef<
         : "";
 
       return {
-        data: { width: BASE_WIDTH, height: BASE_HEIGHT, viewMode, elements },
+        data: { width: BASE_WIDTH, height: BASE_HEIGHT, viewMode, locationType, elements },
         imageDataUrl,
       };
     },
@@ -651,6 +1014,63 @@ export const GymCanvas = forwardRef<
     void incrementMaterialUsage(createClient(), material.id);
   }
 
+  function addFieldPresetElement(sport: FieldPresetSport) {
+    const { x, y } = staggeredCenter();
+    const newElement: DiagramElement = {
+      id: createId(),
+      kind: "field_preset",
+      sport,
+      x,
+      y,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      stroke: DEFAULT_FIELD_PRESET_STROKE,
+    };
+    withHistory((prev) => [...prev, newElement]);
+    setSelectedId(newElement.id);
+  }
+
+  function addShapeElement(shape: ShapeKind) {
+    const { x, y } = staggeredCenter();
+    const { width, height } = SHAPE_DEFAULT_SIZE[shape];
+    const newElement: DiagramElement = {
+      id: createId(),
+      kind: "shape",
+      shape,
+      x,
+      y,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      width,
+      height,
+      fill: DEFAULT_SHAPE_FILL,
+      stroke: DEFAULT_SHAPE_STROKE,
+      strokeWidth: DEFAULT_SHAPE_STROKE_WIDTH,
+    };
+    withHistory((prev) => [...prev, newElement]);
+    setSelectedId(newElement.id);
+  }
+
+  function updateShapeStyle(
+    id: string,
+    changes: Partial<Pick<ShapeDiagramElement, "fill" | "stroke" | "strokeWidth">>,
+  ) {
+    withHistory((prev) =>
+      prev.map((el) => (el.id === id && el.kind === "shape" ? { ...el, ...changes } : el)),
+    );
+  }
+
+  function updateFieldPresetStyle(
+    id: string,
+    changes: Partial<Pick<FieldPresetDiagramElement, "stroke">>,
+  ) {
+    withHistory((prev) =>
+      prev.map((el) => (el.id === id && el.kind === "field_preset" ? { ...el, ...changes } : el)),
+    );
+  }
+
   // Eén geschiedenis-snapshot bij het BEGIN van een doorlopend sleepgebaar
   // (lijn-eindpunt, tekstbewerking, of de losse rotate/move-knoppen
   // hieronder) — de tussentijdse updates lopen daarna via setElements (geen
@@ -667,6 +1087,7 @@ export const GymCanvas = forwardRef<
 
   function endInteraction() {
     setIsInteracting(false);
+    setSnapGuides([]);
   }
 
   function setLinePointsLive(id: string, points: [number, number, number, number]) {
@@ -1001,15 +1422,22 @@ export const GymCanvas = forwardRef<
     const originY = element.y;
     const elementId = element.id;
 
+    dragSnapTargetsRef.current = buildSnapTargets(elements, elementId);
     startInteraction();
 
     function onMove(moveEvent: PointerEvent) {
       const dx = (moveEvent.clientX - startClientX) / effectiveScale;
       const dy = (moveEvent.clientY - startClientY) / effectiveScale;
+      const rawX = originX + dx;
+      const rawY = originY + dy;
+      const liveBounds = getElementBounds({ ...element, x: rawX, y: rawY } as DiagramElement);
+      const threshold = SNAP_THRESHOLD_PX / effectiveScale;
+      const snap = resolveSnap(liveBounds, dragSnapTargetsRef.current, threshold);
+      setSnapGuides(snap.guides);
       setElements((prev) =>
         prev.map((item) =>
           item.id === elementId && item.kind !== "line"
-            ? { ...item, x: originX + dx, y: originY + dy }
+            ? { ...item, x: rawX + snap.dx, y: rawY + snap.dy }
             : item,
         ),
       );
@@ -1046,8 +1474,18 @@ export const GymCanvas = forwardRef<
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    // Mobiel/tablet: alles gestapeld (flex-col), zelfde volgorde als
+    // voorheen. Desktop (lg:, zie CLAUDE.md's breakpoint-afspraak): een
+    // smalle, vaste-breedte zijbalk met de toolbar/stijl-controls naast een
+    // canvas-kolom die de resterende ruimte krijgt — i.p.v. de toolbar
+    // gewoon breeduit over het hele scherm te laten lopen met een klein
+    // canvas ergens onder. `gap` i.p.v. het eerdere `space-y-3` op deze
+    // buitenste laag: dat blijft zo correct werken in zowel flex-col
+    // (mobiel) als flex-row (desktop) — `space-y-*`'s margin-top-truc zou
+    // in flex-row-stand de tweede kolom juist verkeerd naar onder duwen.
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:gap-4">
+      <div className="space-y-3 lg:w-72 lg:flex-none">
+        <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Sheet open={pickerOpen} onOpenChange={setPickerOpen}>
             <SheetTrigger asChild>
@@ -1072,9 +1510,54 @@ export const GymCanvas = forwardRef<
                     <TabsTrigger value="systeem" className="min-h-9 flex-1 text-xs">
                       Spelers & lijnen
                     </TabsTrigger>
+                    <TabsTrigger value="veldpresets" className="min-h-9 flex-1 text-xs">
+                      Veldpresets
+                    </TabsTrigger>
+                    <TabsTrigger value="vormen" className="min-h-9 flex-1 text-xs">
+                      Vormen
+                    </TabsTrigger>
                   </TabsList>
                   <TabsContent value="materiaal" className="mt-3">
                     <MaterialPicker onSelect={addMaterialElement} />
+                  </TabsContent>
+                  <TabsContent value="vormen" className="mt-3">
+                    <p className="mb-2 text-sm font-semibold">Vrije tekenvormen</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {SHAPE_KINDS.map((shape) => (
+                        <ShapeKindPickerButton
+                          key={shape}
+                          shape={shape}
+                          onSelect={(s) => {
+                            addShapeElement(s);
+                            setPickerOpen(false);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="veldpresets" className="mt-3">
+                    <p className="mb-2 text-sm font-semibold">Sportvelden</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {FIELD_PRESET_SPORTS.map((sport) => (
+                        <button
+                          key={sport}
+                          type="button"
+                          onClick={() => {
+                            addFieldPresetElement(sport);
+                            setPickerOpen(false);
+                          }}
+                          className="flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-medium transition-colors duration-150 ease-brand hover:bg-accent"
+                        >
+                          <span
+                            className="flex size-10 items-center justify-center rounded-md text-[10px] font-semibold text-white"
+                            style={{ backgroundColor: "#5f8a3f" }}
+                          >
+                            {FIELD_PRESET_LABELS[sport].slice(0, 2).toUpperCase()}
+                          </span>
+                          {FIELD_PRESET_LABELS[sport]}
+                        </button>
+                      ))}
+                    </div>
                   </TabsContent>
                   <TabsContent value="systeem" className="mt-3 space-y-4">
                     {ELEMENT_CATEGORIES.map((category) => (
@@ -1152,6 +1635,25 @@ export const GymCanvas = forwardRef<
               Zijaanzicht
             </button>
           </div>
+
+          <div className="flex flex-wrap overflow-hidden rounded-md border">
+            {LOCATION_TYPES.map((type, i) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setLocationType(type)}
+                className={cn(
+                  "min-h-9 flex-1 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-150 ease-brand",
+                  i > 0 && "border-l",
+                  locationType === type
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background hover:bg-accent",
+                )}
+              >
+                {LOCATION_TYPE_LABELS[type]}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1192,9 +1694,54 @@ export const GymCanvas = forwardRef<
           bestond nog geen algemeen stijl-controlepatroon in deze editor
           (spelers/materiaal hebben een vaste vorm/foto), dus dit hergebruikt
           de gewone Button/Input-componenten van de rest van de app. */}
-      {selectedElement && (selectedElement.kind === "line" || selectedElement.kind === "text") && (
+      {selectedElement &&
+        (selectedElement.kind === "line" ||
+          selectedElement.kind === "text" ||
+          selectedElement.kind === "shape" ||
+          selectedElement.kind === "field_preset") && (
         <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-muted/40 p-2.5">
-          {selectedElement.kind === "line" ? (
+          {selectedElement.kind === "shape" ? (
+            <>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                Vulkleur
+                <input
+                  type="color"
+                  value={selectedElement.fill}
+                  onChange={(e) => updateShapeStyle(selectedElement.id, { fill: e.target.value })}
+                  className="size-7 cursor-pointer rounded border p-0.5"
+                  aria-label="Vulkleur"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                Randkleur
+                <input
+                  type="color"
+                  value={selectedElement.stroke}
+                  onChange={(e) => updateShapeStyle(selectedElement.id, { stroke: e.target.value })}
+                  className="size-7 cursor-pointer rounded border p-0.5"
+                  aria-label="Randkleur"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                Randdikte
+                <Input
+                  type="number"
+                  min={0}
+                  max={12}
+                  value={selectedElement.strokeWidth}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (!Number.isNaN(value)) {
+                      updateShapeStyle(selectedElement.id, {
+                        strokeWidth: Math.min(12, Math.max(0, value)),
+                      });
+                    }
+                  }}
+                  className="h-8 w-16 text-sm"
+                />
+              </label>
+            </>
+          ) : selectedElement.kind === "line" ? (
             <>
               <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 Kleur
@@ -1222,6 +1769,45 @@ export const GymCanvas = forwardRef<
                     }
                   }}
                   className="h-8 w-16 text-sm"
+                />
+              </label>
+            </>
+          ) : selectedElement.kind === "field_preset" ? (
+            <>
+              <span className="text-xs font-medium text-muted-foreground">Lijnkleur</span>
+              <div className="flex items-center gap-1.5">
+                {FIELD_PRESET_STROKE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() =>
+                      updateFieldPresetStyle(selectedElement.id, { stroke: preset.value })
+                    }
+                    className={cn(
+                      "size-7 cursor-pointer rounded-full border-2 transition-transform",
+                      (selectedElement.stroke ?? DEFAULT_FIELD_PRESET_STROKE) === preset.value
+                        ? "border-primary scale-110"
+                        : "border-border",
+                    )}
+                    style={{ backgroundColor: preset.value }}
+                    aria-label={preset.label}
+                    aria-pressed={
+                      (selectedElement.stroke ?? DEFAULT_FIELD_PRESET_STROKE) === preset.value
+                    }
+                    title={preset.label}
+                  />
+                ))}
+              </div>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                Aangepast
+                <input
+                  type="color"
+                  value={selectedElement.stroke ?? DEFAULT_FIELD_PRESET_STROKE}
+                  onChange={(e) =>
+                    updateFieldPresetStyle(selectedElement.id, { stroke: e.target.value })
+                  }
+                  className="size-7 cursor-pointer rounded border p-0.5"
+                  aria-label="Aangepaste lijnkleur"
                 />
               </label>
             </>
@@ -1295,7 +1881,9 @@ export const GymCanvas = forwardRef<
           )}
         </div>
       )}
+      </div>
 
+      <div className="min-w-0 space-y-3 lg:flex-1">
       <div ref={containerRef} className="w-full">
         {/* Buiten de overflow-hidden canvas-box hieronder (die is puur voor
             de Stage zelf) — de zwevende actiebalk/rotate-move-knoppen/
@@ -1327,8 +1915,16 @@ export const GymCanvas = forwardRef<
               }}
             >
               <Layer>
-                <GymBackground viewMode={viewMode} />
+                <GymBackground viewMode={viewMode} locationType={locationType} />
               </Layer>
+              {referenceImageUrl && (
+                <ReferenceImageLayer
+                  url={referenceImageUrl}
+                  width={BASE_WIDTH}
+                  height={BASE_HEIGHT}
+                  layerRef={referenceLayerRef}
+                />
+              )}
               <Layer>
                 {elements.map((el) => {
                   if (el.kind === "line") {
@@ -1387,13 +1983,30 @@ export const GymCanvas = forwardRef<
                       onDblTap={() => {
                         if (el.kind === "text") startTextEdit(el.id);
                       }}
-                      onDragStart={startInteraction}
+                      onDragStart={() => {
+                        dragSnapTargetsRef.current = buildSnapTargets(elements, el.id);
+                        startInteraction();
+                      }}
                       onDragMove={(e) => {
                         const node = e.target;
+                        const rawX = node.x();
+                        const rawY = node.y();
+                        const liveBounds = getElementBounds({
+                          ...el,
+                          x: rawX,
+                          y: rawY,
+                        } as DiagramElement);
+                        const threshold = SNAP_THRESHOLD_PX / effectiveScale;
+                        const snap = resolveSnap(liveBounds, dragSnapTargetsRef.current, threshold);
+                        const snappedX = rawX + snap.dx;
+                        const snappedY = rawY + snap.dy;
+                        node.x(snappedX);
+                        node.y(snappedY);
+                        setSnapGuides(snap.guides);
                         setElements((prev) =>
                           prev.map((item) =>
                             item.id === el.id && item.kind !== "line"
-                              ? { ...item, x: node.x(), y: node.y() }
+                              ? { ...item, x: snappedX, y: snappedY }
                               : item,
                           ),
                         );
@@ -1408,7 +2021,10 @@ export const GymCanvas = forwardRef<
                         );
                         endInteraction();
                       }}
-                      onTransformStart={startInteraction}
+                      onTransformStart={() => {
+                        dragSnapTargetsRef.current = buildSnapTargets(elements, el.id);
+                        startInteraction();
+                      }}
                       onTransformEnd={(e) => {
                         const node = e.target;
                         // Tekst schaalt naar een nieuwe fontSize i.p.v. de
@@ -1470,10 +2086,93 @@ export const GymCanvas = forwardRef<
                   anchorStrokeWidth={2}
                   borderStroke="#7c3aed"
                   borderStrokeWidth={2}
-                  boundBoxFunc={(oldBox, newBox) =>
-                    newBox.width < 8 || newBox.height < 8 ? oldBox : newBox
-                  }
+                  boundBoxFunc={(oldBox, newBox) => {
+                    if (newBox.width < 8 || newBox.height < 8) return oldBox;
+                    // Randuitlijning tijdens schalen alleen bij (zo goed als)
+                    // 0° rotatie — bij een gedraaid element is newBox.x/y/
+                    // width/height niet meer de as-gelijnde rand in dezelfde
+                    // canvaseenheden-ruimte als de vangpunten, dus dan gewoon
+                    // het bestaande, ongewijzigde schaalgedrag laten staan.
+                    if (Math.abs(newBox.rotation) > 0.001) return newBox;
+
+                    const threshold = SNAP_THRESHOLD_PX / effectiveScale;
+                    const targets = dragSnapTargetsRef.current;
+                    const guides: SnapGuide[] = [];
+                    let { x, y, width, height } = newBox;
+
+                    const leftMoved = Math.abs(newBox.x - oldBox.x) > 0.001;
+                    const rightMoved =
+                      Math.abs(newBox.x + newBox.width - (oldBox.x + oldBox.width)) > 0.001;
+                    if (leftMoved || rightMoved) {
+                      const edgeX = leftMoved ? x : x + width;
+                      let best: { diff: number; target: number } | null = null;
+                      for (const target of targets.x) {
+                        const diff = Math.abs(target - edgeX);
+                        if (diff <= threshold && (!best || diff < best.diff)) {
+                          best = { diff, target };
+                        }
+                      }
+                      if (best) {
+                        const delta = best.target - edgeX;
+                        if (leftMoved) {
+                          x += delta;
+                          width -= delta;
+                        } else {
+                          width += delta;
+                        }
+                        guides.push({ orientation: "vertical", position: best.target });
+                      }
+                    }
+
+                    const topMoved = Math.abs(newBox.y - oldBox.y) > 0.001;
+                    const bottomMoved =
+                      Math.abs(newBox.y + newBox.height - (oldBox.y + oldBox.height)) > 0.001;
+                    if (topMoved || bottomMoved) {
+                      const edgeY = topMoved ? y : y + height;
+                      let best: { diff: number; target: number } | null = null;
+                      for (const target of targets.y) {
+                        const diff = Math.abs(target - edgeY);
+                        if (diff <= threshold && (!best || diff < best.diff)) {
+                          best = { diff, target };
+                        }
+                      }
+                      if (best) {
+                        const delta = best.target - edgeY;
+                        if (topMoved) {
+                          y += delta;
+                          height -= delta;
+                        } else {
+                          height += delta;
+                        }
+                        guides.push({ orientation: "horizontal", position: best.target });
+                      }
+                    }
+
+                    if (width < 8 || height < 8) return newBox;
+                    setSnapGuides(guides);
+                    return { ...newBox, x, y, width, height };
+                  }}
                 />
+              </Layer>
+              {/* Eigen laag, boven alle elementen én de Transformer — de
+                  snap-lijnen moeten altijd zichtbaar zijn tijdens het
+                  gebaar, ook over de selectiebox/handvatten heen. Alleen
+                  gevuld tijdens een actief sleep-/schaalgebaar (zie
+                  endInteraction), dus verder volledig leeg/onzichtbaar. */}
+              <Layer listening={false}>
+                {snapGuides.map((guide, i) => (
+                  <Line
+                    key={i}
+                    points={
+                      guide.orientation === "vertical"
+                        ? [guide.position, 0, guide.position, BASE_HEIGHT]
+                        : [0, guide.position, BASE_WIDTH, guide.position]
+                    }
+                    stroke={SNAP_GUIDE_COLOR}
+                    strokeWidth={1.5 / effectiveScale}
+                    listening={false}
+                  />
+                ))}
               </Layer>
             </Stage>
           </div>
@@ -1659,6 +2358,7 @@ export const GymCanvas = forwardRef<
         te zoomen, en sleep een leeg stuk canvas om te pannen. Gebruik
         &quot;Verwijderen&quot; voor het geselecteerde item.
       </p>
+      </div>
     </div>
   );
 });

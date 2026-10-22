@@ -1,8 +1,14 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality, type ActivityQualityCheckInput } from "@/lib/ai/activityQualityCheck";
+import { logKnowledgeUsage, type UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
+import { resolveSlug } from "@/lib/services/activitySlug";
+import { getGroepSlug, getLeerlijnSlug } from "@/lib/services/publicActivities";
+import { getMyTeam } from "@/lib/services/teams";
+import type { ActivityDestination } from "@/types/lesson";
 import {
   createLessonInputSchema,
   type CreateLessonFormInput,
@@ -55,6 +61,16 @@ function logActivitiesRowError(context: "createLesson" | "saveLessonDraft", erro
 // de invoer eerst door het schema moet verschilt.
 function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
   return {
+    // Legacy kolom uit de oorspronkelijke Firestore-import (de ~203
+    // basis-bibliotheekactiviteiten, author_id null) — nergens meer
+    // gelezen in de app (bron wordt nu bepaald via lib/activity-source.ts,
+    // op author_id/visibility), maar hier expliciet false zetten i.p.v. op
+    // de kolomdefault te leunen: elke rij die via createLesson/
+    // saveLessonDraft wordt aangemaakt of bijgewerkt heeft altijd een
+    // author_id (hieronder gezet bij insert, of al gezet — de
+    // .eq("author_id", user.id)-filter bij een update garandeert dat), is
+    // dus per definitie nooit een gymwiki-basisrij.
+    in_gymwiki: false,
     titel: values.title,
     // `activity_date` is een Postgres `date`-kolom — een lege string (de
     // waarde zolang dit veld nog niet is ingevuld, wat bij een concept vaak
@@ -65,7 +81,6 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
     // verandert daar niets — alleen saveLessonDraft (bewust ongevalideerd)
     // kon deze lege string ooit doorsturen.
     activity_date: values.lessonDate || null,
-    group_name: values.groupName,
     leerlijn: values.learningLine,
     doelgroep: values.doelgroep,
     movement_problem: values.movementProblem,
@@ -88,6 +103,7 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
     learning_outcomes: values.learningOutcomes,
     didactic_items: values.didacticItems,
     arrangement: values.arrangement,
+    beschrijving: values.beschrijving,
     deelnemers_regels: values.deelnemersRegels,
     plaatje_praatje: values.plaatjePraatje,
     aandachtspunten: values.aandachtspunten,
@@ -99,17 +115,19 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
  * `activiteiten`-tabel (voorheen een aparte "lessons"-tabel; zie
  * supabase/migrations/consolidate_lessons_into_activiteiten.sql).
  *
- * `isPublic` is de expliciete "Delen in de gedeelde bibliotheek"-toggle uit
- * het formulier (zie components/activity-wizard-page.tsx) — bij true
- * doorloopt de activiteit dezelfde AI-kwaliteitscheck/duplicaatdetectie als
- * de oorspronkelijke eenvoudige-activiteit-flow (checkActivityQuality, zie
- * actions/activity-submission.ts), en wordt ze bij goedkeuring publiek +
- * meetellend voor de maandelijkse bijdrage (is_public/public_since, zie de
- * trigger in consolidate_lessons_into_activiteiten.sql). Bij false wordt
- * helemaal geen check uitgevoerd (niet nodig — de activiteit komt toch niet
- * in de gedeelde bibliotheek) en blijft de rij altijd alleen-eigen-gebruik.
- * Een afkeuring is geen fout: de activiteit blijft gewoon opgeslagen (zichtbaar
- * in "Mijn activiteiten" met de reden), alleen niet publiek gemaakt.
+ * `destination` is de expliciete bestemmingskeuze uit het formulier (zie
+ * components/activity-wizard-page.tsx: "Alleen ik" | "Teambibliotheek" |
+ * "Gedeelde GymWiki-bibliotheek") — alleen bij "public" doorloopt de
+ * activiteit de AI-kwaliteitscheck/duplicaatdetectie (checkActivityQuality)
+ * en wordt ze bij goedkeuring publiek + meetellend voor de maandelijkse
+ * bijdrage (visibility/public_since, zie supabase/migrations/team_library.sql's
+ * trg_sync_contribution_on_public). Bij "team" wordt de activiteit direct
+ * als goedgekeurd opgeslagen (geen check, geen quotum) en gekoppeld aan het
+ * actieve team van de gebruiker; bij "private" wordt helemaal geen check
+ * uitgevoerd en blijft de rij alleen-eigen-gebruik.
+ * Een afkeuring (destination="public") is geen fout: de activiteit blijft
+ * gewoon opgeslagen (zichtbaar in "Mijn activiteiten" met de reden), alleen
+ * niet publiek gemaakt.
  *
  * `activityId` is gezet wanneer de inline-editor onderweg al een concept had
  * opgeslagen (zie saveLessonDraft) — dan wordt diezelfde rij afgerond i.p.v.
@@ -123,7 +141,14 @@ export async function createLesson(
   diagram: { data: DiagramData; imageDataUrl: string } | null = null,
   isAiGenerated = false,
   activityId: string | null = null,
-  isPublic = true,
+  destination: ActivityDestination = "public",
+  /** Publieke Storage-URL van de automatisch uit het canvas gegenereerde
+   * PNG (zie components/canvas/FullscreenDiagramEditor.tsx en
+   * les-maken/lesson-form.tsx's handleDiagramSave). `undefined` (de
+   * standaardwaarde) laat de bestaande `afbeelding`-kolom ongemoeid — alleen
+   * wanneer de gebruiker deze sessie daadwerkelijk een arrangement heeft
+   * opgeslagen, wordt hij hier expliciet meegegeven. */
+  afbeeldingUrl?: string,
 ): Promise<CreateLessonResult> {
   const parsed = createLessonInputSchema.safeParse(input);
 
@@ -144,46 +169,155 @@ export async function createLesson(
     return { error: "Je bent niet ingelogd." };
   }
 
+  // Team-bestemming: alleen mogelijk voor een lid van een actief team (zie
+  // supabase/migrations/team_library.sql's is_active_team_member — hier
+  // gedupliceerd voor een duidelijke Nederlandse foutmelding VÓÓR de RLS-
+  // write al faalt, zelfde patroon als actions/teamLibrary.ts).
+  let teamId: string | null = null;
+  if (destination === "team") {
+    const membership = await getMyTeam(supabase, user.id);
+    const team = membership?.team;
+    const isActive =
+      team &&
+      (team.status === "active" ||
+        (team.status === "past_due" &&
+          team.current_period_end &&
+          new Date(team.current_period_end).getTime() + 14 * 24 * 60 * 60 * 1000 > Date.now()) ||
+        (team.status === "canceled" &&
+          team.current_period_end &&
+          new Date(team.current_period_end).getTime() > Date.now()));
+    if (!team || !isActive) {
+      return { error: "Je zit niet in een actief team — kies een andere bestemming." };
+    }
+    teamId = team.id;
+  }
+
   let status: "approved" | "rejected" = "approved";
   let rejectionReason: string | null = null;
   let publicSince: string | null = null;
+  let checkerUsedChunks: UsedKnowledgeChunk[] = [];
+  // Alleen gezet bij een geslaagde check — undefined betekent hieronder
+  // "niet overschrijven", zie de spread bij `row`. seoSummary/slug voeden
+  // de publieke /activiteiten/[slug]-pagina (zie
+  // supabase/migrations/activiteiten_public_seo.sql); slug blijft, eenmaal
+  // gezet, voor altijd hetzelfde (resolveSlug), ook als de titel later
+  // verandert — anders breekt een al gedeelde/geïndexeerde URL.
+  let seoSummary: string | undefined;
+  let slug: string | undefined;
 
-  if (isPublic) {
+  // Alleen de "Gedeelde GymWiki-bibliotheek"-bestemming doorloopt de AI-
+  // kwaliteitscheck/duplicaatdetectie en telt mee voor het maandelijkse
+  // quotum — een teamactiviteit slaat direct op als goedgekeurd (zie de
+  // brief: "geen AI-kwaliteitscontrole, geen duplicaatcheck, geen quotum-
+  // telling"), net als een privé-activiteit dat vandaag al deed.
+  if (destination === "public") {
     const quality = await checkActivityQuality(supabase, user.id, toQualityCheckInput(values));
+    checkerUsedChunks = quality.usedKnowledgeChunks;
     if (quality.status === "rejected") {
       status = "rejected";
       rejectionReason = quality.reason;
     } else {
       publicSince = new Date().toISOString();
+      seoSummary = quality.seoSummary;
+      slug = await resolveSlug(supabase, activityId, values.title);
     }
   }
 
+  const visibility = destination === "public" && status === "approved" ? "public" : destination === "team" ? "team" : "private";
+
   const row = {
     ...toActivitiesRow(values),
-    diagram_data: diagram?.data ?? null,
-    diagram_image_url: diagram?.imageDataUrl ?? null,
+    // Alleen overschrijven wanneer deze sessie daadwerkelijk een tekening
+    // exporteerde — anders zou het hervatten van een al opgeslagen
+    // activiteit zonder de plattegrond aan te raken de bestaande
+    // diagram_data/diagram_image_url stilzwijgend op null zetten (de lokale
+    // `diagram`-state in lesson-form.tsx begint immers leeg totdat de
+    // gebruiker de canvas-editor daadwerkelijk opent).
+    ...(diagram ? { diagram_data: diagram.data, diagram_image_url: diagram.imageDataUrl } : {}),
+    ...(afbeeldingUrl !== undefined ? { afbeelding: afbeeldingUrl } : {}),
     is_ai_generated: isAiGenerated,
     status,
     rejection_reason: rejectionReason,
-    // Alleen daadwerkelijk publiek bij een geslaagde check — bij een
-    // afkeuring blijft de rij (met de gekozen isPublic-intentie) alsnog
-    // alleen-eigen-gebruik totdat de gebruiker 'm aanpast en opnieuw indient.
-    is_public: isPublic && status === "approved",
+    // Alleen daadwerkelijk publiek/team bij een geslaagde/toegestane
+    // bestemming — bij een afkeuring blijft de rij (met de gekozen
+    // bestemming-intentie) alsnog alleen-eigen-gebruik totdat de gebruiker
+    // 'm aanpast en opnieuw indient.
+    visibility,
+    team_id: visibility === "team" ? teamId : null,
     public_since: publicSince,
     taalcode: "nl",
+    ...(seoSummary !== undefined ? { seo_summary: seoSummary } : {}),
+    ...(slug !== undefined ? { slug } : {}),
   };
 
-  const { error } = activityId
-    ? await supabase
-        .from("activiteiten")
-        .update(row)
-        .eq("id", activityId)
-        .eq("author_id", user.id)
-    : await supabase.from("activiteiten").insert({ ...row, author_id: user.id });
+  let resolvedActivityId = activityId;
+  let error: unknown = null;
+
+  if (activityId) {
+    // De guard-trigger (team_library.sql) staat alleen 'private' -> 'team'
+    // toe via deze gewone UPDATE (een concept/eigen activiteit die nu als
+    // team-bestemming wordt afgerond) — elke andere zichtbaarheidswissel op
+    // een AL bestaande rij loopt niet via deze functie (zie lesson-form.tsx:
+    // het bewerken van een reeds-team-activiteit gaat via
+    // actions/teamLibrary.ts's updateTeamActivity, met optimistic locking).
+    ({ error } = await supabase
+      .from("activiteiten")
+      .update(row)
+      .eq("id", activityId)
+      .eq("author_id", user.id));
+  } else {
+    const inserted = await supabase
+      .from("activiteiten")
+      .insert({ ...row, author_id: user.id, updated_by: user.id })
+      .select("id")
+      .single();
+    error = inserted.error;
+    resolvedActivityId = inserted.data?.id ?? null;
+  }
 
   if (error) {
     logActivitiesRowError("createLesson", error);
     return { error: GENERIC_ERROR };
+  }
+
+  // Teambestemming: de rij hierboven is nu een teamactiviteit — voegt 'm ook
+  // toe aan de teambibliotheek-lijst zelf (team_library_items, zie
+  // supabase/migrations/team_library.sql). Best-effort: als deze koppeling
+  // om wat voor reden dan ook al bestaat (bijv. een dubbele afronding van
+  // hetzelfde concept) blijft de activiteit zelf gewoon goed opgeslagen.
+  if (visibility === "team" && resolvedActivityId && teamId) {
+    const { error: itemError } = await supabase.from("team_library_items").insert({
+      team_id: teamId,
+      activity_id: resolvedActivityId,
+      kind: "own",
+      added_by: user.id,
+    });
+    if (itemError && itemError.code !== "23505") {
+      console.error("createLesson: team_library_items-koppeling mislukt —", itemError);
+    }
+  }
+
+  // Brontracking (activity_knowledge_usage) — best-effort, pas mogelijk
+  // zodra het activity-id vaststaat (bij een nieuwe rij dus pas na de
+  // insert hierboven). Zie activityQualityCheck.ts (context='checker').
+  if (resolvedActivityId) {
+    await logKnowledgeUsage(supabase, resolvedActivityId, "checker", checkerUsedChunks);
+  }
+
+  // On-demand ISR: een net (opnieuw) goedgekeurde, publieke activiteit
+  // heeft nu een slug, dus haar /activiteiten/[slug]-pagina bestaat of is
+  // gewijzigd — ververs 'm meteen i.p.v. te wachten op de tijdgebonden
+  // revalidate-achtervang (zie die pagina). De algemene index-pagina
+  // (/activiteiten) en de leerlijn-/groep-categoriepagina's (STAP 6) tonen
+  // er ook één extra/gewijzigde kaart bij.
+  if (slug) {
+    revalidatePath(`/activiteiten/${slug}`);
+    revalidatePath("/activiteiten");
+    revalidatePath(`/leerlijn/${getLeerlijnSlug(values.learningLine)}`);
+    for (const code of values.doelgroep) {
+      const groepSlug = getGroepSlug(code);
+      if (groepSlug) revalidatePath(`/groep/${groepSlug}`);
+    }
   }
 
   return status === "rejected"
@@ -206,6 +340,9 @@ export async function saveLessonDraft(
   diagram: { data: DiagramData; imageDataUrl: string } | null,
   isAiGenerated: boolean,
   activityId: string | null,
+  /** Zie createLesson hierboven — zelfde "alleen zetten wanneer expliciet
+   * meegegeven"-conventie. */
+  afbeeldingUrl?: string,
 ): Promise<SaveDraftResult> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -223,8 +360,9 @@ export async function saveLessonDraft(
     // Nooit een titel-loze rij: een leeg concept is voor de "Mijn
     // activiteiten"-lijst niet identificeerbaar. Andere velden mogen leeg.
     titel: input.title || "Naamloos concept",
-    diagram_data: diagram?.data ?? null,
-    diagram_image_url: diagram?.imageDataUrl ?? null,
+    // Zie de gelijknamige toelichting in createLesson hierboven.
+    ...(diagram ? { diagram_data: diagram.data, diagram_image_url: diagram.imageDataUrl } : {}),
+    ...(afbeeldingUrl !== undefined ? { afbeelding: afbeeldingUrl } : {}),
     is_ai_generated: isAiGenerated,
     status: "draft" as const,
     taalcode: "nl",
@@ -284,8 +422,8 @@ export async function setLessonPublic(
     .from("activiteiten")
     .update(
       isPublic
-        ? { is_public: true, public_since: new Date().toISOString() }
-        : { is_public: false },
+        ? { visibility: "public", public_since: new Date().toISOString() }
+        : { visibility: "private" },
     )
     .eq("id", activityId)
     .eq("author_id", user.id);

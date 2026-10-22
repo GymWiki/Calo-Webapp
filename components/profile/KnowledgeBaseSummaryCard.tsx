@@ -31,7 +31,7 @@ export function KnowledgeBaseSummaryCard({
         </div>
         <CardDescription>
           Documenten die de gedeelde Kennisbank vormen — context voor de AI
-          Activiteitenchecker en Activiteitengenerator.
+          Activiteitenchecker en AI Lescoach.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center justify-between gap-3">

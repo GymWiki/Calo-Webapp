@@ -1,18 +1,30 @@
 import type { SubscriptionStatus, UserProfile } from "@/lib/types";
 
-// Vlak fair-use-quotum voor de AI Lescoach/Activiteiten Generator — geen
+// Vlak fair-use-quotum voor AI-functies zonder eigen dedicated limiet — geen
 // tiers meer, geldt voor iedereen (free_contributor, free_blocked én
 // paid_subscriber) gelijk. Losgekoppeld van het abonnementsmodel: dit is
 // puur een kostenbeheersing tegen misbruik van de OpenAI-integratie, geen
 // betaalfunctie.
 export const MONTHLY_AI_LIMIT = 40;
 
-// Dedicated fair-use-limiet voor de AI-lessengenerator (/api/ai/generate-
-// activity) — losstaand van MONTHLY_AI_LIMIT hierboven, want deze functie
-// heeft sinds de kostenbeheersing-taak een eigen toegangsmodel: alleen
-// paid_subscriber-accounts, met dit eigen maandquotum. Zie
-// lib/ai/lessonGeneratorAccess.ts.
-export const LESSON_GENERATOR_MONTHLY_LIMIT = 25;
+// Eigen fair-use-limiet voor AI Lescoach (/api/ai/analyze-lesson) — alleen
+// paid_subscriber-accounts, met een EIGEN, HOGER quotum dan MONTHLY_AI_LIMIT
+// hierboven: Lescoach raadpleegt men naar verwachting meerdere keren PER
+// activiteit terwijl die groeit (iteratief, per sectie). 60: ruim voldoende
+// voor herhaald gebruik binnen één activiteit-sessie, terwijl gpt-4o-mini
+// (zie CHECK_MODEL) de kosten per aanroep al laag houdt — bijstellen zodra
+// er echte gebruiksdata in `ai_usage` staat (feature='ai_lescoach'). Zie
+// lib/ai/lescoachAccess.ts.
+export const AI_LESCOACH_MONTHLY_LIMIT = 60;
+
+// Preview-slot voor de bibliotheek (/zoeken): free_blocked-gebruikers zien
+// nog steeds de eerste N kaarten van elk gekozen bron-/filterresultaat (mét
+// het echte totaalaantal ernaast) — de bibliotheek volledig verbergen zou
+// het "kijk wat je mist"-effect wegnemen dat juist als stimulans moet
+// werken. Bewust laag (was 20): hoe kleiner het "kijkje", hoe sterker de
+// schaarste-prikkel om bij te dragen of te upgraden. Zie
+// library-search-client.tsx voor de daadwerkelijke cap.
+export const LIBRARY_PREVIEW_LIMIT = 4;
 
 export interface UserPermissions {
   subscriptionStatus: SubscriptionStatus;

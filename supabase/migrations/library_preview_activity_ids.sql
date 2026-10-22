@@ -1,0 +1,30 @@
+-- Preview-slot voor de bibliotheek (zie lib/permissions.ts's
+-- LIBRARY_PREVIEW_LIMIT en lib/services/libraryPreview.ts): een
+-- free_blocked-gebruiker zag tot nu toe altijd de eerste N kaarten van WELK
+-- FILTER dan ook als "vrij" — omdat "de eerste N" van een zojuist
+-- gefilterde lijst bij elke nieuwe filtercombinatie andere activiteiten kan
+-- zijn, kon een gebruiker de bedoelde preview-limiet omzeilen door
+-- simpelweg een ander filter/zoekterm te proberen en zo steeds NIEUWE
+-- activiteiten te zien in plaats van dezelfde vaste preview.
+--
+-- Fix: bij het eerste bezoek wordt eenmalig een vaste set van
+-- LIBRARY_PREVIEW_LIMIT activiteit-ID's willekeurig gekozen en hier
+-- opgeslagen (zie getOrCreateLibraryPreviewActivityIds). Die specifieke
+-- activiteiten blijven daarna — ongeacht welke filters worden toegepast —
+-- de enige "vrije" kaarten, tot de gebruiker weer bijdraagt of upgrade (op
+-- dat moment is hasFullLibraryAccess weer true en wordt dit veld simpelweg
+-- niet meer gelezen; geen reset nodig).
+--
+-- text[] (niet uuid[]): activiteiten.id is zelf ook text, niet uuid — zie
+-- activity_knowledge_usage.sql's toelichting hierover. Geen foreign-key-
+-- constraint op de array-elementen (Postgres ondersteunt dat niet
+-- rechtstreeks op array-kolommen): een later verwijderde activiteit laat
+-- gewoon een ID achter dat nergens meer op matcht, wat er in de UI toe
+-- leidt dat er één preview-slot minder "raak" is — geen kapotte state, dus
+-- bewust niet met een trigger/cascade afgevangen.
+--
+-- Geen nieuwe RLS-policy nodig: de bestaande users_update_own (rij-niveau,
+-- geen kolom-restrictie) dekt deze kolom al net als available_for_internship
+-- (zie actions/profile.ts).
+alter table public.users
+  add column if not exists library_preview_activity_ids text[];

@@ -3,8 +3,9 @@ import { CircleCheck, CreditCard, Sparkles, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SUBSCRIPTION_PLANS } from "@/lib/constants/subscriptionPlans";
 import type { ContributionStatus } from "@/lib/services/contribution";
-import type { SubscriptionStatus } from "@/lib/types";
+import type { SubscriptionStatus, SubscriptionType } from "@/lib/types";
 
 function daysRemainingInMonth(): number {
   const now = new Date();
@@ -22,11 +23,19 @@ function daysRemainingInMonth(): number {
 export function FreemiumStatusCard({
   status,
   subscriptionStatus,
+  subscriptionType,
 }: {
   status: ContributionStatus;
   subscriptionStatus: SubscriptionStatus;
+  subscriptionType: SubscriptionType;
 }) {
   if (!status.required) {
+    // subscriptionType is 'none' voor oudere/edge-case rijen die vóór de
+    // jaar/lifetime-uitbreiding al paid_subscriber waren zonder backfill
+    // (zie supabase/migrations/subscription_tiers.sql) — val dan terug op
+    // het maandplan i.p.v. een lege label te tonen.
+    const plan = SUBSCRIPTION_PLANS[subscriptionType === "none" ? "monthly" : subscriptionType];
+
     return (
       <Card className="border-primary/30 bg-primary/5">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 py-5">
@@ -35,7 +44,9 @@ export function FreemiumStatusCard({
               <Sparkles className="size-5" />
             </div>
             <div>
-              <p className="font-semibold">Betaald abonnee — EUR 3,-/mnd</p>
+              <p className="font-semibold">
+                {plan.id === "lifetime" ? "Lifetime-toegang" : `Betaald abonnee — ${plan.priceLabel}${plan.periodLabel}`}
+              </p>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Altijd volledige toegang tot de bibliotheek, geen bijdrage-eis.
               </p>

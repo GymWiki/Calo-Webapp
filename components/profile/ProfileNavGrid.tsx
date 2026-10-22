@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { Bookmark, ListChecks, type LucideIcon } from "lucide-react";
+import { Bookmark, CalendarRange, ListChecks, Users, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const ACCENTS = {
   cone: "bg-primary/10 text-primary",
   blue: "bg-line-blue/10 text-line-blue",
+  green: "bg-emerald-500/10 text-emerald-600",
+  amber: "bg-amber-500/10 text-amber-600",
 } as const;
 
 type NavCard = {
@@ -14,20 +16,25 @@ type NavCard = {
   description: string;
   icon: LucideIcon;
   accent: keyof typeof ACCENTS;
-  count: number;
+  /** Weggelaten voor kaarten zonder zinvol getal (bijv. Team). */
+  count?: number;
 };
 
 // Voorheen vier losse blokken (activiteiten/lessen/opgeslagen/concepten) —
 // "lessen" en "activiteiten" zijn nu hetzelfde concept (zie
 // supabase/migrations/consolidate_lessons_into_activiteiten.sql), en de
 // status van een concept staat gewoon per item in "Mijn activiteiten"
-// zichtbaar, dus die twee blokken zijn niet langer apart nodig.
+// zichtbaar, dus die twee blokken zijn niet langer apart nodig. "Planning"
+// (klassenbeheer + maandkalender) is een nieuw, apart concept — geen
+// overlap met "Mijn activiteiten" — en telt daarom als vierde kaart.
 export function ProfileNavGrid({
   activitiesCount,
   savedCount,
+  classesCount,
 }: {
   activitiesCount: number;
   savedCount: number;
+  classesCount: number;
 }) {
   const cards: NavCard[] = [
     {
@@ -46,12 +53,27 @@ export function ProfileNavGrid({
       accent: "blue",
       count: savedCount,
     },
+    {
+      href: "/profiel/planning",
+      label: "Planning",
+      description: "Klassen en een weekrooster met geplande lesmomenten.",
+      icon: CalendarRange,
+      accent: "green",
+      count: classesCount,
+    },
+    {
+      href: "/profiel/team",
+      label: "Team",
+      description: "Teamabonnement voor je school of vaksectie — beheren of lid worden.",
+      icon: Users,
+      accent: "amber",
+    },
   ];
 
   return (
     <div>
       <h2 className="text-lg font-semibold">Overzicht</h2>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
@@ -69,9 +91,11 @@ export function ProfileNavGrid({
                 >
                   <Icon className="size-5" aria-hidden="true" />
                 </div>
-                <span className="font-mono text-xs font-semibold text-muted-foreground">
-                  {card.count}
-                </span>
+                {card.count !== undefined && (
+                  <span className="font-mono text-xs font-semibold text-muted-foreground">
+                    {card.count}
+                  </span>
+                )}
               </div>
               <div>
                 <p className="font-semibold">{card.label}</p>

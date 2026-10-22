@@ -1,13 +1,12 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { checkLessonGeneratorAccess } from "@/lib/ai/lessonGeneratorAccess";
 import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
+import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
-import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
 import type { CreateLessonFormInput, DidacticItem } from "@/types/lesson";
+import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import { LesMakenFlow } from "./lesson-flow";
 
 // Ruimere functie-timeout voor de server-acties die deze pagina aanroept —
@@ -19,8 +18,8 @@ export const maxDuration = 60;
 
 // "Kopieer & bewerk" pre-fill (activiteiten-bibliotheek -> les-maken). Only
 // the fields with a reasonable source on `activiteiten` are mapped —
-// movementProblem/lessonDate/groupName have no equivalent and are left
-// blank for the user to fill in. See
+// movementProblem/lessonDate have no equivalent and are left blank for the
+// user to fill in. See
 // docs/superpowers/specs/2026-08-11-activiteiten-bibliotheek-design.md
 function mapActivityToLessonInput(
   activity: Activity,
@@ -57,7 +56,6 @@ function mapWizardActivityToLessonInput(activity: Activity): Partial<CreateLesso
   return {
     title: activity.titel,
     lessonDate: activity.activity_date ?? "",
-    groupName: activity.group_name ?? "",
     learningLine: activity.leerlijn ?? "",
     doelgroep: activity.doelgroep ?? [],
     movementProblem: activity.movement_problem ?? "",
@@ -71,14 +69,18 @@ function mapWizardActivityToLessonInput(activity: Activity): Partial<CreateLesso
     learningOutcomes: activity.learning_outcomes ?? [],
     didacticItems: (activity.didactic_items ?? []) as DidacticItem[],
     arrangement: activity.arrangement ?? "",
+    beschrijving: activity.beschrijving ?? "",
     deelnemersRegels: activity.deelnemers_regels ?? "",
     plaatjePraatje: activity.plaatje_praatje ?? "",
     aandachtspunten: activity.aandachtspunten ?? "",
-    // Bij een concept is dit altijd false (zie saveLessonDraft) — de vorige
-    // keuze van de gebruiker is dan niet bewaard, dus de toggle valt terug op
-    // de standaardwaarde (createLessonDefaultValues.isPublic). Bij een al
-    // afgeronde activiteit is dit wél de daadwerkelijke publicatiestatus.
-    isPublic: activity.status === "draft" ? true : activity.is_public,
+    // Bij een concept is dit altijd "public" (zie saveLessonDraft) — de
+    // vorige keuze van de gebruiker is dan niet bewaard, dus de bestemming
+    // valt terug op de standaardwaarde (createLessonDefaultValues.destination).
+    // Bij een al afgeronde activiteit is dit wél de daadwerkelijke bestemming
+    // — een teamactiviteit toont hier "team", al wordt die niet via déze
+    // toggle opnieuw opgeslagen (zie lesson-form.tsx: bewerken van een
+    // bestaande teamactiviteit gaat via updateTeamActivity, niet createLesson).
+    destination: activity.status === "draft" ? "public" : activity.visibility,
   };
 }
 
@@ -102,14 +104,12 @@ export default async function LesMakenPage({
   }
 
   const { vanuit, tab } = await searchParams;
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const [activity, activeSourceCount, lessonGeneratorAccess] = await Promise.all([
+  const [activity, activeSourceCount] = await Promise.all([
     vanuit ? getActivityById(vanuit) : Promise.resolve(null),
     getAvailableSourceCount(profile.id),
-    checkLessonGeneratorAccess(supabase, profile.id, profile.subscription_status),
   ]);
   const initialTab = parseInitialTab(tab);
+
   const skipChoice = Boolean(activity) || Boolean(initialTab);
 
   // Een eigen wizard-activiteit verder bewerken — hetzij een nog niet
@@ -120,15 +120,49 @@ export default async function LesMakenPage({
   // bestaande, ANDERE activiteit naar een NIEUWE rij; dit werkt dezelfde rij
   // verder bij (createLesson's update-pad kent geen statusfilter, dus dat
   // werkt voor elke status). `isDraftResume` bepaalt alleen de koptekst.
+  // Een teamactiviteit bewerken mag elk actief teamlid, niet alleen de
+  // maker (zie de brief: "Alle teamleden mogen alle teamactiviteiten
+  // bewerken") — RLS staat het lezen al toe (get-current-profile.ts's
+  // profile.team_id komt uit dezelfde effectieve-toegangsberekening), dus
+  // hier alleen nog checken of dit team-lidmaatschap bij DEZE activiteit hoort.
+  const isOwnTeamActivity =
+    activity !== null && activity.visibility === "team" && activity.team_id === profile.team_id;
   const resumingOwnActivity =
-    activity !== null && activity.arrangement !== null && activity.author_id === profile.id;
+    activity !== null &&
+    activity.arrangement !== null &&
+    (activity.author_id === profile.id || isOwnTeamActivity);
   const isDraftResume = resumingOwnActivity && activity.status === "draft";
+  const isEditingTeamActivity = resumingOwnActivity && activity !== null && activity.visibility === "team";
+  // Zie de toelichting bij isEditingTeamActivity: alleen een lid van een
+  // ACTIEF (of coulance-)team ziet "Teambibliotheek" als bestemmingskeuze
+  // (subscription_status is hier de EFFECTIEVE status, zie get_effective_access
+  // in supabase/migrations/team_plans.sql — paid_subscriber dekt dus ook een
+  // team in coulance). Een zeldzame, geaccepteerde onnauwkeurigheid: iemand
+  // met zowel een eigen individueel abonnement ALS teamlidmaatschap ziet de
+  // optie ook als het team zelf inactief is — createLesson checkt de
+  // teamstatus zelf nogmaals server-side vóór het opslaan.
+  const hasActiveTeam = profile.team_id !== null && profile.subscription_status === "paid_subscriber";
 
-  const initialValues = activity
+  const initialValues: Partial<CreateLessonFormInput> | undefined = activity
     ? resumingOwnActivity
       ? mapWizardActivityToLessonInput(activity)
       : mapActivityToLessonInput(activity)
     : undefined;
+
+  const initialUsedKnowledgeSources = resumingOwnActivity
+    ? await getActivityKnowledgeSources(activity.id)
+    : undefined;
+
+  // Zaadt de fullscreen-canvas-editor met het al opgeslagen arrangement bij
+  // het hervatten van een eigen wizard-activiteit — zonder dit begint de
+  // tekening leeg (zie het commentaar bij initialDiagram in lesson-form.tsx).
+  const initialDiagram =
+    resumingOwnActivity && activity.diagram_data && activity.diagram_image_url
+      ? {
+          data: activity.diagram_data as DiagramData,
+          imageDataUrl: activity.diagram_image_url,
+        }
+      : undefined;
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-5xl xl:max-w-6xl">
@@ -151,11 +185,16 @@ export default async function LesMakenPage({
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
         initialValues={initialValues}
         initialActivityId={resumingOwnActivity ? activity.id : undefined}
+        initialDiagram={initialDiagram}
         isEditingSavedActivity={resumingOwnActivity && !isDraftResume}
         initialTab={initialTab}
         activeSourceCount={activeSourceCount}
-        lessonGeneratorAccess={lessonGeneratorAccess}
         skipChoice={skipChoice}
+        initialUsedKnowledgeSources={initialUsedKnowledgeSources}
+        hasActiveTeam={hasActiveTeam}
+        teamName={profile.team_name}
+        isEditingTeamActivity={isEditingTeamActivity}
+        initialVersion={isEditingTeamActivity && activity ? activity.version : undefined}
       />
     </main>
   );

@@ -20,6 +20,10 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## 3D-materiaal toevoegen
+
+De 3D-plattegrondeditor (`/plattegrond-3d`) toont alleen materialen die je zelf aanlevert — er is bewust geen automatische import vanuit de 2D-materialenbibliotheek. Zet per item een `<slug>.glb` (model, meters, Y-up, oorsprong op de vloer) en `<slug>.png` (preview) in `materiaal-import/` (niet in git); een optionele `<slug>.json` kan `naam`, `categorie`, `length_m`/`width_m`/`height_m`, `stackable`, `sort_order` en `material_id` overschrijven. Draai daarna `npm run import:materials -- --dry-run` om de berekende afmetingen te controleren, en zonder die vlag om echt te uploaden (bucket `materials-3d`) en de rij in `material_models` te upserten op slug — her-draaien overschrijft. `--only=<slug1,slug2>` beperkt tot specifieke items. Vereist `NEXT_PUBLIC_SUPABASE_URL` en `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`; zie `scripts/import-materials.mts` voor alle details.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

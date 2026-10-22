@@ -1,27 +1,37 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Check, Lock, MapPin, Users } from "lucide-react";
+import { Check, MapPin, Users } from "lucide-react";
 
 import { ActivityDetailActions } from "@/components/activity-detail-actions";
 import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { ActivityInfoStrip, type InfoStripItem } from "@/components/activity-info-strip";
 import { ActivityWizardPage } from "@/components/activity-wizard-page";
-import { EmptyState } from "@/components/empty-state";
+import { BackButton } from "@/components/BackButton";
+import { LibraryAccessBlocked } from "@/components/library-access-blocked";
 import { SourceBadge } from "@/components/library-item-card";
+import { MaterialChecklist } from "@/components/material-checklist";
+import { PlannedForBanner } from "@/components/planning/PlannedForBanner";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { LEERHULP_COLORS } from "@/lib/constants/leerhulpColors";
 import { splitLearningOutcomeItems } from "@/lib/format";
-import {
-  parseActivityDescription,
-  splitIntoSteps,
-  summarizeFirstParagraph,
-} from "@/lib/activityDescription";
+import { parseActivityDescription, splitIntoSteps } from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
-import { getActivityById, isActivitySaved } from "@/lib/services/activities";
+import { getActivityById, isActivityLiked, isActivitySaved } from "@/lib/services/activities";
+import { getContributionStatus } from "@/lib/services/contribution";
+import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
+import { getClassesForUser, getPlannedLessonsForActivity } from "@/lib/services/planning";
+import {
+  getActivityVersions,
+  getTeamLibraryItemForActivity,
+  getTeamTags,
+} from "@/lib/services/teamLibrary";
+import { ActivityVersionHistory } from "@/components/team/ActivityVersionHistory";
+import { TagEditor } from "@/components/team/TagEditor";
+import { TeamActivityViewActions } from "@/components/team/TeamActivityViewActions";
+import { TeamLibraryActionButton } from "@/components/team/TeamLibraryActionButton";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
@@ -112,22 +122,6 @@ function StepList({ steps }: { steps: string[] }) {
   );
 }
 
-function BadgeList({ items }: { items: string[] | null }) {
-  if (!items || items.length === 0) {
-    return <p className="text-sm text-muted-foreground">-</p>;
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((item, index) => (
-        <Badge key={`${item}-${index}`} variant="secondary">
-          {item}
-        </Badge>
-      ))}
-    </div>
-  );
-}
-
 // Verborgen i.p.v. een lege kaart met "-" tonen wanneer een activiteit voor
 // deze L geen tips heeft — zie validatie-eis "lege secties netjes verborgen".
 function LeerhulpCard({
@@ -165,6 +159,39 @@ function isWizardActivity(activity: Activity): boolean {
   return activity.arrangement !== null;
 }
 
+async function getAuthorName(authorId: string): Promise<string | null> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const { data: author } = await supabase
+    .from("users")
+    .select("first_name, last_name")
+    .eq("id", authorId)
+    .maybeSingle();
+  return author ? `${author.first_name} ${author.last_name}`.trim() : null;
+}
+
+/**
+ * Zoals getAuthorName, maar met de vrij invulbare rol/functie erachter
+ * ("Pieter Kluvers (Student CALO Zwolle)") — uitsluitend voor de "Gemaakt
+ * door"/"laatst bewerkt door"-regel op teamactiviteiten hieronder. Bewust
+ * een aparte functie i.p.v. getAuthorName zelf uitbreiden: die plain naam
+ * wordt ook gebruikt voor de PDF-export (LessonPdfButton splitst 'm naïef
+ * terug in voor-/achternaam) en het "Auteur"-veld van een eigen activiteit,
+ * waar een toegevoegde "(rol)" ongewenst zou zijn.
+ */
+async function getAuthorNameWithRole(userId: string): Promise<string | null> {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const { data: author } = await supabase
+    .from("users")
+    .select("first_name, last_name, role_label")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!author) return null;
+  const name = `${author.first_name} ${author.last_name}`.trim();
+  return author.role_label ? `${name} (${author.role_label})` : name;
+}
+
 export default async function ActiviteitDetailPage({
   params,
 }: {
@@ -187,77 +214,138 @@ export default async function ActiviteitDetailPage({
   const { hasFullLibraryAccess } = getUserPermissions(profile);
   const isOwnActivity = activity.author_id === profile.id;
 
-  if (!hasFullLibraryAccess && !isOwnActivity && !activity.is_public) {
+  // Teambibliotheek (supabase/migrations/team_library.sql) — subscription_status
+  // is hier de EFFECTIEVE status (get_effective_access, team_plans.sql), dus
+  // paid_subscriber dekt ook een team in coulance. isOwnTeamActivity is breder
+  // dan isOwnActivity: "Alle teamleden mogen alle teamactiviteiten bewerken."
+  const hasActiveTeam = profile.team_id !== null && profile.subscription_status === "paid_subscriber";
+  const isOwnTeamActivity = activity.visibility === "team" && activity.team_id === profile.team_id;
+  const canEditActivity = isOwnActivity || isOwnTeamActivity;
+  const canDeleteTeamActivity =
+    isOwnTeamActivity && (activity.author_id === profile.id || profile.team_role === "owner");
+  const canShareToGymWiki = isOwnTeamActivity && !activity.source_activity_id;
+
+  // Preview-slot voor de bibliotheek (zie de brief): een free_blocked-
+  // gebruiker mag de kaart in de lijst zien, maar de inhoud hier niet — voor
+  // ZOWEL GymWiki- als publiek gedeelde activiteiten (voorheen was
+  // `activity.is_public` een uitzondering; dat maakte publieke activiteiten
+  // volledig ongeblokkeerd, wat de brief nu expliciet niet meer wil). Eigen
+  // bijdragen blijven wél altijd toegankelijk — anders zou een gebruiker
+  // zijn eigen eerder bijgedragen werk niet meer kunnen inzien zodra hij in
+  // een nieuwe maand (nog) niet aan de eis voldoet.
+  if (!hasFullLibraryAccess && !isOwnActivity) {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const contributionStatus = await getContributionStatus(
+      supabase,
+      profile.id,
+      profile.subscription_status,
+    );
+
     return (
       <main className="mx-auto w-full max-w-3xl space-y-6 p-4 pb-28 md:p-8 md:pb-8">
-        <Button asChild variant="outline">
-          <Link href="/zoeken">
-            <ArrowLeft className="size-4" />
-            Terug naar Activiteiten
-          </Link>
-        </Button>
-        <EmptyState
-          icon={Lock}
-          title="Bibliotheektoegang beperkt"
-          description="Je hebt de maandelijkse bijdrage-eis niet gehaald, dus zie je alleen je eigen bijdragen. Maak en publiceer deze maand een activiteit via de wizard, of neem het betaalde abonnement voor volledige toegang."
-          action={
-            <Button asChild>
-              <Link href="/les-maken">Naar de activiteit-maken wizard</Link>
-            </Button>
-          }
-        />
+        <BackButton fallbackHref="/zoeken" fallbackLabel="Bibliotheek" />
+        <LibraryAccessBlocked status={contributionStatus} />
       </main>
     );
   }
 
-  const saved = await isActivitySaved(profile.id, activity.id);
   const wizardActivity = isWizardActivity(activity);
+
+  // Drie onderling onafhankelijke queries (geen enkele heeft het resultaat
+  // van een ander nodig) liepen hier voorheen na elkaar — saved eerst, dan
+  // (bij een wizard-activiteit) pas de auteursnaam, dan pas de gebruikte
+  // kennisbronnen. Gecombineerd in één Promise.all i.p.v. drie sequentiële
+  // round-trips.
+  const supabase = createClient(await cookies());
+
+  const [
+    saved,
+    liked,
+    authorName,
+    usedKnowledgeSources,
+    plannedLessons,
+    classes,
+    editorName,
+    sourceActivity,
+    teamTags,
+    teamLibraryItem,
+    activityVersions,
+    creatorDisplayName,
+    editorDisplayName,
+  ] = await Promise.all([
+    isActivitySaved(profile.id, activity.id),
+    isActivityLiked(profile.id, activity.id),
+    activity.author_id ? getAuthorName(activity.author_id) : Promise.resolve(null),
+    wizardActivity ? getActivityKnowledgeSources(activity.id) : Promise.resolve(undefined),
+    getPlannedLessonsForActivity(activity.id),
+    getClassesForUser(profile.id),
+    activity.updated_by && activity.updated_by !== activity.author_id
+      ? getAuthorName(activity.updated_by)
+      : Promise.resolve(null),
+    activity.source_activity_id ? getActivityById(activity.source_activity_id) : Promise.resolve(null),
+    hasActiveTeam && profile.team_id ? getTeamTags(supabase, profile.team_id) : Promise.resolve([]),
+    hasActiveTeam && profile.team_id
+      ? getTeamLibraryItemForActivity(supabase, profile.team_id, activity.id)
+      : Promise.resolve(null),
+    isOwnTeamActivity ? getActivityVersions(supabase, activity.id) : Promise.resolve([]),
+    // "Gemaakt door"/"laatst bewerkt door" op teamactiviteiten toont de rol/
+    // functie erbij indien ingevuld (zie getAuthorNameWithRole hierboven) —
+    // uitsluitend hiervoor, dus alleen opgehaald wanneer het ook getoond wordt.
+    isOwnTeamActivity && activity.author_id ? getAuthorNameWithRole(activity.author_id) : Promise.resolve(null),
+    isOwnTeamActivity && activity.updated_by && activity.updated_by !== activity.author_id
+      ? getAuthorNameWithRole(activity.updated_by)
+      : Promise.resolve(null),
+  ]);
 
   // Wizard-activiteiten delen hun volledige weergave met de inline-editor
   // (zie components/activity-wizard-page.tsx: mode="view" hier, mode="edit"
   // in de "Zelf een activiteit maken"-pagina) — vandaar de vroege return.
   if (wizardActivity) {
-    let authorName: string | null = null;
-    if (activity.author_id) {
-      const cookieStore = await cookies();
-      const supabase = createClient(cookieStore);
-      const { data: author } = await supabase
-        .from("users")
-        .select("first_name, last_name")
-        .eq("id", activity.author_id)
-        .maybeSingle();
-      authorName = author ? `${author.first_name} ${author.last_name}`.trim() : null;
-    }
-
     const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
-    const analyzePayload = {
-      title: activity.titel,
-      learningLine: activity.leerlijn ?? undefined,
-      movementProblem: activity.movement_problem ?? undefined,
-      movementTheme: activity.beweegthema ?? undefined,
-      goals: activity.doel ?? undefined,
-      didacticItems,
-    };
 
     return (
       <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
+        <PlannedForBanner plannedLessons={plannedLessons} />
         <ActivityWizardPage
           mode="view"
           activity={activity}
+          classes={classes}
           title={activity.titel}
           learningLine={activity.leerlijn ?? ""}
           movementTheme={activity.beweegthema ?? ""}
-          groupName={activity.group_name ?? ""}
           activityDate={activity.activity_date ?? ""}
           authorName={authorName}
           doelgroep={activity.doelgroep ?? []}
           minParticipants={activity.min_participants}
           participantsBench={activity.participants_bench}
-          isPublic={activity.is_public}
-          isOwnActivity={isOwnActivity}
+          isPublic={activity.visibility === "public"}
+          isOwnActivity={canEditActivity}
+          creatorName={creatorDisplayName ?? authorName}
+          editorName={editorDisplayName ?? editorName}
+          sourceActivityTitle={sourceActivity?.titel ?? null}
+          teamTagEditor={
+            teamLibraryItem ? (
+              <TagEditor itemId={teamLibraryItem.id} initialTags={teamLibraryItem.tags} allTeamTags={teamTags} />
+            ) : undefined
+          }
+          teamVersionHistory={
+            isOwnTeamActivity ? <ActivityVersionHistory activityId={activity.id} versions={activityVersions} /> : undefined
+          }
+          teamActivityActions={
+            isOwnTeamActivity ? (
+              <TeamActivityViewActions
+                activityId={activity.id}
+                activityTitle={activity.titel}
+                canDelete={canDeleteTeamActivity}
+                canShare={canShareToGymWiki}
+              />
+            ) : undefined
+          }
           goals={activity.doel ?? ""}
           movementProblem={activity.movement_problem ?? ""}
           learningOutcomes={activity.learning_outcomes ?? []}
+          beschrijving={activity.beschrijving ?? ""}
           deelnemersRegels={activity.deelnemers_regels ?? ""}
           plaatjePraatje={activity.plaatje_praatje ?? ""}
           aandachtspunten={activity.aandachtspunten ?? ""}
@@ -267,7 +355,7 @@ export default async function ActiviteitDetailPage({
           ruleMaterials={activity.rule_materials ?? []}
           diagramImageUrl={activity.diagram_image_url}
           didacticItems={didacticItems}
-          analyzePayload={analyzePayload}
+          usedKnowledgeSources={usedKnowledgeSources}
         />
       </main>
     );
@@ -292,11 +380,23 @@ export default async function ActiviteitDetailPage({
   const { participantsSummary, participantsDetail, bodyText } = parseActivityDescription(
     activity.beschrijving,
   );
-  const inKort = summarizeFirstParagraph(bodyText);
   const speelStappen = splitIntoSteps(bodyText);
 
   const beginsituatieText = activity.beginsituatie;
   const hasBeginsituatieSection = Boolean(beginsituatieText) || doelgroepLabels.length > 0;
+
+  // Een handjevol (2 van de 203) oorspronkelijke bibliotheekactiviteiten heeft
+  // als eerste materiaal-item een algemene toelichting i.p.v. een los,
+  // aanvinkbaar materiaalstuk (bijv. "Materiaal voor zoveel mogelijk
+  // badminton velden") — geverifieerd via SQL dat dit exacte prefix-patroon
+  // de enige twee gevallen dekt. Dat item hoort als intro boven de lijst,
+  // niet als gelijkwaardige, aanvinkbare regel ertussen (zie MaterialChecklist
+  // hieronder, dezelfde component als bij wizard-activiteiten).
+  const materiaalIntro =
+    activity.materiaal && /^materiaal voor/i.test(activity.materiaal[0] ?? "")
+      ? activity.materiaal[0]
+      : null;
+  const materiaalItems = materiaalIntro ? activity.materiaal!.slice(1) : (activity.materiaal ?? []);
 
   const infoStripItems: InfoStripItem[] = [];
   if (participantsSummary) {
@@ -306,208 +406,311 @@ export default async function ActiviteitDetailPage({
     infoStripItems.push({ icon: MapPin, label: activity.veld });
   }
 
+  // Team-gerelateerde actie — of de "Team"-toevoegknop (publieke GymWiki-
+  // activiteit, actief teamlid) of "Verwijderen"/"Delen met GymWiki" (de
+  // eigen teamactiviteit van dit team) — nooit allebei tegelijk. Twee
+  // instanties (icons/sidebar) omdat ActivityDetailActions hieronder ook
+  // twee keer met een andere variant gerenderd wordt.
+  function teamAction(variant: "icons" | "sidebar") {
+    if (!activity) return null;
+    if (isOwnTeamActivity) {
+      return (
+        <TeamActivityViewActions
+          activityId={activity.id}
+          activityTitle={activity.titel}
+          canDelete={canDeleteTeamActivity}
+          canShare={canShareToGymWiki}
+        />
+      );
+    }
+    if (hasActiveTeam && activity.visibility === "public") {
+      return (
+        <TeamLibraryActionButton
+          activityId={activity.id}
+          activityTitle={activity.titel}
+          existingItem={teamLibraryItem}
+          allTeamTags={teamTags}
+          variant={variant}
+        />
+      );
+    }
+    return null;
+  }
+
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
+    <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-8 md:space-y-6 md:p-8 lg:max-w-6xl print:max-w-none print:p-0">
       <div className="print:hidden">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground">
-          <Link href="/zoeken">
-            <ArrowLeft className="size-4" />
-            Bibliotheek
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/zoeken" fallbackLabel="Bibliotheek" className="-ml-2" />
       </div>
 
-      {/* Header — titel is het belangrijkste element, geen kaart-omlijning
-          nodig (zie components/page-header.tsx voor hetzelfde patroon elders
-          in de app: eyebrow + titel + meta, geen Card-wrapper). "In het
-          kort" staat hier als dek (grotere, rustig lopende introductiezin)
-          direct onder de titel — dat is de plek waar een docent binnen een
-          paar seconden weet waar de activiteit over gaat, vóór er ook maar
-          een kaart of tab in beeld komt. */}
-      <div className="animate-fade-up space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className={`font-mono text-xs font-semibold tracking-[0.14em] uppercase ${getCategoryColor(activity.categorie).text}`}
-            >
-              {activity.beweegthema || activity.categorie || "Activiteit"}
-            </p>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words sm:text-3xl">
-              {activity.titel}
-            </h1>
-            {groepNiveauSummary && (
-              <p className="mt-1 text-sm text-muted-foreground">{groepNiveauSummary}</p>
-            )}
-          </div>
-          {activity.is_public ? (
-            <SourceBadge source={activity.author_id ? "public" : "gymwiki"} className="mt-1 shrink-0" />
-          ) : (
-            <SourceBadge source="gymwiki" className="mt-1 shrink-0" />
-          )}
-        </div>
+      {/* Hoofdkolom + sticky zijbalk vanaf lg (CLAUDE.md: "real desktop
+          layout"-wijzigingen wachten op lg, niet md) — op mobiel/tablet blijft
+          dit gewoon één kolom die van boven naar beneden leest. De zijbalk
+          herhaalt bewust dezelfde acties/kernmetadata die in de hoofdkolom-
+          header ook staan: op lg+ blijft hij zichtbaar tijdens het scrollen
+          door de tabs eronder, ook als de header allang buiten beeld is. */}
+      <div className="lg:grid lg:grid-cols-[1fr_300px] lg:items-start lg:gap-10">
+        <div className="space-y-5 md:space-y-6">
+          {/* Header — titel is het belangrijkste element, geen kaart-omlijning
+              nodig (zie components/page-header.tsx voor hetzelfde patroon
+              elders in de app: eyebrow + titel + meta, geen Card-wrapper). */}
+          <div className="animate-fade-up space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p
+                  className={`font-mono text-xs font-semibold tracking-[0.14em] uppercase ${getCategoryColor(activity.categorie).text}`}
+                >
+                  {activity.beweegthema || activity.categorie || "Activiteit"}
+                </p>
+                <h1 className="mt-0.5 text-2xl font-bold tracking-tight break-words sm:text-3xl">
+                  {activity.titel}
+                </h1>
+                {groepNiveauSummary && (
+                  <p className="mt-1 text-sm text-muted-foreground">{groepNiveauSummary}</p>
+                )}
+              </div>
+              <SourceBadge source={getActivitySource(activity)} className="mt-1 shrink-0" />
+            </div>
 
-        {inKort && (
-          <p className="text-base leading-relaxed text-foreground/80 sm:text-lg">{inKort}</p>
-        )}
-
-        {infoStripItems.length > 0 && <ActivityInfoStrip items={infoStripItems} />}
-
-        <div className="flex flex-wrap gap-1.5">
-          {activity.leerlijn && <Badge variant="outline">{activity.leerlijn}</Badge>}
-        </div>
-      </div>
-
-      {/* Eén kolom, altijd: afbeelding vol op de breedte van de pagina, dan
-          de tabs eronder. Geen zijkolom en geen grid-split meer — op elke
-          breedte dezelfde, voorspelbare leesvolgorde van boven naar
-          beneden. */}
-      <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span
-              className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
-              aria-hidden="true"
+            {/* Compacte iconenrij op mobiel/tablet — gewoon onderdeel van de
+                paginascroll (niet sticky), dus geen concurrentie met de vaste
+                onderste navigatiebalk. Verdwijnt vanaf lg: daar staan
+                dezelfde drie acties al in de sticky zijbalk. */}
+            <ActivityDetailActions
+              activity={activity}
+              initiallySaved={saved}
+              initiallyLiked={liked}
+              isOwnActivity={isOwnActivity}
+              classes={classes}
+              variant="icons"
+              className="lg:hidden"
+              teamLibraryButton={teamAction("icons")}
             />
-            Arrangement
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ActivityImageLightbox
-            src={activity.afbeelding}
-            alt={activity.titel}
-            emptyLabel="Geen arrangement-afbeelding beschikbaar."
-          />
-        </CardContent>
-      </Card>
 
-      <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
-        <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
-          <TabsTrigger
-            value="lesinhoud"
-            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Lesinhoud
-          </TabsTrigger>
-          <TabsTrigger
-            value="materiaal"
-            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Materiaal
-          </TabsTrigger>
-          <TabsTrigger
-            value="leerhulp"
-            className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
-          >
-            Leerhulp
-          </TabsTrigger>
-        </TabsList>
+            {infoStripItems.length > 0 && <ActivityInfoStrip items={infoStripItems} />}
 
-        {/* Tab 1: Lesinhoud */}
-        <TabsContent value="lesinhoud" className="space-y-4">
-          <Card>
-            <CardContent className="space-y-5 pt-6">
-              {/* Volgorde bewust: eerst het "waarom" (Doel), dan de context
-                  waartegen dat doel staat (Beginsituatie & Doelgroep — voor
-                  wie is dit, wat wordt al verondersteld), dán pas de
-                  leeruitkomsten en de daadwerkelijke uitvoering. */}
-              {activity.doel && (
-                <div>
-                  <SectionHeading>Doel</SectionHeading>
-                  <p className="text-sm whitespace-pre-line text-foreground">{activity.doel}</p>
-                </div>
-              )}
+            <div className="flex flex-wrap gap-1.5">
+              {activity.leerlijn && <Badge variant="outline">{activity.leerlijn}</Badge>}
+            </div>
 
-              {hasBeginsituatieSection && (
-                <div>
-                  <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
-                  {doelgroepLabels.length > 0 && (
-                    <div className={beginsituatieText ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
-                      {doelgroepLabels.map((label) => (
-                        <Badge key={label} variant="secondary">
-                          {label}
-                        </Badge>
-                      ))}
+            {isOwnTeamActivity && (
+              <div className="space-y-2 rounded-lg border bg-card p-3">
+                <p className="text-xs text-muted-foreground">
+                  Gemaakt door {creatorDisplayName ?? authorName ?? "een teamlid"}
+                  {(editorDisplayName ?? editorName) && (editorDisplayName ?? editorName) !== (creatorDisplayName ?? authorName)
+                    ? ` · laatst bewerkt door ${editorDisplayName ?? editorName}`
+                    : ""}
+                  {sourceActivity && (
+                    <>
+                      {" "}
+                      · Gebaseerd op <span className="font-medium">{sourceActivity.titel}</span>
+                    </>
+                  )}
+                </p>
+                {teamLibraryItem && (
+                  <TagEditor itemId={teamLibraryItem.id} initialTags={teamLibraryItem.tags} allTeamTags={teamTags} />
+                )}
+                <ActivityVersionHistory activityId={activity.id} versions={activityVersions} />
+              </div>
+            )}
+
+            <PlannedForBanner plannedLessons={plannedLessons} />
+          </div>
+
+          <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <span
+                  className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
+                  aria-hidden="true"
+                />
+                Arrangement
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ActivityImageLightbox
+                src={activity.afbeelding}
+                alt={activity.titel}
+                emptyLabel="Geen arrangement-afbeelding beschikbaar."
+              />
+            </CardContent>
+          </Card>
+
+          <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+            <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
+              <TabsTrigger
+                value="lesinhoud"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Lesinhoud
+              </TabsTrigger>
+              <TabsTrigger
+                value="materiaal"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Materiaal
+              </TabsTrigger>
+              <TabsTrigger
+                value="leerhulp"
+                className="min-h-9 px-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:px-2 sm:text-sm"
+              >
+                Leerhulp
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Tab 1: Lesinhoud */}
+            <TabsContent value="lesinhoud" className="space-y-4">
+              <Card>
+                <CardContent className="space-y-5 pt-6">
+                  {/* Volgorde bewust: eerst het "waarom" (Doel), dan de context
+                      waartegen dat doel staat (Beginsituatie & Doelgroep — voor
+                      wie is dit, wat wordt al verondersteld), dán pas de
+                      leeruitkomsten en de daadwerkelijke uitvoering. */}
+                  {activity.doel && (
+                    <div>
+                      <SectionHeading>Doel</SectionHeading>
+                      <p className="text-sm whitespace-pre-line text-foreground">{activity.doel}</p>
                     </div>
                   )}
-                  {beginsituatieText && (
-                    <p className="text-sm whitespace-pre-line text-foreground">
-                      {beginsituatieText}
-                    </p>
+
+                  {hasBeginsituatieSection && (
+                    <div>
+                      <SectionHeading>Beginsituatie &amp; Doelgroep</SectionHeading>
+                      {doelgroepLabels.length > 0 && (
+                        <div className={beginsituatieText ? "mb-2 flex flex-wrap gap-1.5" : "flex flex-wrap gap-1.5"}>
+                          {doelgroepLabels.map((label) => (
+                            <Badge key={label} variant="secondary">
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {beginsituatieText && (
+                        <p className="text-sm whitespace-pre-line text-foreground">
+                          {beginsituatieText}
+                        </p>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
 
-              {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
-                <div>
-                  <SectionHeading>Leeruitkomsten</SectionHeading>
-                  <LearningOutcomesList items={activity.learning_outcomes} />
-                </div>
-              )}
-
-              {participantsDetail && (
-                <div>
-                  <SectionHeading>Deelnemers</SectionHeading>
-                  <TextList items={participantsDetail} />
-                </div>
-              )}
-
-              {/* Verborgen i.p.v. een lege "-" tonen wanneer er geen
-                  beschrijving is ingevuld. */}
-              {bodyText && (
-                <div>
-                  <SectionHeading>Zo speel je</SectionHeading>
-                  {speelStappen ? (
-                    <StepList steps={speelStappen} />
-                  ) : (
-                    <p className="text-sm whitespace-pre-line text-foreground">{bodyText}</p>
+                  {activity.learning_outcomes && activity.learning_outcomes.length > 0 && (
+                    <div>
+                      <SectionHeading>Leeruitkomsten</SectionHeading>
+                      <LearningOutcomesList items={activity.learning_outcomes} />
+                    </div>
                   )}
-                </div>
-              )}
 
-              <div>
-                <SectionHeading>Regels</SectionHeading>
-                <RulesChecklist items={activity.regels} />
+                  {participantsDetail && (
+                    <div>
+                      <SectionHeading>Deelnemers</SectionHeading>
+                      <TextList items={participantsDetail} />
+                    </div>
+                  )}
+
+                  {/* Verborgen i.p.v. een lege "-" tonen wanneer er geen
+                      beschrijving is ingevuld. */}
+                  {bodyText && (
+                    <div>
+                      <SectionHeading>Zo speel je</SectionHeading>
+                      {speelStappen ? (
+                        <StepList steps={speelStappen} />
+                      ) : (
+                        <p className="text-sm whitespace-pre-line text-foreground">{bodyText}</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <SectionHeading>Regels</SectionHeading>
+                    <RulesChecklist items={activity.regels} />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab 2: Materiaal (incl. veld/opstelling) */}
+            <TabsContent value="materiaal" className="space-y-4">
+              <Card>
+                <CardContent className="space-y-5 pt-6">
+                  <div>
+                    <SectionHeading>Veld &amp; opstelling</SectionHeading>
+                    <p className="text-sm whitespace-pre-line text-foreground">{activity.veld || "-"}</p>
+                  </div>
+                  <div>
+                    <SectionHeading>Materiaallijst</SectionHeading>
+                    {materiaalIntro && (
+                      <p className="mb-2 text-sm text-foreground">{materiaalIntro}</p>
+                    )}
+                    <MaterialChecklist
+                      items={materiaalItems}
+                      storageKey={`materiaal-checklist:${activity.id}:materiaal`}
+                      emptyLabel="Geen materiaal nodig."
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab 3: Leerhulp (3 L'en) — onder elkaar i.p.v. drie kolommen: bij
+                langere tips-lijsten waren de kolommen te smal en brak de tekst
+                ongemakkelijk af. */}
+            <TabsContent value="leerhulp" className="space-y-4">
+              <div className="flex flex-col gap-4">
+                <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
+                <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
+                <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
+          </Tabs>
+        </div>
 
-        {/* Tab 2: Materiaal (incl. veld/opstelling) */}
-        <TabsContent value="materiaal" className="space-y-4">
+        {/* Zijbalk — alleen vanaf lg, sticky zodat acties/kernmetadata
+            zichtbaar blijven terwijl er door de tabs gescrold wordt.
+            self-start voorkomt dat de aside de volledige grid-rijhoogte
+            probeert te vullen (wat sticky zou breken). */}
+        <aside className="hidden lg:sticky lg:top-8 lg:block lg:self-start lg:space-y-4">
           <Card>
-            <CardContent className="space-y-5 pt-6">
-              <div>
-                <SectionHeading>Veld &amp; opstelling</SectionHeading>
-                <p className="text-sm whitespace-pre-line text-foreground">{activity.veld || "-"}</p>
-              </div>
-              <div>
-                <SectionHeading>Materiaallijst</SectionHeading>
-                <BadgeList items={activity.materiaal} />
-              </div>
+            <CardContent className="pt-6">
+              <ActivityDetailActions
+                activity={activity}
+                initiallySaved={saved}
+                initiallyLiked={liked}
+                isOwnActivity={isOwnActivity}
+                classes={classes}
+                variant="sidebar"
+                teamLibraryButton={teamAction("sidebar")}
+              />
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* Tab 3: Leerhulp (3 L'en) — onder elkaar i.p.v. drie kolommen: bij
-            langere tips-lijsten waren de kolommen te smal en brak de tekst
-            ongemakkelijk af. Volle kaartbreedte binnen de pagina (die zelf
-            al op een leesbare max-w-3xl staat) i.p.v. een extra kolomsplit. */}
-        <TabsContent value="leerhulp" className="space-y-4">
-          <div className="flex flex-col gap-4">
-            <LeerhulpCard title="Loopt het?" tips={activity.loopt} colors={LEERHULP_COLORS.loopt} />
-            <LeerhulpCard title="Lukt het?" tips={activity.lukt} colors={LEERHULP_COLORS.lukt} />
-            <LeerhulpCard title="Leeft het?" tips={activity.leeft} colors={LEERHULP_COLORS.leeft} />
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* Eén actiebalk, op elke breedte: vast onderaan het scherm,
-          safe-area-bewust. bottom-[calc(4rem+env(safe-area-inset-bottom))]
-          blijft boven de mobiele bottom-navigatie (md:hidden en zelf ook
-          safe-area-bewust, zie components/app-layout.tsx), md:bottom-0
-          daarna — op mobiel reserveert de nav er al onder de veilige zone. */}
-      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex gap-2 border-t bg-card p-2.5 shadow-brand-lg md:bottom-0 md:pb-[calc(0.625rem+env(safe-area-inset-bottom))] print:hidden">
-        <ActivityDetailActions activity={activity} initiallySaved={saved} />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Op een rij</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-0">
+              {groepNiveauSummary && (
+                <p className="text-sm text-muted-foreground">{groepNiveauSummary}</p>
+              )}
+              {doelgroepLabels.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {doelgroepLabels.map((label) => (
+                    <Badge key={label} variant="secondary">
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {infoStripItems.length > 0 && (
+                <ActivityInfoStrip items={infoStripItems} className="flex-col items-start gap-2" />
+              )}
+              {activity.leerlijn && (
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="outline">{activity.leerlijn}</Badge>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </aside>
       </div>
     </main>
   );

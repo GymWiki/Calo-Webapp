@@ -1,4 +1,16 @@
+import type { HolidayRegion } from "@/types/planning";
+
 export type SubscriptionStatus = "free_contributor" | "free_blocked" | "paid_subscriber";
+
+/**
+ * Welk betaald plan — los van subscription_status hierboven, dat de enige
+ * bron van waarheid voor toegangscontrole blijft (lib/permissions.ts kijkt
+ * hier NIET naar: een lifetime-koper krijgt gewoon subscription_status =
+ * 'paid_subscriber', exact als een maand-/jaarabonnee). Puur voor weergave
+ * (welke kaart is "je huidige plan" op /pro) en het upgrade-pad in
+ * app/api/stripe/create-checkout/route.ts. 'none' voor gratis accounts.
+ */
+export type SubscriptionType = "none" | "monthly" | "yearly" | "lifetime";
 
 export type UserProfile = {
   id: string;
@@ -6,6 +18,42 @@ export type UserProfile = {
   last_name: string;
   avatar_url: string | null;
   available_for_internship: boolean;
+  /**
+   * Vrij invulbare rol/functie (bijv. "Student CALO Zwolle", "Docent
+   * bewegingsonderwijs bij [schoolnaam]") — optioneel, null = niet
+   * ingevuld, toont dan geen badge. Zie components/profile/RoleLabelBadge.tsx
+   * en supabase/migrations/user_role_label.sql (max 60 tekens).
+   */
+  role_label: string | null;
   subscription_status: SubscriptionStatus;
+  subscription_type: SubscriptionType;
   email: string | null;
+  /**
+   * Regio (noord/midden/zuid) voor de schoolvakantie-weergave in de
+   * Planning-kalender — null zolang de gebruiker dit niet heeft ingesteld
+   * (zie /profiel/instellingen), dan wordt er bewust geen vakantie-info
+   * getoond. Zie types/planning.ts's HolidayRegion en
+   * supabase/migrations/planning_feature_rework.sql.
+   */
+  holiday_region: HolidayRegion | null;
+  /**
+   * Vaste preview-set voor de bibliotheek (/zoeken) — alleen relevant voor
+   * free_blocked-accounts. null = nog nooit berekend (zie
+   * getOrCreateLibraryPreviewActivityIds); daarna een vaste lijst van
+   * activiteit-ID's die ongeacht filters "vrij" blijven. Zie
+   * supabase/migrations/library_preview_activity_ids.sql.
+   */
+  library_preview_activity_ids: string[] | null;
+  /**
+   * Teamlidmaatschap (nooit meer dan één, zie team_members' unique(user_id))
+   * — null voor iedereen zonder team. subscription_status hierboven is al
+   * de EFFECTIEVE status (eigen betaling OF actief team, zie
+   * public.get_effective_access in supabase/migrations/team_plans.sql en
+   * lib/supabase/get-current-profile.ts): deze drie velden zijn puur voor
+   * team-specifieke UI (Profiel → Team, de gepoolde AI-teller), niet voor
+   * toegangscontrole zelf.
+   */
+  team_id: string | null;
+  team_role: "owner" | "member" | null;
+  team_name: string | null;
 };

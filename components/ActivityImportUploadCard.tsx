@@ -17,21 +17,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DOCUMENT_MAX_FILE_SIZE_BYTES, SUPPORTED_DOCUMENT_MIME_TYPES } from "@/lib/ai/documentTypes";
+import { IMPORT_MAX_FILE_SIZE_BYTES, SUPPORTED_IMPORT_MIME_TYPES } from "@/lib/ai/documentNormalization";
 import { createClient } from "@/utils/supabase/client";
-import type { ExtractedActivity } from "@/lib/ai/activityImportExtraction";
+import type { ActivityImportResult } from "@/lib/ai/activityImportProcessor";
 
 const ACCEPT =
-  ".pdf,.docx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain";
+  ".pdf,.docx,.pptx,.odt,.txt,.md,.jpg,.jpeg,.png," +
+  "application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document," +
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation," +
+  "application/vnd.oasis.opendocument.text,text/plain,text/markdown,image/jpeg,image/png";
 
 const BUCKET = "activity-imports";
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 90_000;
 
 const DEFAULT_DESCRIPTION =
-  "PDF, Word (.docx), PowerPoint (.pptx) of tekstbestand — de AI zet het om naar het " +
-  "formulier hieronder, zodat je het alleen nog hoeft te controleren vóór je indient. " +
-  "Liever alles zelf intypen? Dat kan ook gewoon, hieronder.";
+  "PDF, Word (.docx), PowerPoint (.pptx), OpenDocument (.odt), tekst/markdown, of een foto van een " +
+  "papieren lesbrief — de AI zet het om naar het formulier hieronder, zodat je het alleen nog hoeft te " +
+  "controleren vóór je indient. Liever alles zelf intypen? Dat kan ook gewoon, hieronder.";
 
 type Phase = "idle" | "uploading" | "processing";
 
@@ -59,7 +62,7 @@ export function ActivityImportUploadCard({
   onExtracted,
   description = DEFAULT_DESCRIPTION,
 }: {
-  onExtracted: (activity: ExtractedActivity) => void;
+  onExtracted: (jobId: string, result: ActivityImportResult) => void;
   description?: string;
 }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -100,7 +103,7 @@ export function ActivityImportUploadCard({
 
       if (result.status === "done") {
         if (result.result) {
-          onExtracted(result.result);
+          onExtracted(jobId, result.result);
         }
         return;
       }
@@ -118,14 +121,16 @@ export function ActivityImportUploadCard({
     event.preventDefault();
     if (!selectedFile) return;
 
-    if (!(SUPPORTED_DOCUMENT_MIME_TYPES as readonly string[]).includes(selectedFile.type)) {
-      toast.error("Alleen PDF, Word (.docx), PowerPoint (.pptx) en tekstbestanden worden ondersteund.");
+    if (!(SUPPORTED_IMPORT_MIME_TYPES as readonly string[]).includes(selectedFile.type)) {
+      toast.error(
+        "Alleen PDF, Word (.docx), PowerPoint (.pptx), OpenDocument (.odt), tekst-/markdownbestanden en JPG/PNG-foto's worden ondersteund.",
+      );
       return;
     }
 
-    if (selectedFile.size > DOCUMENT_MAX_FILE_SIZE_BYTES) {
+    if (selectedFile.size > IMPORT_MAX_FILE_SIZE_BYTES) {
       toast.error(
-        `Bestand is te groot (max ${Math.round(DOCUMENT_MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB). ` +
+        `Bestand is te groot (max ${Math.round(IMPORT_MAX_FILE_SIZE_BYTES / 1024 / 1024)}MB). ` +
           "Verklein het bestand of vul de activiteit handmatig in.",
       );
       return;

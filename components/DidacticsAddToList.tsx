@@ -7,8 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DidacticSuggestionCardList } from "@/components/LescoachSuggestionCard";
 import { CATEGORY_STYLES } from "@/lib/didactics-styles";
 import { cn } from "@/lib/utils";
+import type { DidacticSuggestion } from "@/types/ai";
 import {
   DIDACTIC_CATEGORY_LABELS,
   DIDACTIC_CATEGORY_SUBTITLES,
@@ -28,6 +30,9 @@ export function DidacticsAddToList({
   onUpdate,
   onRemove,
   styleOverride,
+  suggestions,
+  onApplySuggestion,
+  onDismissSuggestion,
 }: {
   category: DidacticCategory;
   items: DidacticItem[];
@@ -37,6 +42,11 @@ export function DidacticsAddToList({
   /** Zie DidacticsMatrix — laat een specifieke pagina de kleuren/emoji
    * overschrijven zonder CATEGORY_STYLES zelf aan te passen. */
   styleOverride?: { border: string; header: string; emoji?: string };
+  /** AI Lescoach: 2-3 alternatieve varianten voor déze categorie — een
+   * aanvulling op `items` hierboven, nooit een vervanging. */
+  suggestions?: DidacticSuggestion[];
+  onApplySuggestion?: (suggestion: DidacticSuggestion) => void;
+  onDismissSuggestion?: (id: string) => void;
 }) {
   const [subTheme, setSubTheme] = useState("");
   const [observation, setObservation] = useState("");
@@ -139,6 +149,14 @@ export function DidacticsAddToList({
               </li>
             ))}
           </ul>
+        )}
+
+        {suggestions && suggestions.length > 0 && onApplySuggestion && onDismissSuggestion && (
+          <DidacticSuggestionCardList
+            suggestions={suggestions}
+            onApply={onApplySuggestion}
+            onDismiss={onDismissSuggestion}
+          />
         )}
 
         <div className="space-y-3 rounded-lg border border-dashed p-3">

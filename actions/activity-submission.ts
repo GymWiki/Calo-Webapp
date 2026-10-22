@@ -1,8 +1,12 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { checkActivityQuality } from "@/lib/ai/activityQualityCheck";
+import { logKnowledgeUsage } from "@/lib/ai/knowledgeUsageLogging";
+import { resolveSlug } from "@/lib/services/activitySlug";
+import { getGroepSlug, getLeerlijnSlug } from "@/lib/services/publicActivities";
 import { submitActivityInputSchema } from "@/types/activity";
 
 type SubmitResult =
@@ -63,19 +67,41 @@ export async function submitActivityDraft(activityId: string): Promise<SubmitRes
 
   const values = parsed.data;
   const quality = await checkActivityQuality(supabase, user.id, values);
+  // Voedt de publieke /activiteiten/[slug]-pagina (zie
+  // supabase/migrations/activiteiten_public_seo.sql) — alleen bij een
+  // geslaagde check, en resolveSlug houdt een al bestaande slug altijd aan
+  // (zie het commentaar daar) zodat een eerder gedeelde URL nooit breekt.
+  const slug =
+    quality.status === "approved" ? await resolveSlug(supabase, activityId, values.titel) : undefined;
+
+  const updatePayload = {
+    status: quality.status,
+    rejection_reason: quality.status === "rejected" ? quality.reason : null,
+    submitted_at: new Date().toISOString(),
+    ...(quality.status === "approved" ? { seo_summary: quality.seoSummary, slug } : {}),
+  };
 
   const { error: updateError } = await supabase
     .from("activiteiten")
-    .update({
-      status: quality.status,
-      rejection_reason: quality.status === "rejected" ? quality.reason : null,
-      submitted_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", activityId)
     .eq("author_id", user.id);
 
   if (updateError) {
     return { error: GENERIC_ERROR };
+  }
+
+  await logKnowledgeUsage(supabase, activityId, "checker", quality.usedKnowledgeChunks);
+
+  // On-demand ISR — zie de gelijknamige toelichting in actions/lesson.ts.
+  if (slug) {
+    revalidatePath(`/activiteiten/${slug}`);
+    revalidatePath("/activiteiten");
+    revalidatePath(`/leerlijn/${getLeerlijnSlug(values.leerlijn)}`);
+    for (const code of values.doelgroep) {
+      const groepSlug = getGroepSlug(code);
+      if (groepSlug) revalidatePath(`/groep/${groepSlug}`);
+    }
   }
 
   return quality.status === "approved"

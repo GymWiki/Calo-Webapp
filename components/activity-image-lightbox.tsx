@@ -57,7 +57,7 @@ export function ActivityImageLightbox({
         <img
           src={src}
           alt={alt}
-          className="max-h-[320px] w-full object-contain transition-transform duration-200 ease-brand group-hover:scale-[1.01] sm:max-h-[400px]"
+          className="max-h-[320px] w-full object-contain transition-transform duration-200 ease-brand group-hover:scale-[1.01] sm:max-h-[400px] lg:max-h-[480px]"
           onError={() => setFailed(true)}
         />
         <span className="absolute right-3 bottom-3 flex items-center gap-1.5 rounded-full bg-ink/80 px-3 py-1.5 text-xs font-medium text-white shadow-brand-sm">

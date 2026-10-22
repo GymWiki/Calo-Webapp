@@ -1,29 +1,259 @@
 import { cookies } from "next/headers";
 import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
 import {
   buildKnowledgePromptSection,
   getRelevantKnowledge,
-  summarizeKnowledgeSources,
 } from "@/lib/ai/knowledgeRetrieval";
+import {
+  buildKnowledgeContextCacheKey,
+  getCachedKnowledgeContext,
+  setCachedKnowledgeContext,
+} from "@/lib/ai/knowledgeContextCache";
+import { logKnowledgeUsage, toUsedKnowledgeChunks } from "@/lib/ai/knowledgeUsageLogging";
+import { checkLescoachAccess } from "@/lib/ai/lescoachAccess";
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
-import { checkAndRecordAiUsage } from "@/lib/ai/usage";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
-import { BEWEGINGSTHEMAS } from "@/lib/constants/learningLines";
 import { getAvailableSourceCount } from "@/lib/services/knowledgePackages";
-import { analyzeLessonInputSchema, lescoachFeedbackSchema } from "@/types/ai";
+import { getEffectiveAccess, getSeatUsage } from "@/lib/services/teams";
+import {
+  analyzeLessonInputSchema,
+  didacticSuggestionSchema,
+  lescoachSuggestionSchema,
+  LESCOACH_SECTIONS,
+  type AnalyzeLessonInput,
+  type DidacticSuggestion,
+  type LescoachSuggestion,
+} from "@/types/ai";
+import { DIDACTIC_CATEGORY_LABELS, didacticCategorySchema } from "@/types/lesson";
 
-const SYSTEM_PROMPT =
-  "Je bent een strenge maar opbouwende ALO/CALO Stagebegeleider. Analyseer onderstaande " +
-  "lesvoorbereiding uitsluitend aan de hand van de meegeleverde vakliteratuur-fragmenten. " +
-  "Controleer of het bewegingsprobleem aansluit bij de leerlijn en of het bewegingsthema " +
-  "daadwerkelijk een verfijning van die leerlijn is (Basisdocument Bewegingsonderwijs, " +
-  "SLO/KVLO), en of de 3 L'en concrete 'Wat zie je?' / 'Wat doe je?' acties bevatten.";
+// Nederlandse labels per section-code, zoals buildActivitySnapshot hieronder
+// ze ook gebruikt — hergebruikt in JSON_FORMAT_INSTRUCTION zodat de AI de
+// labels die het in het user-bericht ZIET 1-op-1 kan terugvertalen naar de
+// vereiste code (zie de toelichting bij die instructie: de root cause van
+// `section: "beginsituatie"` was dat het model het Nederlandse label
+// "Beginsituatie" teruggaf i.p.v. de code "movementProblem").
+const SECTION_LABELS: Record<(typeof LESCOACH_SECTIONS)[number], string> = {
+  goals: "Doel",
+  beschrijving: "Beschrijving",
+  movementProblem: "Beginsituatie",
+  learningOutcomes: "Leeruitkomsten",
+  deelnemersRegels: "Deelnemers & Regels",
+  plaatjePraatje: "Plaatje & Praatje",
+  aandachtspunten: "Aandachtspunten",
+  rules: "Regels",
+  arrangement: "Veldafmetingen & opstelling",
+  baseMaterials: "Basismateriaal",
+  ruleMaterials: "Regelmateriaal",
+};
+
+// "Wire"-schema's — uitsluitend gebruikt om de Structured Outputs-aanroep
+// hieronder te sturen (zodTextFormat). Bewust ZONDER de .trim().min(1)-
+// verfijningen van de "business"-schema's (lescoachSuggestionSchema/
+// didacticSuggestionSchema, @/types/ai) — OpenAI's strict JSON Schema-modus
+// begrijpt alleen type/enum/required, geen zod-verfijningen zoals minLength;
+// zou je die verfijningen hier toch meegeven, dan zou de OpenAI SDK's eigen
+// interne re-parse (client.responses.parse) ALSNOG een harde zod-exception
+// kunnen gooien zodra het model een leeg-maar-verder geldig veld teruggeeft
+// — en dat zou precies de "één ongeldig item laat de hele aanroep crashen"-
+// fout reproduceren die deze herbouw juist oplost. De striktere kwaliteits-
+// checks gebeuren hierna zelf, item-voor-item (zie filterValid), zodat zo'n
+// geval netjes wordt overgeslagen i.p.v. de aanroep te laten crashen.
+const lescoachSectionWireSchema = z.enum(LESCOACH_SECTIONS);
+const lescoachSuggestionWireSchema = z.object({
+  section: lescoachSectionWireSchema,
+  type: z.string(),
+  suggestion: z.string(),
+  reasoning: z.string(),
+  sourceLabel: z.string().nullable(),
+});
+const didacticSuggestionWireSchema = z.object({
+  category: didacticCategorySchema,
+  observation: z.string(),
+  action: z.string(),
+  reasoning: z.string(),
+});
+const lescoachAnalysisWireSchema = z.object({
+  suggestions: z.array(lescoachSuggestionWireSchema),
+  didacticSuggestions: z.array(didacticSuggestionWireSchema),
+});
+
+// Valideert een array item-voor-item tegen het striktere "business"-schema —
+// een item dat niet voldoet (bijv. een leeg "suggestion"-veld) wordt eruit
+// gefilterd MET een duidelijke log, in plaats van de volledige analyse te
+// laten falen op één zwak item (zie de brief "Fix de Zod-validatiefout bij
+// de AI Lescoach", Stap 3). Draait ONGEACHT of Structured Outputs de
+// structurele fouten (ongeldige section-waarde, ontbrekend verplicht veld)
+// al voorkomt — dit vangt resterende kwaliteitsproblemen (bijv. een lege
+// string) die de strict-mode JSON Schema niet kan afdwingen.
+function filterValid<T>(
+  items: readonly unknown[],
+  schema: z.ZodType<T>,
+  describe: (item: unknown) => string,
+): T[] {
+  const valid: T[] = [];
+  for (const item of items) {
+    const result = schema.safeParse(item);
+    if (result.success) {
+      valid.push(result.data);
+      continue;
+    }
+    const issues = result.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; ");
+    console.error(`AI Lescoach: suggestie verworpen (${describe(item)}) — ${issues}`);
+  }
+  return valid;
+}
+
+// Herontworpen (zie de brief "Herontwerp de AI-activiteitengenerator naar AI
+// Lescoach"): dit was een AI-oordeel over de HELE les (score + samenvatting +
+// verbeterpunten). Nu: kritisch meekijken met wat er al staat en per sectie
+// concrete, direct toepasbare suggesties teruggeven — geen nieuwe activiteit,
+// geen algemeen "goed gedaan"-praatje.
+const SYSTEM_PROMPT_BASE =
+  "Je bent een kritische, ervaren ALO/CALO-stagebegeleider (AI Lescoach). Je krijgt de HUIDIGE " +
+  "STAND van een activiteit die een docent zelf aan het opbouwen is — geen lege activiteit, geen " +
+  "verzoek om een nieuwe activiteit te maken. Analyseer kritisch en geef UITSLUITEND concrete, " +
+  "direct toepasbare suggesties op wat er al staat. Genereer NOOIT een complete nieuwe activiteit " +
+  "of hele ontbrekende secties in bulk, en noem nooit gewoon wat al goed is als los 'sterk punt' " +
+  "— elke suggestie moet een concrete wijziging of aanvulling voorstellen, geen commentaar zonder " +
+  "actie. Werk zoveel mogelijk vanuit de meegeleverde vakliteratuur-fragmenten en vermeld de bron " +
+  "(sourceLabel) wanneer een suggestie daar concreet op steunt.";
+
+const FLEXIBLE_ADVICE_INSTRUCTION =
+  "Geef ZOVEEL suggesties als de activiteit daadwerkelijk nodig heeft — nul suggesties voor een " +
+  "sectie/aspect dat al concreet en goed doordacht is, meerdere voor een zwakke of vage sectie. " +
+  "Gebruik GEEN vaste checklist met altijd hetzelfde aantal/soort suggesties. Denkrichtingen (niet " +
+  "verplicht, niet uitputtend, en meerdere per suggestie mogelijk): groepsgrootte/organisatie-" +
+  "advies, veiligheidswaarschuwingen, de aansluiting tussen Doel en Leeruitkomsten, een " +
+  "concreetheid-check op vage secties (te algemene regels/opstelling), en alternatieve Leerhulp-" +
+  "varianten.";
+
+const SECTION_LIST = LESCOACH_SECTIONS.join('" | "');
+
+// Root cause van `section: "beginsituatie"` (zie de brief "Fix de Zod-
+// validatiefout bij de AI Lescoach"): het model zag in het user-bericht
+// (buildActivitySnapshot) het Nederlandse label "Beginsituatie" en gaf dát
+// terug als section-waarde, i.p.v. de vereiste code "movementProblem" — de
+// SECTION_LIST hierboven somt alleen de codes op, zonder te laten zien welk
+// Nederlands label daar in het user-bericht bij hoort. Deze toelichting
+// koppelt ze expliciet aan elkaar.
+const SECTION_CODE_EXPLANATION =
+  'Gebruik voor "section" ALTIJD EXACT een van deze codes — nooit het Nederlandse label, een ' +
+  "synoniem, of een eigen verzonnen naam: " +
+  LESCOACH_SECTIONS.map((section) => `"${section}" (= ${SECTION_LABELS[section]})`).join(", ") +
+  '. Voorbeeld: een suggestie over de "Beginsituatie"-sectie krijgt section: "movementProblem" — ' +
+  'NOOIT section: "beginsituatie".';
+
+// "suggestions" en "didacticSuggestions" zijn twee STRUCTUREEL verschillende
+// top-level arrays (zie types/ai.ts) — de gemelde fout `section:
+// "didacticSuggestions"` met ontbrekende type/suggestion-velden wijst erop
+// dat het model een leerhulp-item per ongeluk in de verkeerde array, met de
+// verkeerde vorm, probeerde te proppen. Deze alinea benoemt dat expliciet
+// als fout i.p.v. het alleen impliciet via het JSON-voorbeeld te laten zien.
+const ARRAY_SEPARATION_WARNING =
+  '"suggestions" en "didacticSuggestions" zijn TWEE VOLLEDIG GESCHEIDEN arrays met VERSCHILLENDE ' +
+  'item-vormen — verwar ze nooit. Een item in "suggestions" heeft ALTIJD de velden section/type/' +
+  'suggestion/reasoning/sourceLabel. Een item in "didacticSuggestions" heeft ALTIJD de velden ' +
+  "category/observation/action/reasoning — GEEN type, GEEN suggestion, GEEN section. Zet nooit een " +
+  'leerhulp-suggestie in de "suggestions"-array, en gebruik "didacticSuggestions" NOOIT als waarde ' +
+  'van "section" — dat is de naam van de ANDERE array, geen sectie van de activiteit.';
 
 const JSON_FORMAT_INSTRUCTION =
   "Antwoord uitsluitend met geldige JSON in dit exacte formaat, zonder extra tekst of " +
-  'markdown-opmaak: {"score": number van 0 tot 10, "summary": string, ' +
-  '"strengths": string[], "improvements": [{"category": string, "suggestion": string}]}';
+  'markdown-opmaak: {"suggestions": [{"section": "' +
+  SECTION_LIST +
+  '", "type": string (korte, vrije categorie-naam, bijv. "Groepsgrootte", "Veiligheid", ' +
+  '"Concreetheid", "Aansluiting doel-leeruitkomst"), "suggestion": string (voor tekstsecties: de ' +
+  "volledige voorgestelde VERVANGENDE tekst voor dat veld; voor learningOutcomes/rules/" +
+  'baseMaterials/ruleMaterials: precies ÉÉN nieuw toe te voegen item), "reasoning": string (kort, ' +
+  'concreet, waarom), "sourceLabel": string of null (null als geen vakliteratuur-fragment de ' +
+  'directe basis is)}], "didacticSuggestions": [{"category": "loopt_het" | "lukt_het" | ' +
+  '"leeft_het", "observation": string ("Wat zie je?"), "action": string ("Wat doe je?"), ' +
+  '"reasoning": string}]} (2-3 ALTERNATIEVE didacticSuggestions per categorie die aanvulling ' +
+  "verdient — als aanvulling op eventuele bestaande items, nooit als vervanging).\n\n" +
+  `${SECTION_CODE_EXPLANATION}\n\n${ARRAY_SEPARATION_WARNING}`;
+
+// Eén volledig uitgewerkt voorbeeld van het gewenste kritische, concrete
+// adviesniveau — bewust een PARTIEEL ingevulde activiteit als input (niet
+// een lege), want dat is exact het scenario waarin AI Lescoach draait.
+const FEW_SHOT_EXAMPLE = {
+  input: {
+    title: "Insluitspel op drie honken",
+    learningLine: "Honkloopspelen",
+    movementTheme: "Honkloopspelen",
+    movementProblem:
+      "Leerlingen rennen vaak blind door naar het volgende honk zonder te kijken waar de bal is.",
+    goals: "Leerlingen leren een medespeler insluiten tussen twee honken.",
+    learningOutcomes: ["Iemand insluiten tussen de honken"],
+    deelnemersRegels: "Groepen van 6, iedereen speelt om de beurt loper en veldspeler.",
+    rules: ["Een loper mag alleen tussen twee honken worden getikt."],
+    arrangement: "Diamant met 3 honken.",
+    didacticItems: [
+      {
+        category: "loopt_het",
+        observation: "Zie je dat de loper twijfelt tussen twee honken zodra de bal bij een veldspeler is?",
+        action: "Laat de twee dichtstbijzijnde veldspelers de bal snel overspelen richting de loper.",
+      },
+    ],
+  },
+  output: {
+    suggestions: [
+      {
+        section: "deelnemersRegels",
+        type: "Groepsgrootte/organisatie",
+        suggestion:
+          "Groepen van 6: 2 insluiters bij het honkenpaar waar de loper zich bevindt, 3 " +
+          "veldspelers verdeeld over de overige honken, 1 loper/slagman. Wissel de rollen elke ronde.",
+        reasoning:
+          "\"Iedereen speelt om de beurt\" legt geen vaste rolverdeling per ronde vast — zonder " +
+          "dat weten leerlingen bij de start van elke ronde niet waar ze moeten staan.",
+        sourceLabel: null,
+      },
+      {
+        section: "rules",
+        type: "Veiligheid",
+        suggestion: "Tikken mag alleen met de bal in de hand, nooit door de bal naar de loper te gooien.",
+        reasoning:
+          "Zonder deze regel kan een leerling de bal naar een medeleerling gooien, wat bij dit " +
+          "type spel een reëel verwondingsrisico geeft.",
+        sourceLabel: null,
+      },
+      {
+        section: "aandachtspunten",
+        type: "Concreetheid",
+        suggestion:
+          "Let op dat de twee insluiters daadwerkelijk aan BEIDE kanten van het loopvak staan — " +
+          "anders kan de loper er zonder risico langsrennen.",
+        reasoning:
+          "Aandachtspunten ontbrak volledig, terwijl \"insluiten\" als leeruitkomst juist om een " +
+          "specifieke coach-observatie vraagt om te bepalen of het daadwerkelijk lukt.",
+        sourceLabel: null,
+      },
+    ],
+    didacticSuggestions: [
+      {
+        category: "lukt_het",
+        observation: "Lukt het de veldspelers om de loper binnen 3 overspeelbeurten te tikken?",
+        action:
+          "Oefen eerst zonder loper: 2 veldspelers spelen de bal 3 keer snel over en tikken een " +
+          "pion op de honklijn, daarna pas met een echte loper erbij.",
+        reasoning:
+          "Er stond al een \"Loopt het?\"-item, maar \"Lukt het?\" en \"Leeft het?\" ontbraken " +
+          "volledig terwijl de activiteit daar wel aanleiding voor geeft.",
+      },
+      {
+        category: "leeft_het",
+        observation: "Vieren de veldspelers het samen als het insluiten lukt?",
+        action:
+          "Geef een punt voor elke succesvolle insluiting (niet alleen voor de laatste tik) — " +
+          "dat beloont het SAMEN insluiten, niet alleen wie toevallig de laatste tik geeft.",
+        reasoning: "Zie hierboven — \"Leeft het?\" ontbrak volledig.",
+      },
+    ],
+  },
+};
 
 const NO_SOURCES_ERROR =
   "Selecteer minstens één bron in de kennisbank — er zijn nog geen eigen artikelen of " +
@@ -54,6 +284,79 @@ function toUserMessage(cause: unknown): string {
   return "AI Lescoach-analyse is mislukt. Probeer het opnieuw.";
 }
 
+// Alleen de velden die daadwerkelijk in de aanvraag zaten worden getoond —
+// bij een vervolg-aanroep (isFollowUp) ontbreken de ongewijzigde secties
+// bewust (zie analyzeLessonInputSchema's toelichting), dus die worden hier
+// ook niet als "leeg" aan de AI voorgelegd.
+function buildActivitySnapshot(input: AnalyzeLessonInput): string {
+  const lines: string[] = [];
+  const addText = (label: string, value: string | undefined) => {
+    if (value !== undefined && value.trim().length > 0) lines.push(`${label}: ${value}`);
+  };
+  const addList = (label: string, value: string[] | undefined) => {
+    if (value !== undefined) lines.push(`${label}: ${value.length > 0 ? value.join("; ") : "(leeg)"}`);
+  };
+
+  addText("Titel", input.title);
+  addText("Leerlijn", input.learningLine);
+  addText("Bewegingsthema", input.movementTheme);
+  addText("Beginsituatie", input.movementProblem);
+  if (input.doelgroep !== undefined) lines.push(`Doelgroep-codes: ${input.doelgroep.join(", ") || "(geen)"}`);
+  if (input.minParticipants !== undefined) lines.push(`Aantal in het veld: ${input.minParticipants}`);
+  if (input.participantsBench !== undefined) lines.push(`Aantal op de bank: ${input.participantsBench}`);
+  addText("Doel", input.goals);
+  addText("Beschrijving", input.beschrijving);
+  addList("Leeruitkomsten", input.learningOutcomes);
+  addText("Deelnemers & Regels", input.deelnemersRegels);
+  addText("Plaatje & Praatje", input.plaatjePraatje);
+  addText("Aandachtspunten", input.aandachtspunten);
+  addList("Regels", input.rules);
+  addText("Veldafmetingen & opstelling (arrangement)", input.arrangement);
+  addList("Basismateriaal", input.baseMaterials);
+  addList("Regelmateriaal", input.ruleMaterials);
+
+  if (input.didacticItems !== undefined) {
+    if (input.didacticItems.length === 0) {
+      lines.push("Leerhulp (3 L'en): (nog helemaal leeg)");
+    } else {
+      lines.push("Leerhulp (3 L'en):");
+      for (const item of input.didacticItems) {
+        lines.push(
+          `- [${DIDACTIC_CATEGORY_LABELS[item.category]}] Zie: ${item.observation} / Doe: ${item.action}`,
+        );
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function buildFollowUpInstruction(input: AnalyzeLessonInput): string {
+  if (!input.isFollowUp) return "";
+
+  const knownSections = new Set(Object.keys(input));
+  const omittedSections = LESCOACH_SECTIONS.filter((section) => !knownSections.has(section));
+  const previous = input.previousSuggestionTypes ?? [];
+
+  const parts: string[] = [
+    "Dit is een VERVOLG-analyse op een activiteit die je al eerder hebt geanalyseerd — alleen de " +
+      "secties die de gebruiker daadwerkelijk heeft gewijzigd zijn hieronder meegestuurd.",
+  ];
+  if (omittedSections.length > 0) {
+    parts.push(
+      `De volgende secties ontbreken bewust (ongewijzigd sinds de vorige analyse, al beoordeeld — ` +
+        `ga ervan uit dat ze in orde zijn en beoordeel ze niet opnieuw): ${omittedSections.join(", ")}.`,
+    );
+  }
+  if (previous.length > 0) {
+    const summary = previous.map((p) => `${p.section}/${p.type}`).join(", ");
+    parts.push(
+      `Eerder al gegeven suggestietypes (vermijd een suggestie die daar inhoudelijk mee overeenkomt): ${summary}.`,
+    );
+  }
+  return parts.join(" ");
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -82,91 +385,169 @@ export async function POST(request: Request) {
       return Response.json({ error: "Je bent niet ingelogd." }, { status: 401 });
     }
 
-    const usage = await checkAndRecordAiUsage(supabase, user.id, "analyze-lesson");
+    // Effectieve status (eigen betaling OF actief team) i.p.v. rechtstreeks
+    // users.subscription_status — anders zou een teamlid hier altijd als
+    // niet-betalend afgewezen worden. Bij een teamlid ook meteen het
+    // seat_limit ophalen (get_team_seat_usage) voor de gepoolde limiet
+    // hieronder.
+    const effectiveAccess = await getEffectiveAccess(supabase);
+    const teamSeatUsage = effectiveAccess?.team_id
+      ? await getSeatUsage(supabase, effectiveAccess.team_id)
+      : null;
+    const team =
+      effectiveAccess?.team_id && teamSeatUsage
+        ? { id: effectiveAccess.team_id, seatLimit: teamSeatUsage.seatLimit }
+        : null;
 
-    if (!usage.allowed) {
+    const access = await checkLescoachAccess(
+      supabase,
+      user.id,
+      (effectiveAccess?.effective_status as "free_contributor" | "free_blocked" | "paid_subscriber") ??
+        "free_contributor",
+      team,
+    );
+
+    if (!access.allowed) {
       return Response.json(
         {
           error:
-            "Je hebt je AI Lescoach-checks voor deze maand gebruikt. Probeer het volgende maand opnieuw.",
+            access.reason === "not_subscriber"
+              ? "AI Lescoach is een functie van het betaalde abonnement (EUR 3,-/mnd). Upgrade om 'm te gebruiken."
+              : access.pooled
+                ? `Het gepoolde teamtegoed van ${access.limit} AI Lescoach-raadplegingen voor deze maand is op. Volgende maand is er weer ${access.limit} beschikbaar.`
+                : `Je hebt je ${access.limit} AI Lescoach-raadplegingen voor deze maand gebruikt. Volgende maand heb je weer ${access.limit} beschikbaar.`,
+          reason: access.reason,
         },
-        { status: 429 },
+        { status: access.reason === "not_subscriber" ? 403 : 429 },
       );
     }
 
-    // Stap 8: geen enkele kennisbron beschikbaar (geen artikelen, geen
-    // aangevinkte pakketten) -> harde, duidelijke melding i.p.v. de AI
-    // volledig ongegrond te laten analyseren.
     const availableSourceCount = await getAvailableSourceCount(user.id);
     if (availableSourceCount === 0) {
       return Response.json({ error: NO_SOURCES_ERROR }, { status: 422 });
     }
 
-    const lesson = parsed.data;
+    const input = parsed.data;
 
+    // Retrieval-query bewust op de STABIELE identiteitsvelden (nooit
+    // gedift weg door de client, zie analyzeLessonInputSchema) — dit houdt
+    // de query, en dus de opgehaalde fragmenten, consistent tussen een
+    // eerste en een vervolg-aanroep op dezelfde activiteit.
     const query =
-      [
-        lesson.title,
-        lesson.learningLine,
-        lesson.movementProblem,
-        lesson.movementTheme,
-        lesson.goals,
-        ...(lesson.didacticItems ?? []).flatMap((item) => [item.observation, item.action]),
-      ]
+      [input.title, input.learningLine, input.movementTheme, input.movementProblem, input.goals]
         .filter(Boolean)
         .join(". ") || "lesvoorbereiding bewegingsonderwijs";
 
-    let matches: Awaited<ReturnType<typeof getRelevantKnowledge>> = [];
-    try {
-      matches = await getRelevantKnowledge(supabase, user.id, query, { matchCount: 4 });
-    } catch (cause) {
-      // Retrieval failure shouldn't block feedback — the AI just falls back
-      // to general knowledge, per buildKnowledgePromptSection's empty case.
-      console.error("AI Lescoach: Kennisbank-retrieval mislukt:", cause);
+    const cacheKey = buildKnowledgeContextCacheKey(user.id, input.activityId, query);
+    let matches = getCachedKnowledgeContext(cacheKey);
+    if (matches === null) {
+      try {
+        matches = await getRelevantKnowledge(supabase, user.id, query, { matchCount: 4 });
+        setCachedKnowledgeContext(cacheKey, matches);
+      } catch (cause) {
+        // Retrieval failure shouldn't block feedback — the AI just falls back
+        // to general knowledge, per buildKnowledgePromptSection's empty case.
+        console.error("AI Lescoach: Kennisbank-retrieval mislukt:", cause);
+        matches = [];
+      }
     }
 
-    const learningLine = lesson.learningLine ?? "";
-    const themeOptions = BEWEGINGSTHEMAS[learningLine];
-    const domainInstruction =
-      themeOptions && themeOptions.length > 0
-        ? `Voor de leerlijn "${learningLine}" hoort het bewegingsthema één van deze te zijn: ` +
-          `${themeOptions.join(", ")}. Vlag het als "movementTheme" hier niet bij past.`
-        : "Er is voor deze leerlijn geen vaste bewegingsthema-lijst — beoordeel alleen of het " +
-          "opgegeven bewegingsthema logisch bij de leerlijn aansluit, niet tegen een vaste lijst.";
-    const systemPrompt =
-      `${SYSTEM_PROMPT}\n\n${domainInstruction}\n\n` +
-      `${buildKnowledgePromptSection(matches)}\n\n${JSON_FORMAT_INSTRUCTION}`;
-    const userPrompt = `Lesvoorbereiding (JSON):\n${JSON.stringify(lesson, null, 2)}`;
+    // Brontracking (activity_knowledge_usage, context='lescoach') — alleen
+    // wanneer dit een bestaande activiteit betreft ÉN de aanroeper
+    // daadwerkelijk de auteur is. Dat laatste voorkomt dat een willekeurige
+    // viewer hún eigen Kennisbank-selectie aan andermans activiteit koppelt.
+    if (input.activityId) {
+      const { data: ownedActivity } = await supabase
+        .from("activiteiten")
+        .select("id")
+        .eq("id", input.activityId)
+        .eq("author_id", user.id)
+        .maybeSingle();
 
+      if (ownedActivity) {
+        await logKnowledgeUsage(supabase, input.activityId, "lescoach", toUsedKnowledgeChunks(matches));
+      }
+    }
+
+    // Volgorde bewust zo dat het STABIELE deel van de prompt (instructies,
+    // JSON-formaat, few-shot, Kennisbank-context — via de cache hierboven nu
+    // ook stabiel tussen herhaalde aanroepen op dezelfde activiteit) vooraan
+    // staat en het per-aanroep VARIABELE deel (vervolg-instructie, dan de
+    // daadwerkelijke activiteit-inhoud in het user-bericht) achteraan — dat
+    // maximaliseert de kans dat OpenAI's eigen automatische prompt-prefix-
+    // caching daadwerkelijk een cache-hit oplevert.
+    const fewShotInstruction =
+      "Voorbeeld van het gewenste kritische, concrete adviesniveau (structuur, niet letterlijk " +
+      `overnemen): input ${JSON.stringify(FEW_SHOT_EXAMPLE.input)} -> gewenste output ${JSON.stringify(
+        FEW_SHOT_EXAMPLE.output,
+      )}`;
+    const followUpInstruction = buildFollowUpInstruction(input);
+    const systemPrompt =
+      `${SYSTEM_PROMPT_BASE}\n\n${FLEXIBLE_ADVICE_INSTRUCTION}\n\n${JSON_FORMAT_INSTRUCTION}\n\n` +
+      `${fewShotInstruction}\n\n${buildKnowledgePromptSection(matches)}` +
+      (followUpInstruction ? `\n\n${followUpInstruction}` : "");
+    const userPrompt = `Huidige stand van de activiteit:\n${buildActivitySnapshot(input)}`;
+
+    // Structured Outputs (strict JSON Schema, via zodTextFormat) i.p.v. de
+    // eerdere losse `response_format: {type:"json_object"}` + handmatige
+    // Zod-validatie achteraf — zelfde patroon als lib/ai/activityImportExtraction.ts.
+    // Dit voorkomt de GEMELDE fouten STRUCTUREEL: de OpenAI API dwingt de
+    // "section"-enum en alle verplichte velden al tijdens het genereren af,
+    // dus een ongeldige section-waarde of een ontbrekend veld kan het model
+    // simpelweg niet meer teruggeven.
     const client = getOpenAIClient();
-    const completion = await client.chat.completions.create({
+    const response = await client.responses.parse({
       model: CHECK_MODEL,
-      response_format: { type: "json_object" },
-      messages: [
+      input: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      text: { format: zodTextFormat(lescoachAnalysisWireSchema, "lescoach_analysis") },
     });
-
-    const raw = completion.choices[0]?.message?.content;
-    if (!raw) {
-      throw new Error("Geen antwoord van de AI Lescoach ontvangen.");
-    }
 
     await recordAiUsage(supabase, {
       userId: user.id,
       feature: "ai_lescoach",
       model: CHECK_MODEL,
-      inputTokens: completion.usage?.prompt_tokens ?? 0,
-      outputTokens: completion.usage?.completion_tokens ?? 0,
+      inputTokens: response.usage?.input_tokens ?? 0,
+      outputTokens: response.usage?.output_tokens ?? 0,
+      teamId: team?.id ?? null,
     });
 
-    const feedback = lescoachFeedbackSchema.parse(JSON.parse(raw));
+    const analysisResult = response.output_parsed;
+    if (!analysisResult) {
+      throw new Error("Geen antwoord van de AI Lescoach ontvangen.");
+    }
+
+    // Stap 1 (zie de brief): de volledige, ruwe respons loggen VÓÓR de
+    // striktere business-validatie hieronder — zodat een toekomstig
+    // afwijkend geval (bijv. een leeg verplicht veld dat de strict JSON
+    // Schema niet kan afdwingen) direct met de exacte payload te
+    // onderzoeken is, i.p.v. opnieuw te moeten reproduceren.
+    console.log(`AI Lescoach[raw]: ${JSON.stringify(analysisResult)}`);
+
+    // Stap 3: item-voor-item valideren tegen het striktere business-schema
+    // (@/types/ai) — een item dat niet voldoet wordt eruit gefilterd MET een
+    // duidelijke log, in plaats van de hele analyse te laten crashen op één
+    // zwak item. Dit is de robuustheidslaag ONGEACHT of Structured Outputs
+    // de structurele fouten al voorkomt.
+    const suggestions: Omit<LescoachSuggestion, "id">[] = filterValid(
+      analysisResult.suggestions,
+      lescoachSuggestionSchema,
+      (item) => `section=${(item as { section?: unknown })?.section ?? "onbekend"}`,
+    );
+    const didacticSuggestions: Omit<DidacticSuggestion, "id">[] = filterValid(
+      analysisResult.didacticSuggestions,
+      didacticSuggestionSchema,
+      (item) => `category=${(item as { category?: unknown })?.category ?? "onbekend"}`,
+    );
+
     return Response.json({
       success: true,
-      feedback,
-      sources: summarizeKnowledgeSources(matches),
-      remaining: usage.remaining,
+      suggestions,
+      didacticSuggestions,
+      usedKnowledgeChunks: toUsedKnowledgeChunks(matches),
+      remaining: Math.max(access.remaining - 1, 0),
     });
   } catch (cause) {
     logAnalysisFailure(cause);

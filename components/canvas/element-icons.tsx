@@ -16,11 +16,14 @@ import {
 import type {
   DiagramElement,
   ElementType,
+  FieldPresetDiagramElement,
   MaterialDiagramElement,
+  ShapeDiagramElement,
   TextDiagramElement,
   ViewMode,
 } from "./gym-canvas-types";
 import { ELEMENT_DEFS } from "./gym-canvas-types";
+import { FIELD_PRESETS } from "./field-presets";
 
 const STROKE = "rgba(0,0,0,0.25)";
 
@@ -204,6 +207,114 @@ function TextElementIcon({ element }: { element: TextDiagramElement }) {
   );
 }
 
+// -- sportveld-presets --------------------------------------------------------
+
+/**
+ * Kant-en-klare veldbelijning (zie field-presets.ts) — getekend als gewone
+ * witte lijnen/cirkels, net als de decoratieve gymzaal-achtergrond. Een
+ * geplaatst preset is één BaseElement (zie FieldPresetDiagramElement), dus
+ * dit rendert simpelweg alle lijnen/cirkels van het gekozen preset binnen
+ * dezelfde Group die GymCanvas.tsx al voor elk element gebruikt — verplaatsen/
+ * schalen/roteren werkt daardoor zonder extra logica, hetzelfde generieke pad
+ * als materiaal- en systeemelementen.
+ */
+function FieldPresetElementIcon({ element }: { element: FieldPresetDiagramElement }) {
+  const geometry = FIELD_PRESETS[element.sport];
+  // Ontbrekend `stroke` (tekeningen van vóór deze functionaliteit) valt terug
+  // op de oorspronkelijke, altijd-witte belijning.
+  const stroke = element.stroke ?? "#ffffff";
+  const strokeWidth = 3;
+
+  return (
+    <Group scaleX={geometry.initialScale} scaleY={geometry.initialScale} opacity={0.92}>
+      <Rect
+        x={-geometry.width / 2}
+        y={-geometry.height / 2}
+        width={geometry.width}
+        height={geometry.height}
+        fill="rgba(20,120,60,0.18)"
+      />
+      {geometry.lines.map((line, i) => (
+        <Line
+          key={i}
+          points={line.points}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          dash={line.dash}
+          lineJoin="round"
+          closed={false}
+        />
+      ))}
+      {geometry.circles.map((circle, i) => (
+        <Circle
+          key={i}
+          x={circle.x}
+          y={circle.y}
+          radius={circle.radius}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+        />
+      ))}
+    </Group>
+  );
+}
+
+// -- vrije tekenvormen ---------------------------------------------------------
+
+/**
+ * Rechthoek/driehoek/cirkel — getekend op lokale (0,0), net als de andere
+ * kinds hier: de omringende Group in GymCanvas.tsx staat al op x/y/rotation/
+ * scaleX/scaleY, dus hier is geen verdere offset-berekening nodig. Cirkel
+ * gebruikt Ellipse (radiusX/radiusY) i.p.v. Circle met één straal: zo blijft
+ * een NIET-uniforme schaling (Shift+hoek-handle, zie ShapeDiagramElement in
+ * gym-canvas-types.ts) een ellips i.p.v. dat de twee assen tegen elkaar in
+ * zouden werken. Driehoek is geen Konva RegularPolygon (die kent alleen één
+ * radius, dus geen onafhankelijke breedte/hoogte) maar een losse Line met 3
+ * punten, gesloten — een gelijkzijdige driehoek bij de standaard-breedte/
+ * hoogte uit SHAPE_DEFAULT_SIZE (GymCanvas.tsx), en gewoon een andere
+ * driehoek zodra breedte/hoogte apart worden aangepast.
+ */
+function ShapeElementIcon({ element }: { element: ShapeDiagramElement }) {
+  const { width: w, height: h, fill, stroke, strokeWidth } = element;
+
+  if (element.shape === "rectangle") {
+    return (
+      <Rect
+        x={-w / 2}
+        y={-h / 2}
+        width={w}
+        height={h}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+    );
+  }
+
+  if (element.shape === "circle") {
+    return (
+      <Ellipse
+        radiusX={w / 2}
+        radiusY={h / 2}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+    );
+  }
+
+  return (
+    <Line
+      points={[0, -h / 2, -w / 2, h / 2, w / 2, h / 2]}
+      closed
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      lineJoin="round"
+    />
+  );
+}
+
 // -- element graphic per systeemtype -----------------------------------------
 
 function VectorIcon({
@@ -286,6 +397,14 @@ export function ElementIcon({
 
   if (element.kind === "text") {
     return <TextElementIcon element={element} />;
+  }
+
+  if (element.kind === "field_preset") {
+    return <FieldPresetElementIcon element={element} />;
+  }
+
+  if (element.kind === "shape") {
+    return <ShapeElementIcon element={element} />;
   }
 
   // "line" wordt niet via dit pad getekend — zie LineElementNode in

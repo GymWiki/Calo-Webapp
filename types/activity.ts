@@ -1,5 +1,16 @@
 export type ActivityReviewStatus = "draft" | "pending" | "approved" | "rejected";
 
+/**
+ * Vervangt de vroegere losse `is_public`-vlag (zie
+ * supabase/migrations/team_library.sql): 'private' = alleen de auteur,
+ * 'team' = het team in `team_id`, 'public' = de gedeelde GymWiki-bibliotheek.
+ * Een teamactiviteit ('team') is bewust een derde, onafhankelijke staat —
+ * geen combinatie van de andere twee — want delen met het team is geen
+ * bijdrage aan de publieke bibliotheek (telt niet mee voor het maandelijkse
+ * quotum) en is niet zichtbaar voor niet-teamleden.
+ */
+export type ActivityVisibility = "private" | "team" | "public";
+
 export type Activity = {
   id: string;
   titel: string;
@@ -45,6 +56,10 @@ export type Activity = {
   // aangemaakt (met plattegrond, lesblokken, 3L's-analyse) — null voor de
   // eenvoudige, oorspronkelijke bibliotheek-activiteiten. Zie
   // supabase/migrations/consolidate_lessons_into_activiteiten.sql.
+  // group_name is deprecated: vervangen door de doelgroep-chips
+  // (DOELGROEP_LABELS hieronder) — niet meer ingevuld of getoond, kolom
+  // blijft bestaan zodat bestaande activiteiten hun oude vrije-tekst-
+  // klasnaam behouden.
   group_name: string | null;
   activity_date: string | null;
   movement_problem: string | null;
@@ -69,8 +84,26 @@ export type Activity = {
   // met terugwerkende kracht op is_public=true gezet (waren altijd al voor
   // iedereen zichtbaar, vóór dit concept bestond).
   is_ai_generated: boolean;
-  is_public: boolean;
+  visibility: ActivityVisibility;
   public_since: string | null;
+  // Gedenormaliseerd, bijgehouden door een DB-trigger op activity_likes (zie
+  // supabase/migrations/activity_likes.sql) — nooit hier vanuit de app
+  // opgehoogd/verlaagd, alleen gelezen.
+  like_count: number;
+
+  // ---- Teambibliotheek (supabase/migrations/team_library.sql) -----------
+  /** Gevuld wanneer visibility='team' — het team waar deze activiteit bij hoort. */
+  team_id: string | null;
+  /** Gevuld bij een teamKOPIE van een GymWiki-activiteit (bronvermelding "Gebaseerd op ..."). */
+  source_activity_id: string | null;
+  /** Wie deze activiteit het laatst heeft bewerkt — author_id blijft de oorspronkelijke maker. */
+  updated_by: string | null;
+  updated_at: string;
+  /** Optimistic-locking-teller — zie actions/teamLibrary.ts's updateTeamActivity. */
+  version: number;
+  /** Zachte verwijdering (30 dagen herstelbaar) — alleen gebruikt voor teamactiviteiten. */
+  deleted_at: string | null;
+  deleted_by: string | null;
 };
 
 // `doelgroep` isn't a school-year number — it's a fixed 1-6 bucket code
@@ -87,30 +120,30 @@ export const DOELGROEP_LABELS: Record<number, string> = {
 
 export const DOELGROEP_WAARDEN = [1, 2, 3, 4, 5, 6] as const;
 
-// Onderbouw (5) dekt dezelfde leeftijdsgroep als Groep 1/2 + Groep 3/4 (1, 2);
-// Bovenbouw (6) dekt Groep 5/6 + Groep 7/8 (3, 4) — dezelfde twee-bouwen-
-// indeling die DOELGROEP_LABELS zelf al hanteert. Voorkomt dat één
-// activiteit tegenstrijdig zowel "Onderbouw" als "Groep 3/4" krijgt: het
-// kiezen van de ene kant sluit de overlappende kant van de andere uit.
-const ONDERBOUW_GROEPEN = [1, 2];
-const BOVENBOUW_GROEPEN = [3, 4];
+// URL-segmenten voor de publieke /groep/[groep]-categoriepagina's (zie
+// lib/services/publicActivities.ts) — afgeleid van DOELGROEP_LABELS, maar
+// als losse, stabiele mapping i.p.v. de labels zelf te slugifyen: een label
+// wijzigen ("Groep 1/2" -> iets anders) mag geen bestaande, mogelijk al
+// geïndexeerde URL laten verschuiven.
+export const DOELGROEP_SLUGS: Record<number, string> = {
+  1: "groep-1-2",
+  2: "groep-3-4",
+  3: "groep-5-6",
+  4: "groep-7-8",
+  5: "onderbouw",
+  6: "bovenbouw",
+};
 
+// Pure, onafhankelijke multi-select — elke chip heeft zijn eigen aan/uit-
+// status. Bewust GEEN exclusiviteit tussen bijv. "Onderbouw" en "Groep 3/4"
+// (een eerdere versie sloot die overlappende kant automatisch uit, wat de
+// gebruiker de indruk gaf dat de chips stuk waren): de gebruiker mag zelf
+// weten waarom een combinatie gekozen wordt, geen stilzwijgend teruggedraaide
+// keuzes.
 export function applyDoelgroepToggle(current: number[], waarde: number): number[] {
-  if (current.includes(waarde)) {
-    return current.filter((code) => code !== waarde);
-  }
-
-  let next = [...current, waarde];
-  if (waarde === 5) {
-    next = next.filter((code) => !ONDERBOUW_GROEPEN.includes(code));
-  } else if (waarde === 6) {
-    next = next.filter((code) => !BOVENBOUW_GROEPEN.includes(code));
-  } else if (ONDERBOUW_GROEPEN.includes(waarde)) {
-    next = next.filter((code) => code !== 5);
-  } else if (BOVENBOUW_GROEPEN.includes(waarde)) {
-    next = next.filter((code) => code !== 6);
-  }
-  return next;
+  return current.includes(waarde)
+    ? current.filter((code) => code !== waarde)
+    : [...current, waarde];
 }
 
 export const CATEGORIE_WAARDEN = [

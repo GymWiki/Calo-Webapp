@@ -1,0 +1,10 @@
+{
+  "fields": {
+    "title": ["Zeehondenbal"],
+    "goals": ["doelpunten"],
+    "beschrijving": ["kruipen"],
+    "rules": ["opstaan"],
+    "aandachtspunten": ["kniebeschermers"],
+    "baseMaterials": ["doeltjes"]
+  }
+}

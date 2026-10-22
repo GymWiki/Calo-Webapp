@@ -1,7 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Settings } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { RoleLabelBadge } from "@/components/profile/RoleLabelBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { UserProfile } from "@/lib/types";
@@ -13,10 +14,11 @@ export function ProfileHeader({ profile }: { profile: UserProfile }) {
     <Card>
       <CardContent className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
         {profile.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element -- Supabase Storage-URL
-          <img
+          <Image
             src={profile.avatar_url}
             alt=""
+            width={80}
+            height={80}
             className="size-20 shrink-0 rounded-full object-cover"
           />
         ) : (
@@ -29,11 +31,7 @@ export function ProfileHeader({ profile }: { profile: UserProfile }) {
             {profile.first_name} {profile.last_name}
           </p>
           <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
-            <Badge variant={profile.available_for_internship ? "success" : "secondary"}>
-              {profile.available_for_internship
-                ? "Beschikbaar voor stage"
-                : "Niet beschikbaar voor stage"}
-            </Badge>
+            <RoleLabelBadge initialValue={profile.role_label} />
           </div>
         </div>
         <Button asChild variant="outline" className="shrink-0">

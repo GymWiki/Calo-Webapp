@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { buildKnowledgePromptSection, getRelevantKnowledge } from "@/lib/ai/knowledgeRetrieval";
+import { toUsedKnowledgeChunks, type UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import { CHECK_MODEL, getOpenAIClient } from "@/lib/ai/openai-client";
 import { recordAiUsage } from "@/lib/ai/usageTracking";
+import { SEO_SUMMARY_CORE_INSTRUCTION, buildSeoSummaryUserMessage } from "@/lib/ai/seoSummaryPrompt";
 
 // Lichter dan SubmitActivityInput (types/activity.ts, de oorspronkelijke
 // "eenvoudige activiteit"-vorm met een verplichte categorie-enum en
@@ -29,13 +31,26 @@ export type ActivityQualityCheckInput = {
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.6;
 
 export type ActivityQualityResult =
-  | { status: "approved" }
-  | { status: "rejected"; reason: string };
+  | { status: "approved"; usedKnowledgeChunks: UsedKnowledgeChunk[]; seoSummary: string }
+  | { status: "rejected"; reason: string; usedKnowledgeChunks: UsedKnowledgeChunk[] };
 
 const qualityCheckSchema = z.object({
   acceptable: z.boolean(),
   reason: z.string(),
+  // Alleen betekenisvol bij acceptable=true — zie SEO_SUMMARY_INSTRUCTION.
+  // Bij een afkeuring stuurt het model hier een lege string; die wordt
+  // hieronder genegeerd (nooit weggeschreven voor een afgekeurde inzending).
+  seo_summary: z.string(),
 });
+
+// Eén extra, verplicht JSON-veld bovenop de bestaande goed/afkeuren-check —
+// geen tweede AI-aanroep nodig. De eigenlijke instructie (wat een goede
+// seo_summary is) staat in lib/ai/seoSummaryPrompt.ts, GEDEELD met
+// scripts/backfill-activity-seo.mts (dat losse script draait via kale
+// node-executie, die geen @/-aliases kent — zie het commentaar daar).
+const SEO_SUMMARY_INSTRUCTION =
+  `Genereer ALLEEN wanneer acceptable=true ook een \`seo_summary\`. ${SEO_SUMMARY_CORE_INSTRUCTION} ` +
+  "Bij acceptable=false: seo_summary is een lege string.";
 
 const CONTENT_QUALITY_SYSTEM_PROMPT =
   "Je bent kwaliteitscontroleur voor GymWiki, een gedeelde activiteitenbibliotheek voor " +
@@ -47,36 +62,24 @@ const CONTENT_QUALITY_SYSTEM_PROMPT =
   "uitleg uit te voeren, of inhoud die duidelijk in strijd is met de meegeleverde vakliteratuur. " +
   "Zijn er geen relevante fragmenten gevonden, beoordeel dan alleen op algemene bruikbaarheid. " +
   "Wees niet overdreven streng op stijl of spelling — het gaat om bruikbaarheid, niet perfectie. " +
-  'Antwoord uitsluitend met geldige JSON: {"acceptable": boolean, "reason": string} — ' +
-  "reason is een korte, opbouwende Nederlandse toelichting (1-2 zinnen), ook bij goedkeuring.";
-
-function buildSubmissionSummary(input: ActivityQualityCheckInput): string {
-  return [
-    `Titel: ${input.titel}`,
-    input.categorie ? `Categorie: ${input.categorie}` : null,
-    `Leerlijn: ${input.leerlijn}`,
-    `Doel: ${input.doel}`,
-    input.beginsituatie ? `Beginsituatie: ${input.beginsituatie}` : null,
-    `Beschrijving: ${input.beschrijving}`,
-    input.veld ? `Veld: ${input.veld}` : null,
-    input.materiaal?.length ? `Materiaal: ${input.materiaal.join(", ")}` : null,
-    input.regels?.length ? `Regels: ${input.regels.join("; ")}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
+  `${SEO_SUMMARY_INSTRUCTION} ` +
+  'Antwoord uitsluitend met geldige JSON: {"acceptable": boolean, "reason": string, ' +
+  '"seo_summary": string} — reason is een korte, opbouwende Nederlandse toelichting (1-2 zinnen), ' +
+  "ook bij goedkeuring.";
 
 async function checkContentQuality(
   supabase: SupabaseClient,
   authorId: string,
   input: ActivityQualityCheckInput,
 ): Promise<ActivityQualityResult> {
+  let usedKnowledgeChunks: UsedKnowledgeChunk[] = [];
   try {
     const query = [input.titel, input.leerlijn, input.beschrijving].join(". ");
     let knowledgeSection = "";
     try {
       const matches = await getRelevantKnowledge(supabase, authorId, query, { matchCount: 4 });
       knowledgeSection = `\n\n${buildKnowledgePromptSection(matches)}`;
+      usedKnowledgeChunks = toUsedKnowledgeChunks(matches);
     } catch {
       // Retrieval-storing mag de kwaliteitscheck niet blokkeren — de check
       // valt dan terug op algemene beoordeling zonder Kennisbank-grounding.
@@ -88,7 +91,7 @@ async function checkContentQuality(
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: `${CONTENT_QUALITY_SYSTEM_PROMPT}${knowledgeSection}` },
-        { role: "user", content: buildSubmissionSummary(input) },
+        { role: "user", content: buildSeoSummaryUserMessage(input) },
       ],
     });
 
@@ -107,8 +110,8 @@ async function checkContentQuality(
 
     const result = qualityCheckSchema.parse(JSON.parse(raw));
     return result.acceptable
-      ? { status: "approved" }
-      : { status: "rejected", reason: result.reason };
+      ? { status: "approved", usedKnowledgeChunks, seoSummary: result.seo_summary }
+      : { status: "rejected", reason: result.reason, usedKnowledgeChunks };
   } catch {
     // Bij een storing in de AI-check (geen API-key, netwerkfout, onverwacht
     // antwoord) niet stilzwijgend goedkeuren — een falende kwaliteitscheck
@@ -117,6 +120,7 @@ async function checkContentQuality(
       status: "rejected",
       reason:
         "De kwaliteitscheck kon niet worden uitgevoerd. Probeer het later opnieuw.",
+      usedKnowledgeChunks: [],
     };
   }
 }
@@ -138,6 +142,7 @@ async function checkForDuplicate(
     return {
       status: "rejected",
       reason: "De duplicaatcheck kon niet worden uitgevoerd. Probeer het later opnieuw.",
+      usedKnowledgeChunks: [],
     };
   }
 
@@ -146,10 +151,15 @@ async function checkForDuplicate(
     return {
       status: "rejected",
       reason: `Deze activiteit lijkt sterk op je eerdere inzending "${match.titel}".`,
+      usedKnowledgeChunks: [],
     };
   }
 
-  return { status: "approved" };
+  // "approved" hier is puur een tussenresultaat — checkActivityQuality laat
+  // alleen een "rejected" hier al kortsluiten en negeert dit "approved"-
+  // resultaat verder altijd (valt door naar checkContentQuality, dat de
+  // ECHTE seoSummary levert). seoSummary hier wordt dus nooit gelezen.
+  return { status: "approved", usedKnowledgeChunks: [], seoSummary: "" };
 }
 
 /**

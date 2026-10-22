@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { Search, SearchX, SlidersHorizontal, X } from "lucide-react";
+import Link from "next/link";
+import { Lock, Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { LibraryItemCard, type LibraryListItem } from "@/components/library-item-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -20,7 +22,7 @@ import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 
-const PAGE_SIZE = 24;
+export const PAGE_SIZE = 24;
 const WEINIG_MATERIAAL_MAX = 2;
 
 type SourceFilter = "all" | "gymwiki" | "public";
@@ -29,6 +31,16 @@ const SOURCE_TABS: { value: SourceFilter; label: string }[] = [
   { value: "all", label: "Alles" },
   { value: "gymwiki", label: "GymWiki" },
   { value: "public", label: "Publiek" },
+];
+
+// "Standaard" laat de bestaande alfabetische/nieuwste-eerst database-volgorde
+// intact (zie getAllActivities/getPublicActivities) — sorteren gebeurt dus
+// alleen client-side wanneer de gebruiker expliciet "Meest gewaardeerd" kiest.
+type SortOption = "standaard" | "meest_gewaardeerd";
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "standaard", label: "Standaard" },
+  { value: "meest_gewaardeerd", label: "Meest gewaardeerd" },
 ];
 
 function readStoredSourceFilter(): SourceFilter {
@@ -94,6 +106,7 @@ type PersistedSearchState = {
   leerlijn: string[];
   doelgroep: number[];
   weinigMateriaal: boolean;
+  sort: SortOption;
 };
 
 const EMPTY_PERSISTED_STATE: PersistedSearchState = {
@@ -102,6 +115,7 @@ const EMPTY_PERSISTED_STATE: PersistedSearchState = {
   leerlijn: [],
   doelgroep: [],
   weinigMateriaal: false,
+  sort: "standaard",
 };
 
 function readStoredSearchState(): PersistedSearchState {
@@ -116,6 +130,7 @@ function readStoredSearchState(): PersistedSearchState {
       leerlijn: Array.isArray(parsed.leerlijn) ? parsed.leerlijn : [],
       doelgroep: Array.isArray(parsed.doelgroep) ? parsed.doelgroep : [],
       weinigMateriaal: parsed.weinigMateriaal === true,
+      sort: parsed.sort === "meest_gewaardeerd" ? "meest_gewaardeerd" : "standaard",
     };
   } catch {
     return EMPTY_PERSISTED_STATE;
@@ -182,7 +197,7 @@ function useIsDesktop() {
   );
 }
 
-function FilterChip({
+export function FilterChip({
   active,
   onClick,
   children,
@@ -217,7 +232,7 @@ function FilterChip({
 // markeert) voor het enige facet waar kleur de primaire betekenisdrager is
 // (categorie); andere facetten (leerlijn/doelgroep/materiaal) blijven
 // kleurloos zodat categorie herkenbaar blijft als hét kleurvlak.
-function CategorySwatch({ category, className }: { category: string; className?: string }) {
+export function CategorySwatch({ category, className }: { category: string; className?: string }) {
   return (
     <span
       className={cn("inline-block size-2.5 shrink-0 rounded-[3px]", getCategoryColor(category).dot, className)}
@@ -231,7 +246,7 @@ function CategorySwatch({ category, className }: { category: string; className?:
 // de permanente sidebar op desktop (werkt direct op `filters`, instant
 // toegepast — de gangbare desktop-verwachting voor een altijd-zichtbaar
 // filterpaneel, in tegenstelling tot een drawer die je moet bevestigen).
-function FilterSections({
+export function FilterSections({
   state,
   categoryCounts,
   onCategorieAlles,
@@ -308,7 +323,7 @@ function FilterSections({
   );
 }
 
-function toggle<T>(set: Set<T>, value: T): Set<T> {
+export function toggle<T>(set: Set<T>, value: T): Set<T> {
   const next = new Set(set);
   if (next.has(value)) {
     next.delete(value);
@@ -323,7 +338,7 @@ function toggle<T>(set: Set<T>, value: T): Set<T> {
 // tekstvorm). Dit voorkomt dat een activiteit die toevallig een ander stuk
 // materiaal noemt (bijv. een rugbybal bij een tikspel) onterecht bovenaan
 // een trefwoordzoekopdracht op sportnaam verschijnt.
-function matchesActivityQuery(activity: Activity, query: string) {
+export function matchesActivityQuery(activity: Activity, query: string) {
   const doelgroepLabels = (activity.doelgroep ?? [])
     .map((code) => DOELGROEP_LABELS[code])
     .filter(Boolean);
@@ -341,12 +356,30 @@ function matchesActivityQuery(activity: Activity, query: string) {
   return haystack.includes(query.toLowerCase());
 }
 
+// Preview-slot voor free_blocked-gebruikers (zie de brief): previewIdSet ===
+// null betekent hasFullLibraryAccess (geen enkele beperking). Anders is een
+// item alleen "vrij" als het in de vaste preview-set zit, OF het de eigen
+// bijdrage van de kijker is — eigen werk moet altijd toegankelijk blijven,
+// ook al zit het toevallig niet in de willekeurig gekozen preview-set (zie
+// activiteit/[id]/page.tsx's isOwnActivity-uitzondering, die dit al
+// afdwingt bij het daadwerkelijk openen; dit is puur de visuele
+// tegenhanger in de kaartenlijst).
+function isItemUnlocked(
+  item: LibraryListItem,
+  previewIdSet: Set<string> | null,
+  currentUserId: string | null | undefined,
+): boolean {
+  if (previewIdSet === null) return true;
+  if (previewIdSet.has(item.id)) return true;
+  return currentUserId != null && item.activity.author_id === currentUserId;
+}
+
 // Normalizes an activity onto the shared categorie/leerlijn/doelgroep/
 // materiaal shape the filters operate on — een via de wizard aangemaakte
 // activiteit heeft geen eigen `categorie`-kolom, dus die wordt afgeleid uit
 // `leerlijn` via de reverse taxonomy lookup, en het materiaal is de
 // combinatie van basis- en regelmateriaal.
-function toFilterableFields(item: LibraryListItem): {
+export function toFilterableFields(item: LibraryListItem): {
   categorie: string;
   leerlijn: string;
   doelgroep: number[];
@@ -366,14 +399,14 @@ function toFilterableFields(item: LibraryListItem): {
   };
 }
 
-type FilterState = {
+export type FilterState = {
   leerlijn: Set<string>;
   categorie: Set<string>;
   doelgroep: Set<number>;
   weinigMateriaal: boolean;
 };
 
-const EMPTY_FILTERS: FilterState = {
+export const EMPTY_FILTERS: FilterState = {
   leerlijn: new Set(),
   categorie: new Set(),
   doelgroep: new Set(),
@@ -403,7 +436,7 @@ function countActive(filters: FilterState) {
 // categorie/leerlijn filter (see the OR-group in the `filtered` memo below)
 // never ends up in a contradictory state like "Turnen (helemaal)" plus
 // "Turnen: Springen" active at once.
-function applyCategorieAlles(
+export function applyCategorieAlles(
   state: FilterState,
   category: string,
   lines: string[],
@@ -422,7 +455,7 @@ function applyCategorieAlles(
   return { ...state, categorie: nextCategorie, leerlijn: nextLeerlijn };
 }
 
-function applyLeerlijnToggle(
+export function applyLeerlijnToggle(
   state: FilterState,
   category: string,
   line: string,
@@ -447,9 +480,23 @@ type ActiveChip = {
 export function LibrarySearchClient({
   activities,
   publicActivities,
+  previewActivityIds = null,
+  currentUserId = null,
 }: {
   activities: Activity[];
   publicActivities: Activity[];
+  /**
+   * Preview-slot voor free_blocked-gebruikers (zie de brief): niet-null is
+   * een VASTE set activiteit-ID's (zie getOrCreateLibraryPreviewActivityIds)
+   * die ongeacht filter/bron/zoekterm als "vrij" gelden — alle overige
+   * gefilterde resultaten worden nog steeds gerenderd, maar dan vervaagd/
+   * vergrendeld (zie isItemUnlocked/LibraryItemCard's `locked`-prop) i.p.v.
+   * simpelweg niet getoond. null (standaard) is het normale, onbeperkte
+   * gedrag.
+   */
+  previewActivityIds?: string[] | null;
+  /** Voor de "eigen bijdrage blijft altijd vrij"-uitzondering, zie isItemUnlocked. */
+  currentUserId?: string | null;
 }) {
   // Onthoud de laatst gekozen bron-tab per gebruiker (localStorage via de
   // module-level store hierboven) — geen server-round-trip nodig voor een
@@ -478,6 +525,11 @@ export function LibrarySearchClient({
 
   function setQuery(value: string) {
     setPersisted({ ...persisted, query: value });
+    resetPaging();
+  }
+
+  function setSort(value: SortOption) {
+    setPersisted({ ...persisted, sort: value });
     resetPaging();
   }
 
@@ -567,6 +619,15 @@ export function LibrarySearchClient({
     });
   }, [preFilterItems, filters]);
 
+  // Losse sorteerstap, ná filteren — "Meest gewaardeerd" sorteert op
+  // like_count aflopend (het gedenormaliseerde veld op activiteiten, zie
+  // supabase/migrations/activity_likes.sql). Nieuwe array (i.p.v. in-place
+  // sort) zodat filteredItems zelf niet muteert.
+  const sortedItems = useMemo(() => {
+    if (persisted.sort !== "meest_gewaardeerd") return filteredItems;
+    return [...filteredItems].sort((a, b) => b.activity.like_count - a.activity.like_count);
+  }, [filteredItems, persisted.sort]);
+
   // Eén losstaande, verwijderbare chip per actief filter — categorie draagt
   // z'n kleurmarkering mee, de rest blijft kleurloos (zie CategorySwatch).
   const activeChips = useMemo(() => {
@@ -609,8 +670,24 @@ export function LibrarySearchClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- commitFilters closes over `persisted`/`filters` fresh each render; only `filters` itself should retrigger this list.
   }, [filters]);
 
-  const visible = filteredItems.slice(0, visibleCount);
+  const previewIdSet = useMemo(
+    () => (previewActivityIds === null ? null : new Set(previewActivityIds)),
+    [previewActivityIds],
+  );
+
+  // Render ALLE gefilterde resultaten (vervaagd/vergrendeld voorbij de
+  // preview-set) i.p.v. de vroegere harde afkap na N kaarten — dezelfde
+  // PAGE_SIZE-paginering als voor onbeperkte gebruikers houdt dit ook bij
+  // een grote resultatenlijst (bijv. 340 activiteiten) licht: nooit meer
+  // dan 24 kaarten (waarvan hooguit een paar los-vervaagd) tegelijk in de
+  // DOM, i.p.v. alles in één keer met blur() te renderen.
+  const visible = sortedItems.slice(0, visibleCount);
   const hasActiveFilters = query.trim() !== "" || activeCount > 0;
+  const unlockedInFilterCount = useMemo(
+    () => filteredItems.filter((item) => isItemUnlocked(item, previewIdSet, currentUserId)).length,
+    [filteredItems, previewIdSet, currentUserId],
+  );
+  const hasLockedItems = previewIdSet !== null && unlockedInFilterCount < filteredItems.length;
 
   return (
     <div className="lg:grid lg:grid-cols-[17rem_1fr] lg:items-start lg:gap-6">
@@ -747,11 +824,51 @@ export function LibrarySearchClient({
           />
         ) : (
           <>
-            <p className="text-sm text-muted-foreground">
-              {preFilterItems.length === filteredItems.length
-                ? `${filteredItems.length} ${filteredItems.length === 1 ? "resultaat" : "resultaten"} gevonden`
-                : `${filteredItems.length} van ${preFilterItems.length} resultaten`}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {preFilterItems.length === filteredItems.length
+                  ? `${filteredItems.length} ${filteredItems.length === 1 ? "resultaat" : "resultaten"} gevonden`
+                  : `${filteredItems.length} van ${preFilterItems.length} resultaten`}
+              </p>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                Sorteer op
+                <select
+                  value={persisted.sort}
+                  onChange={(event) => setSort(event.target.value as SortOption)}
+                  aria-label="Sorteer op"
+                  className="h-9 rounded-md border border-input bg-transparent px-2 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {hasLockedItems && (
+              <Card className="border-destructive/40 bg-destructive/5">
+                <CardContent className="flex flex-col items-center gap-3 py-4 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
+                  <div className="flex items-start gap-3">
+                    <Lock className="mt-0.5 size-5 shrink-0 text-destructive" />
+                    <p className="text-sm">
+                      <span className="font-semibold">
+                        {unlockedInFilterCount} van {filteredItems.length} activiteiten vrij toegankelijk.
+                      </span>{" "}
+                      De rest zie je vervaagd — rond je bijdrage af of upgrade voor volledige toegang.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button asChild size="sm">
+                      <Link href="/les-maken">Activiteit toevoegen</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/pro">Upgraden</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
               {visible.map((item, index) => (
                 <div
@@ -759,7 +876,7 @@ export function LibrarySearchClient({
                   className="animate-fade-up"
                   style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
                 >
-                  <LibraryItemCard item={item} />
+                  <LibraryItemCard item={item} locked={!isItemUnlocked(item, previewIdSet, currentUserId)} />
                 </div>
               ))}
             </div>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -9,6 +10,9 @@ const ACCENTS = {
   success: "bg-success/10 text-success",
 } as const;
 
+const CARD_CLASS =
+  "rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md";
+
 export function StatCard({
   icon: Icon,
   label,
@@ -16,6 +20,7 @@ export function StatCard({
   meta,
   accent = "cone",
   className,
+  href,
 }: {
   icon: LucideIcon;
   label: string;
@@ -23,14 +28,13 @@ export function StatCard({
   meta?: string;
   accent?: keyof typeof ACCENTS;
   className?: string;
+  /** Maakt de hele kaart klikbaar naar een logische bestemming (bijv.
+   * "Activiteiten gemaakt" → Profiel "Mijn activiteiten"). Weglaten houdt de
+   * kaart puur informatief, zoals voorheen. */
+  href?: string;
 }) {
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border bg-card p-5 shadow-brand-sm transition-transform duration-200 ease-brand hover:-translate-y-0.5 hover:shadow-brand-md",
-        className,
-      )}
-    >
+  const content = (
+    <>
       <div className="flex items-center justify-between">
         <p className="font-mono text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
           {label}
@@ -48,6 +52,16 @@ export function StatCard({
         {value}
       </p>
       {meta && <p className="mt-2 text-xs text-muted-foreground">{meta}</p>}
-    </div>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className={cn(CARD_CLASS, "block cursor-pointer", className)}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={cn(CARD_CLASS, className)}>{content}</div>;
 }

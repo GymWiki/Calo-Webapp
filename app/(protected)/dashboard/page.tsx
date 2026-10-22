@@ -6,6 +6,7 @@ import { CalendarDays, ListChecks, Trophy } from "lucide-react";
 import { CommunityLessonsSection } from "@/components/community-lessons-section";
 import { ContributionStatusCard } from "@/components/ContributionStatusCard";
 import { PageHeader } from "@/components/page-header";
+import { TodaysPlanningCard } from "@/components/planning/TodaysPlanningCard";
 import { QuickActionGrid } from "@/components/quick-action-grid";
 import { RecentActivitiesList } from "@/components/recent-activities-list";
 import { StatCard } from "@/components/stat-card";
@@ -13,9 +14,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
 import { getContributionStatus } from "@/lib/services/contribution";
 import { getOwnSubmissions, getPublicActivities } from "@/lib/services/activities";
+import { getClassesForUser, getSchoolHolidays, getTodaysPlannedLessons } from "@/lib/services/planning";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
+import type { UserProfile } from "@/lib/types";
 
 const COMMUNITY_LIMIT = 6;
 const OWN_ACTIVITIES_LIMIT = 5;
@@ -27,6 +30,35 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  return (
+    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-6xl xl:max-w-[1360px]">
+      <PageHeader
+        eyebrow="Dashboard"
+        title={`Welkom terug, ${profile.first_name}`}
+        description="Hier vind je je snelle acties, je activiteiten en wat er speelt in de community."
+      />
+
+      {/* Eigen Suspense-boundary i.p.v. hier zelf awaiten: getContributionStatus
+          hoort geen streaming van de rest van de pagina (met name de
+          DashboardContent-sectie hieronder, die zijn eigen, onafhankelijke
+          Suspense al had) te blokkeren — zie CLAUDE.md/de brief over
+          per-sectie laden i.p.v. alles-of-niets. */}
+      <Suspense fallback={<Skeleton className="h-24 w-full rounded-2xl" />}>
+        <ContributionStatusSection profile={profile} />
+      </Suspense>
+
+      <Suspense fallback={<Skeleton className="h-24 w-full rounded-2xl" />}>
+        <TodaysPlanningSection profile={profile} />
+      </Suspense>
+
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent userId={profile.id} />
+      </Suspense>
+    </main>
+  );
+}
+
+async function ContributionStatusSection({ profile }: { profile: UserProfile }) {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const contributionStatus = await getContributionStatus(
@@ -36,23 +68,27 @@ export default async function DashboardPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-6xl xl:max-w-[1360px]">
-      <PageHeader
-        eyebrow="Dashboard"
-        title={`Welkom terug, ${profile.first_name}`}
-        description="Hier vind je je snelle acties, je activiteiten en wat er speelt in de community."
-      />
-
-      <ContributionStatusCard
-        status={contributionStatus}
-        subscriptionStatus={profile.subscription_status}
-      />
-
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent userId={profile.id} />
-      </Suspense>
-    </main>
+    <ContributionStatusCard
+      status={contributionStatus}
+      subscriptionStatus={profile.subscription_status}
+    />
   );
+}
+
+async function TodaysPlanningSection({ profile }: { profile: UserProfile }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [lessons, classes] = await Promise.all([
+    getTodaysPlannedLessons(profile.id, profile.holiday_region),
+    getClassesForUser(profile.id),
+  ]);
+
+  let holidayName: string | null = null;
+  if (profile.holiday_region) {
+    const holidays = await getSchoolHolidays(profile.holiday_region, today, today);
+    holidayName = holidays[0]?.name ?? null;
+  }
+
+  return <TodaysPlanningCard lessons={lessons} holidayName={holidayName} hasClasses={classes.length > 0} />;
 }
 
 function countThisMonth(activities: Activity[]) {
@@ -66,11 +102,28 @@ function countThisMonth(activities: Activity[]) {
   }).length;
 }
 
+// Promise.allSettled i.p.v. Promise.all: getOwnSubmissions/getPublicActivities
+// (lib/services/activities.ts) gooien allebei een Error bij elke Supabase-
+// foutmelding (netwerkhikje, een tijdelijke RLS-hik, ...) — met Promise.all
+// zou zo'n falende query het HELE dashboard laten crashen (en zonder een
+// error.tsx zou dat zelfs de navigatiebalk meeslepen, zie app/(protected)/
+// error.tsx). Eén sectie die leeg blijft bij een mislukte query is een veel
+// kleinere impact dan de hele pagina onbereikbaar maken.
 async function DashboardContent({ userId }: { userId: string }) {
-  const [ownActivities, publicActivities] = await Promise.all([
+  const [ownResult, publicResult] = await Promise.allSettled([
     getOwnSubmissions(userId),
     getPublicActivities(),
   ]);
+
+  if (ownResult.status === "rejected") {
+    console.error("Dashboard: eigen activiteiten ophalen mislukt —", ownResult.reason);
+  }
+  if (publicResult.status === "rejected") {
+    console.error("Dashboard: publieke activiteiten ophalen mislukt —", publicResult.reason);
+  }
+
+  const ownActivities = ownResult.status === "fulfilled" ? ownResult.value : [];
+  const publicActivities = publicResult.status === "fulfilled" ? publicResult.value : [];
   const latest = ownActivities[0];
   const communityActivities = publicActivities.slice(0, COMMUNITY_LIMIT);
   const recentOwnActivities = ownActivities.slice(0, OWN_ACTIVITIES_LIMIT);
@@ -83,12 +136,14 @@ async function DashboardContent({ userId }: { userId: string }) {
           label="Activiteiten gemaakt"
           value={ownActivities.length}
           accent="cone"
+          href="/profiel/activiteiten?tab=activiteiten"
         />
         <StatCard
           icon={CalendarDays}
           label="Deze maand"
           value={countThisMonth(ownActivities)}
           accent="blue"
+          href="/profiel/activiteiten?tab=activiteiten"
         />
         <StatCard
           icon={Trophy}
@@ -97,6 +152,7 @@ async function DashboardContent({ userId }: { userId: string }) {
           meta={latest?.titel}
           accent="yellow"
           className="col-span-2 sm:col-span-1"
+          href={latest ? `/activiteit/${latest.id}` : undefined}
         />
       </div>
 

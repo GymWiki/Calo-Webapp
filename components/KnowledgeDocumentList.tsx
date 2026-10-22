@@ -67,7 +67,7 @@ export function KnowledgeDocumentList({
           <EmptyState
             icon={Database}
             title="Nog geen documenten"
-            description="Upload hierboven het eerste document zodat de AI-checker en -generator vakliteratuur kunnen raadplegen."
+            description="Upload hierboven het eerste document zodat de AI-checker en AI Lescoach vakliteratuur kunnen raadplegen."
           />
         ) : (
           <ul className="space-y-2">
@@ -91,6 +91,12 @@ export function KnowledgeDocumentList({
                     <span>Door {document.uploader_name}</span>
                     {formatDate(document.created_at) && (
                       <span>· {formatDate(document.created_at)}</span>
+                    )}
+                    {document.usage_count > 0 && (
+                      <Badge variant="outline" className="font-normal">
+                        Gebruikt in {document.usage_count}{" "}
+                        {document.usage_count === 1 ? "activiteit" : "activiteiten"}
+                      </Badge>
                     )}
                   </div>
                   {document.status === "failed" && document.error_message && (

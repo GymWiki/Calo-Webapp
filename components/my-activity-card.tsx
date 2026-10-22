@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { ImageOff, Lock, Trash2, Users2 } from "lucide-react";
+import { ImageOff, Lock, ThumbsUp, Trash2, Users2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { deleteActivityDraft } from "@/actions/activity-submission";
@@ -47,7 +48,7 @@ export function MyActivityCard({ activity }: { activity: Activity }) {
     .map((waarde) => DOELGROEP_LABELS[waarde])
     .filter((label): label is string => Boolean(label))
     .join(", ");
-  const subtitle = [activity.leerlijn, activity.group_name].filter(Boolean).join(" · ");
+  const subtitle = activity.leerlijn ?? "";
   const image = activity.afbeelding ?? activity.diagram_image_url;
   const href = isDraft ? `/les-maken?vanuit=${activity.id}` : `/activiteit/${activity.id}`;
 
@@ -71,8 +72,13 @@ export function MyActivityCard({ activity }: { activity: Activity }) {
       <Link href={href} className="flex flex-1 flex-col">
         <div className="relative flex h-28 items-center justify-center bg-muted">
           {image ? (
-            // eslint-disable-next-line @next/next/no-img-element -- external, unregistered hosts (Firebase/Supabase Storage)
-            <img src={image} alt="" className="size-full object-cover" loading="lazy" />
+            <Image
+              src={image}
+              alt=""
+              fill
+              sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
+              className="object-cover"
+            />
           ) : (
             <ImageOff className="size-6 text-muted-foreground" aria-hidden="true" />
           )}
@@ -96,7 +102,7 @@ export function MyActivityCard({ activity }: { activity: Activity }) {
             </span>
             {!isDraft && (
               <span className="flex items-center gap-1 rounded-md border border-ink/20 bg-paper px-1.5 py-0.5 text-[10px] font-semibold text-ink shadow-sm dark:border-paper/25 dark:bg-charcoal dark:text-paper">
-                {activity.is_public ? (
+                {activity.visibility === "public" ? (
                   <>
                     <Users2 className="size-3" aria-hidden="true" />
                     Gedeeld
@@ -119,6 +125,14 @@ export function MyActivityCard({ activity }: { activity: Activity }) {
           </p>
           {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
           {doelgroepLabel && <p className="truncate text-xs text-muted-foreground">{doelgroepLabel}</p>}
+          {/* Alleen voor ingediende (niet-concept) activiteiten — een concept
+              is nooit publiek zichtbaar geweest en kan dus niet geliket zijn. */}
+          {!isDraft && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <ThumbsUp className="size-3" aria-hidden="true" />
+              {activity.like_count} {activity.like_count === 1 ? "waardering" : "waarderingen"}
+            </p>
+          )}
         </div>
       </Link>
 

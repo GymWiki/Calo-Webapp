@@ -1,0 +1,165 @@
+# Fastlane-configuratie voor GymWiki (Capacitor-wrapper rond de gehoste
+# webapp) — zie docs/mobile-app/README.md voor de volledige uitleg,
+# benodigde accounts/geheimen en hoe je dit voor het eerst opzet.
+#
+# Gebruik (vanuit de repo-root):
+#   fastlane ios beta        # bouwt + uploadt naar TestFlight
+#   fastlane ios release     # bouwt + dient in bij App Store Connect (als concept, zie release-lane)
+#   fastlane android beta    # bouwt + uploadt naar Google Play's interne testtrack
+#   fastlane android release # bouwt + uploadt naar Google Play productie (als concept)
+#
+# Beide platforms draaien eerst `npx cap sync` zodat web-wijzigingen en
+# capacitor.config.ts/plugin-registraties altijd in de native build zitten
+# — dit vervangt NIET het herbouwen bij content-wijzigingen aan de webapp
+# zelf (die laadt altijd live vanaf gymwiki.nl, zie capacitor.config.ts),
+# maar is wel nodig als er iets aan native config/plugins is gewijzigd.
+
+opt_out_usage # stuurt geen anonieme gebruiksstatistieken naar Fastlane/Google — geen reden om dat impliciet aan te laten staan.
+default_platform(:ios)
+
+IOS_WORKSPACE = "ios/App/App.xcworkspace"
+IOS_SCHEME = "App"
+IOS_XCODEPROJ = "ios/App/App.xcodeproj"
+ANDROID_PROJECT_DIR = "android/"
+ANDROID_AAB_PATH = "android/app/build/outputs/bundle/release/app-release.aab"
+
+platform :ios do
+  # App Store Connect API-key i.p.v. Apple ID + wachtwoord: authenticatie
+  # met een gewoon account loopt in headless CI vast op Apple's verplichte
+  # 2FA (er is geen manier om die interactief te beantwoorden vanuit een
+  # GitHub Actions-runner). Een API-key (zie docs/mobile-app/README.md
+  # "App Store Connect API-key aanmaken") omzeilt dat volledig. Alleen
+  # actief als de drie env-vars gezet zijn — lokaal zonder deze vars vraagt
+  # fastlane gewoon interactief om in te loggen, ook prima.
+  before_all do
+    next unless ENV["APP_STORE_CONNECT_API_KEY_ID"] && ENV["APP_STORE_CONNECT_API_ISSUER_ID"] && ENV["APP_STORE_CONNECT_API_KEY_CONTENT"]
+
+    app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_API_KEY_CONTENT"],
+      is_key_content_base64: true,
+    )
+  end
+
+  desc "Zorgt dat het native iOS-project de laatste webapp-config/plugins heeft."
+  private_lane :sync_capacitor do
+    sh("npx", "cap", "sync", "ios")
+  end
+
+  desc "Haalt/ververst signing-certificaten en -profielen via match."
+  private_lane :ensure_signing do
+    match(type: "appstore", readonly: ENV["CI"] ? true : false)
+  end
+
+  desc "Bouwt de iOS-app en uploadt 'm naar TestFlight."
+  lane :beta do
+    sync_capacitor
+    ensure_signing
+
+    # Bouwnummer moet bij elke TestFlight-upload hoger zijn dan de vorige —
+    # automatisch ophogen voorkomt de klassieke "handmatig vergeten"-fout.
+    current = latest_testflight_build_number(app_identifier: app_identifier) rescue 0
+    increment_build_number(xcodeproj: IOS_XCODEPROJ, build_number: current + 1)
+
+    build_app(
+      workspace: IOS_WORKSPACE,
+      scheme: IOS_SCHEME,
+      export_method: "app-store",
+      output_directory: "build/ios",
+    )
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      app_identifier: app_identifier,
+    )
+  end
+
+  desc "Bouwt de iOS-app en dient 'm in bij App Store Connect (als concept, niet automatisch live)."
+  lane :release do
+    sync_capacitor
+    ensure_signing
+
+    build_app(
+      workspace: IOS_WORKSPACE,
+      scheme: IOS_SCHEME,
+      export_method: "app-store",
+      output_directory: "build/ios",
+    )
+
+    upload_to_app_store(
+      app_identifier: app_identifier,
+      # Bewust GEEN automatische review-indiening/release — dit lane-doel is
+      # "de build staat klaar in App Store Connect", het laatste "Indienen
+      # voor review"-klikje blijft een bewuste, handmatige stap (zie
+      # docs/mobile-app/README.md "Nieuwe versie indienen"). skip_metadata/
+      # skip_screenshots omdat deze lane alleen de BUILD upload, geen
+      # listing-tekst/screenshots beheert.
+      submit_for_review: false,
+      automatic_release: false,
+      force: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+    )
+  end
+end
+
+platform :android do
+  desc "Zorgt dat het native Android-project de laatste webapp-config/plugins heeft."
+  private_lane :sync_capacitor do
+    sh("npx", "cap", "sync", "android")
+  end
+
+  desc "Bouwt een signed App Bundle en uploadt 'm naar Google Play's interne testtrack."
+  lane :beta do
+    sync_capacitor
+    ensure_android_keystore_present
+
+    current_version_code = google_play_track_version_codes(track: "internal").max rescue 0
+    android_set_version_code(
+      gradle_file: "android/app/build.gradle",
+      version_code: (current_version_code || 0) + 1,
+    )
+
+    gradle(task: "bundle", build_type: "Release", project_dir: ANDROID_PROJECT_DIR)
+
+    upload_to_play_store(
+      track: "internal",
+      aab: ANDROID_AAB_PATH,
+    )
+  end
+
+  desc "Bouwt een signed App Bundle en uploadt 'm naar Google Play productie (als concept)."
+  lane :release do
+    sync_capacitor
+    ensure_android_keystore_present
+
+    current_version_code = google_play_track_version_codes(track: "production").max rescue 0
+    android_set_version_code(
+      gradle_file: "android/app/build.gradle",
+      version_code: (current_version_code || 0) + 1,
+    )
+
+    gradle(task: "bundle", build_type: "Release", project_dir: ANDROID_PROJECT_DIR)
+
+    upload_to_play_store(
+      track: "production",
+      aab: ANDROID_AAB_PATH,
+      # Concept i.p.v. direct live — zie docs/mobile-app/README.md "Nieuwe
+      # versie indienen" voor de laatste-controle-stap vóór uitrollen.
+      release_status: "draft",
+    )
+  end
+
+  desc "Faalt vroeg en duidelijk als android/app/keystore.properties ontbreekt, i.p.v. Gradle een cryptische signing-fout te laten gooien."
+  private_lane :ensure_android_keystore_present do
+    keystore_properties = File.join(Dir.pwd, "android/app/keystore.properties")
+    unless File.exist?(keystore_properties)
+      UI.user_error!(
+        "android/app/keystore.properties ontbreekt — kopieer keystore.properties.example en vul 'm in " \
+        "(lokaal), of laat de GitHub Actions-workflow 'm uit secrets schrijven (CI). Zie " \
+        "docs/mobile-app/README.md \"Android keystore aanmaken\".",
+      )
+    end
+  end
+end

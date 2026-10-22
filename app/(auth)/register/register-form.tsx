@@ -31,7 +31,6 @@ type RegisterValues = z.infer<typeof registerSchema>;
 export function RegisterForm() {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirmationSent, setConfirmationSent] = useState(false);
 
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -52,22 +51,28 @@ export function RegisterForm() {
       return;
     }
 
-    if (result.needsEmailConfirmation) {
-      setConfirmationSent(true);
-      return;
-    }
-
-    router.push("/dashboard");
-    router.refresh();
-  }
-
-  if (confirmationSent) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Bijna klaar! Check je e-mail om je account te bevestigen voordat je
-        kunt inloggen.
-      </p>
+    // ?plan= komt van een prijskaart op de landingspagina (zie
+    // app/page.tsx + lib/constants/subscriptionPlans.ts) — leidt na een
+    // geslaagde registratie meteen naar /pro met dat plan visueel
+    // gemarkeerd i.p.v. het gewone dashboard, zodat "gratis aan de slag"
+    // en "kies een betaald plan" allebei in één stap naar hun bedoelde
+    // vervolgstap gaan. Gewone window.location.search-lezing i.p.v.
+    // useSearchParams(): zie components/subscription/ProCheckoutButton.tsx
+    // voor dezelfde afweging (geen Suspense-boundary nodig voor een
+    // eenmalige lezing bij submit).
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get("plan");
+    const isKnownPlan = plan === "monthly" || plan === "yearly" || plan === "lifetime";
+    // redirectTo (bijv. terug naar een teamuitnodiging, zie
+    // components/team/AcceptInviteCard.tsx) heeft voorrang op ?plan= — wie
+    // via een uitnodiging registreert wil terug naar die uitnodiging, niet
+    // naar /pro.
+    const redirectTo = params.get("redirectTo");
+    const isSafeRedirect = Boolean(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//"));
+    router.push(
+      isSafeRedirect && redirectTo ? redirectTo : isKnownPlan ? `/pro?plan=${plan}` : "/dashboard",
     );
+    router.refresh();
   }
 
   return (

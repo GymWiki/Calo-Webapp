@@ -1,94 +1,142 @@
 import { z } from "zod";
 
-import { didacticItemSchema, type DidacticItem } from "@/types/lesson";
+import { didacticCategorySchema, didacticItemSchema } from "@/types/lesson";
 
 // ----------------------------------------------------------------------------
 // AI Lescoach — POST /api/ai/analyze-lesson
+//
+// Herontworpen van "genereer een heel oordeel (score + samenvatting +
+// verbeterpunten)" over de activiteit naar "kritisch meekijken en per sectie
+// concrete, direct toepasbare suggesties geven op wat er al staat" — de
+// gebruiker bouwt de activiteit zelf op en raadpleegt de Lescoach op elk
+// moment voor gerichte aanvullingen, niet voor een nieuwe activiteit.
 // ----------------------------------------------------------------------------
 
-// Deliberately loose/partial: this is called from the lesbouwer mid-draft,
-// before every field is necessarily filled in yet.
+// Elke "content"-sectie die de AI Lescoach kan analyseren en waarop een
+// suggestie kan slaan — komt 1-op-1 overeen met de secties op de activiteit-
+// detailpagina/editor (components/activity-wizard-page.tsx, zie de
+// `field-*`-id's daar) zodat een suggestie exact bij het juiste veld getoond
+// en toegepast kan worden. Leerhulp (de 3 L'en) loopt bewust via een apart
+// kanaal (didacticSuggestionSchema hieronder) — dat is geen los tekstveld
+// maar een lijst gestructureerde items per categorie.
+export const LESCOACH_SECTIONS = [
+  "goals",
+  "beschrijving",
+  "movementProblem",
+  "learningOutcomes",
+  "deelnemersRegels",
+  "plaatjePraatje",
+  "aandachtspunten",
+  "rules",
+  "arrangement",
+  "baseMaterials",
+  "ruleMaterials",
+] as const;
+export type LescoachSection = (typeof LESCOACH_SECTIONS)[number];
+const lescoachSectionSchema = z.enum(LESCOACH_SECTIONS);
+
+// Lijst-secties: "Toepassen" VOEGT het voorstel TOE als nieuw item. Alle
+// overige (tekst-)secties: "Toepassen" VERVANGT de huidige tekst door het
+// voorstel — beide gedragen zich dus voorspelbaar zonder dat de AI zelf een
+// diff/patch-formaat hoeft te produceren.
+export const LESCOACH_LIST_SECTIONS: readonly LescoachSection[] = [
+  "learningOutcomes",
+  "rules",
+  "baseMaterials",
+  "ruleMaterials",
+];
+
+// Deliberately loose/partial: dit wordt aangeroepen vanuit de lesbouwer
+// mid-concept, dus niet elk veld is al ingevuld. Ontbrekende velden
+// betekenen NIET per se "leeg" — bij een vervolg-aanroep (isFollowUp) is een
+// ontbrekend veld "ongewijzigd sinds de vorige analyse", zie hieronder.
 export const analyzeLessonInputSchema = z.object({
   title: z.string().trim().optional(),
   learningLine: z.string().trim().optional(),
   movementProblem: z.string().trim().optional(),
   movementTheme: z.string().trim().optional(),
+  doelgroep: z.array(z.number().int()).optional(),
   goals: z.string().trim().optional(),
+  // Het volledige spelverloop (mapt op de `beschrijving`-kolom, zie
+  // types/lesson.ts) — stond hier eerder NIET bij, waardoor de AI Lescoach
+  // dit veld nooit kon analyseren/becommentariëren, ondanks dat het een
+  // eigen sectie in de editor heeft (components/activity-wizard-page.tsx).
+  beschrijving: z.string().trim().optional(),
+  learningOutcomes: z.array(z.string()).optional(),
+  deelnemersRegels: z.string().trim().optional(),
+  plaatjePraatje: z.string().trim().optional(),
+  aandachtspunten: z.string().trim().optional(),
+  rules: z.array(z.string()).optional(),
+  arrangement: z.string().trim().optional(),
+  baseMaterials: z.array(z.string()).optional(),
+  ruleMaterials: z.array(z.string()).optional(),
+  minParticipants: z.coerce.number().int().positive().optional(),
+  participantsBench: z.coerce.number().int().min(0).optional(),
   didacticItems: z.array(didacticItemSchema).optional(),
+  // Alleen gezet wanneer dit een al bestaande (opgeslagen) activiteit is —
+  // gebruikt om de gebruikte Kennisbank-fragmenten te loggen
+  // (activity_knowledge_usage, context='lescoach'). De route verifieert
+  // server-side dat de aanroeper ook daadwerkelijk de auteur is voordat er
+  // iets gelogd wordt — zie app/api/ai/analyze-lesson/route.ts.
+  // Géén .uuid(): activiteiten.id is text, en oudere bibliotheek-activiteiten
+  // hebben een numeriek id (bijv. "1003"), geen UUID.
+  activityId: z.string().trim().min(1).optional(),
+  // Kostenbeheersing (AI Lescoach wordt vermoedelijk vaker aangeroepen dan de
+  // eenmalige generator): bij een HERHAALDE aanroep op dezelfde activiteit
+  // stuurt de client alleen de secties die daadwerkelijk gewijzigd zijn sinds
+  // de vorige aanroep (de overige velden hierboven blijven dan gewoon weg —
+  // niet leeg meesturen) + deze compacte samenvatting van eerder gegeven
+  // suggestietypes, zodat de AI niet zomaar exact dezelfde suggestie herhaalt
+  // én de inputgrootte bij herhaald gebruik laag blijft.
+  isFollowUp: z.boolean().optional(),
+  previousSuggestionTypes: z
+    .array(z.object({ section: lescoachSectionSchema, type: z.string() }))
+    .optional(),
 });
 export type AnalyzeLessonInput = z.infer<typeof analyzeLessonInputSchema>;
 
-export const lescoachImprovementSchema = z.object({
-  category: z.string(),
-  suggestion: z.string(),
+export const lescoachSuggestionSchema = z.object({
+  section: lescoachSectionSchema,
+  // Vrije, AI-gekozen categorie-label (bijv. "Groepsgrootte",
+  // "Veiligheid", "Concreetheid", "Aansluiting doel-leeruitkomst") — bewust
+  // geen vaste enum: de AI bepaalt flexibel wat de activiteit daadwerkelijk
+  // nodig heeft, geen vaste checklist met altijd hetzelfde aantal/soort
+  // suggesties.
+  type: z.string().trim().min(1),
+  // Voor tekstsecties: de volledige voorgestelde vervangende tekst (geen
+  // diff). Voor lijstsecties (LESCOACH_LIST_SECTIONS): één nieuw toe te
+  // voegen item.
+  suggestion: z.string().trim().min(1),
+  reasoning: z.string().trim().min(1),
+  // .nullable() i.p.v. .optional(): nodig voor OpenAI's strict Structured
+  // Outputs (zie app/api/ai/analyze-lesson/route.ts), dat vereist dat ELKE
+  // property aanwezig is — "ontbreekt" kan dus niet, "null" wel. Zelfde
+  // discipline als lib/ai/activityImportExtraction.ts se field()-helper.
+  sourceLabel: z.string().trim().nullable(),
 });
-export type LescoachImprovement = z.infer<typeof lescoachImprovementSchema>;
-
-export const lescoachFeedbackSchema = z.object({
-  score: z.number().min(0).max(10),
-  summary: z.string(),
-  strengths: z.array(z.string()),
-  improvements: z.array(lescoachImprovementSchema),
-});
-export type LescoachFeedback = z.infer<typeof lescoachFeedbackSchema>;
-
-// Maps a Dutch improvement category label (as the AI writes it, e.g. "Lukt
-// 't") onto the app's canonical didactic category key — best-effort, used
-// by "Pas automatisch toe" to file a suggestion under the right L.
-export function matchDidacticCategory(
-  category: string,
-): "loopt_het" | "lukt_het" | "leeft_het" | null {
-  const normalized = category.toLowerCase();
-  if (normalized.includes("loopt")) return "loopt_het";
-  if (normalized.includes("lukt")) return "lukt_het";
-  if (normalized.includes("leeft")) return "leeft_het";
-  return null;
-}
-
-// ----------------------------------------------------------------------------
-// AI Activiteiten Generator — POST /api/ai/generate-activity
-// ----------------------------------------------------------------------------
-
-export const generateActivityInputSchema = z.object({
-  learningLine: z.string().trim().min(1, "Kies een leerlijn."),
-  targetGroup: z.string().trim().min(1, "Vul een doelgroep in."),
-});
-export type GenerateActivityInput = z.infer<typeof generateActivityInputSchema>;
-
-// What the AI itself must produce — `id` is assigned server-side after
-// validation so the response can be used as real DidacticItem[] directly.
-export const generatedLessonSchema = z.object({
-  title: z.string(),
-  learningLine: z.string(),
-  movementProblem: z.string(),
-  movementTheme: z.string(),
-  groupName: z.string().optional().default(""),
-  doelgroep: z.array(z.number().int()).optional().default([]),
-  goals: z.string(),
-  didacticItems: z.array(didacticItemSchema.omit({ id: true })).optional().default([]),
-  baseMaterials: z.array(z.string()).optional().default([]),
-  ruleMaterials: z.array(z.string()).optional().default([]),
-  rules: z.array(z.string()).optional().default([]),
-  arrangement: z.string().optional().default(""),
-  deelnemersRegels: z.string().optional().default(""),
-  plaatjePraatje: z.string().optional().default(""),
-  aandachtspunten: z.string().optional().default(""),
-});
-export type GeneratedLesson = z.infer<typeof generatedLessonSchema>;
-
-// The shape actually returned to the client: same as GeneratedLesson but
-// with real ids on each didactic item.
-export type GeneratedLessonWithIds = Omit<GeneratedLesson, "didacticItems"> & {
-  didacticItems: DidacticItem[];
+export type LescoachSuggestion = z.infer<typeof lescoachSuggestionSchema> & {
+  /** Client-side toegekend (niet door de AI) — voor Toepassen/Negeren. */
+  id: string;
 };
 
-// sessionStorage key the /les-maken AI wizard (AiLessonWizard) writes to
-// and LessonForm reads from, to hand off an AI-generated lesson to the
-// form when LesMakenFlow switches views, without threading it through props.
-export const AI_GENERATED_LESSON_STORAGE_KEY = "gymbase-ai-generated-lesson";
+// Leerhulp krijgt 2-3 ALTERNATIEVE varianten per categorie i.p.v. één vaste
+// invulling (zie de brief) — een los kanaal, want dit zijn geen tekst-
+// suggesties voor een bestaand veld maar kandidaat-items voor een lijst die
+// per categorie al meerdere bestaande items kan bevatten.
+export const didacticSuggestionSchema = z.object({
+  category: didacticCategorySchema,
+  observation: z.string().trim().min(1),
+  action: z.string().trim().min(1),
+  reasoning: z.string().trim().min(1),
+});
+export type DidacticSuggestion = z.infer<typeof didacticSuggestionSchema> & { id: string };
 
-// Losse key naast AI_GENERATED_LESSON_STORAGE_KEY: de bron-attributie
-// ("Gebaseerd op: eigen kennisbank (3), Athletic Skills Model (2)") bij een
-// AI-generatie — apart gehouden i.p.v. in de les zelf, zodat
-// LessonForm's bestaande GeneratedLessonWithIds-vorm ongemoeid blijft.
-export const AI_GENERATED_LESSON_SOURCES_STORAGE_KEY = "gymbase-ai-generated-lesson-sources";
+// Het ENDRESULTAAT dat de route teruggeeft — niet meer rechtstreeks
+// `.parse()`-t tegen de ruwe AI-respons (zie route.ts: dat gebeurt nu
+// item-voor-item, zodat één ongeldige suggestie niet de hele analyse laat
+// falen), dus altijd volledige (mogelijk lege) arrays.
+export const lescoachAnalysisSchema = z.object({
+  suggestions: z.array(lescoachSuggestionSchema),
+  didacticSuggestions: z.array(didacticSuggestionSchema),
+});
+export type LescoachAnalysis = z.infer<typeof lescoachAnalysisSchema>;

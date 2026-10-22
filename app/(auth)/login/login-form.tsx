@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { TriangleAlert } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -37,14 +39,41 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginValues) {
     setFormError(null);
-    const result = await login(values);
 
-    if ("error" in result) {
-      setFormError(result.error);
+    // login() zelf vangt alles wat het kan (zie app/(auth)/actions.ts), maar
+    // de server-action-aanroep hiernaartoe is zelf ook een netwerkverzoek —
+    // een verbindingsfout hier (offline, timeout) hoort óók als een gewone,
+    // zichtbare foutmelding te eindigen i.p.v. als een ongevangen
+    // promise-rejection die het formulier stil laat vastlopen.
+    let result: Awaited<ReturnType<typeof login>>;
+    try {
+      result = await login(values);
+    } catch {
+      setFormError("Er ging iets mis. Controleer je verbinding en probeer het opnieuw.");
+      form.resetField("password", { defaultValue: "" });
+      form.setFocus("password");
       return;
     }
 
-    router.push("/dashboard");
+    if ("error" in result) {
+      setFormError(result.error);
+      // E-mailadres blijft staan (field-waarde wordt hierboven niet
+      // aangeraakt — react-hook-form reset velden alleen als je zelf reset()
+      // aanroept). Het wachtwoord wissen we bewust wél: voorkomt dat een
+      // eerder getypt wachtwoord onnodig in de form-state/DOM blijft hangen,
+      // en de gebruiker moet er sowieso opnieuw naartoe om het te herproberen.
+      form.resetField("password", { defaultValue: "" });
+      form.setFocus("password");
+      return;
+    }
+
+    // ?redirectTo= komt van proxy.ts (een beschermde pagina die niet-
+    // ingelogd werd bezocht) of van een teamuitnodigingslink (zie
+    // components/team/AcceptInviteCard.tsx) — alleen een relatief pad
+    // vertrouwen (nooit een externe URL doorgeven aan router.push).
+    const redirectTo = new URLSearchParams(window.location.search).get("redirectTo");
+    const isSafeRedirect = Boolean(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//"));
+    router.push(isSafeRedirect && redirectTo ? redirectTo : "/dashboard");
     router.refresh();
   }
 
@@ -69,7 +98,15 @@ export function LoginForm() {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Wachtwoord</FormLabel>
+              <div className="flex items-center justify-between gap-2">
+                <FormLabel>Wachtwoord</FormLabel>
+                <Link
+                  href="/wachtwoord-vergeten"
+                  className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Wachtwoord vergeten?
+                </Link>
+              </div>
               <FormControl>
                 <PasswordInput autoComplete="current-password" {...field} />
               </FormControl>
@@ -77,7 +114,19 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        {formError && <p className="text-sm text-destructive">{formError}</p>}
+        {formError && (
+          // aria-live kondigt de melding aan zonder de focus te verplaatsen
+          // (die gaat hieronder expliciet naar het wachtwoordveld) — role="alert"
+          // is de bredere browserondersteunde variant van hetzelfde idee.
+          <div
+            role="alert"
+            aria-live="polite"
+            className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <p>{formError}</p>
+          </div>
+        )}
         <Button
           type="submit"
           className="w-full"

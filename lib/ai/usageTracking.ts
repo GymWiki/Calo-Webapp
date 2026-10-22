@@ -1,19 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { estimateCostUsd } from "@/lib/ai/modelPricing";
+import { estimateCostUsd } from "./modelPricing";
 
 export type AiUsageFeature =
   | "activity_checker"
-  | "lesson_generator"
   | "ai_lescoach"
   | "knowledge_base_embedding"
-  | "activity_import_extraction";
+  | "activity_import_extraction"
+  | "activity_import_plaatjepraatje_generation"
+  | "taalcheck";
 
 /**
  * Losstaande, herbruikbare logservice voor elke betaalde AI-aanroep — vult
  * de ai_usage-tabel (supabase/migrations/ai_usage_tracking.sql), die het
- * kostenoverzicht voor de eigenaar en de lessengenerator-fair-use-limiet
- * voedt. Best-effort: een falende logregel mag de AI-functie zelf nooit
+ * kostenoverzicht voor de eigenaar en de fair-use-limieten voedt.
+ * Best-effort: een falende logregel mag de AI-functie zelf nooit
  * blokkeren, dus fouten worden alleen gelogd, nooit doorgegooid.
  */
 export async function recordAiUsage(
@@ -24,6 +25,9 @@ export async function recordAiUsage(
     model: string;
     inputTokens: number;
     outputTokens: number;
+    /** Gezet voor een teamlid — zie supabase/migrations/team_plans.sql's
+     *  ai_usage.team_id, voor de gepoolde limiet + per-team kostenanalyse. */
+    teamId?: string | null;
   },
 ): Promise<void> {
   const estimatedCostUsd = estimateCostUsd(params.model, params.inputTokens, params.outputTokens);
@@ -35,6 +39,7 @@ export async function recordAiUsage(
     input_tokens: params.inputTokens,
     output_tokens: params.outputTokens,
     estimated_cost_usd: estimatedCostUsd,
+    team_id: params.teamId ?? null,
   });
 
   if (error) {

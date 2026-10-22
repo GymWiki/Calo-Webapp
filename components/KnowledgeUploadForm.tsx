@@ -83,7 +83,7 @@ export function KnowledgeUploadForm() {
         <CardDescription>
           Upload een PDF, Word-bestand of tekstbestand — of plak tekst rechtstreeks. Het
           document wordt automatisch verwerkt en is daarna beschikbaar als context voor de AI
-          Activiteitenchecker en Activiteitengenerator.
+          Activiteitenchecker en AI Lescoach.
         </CardDescription>
       </CardHeader>
       <CardContent>

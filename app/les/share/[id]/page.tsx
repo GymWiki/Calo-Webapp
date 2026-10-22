@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { EyeOff, Sparkles } from "lucide-react";
 
-import { AiLescoachButton } from "@/components/AiLescoachSheet";
 import { EmptyState } from "@/components/empty-state";
-import { LessonPdfButton } from "@/components/LessonPdfButton";
+import { GymWikiLogo } from "@/components/GymWikiLogo";
+import { LessonPdfButton } from "@/components/pdf/LessonPdfButton";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
+import { UsedSourcesList } from "@/components/UsedSourcesList";
 import { LEERHULP_DIDACTIC_STYLE_OVERRIDES } from "@/lib/constants/leerhulpColors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
 import { getActivityById } from "@/lib/services/activities";
+import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
@@ -85,7 +87,13 @@ export default async function SharedActivityPage({
     getCurrentUserProfile(),
   ]);
 
-  if (!activity || !activity.is_public || activity.arrangement === null) {
+  // Zowel publiek gedeeld als een teamactiviteit is hier toegestaan — voor
+  // een teamactiviteit laat de RLS-SELECT-policy op activiteiten
+  // (supabase/migrations/team_library.sql) getActivityById() alleen iets
+  // teruggeven aan een lid van HET juiste, actieve team; een niet-lid (of
+  // uitgelogde bezoeker) krijgt hier dus al `activity === null` — precies
+  // "de deel-link werkt alleen voor leden van het team" uit de brief.
+  if (!activity || activity.visibility === "private" || activity.arrangement === null) {
     return (
       <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-4 text-center">
         <EmptyState
@@ -103,33 +111,33 @@ export default async function SharedActivityPage({
   }
 
   let authorName = "Een GymWiki-gebruiker";
+  // Aparte weergavenaam mét rol/functie (indien ingevuld) — alleen voor de
+  // twee tekstplekken hieronder ("Docent"-veld + introzin). De kale
+  // authorName blijft ongewijzigd: LessonPdfButton splitst 'm terug in
+  // voor-/achternaam, een toegevoegde "(rol)" zou dat verkeerd knippen.
+  let authorDisplayName = authorName;
   if (activity.author_id) {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
     const { data: author } = await supabase
       .from("users")
-      .select("first_name, last_name")
+      .select("first_name, last_name, role_label")
       .eq("id", activity.author_id)
       .maybeSingle();
-    if (author) authorName = `${author.first_name} ${author.last_name}`.trim();
+    if (author) {
+      authorName = `${author.first_name} ${author.last_name}`.trim();
+      authorDisplayName = author.role_label ? `${authorName} (${author.role_label})` : authorName;
+    }
   }
 
+  const usedKnowledgeSources = await getActivityKnowledgeSources(activity.id);
+
   const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
-  const analyzePayload = {
-    title: activity.titel,
-    learningLine: activity.leerlijn ?? undefined,
-    movementProblem: activity.movement_problem ?? undefined,
-    movementTheme: activity.beweegthema ?? undefined,
-    goals: activity.doel ?? undefined,
-    didacticItems,
-  };
 
   return (
     <div className="min-h-screen bg-paper text-ink">
       <header className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 py-5 sm:px-8">
-        <Link href="/" className="font-display text-lg tracking-wide">
-          GYMWIKI
-        </Link>
+        <GymWikiLogo href="/" size={24} wordmarkClassName="text-lg" />
         <Button asChild variant="outline" size="sm">
           <Link href={profile ? "/dashboard" : "/login"}>
             {profile ? "Naar mijn dashboard" : "Inloggen"}
@@ -143,7 +151,7 @@ export default async function SharedActivityPage({
             Gedeelde activiteit
           </Badge>
           <p className="text-sm text-muted-foreground">
-            Je bekijkt een openbaar gedeelde activiteit van {authorName} op GymWiki.
+            Je bekijkt een openbaar gedeelde activiteit van {authorDisplayName} op GymWiki.
           </p>
         </div>
 
@@ -161,9 +169,8 @@ export default async function SharedActivityPage({
           </CardHeader>
           <CardContent>
             <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <HeaderField label="Docent" value={authorName} />
+              <HeaderField label="Docent" value={authorDisplayName} />
               <HeaderField label="Datum" value={formatDate(activity.activity_date) ?? "-"} />
-              <HeaderField label="Groep/klas" value={activity.group_name ?? "-"} />
               <HeaderField label="Bewegingsprobleem" value={activity.movement_problem ?? "-"} />
               <HeaderField label="Bewegingsthema" value={activity.beweegthema ?? "-"} />
             </dl>
@@ -189,12 +196,6 @@ export default async function SharedActivityPage({
             <LessonPdfButton activity={activity} authorName={authorName} />
           </CardContent>
         </Card>
-
-        {profile && (
-          <div className="animate-fade-up flex justify-end" style={{ animationDelay: "60ms" }}>
-            <AiLescoachButton payload={analyzePayload} />
-          </div>
-        )}
 
         <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
           <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3">
@@ -279,6 +280,9 @@ export default async function SharedActivityPage({
                     <BadgeList items={activity.rule_materials} />
                   </div>
                 </div>
+                {usedKnowledgeSources.length > 0 && (
+                  <UsedSourcesList chunks={usedKnowledgeSources} />
+                )}
               </CardContent>
             </Card>
           </TabsContent>
