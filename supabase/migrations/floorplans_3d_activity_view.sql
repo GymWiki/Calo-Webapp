@@ -13,7 +13,7 @@
 --
 -- 2. Storage: thumbnail ("statische preview") van een plattegrond, door de
 --    editor bij het opslaan gerenderd en geüpload als
---    `${user_id}/${floorplan_id}.webp`. Publiek leesbaar (zelfde patroon
+--    `${user_id}/${floorplan_id}.jpg`. Publiek leesbaar (zelfde patroon
 --    als activity_diagram_image_storage.sql), schrijven alleen in de eigen
 --    map.
 --
@@ -41,7 +41,7 @@ values (
   'floorplan-previews',
   true,
   1048576, -- 1 MB
-  array['image/webp', 'image/png']
+  array['image/jpeg']
 )
 on conflict (id) do nothing;
 

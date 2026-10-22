@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { deleteFloorplan3d, renameFloorplan3d, saveFloorplan3d } from "@/actions/floorplans3d";
+import { deleteFloorplan3d, renameFloorplan3d, saveFloorplan3d, saveFloorplanPreview } from "@/actions/floorplans3d";
 import { BackButton } from "@/components/BackButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import {
 import type { MaterialModel } from "@/types/materialModel";
 import { type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldOverview, ConeFieldPanel } from "@/components/canvas-3d/ConeFieldPanel";
+import { FloorplanThumbnailCapture } from "@/components/canvas-3d/FloorplanThumbnailCapture";
 import { GymEnvironmentPanel } from "@/components/canvas-3d/GymEnvironmentPanel";
 import {
   clampFieldToRoom,
@@ -74,6 +75,8 @@ import { resolvePlacement, type SnapGuide } from "@/components/canvas-3d/resolve
 import { useFloorplan3dHistory, type Floorplan3dSnapshot } from "@/components/canvas-3d/useFloorplan3dHistory";
 
 const AUTOSAVE_DEBOUNCE_MS = 2000;
+/** Thumbnail pas een tijdje NA de laatste geslaagde save: zo renderen we niet bij elke tik. */
+const THUMBNAIL_DELAY_MS = 4000;
 
 function createItemId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -151,6 +154,15 @@ export function Floorplan3dEditor({
   } | null>(null);
   const fieldEditRef = useRef<{ key: string; at: number } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tijdelijke offscreen render voor de statische preview (zie FloorplanThumbnailCapture).
+  const [thumbnailJob, setThumbnailJob] = useState<{
+    floorplanId: string;
+    room: Floorplan3dRoom;
+    items: Floorplan3dItem[];
+    coneFields: ConeField[];
+  } | null>(null);
+  const thumbnailFloorplanIdRef = useRef<string | null>(null);
   const floorplanIdRef = useRef(floorplanId);
   useEffect(() => {
     floorplanIdRef.current = floorplanId;
@@ -177,6 +189,26 @@ export function Floorplan3dEditor({
     latestStateRef.current = { room, items, coneFields, naam: floorplanName };
   }, [room, items, coneFields, floorplanName]);
 
+  const scheduleThumbnail = useCallback(() => {
+    if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
+    thumbnailTimerRef.current = setTimeout(() => {
+      thumbnailTimerRef.current = null;
+      const id = floorplanIdRef.current;
+      const { room: currentRoom, items: currentItems, coneFields: currentFields } = latestStateRef.current;
+      // Een lege plattegrond heeft geen preview nodig (de activiteitpagina toont hem niet).
+      if (!id || (currentItems.length === 0 && currentFields.length === 0)) return;
+      thumbnailFloorplanIdRef.current = id;
+      setThumbnailJob({ floorplanId: id, room: currentRoom, items: currentItems, coneFields: currentFields });
+    }, THUMBNAIL_DELAY_MS);
+  }, []);
+
+  const handleThumbnailCaptured = useCallback((dataUrl: string) => {
+    const id = thumbnailFloorplanIdRef.current;
+    setThumbnailJob(null);
+    // Best-effort: een mislukte preview mag het werken in de editor nooit storen.
+    if (id) void saveFloorplanPreview(id, dataUrl).catch(() => undefined);
+  }, []);
+
   const performSave = useCallback(async () => {
     setSaveStatus("saving");
     const { room: currentRoom, items: currentItems, coneFields: currentFields, naam } = latestStateRef.current;
@@ -198,7 +230,8 @@ export function Floorplan3dEditor({
       floorplanIdRef.current = result.id;
     }
     setSaveStatus("saved");
-  }, [activiteitId]);
+    scheduleThumbnail();
+  }, [activiteitId, scheduleThumbnail]);
 
   const scheduleAutosave = useCallback(() => {
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
@@ -211,6 +244,7 @@ export function Floorplan3dEditor({
   useEffect(() => {
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
     };
   }, []);
 
@@ -999,6 +1033,16 @@ export function Floorplan3dEditor({
           </Tabs>
         </aside>
       </div>
+
+      {thumbnailJob && (
+        <FloorplanThumbnailCapture
+          room={thumbnailJob.room}
+          items={thumbnailJob.items}
+          fields={thumbnailJob.coneFields}
+          models={models}
+          onCapture={handleThumbnailCaptured}
+        />
+      )}
 
       <Sheet open={mobilePanel !== null} onOpenChange={(open) => !open && setMobilePanel(null)}>
         <SheetContent side="bottom" className="h-[70vh] overflow-y-auto">

@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { isFloorplanPreviewUrl } from "@/lib/floorplanPreview";
 import { getMaterialModelsBySlugs } from "@/lib/services/materialModels";
 import type { MaterialModel } from "@/types/materialModel";
 import {
@@ -182,7 +183,7 @@ const MAX_PREVIEW_BYTES = 600 * 1024;
 /**
  * Slaat de thumbnail ("statische preview") van een plattegrond op — door de
  * editor gerenderd (components/canvas-3d/FloorplanThumbnailCapture.tsx) en
- * hier als data-URL aangeleverd. Pad `${user_id}/${floorplan_id}.webp`
+ * hier als data-URL aangeleverd. Pad `${user_id}/${floorplan_id}.jpg`
  * (upsert), zie supabase/migrations/floorplans_3d_activity_view.sql.
  * Best-effort: een mislukte upload mag het opslaan zelf nooit blokkeren.
  */
@@ -190,7 +191,7 @@ export async function saveFloorplanPreview(
   floorplanId: string,
   dataUrl: string,
 ): Promise<{ error: string } | { success: true }> {
-  const match = /^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!match) return { error: "Ongeldige preview." };
 
   const bytes = Buffer.from(match[1], "base64");
@@ -201,7 +202,7 @@ export async function saveFloorplanPreview(
 
   const { data: owned } = await supabase
     .from("floorplans_3d")
-    .select("id")
+    .select("id, activiteit_id")
     .eq("id", floorplanId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -209,10 +210,31 @@ export async function saveFloorplanPreview(
 
   const { error } = await supabase.storage
     .from(PREVIEW_BUCKET)
-    .upload(`${user.id}/${floorplanId}.webp`, bytes, { contentType: "image/webp", upsert: true });
+    .upload(`${user.id}/${floorplanId}.jpg`, bytes, { contentType: "image/jpeg", upsert: true });
   if (error) {
     logFloorplan3dError("preview", error);
     return { error: GENERIC_ERROR };
+  }
+
+  // Heeft de gekoppelde (eigen) activiteit nog geen afbeelding, dan wordt de
+  // thumbnail ook de kaartafbeelding / OG-afbeelding van de activiteit
+  // (activiteiten.afbeelding). Een eigen (2D-)afbeelding wordt NOOIT
+  // overschreven; alleen een eerdere thumbnail wordt ververst.
+  if (owned.activiteit_id) {
+    const { data: activity } = await supabase
+      .from("activiteiten")
+      .select("afbeelding")
+      .eq("id", owned.activiteit_id)
+      .eq("author_id", user.id)
+      .maybeSingle();
+    if (activity && (!activity.afbeelding || isFloorplanPreviewUrl(activity.afbeelding))) {
+      const { publicUrl } = supabase.storage.from(PREVIEW_BUCKET).getPublicUrl(`${user.id}/${floorplanId}.jpg`).data;
+      await supabase
+        .from("activiteiten")
+        .update({ afbeelding: `${publicUrl}?v=${Date.now()}` })
+        .eq("id", owned.activiteit_id)
+        .eq("author_id", user.id);
+    }
   }
   return { success: true };
 }

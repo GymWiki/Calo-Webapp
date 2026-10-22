@@ -13,7 +13,7 @@ export type ActivityFloorplan = {
 };
 
 export function floorplanPreviewUrl(supabase: SupabaseClient, ownerId: string, floorplanId: string, updatedAt: string): string {
-  const { publicUrl } = supabase.storage.from(PREVIEW_BUCKET).getPublicUrl(`${ownerId}/${floorplanId}.webp`).data;
+  const { publicUrl } = supabase.storage.from(PREVIEW_BUCKET).getPublicUrl(`${ownerId}/${floorplanId}.jpg`).data;
   return `${publicUrl}?v=${Date.parse(updatedAt) || 0}`;
 }
 

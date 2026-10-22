@@ -26,6 +26,7 @@ import { LEERHULP_COLORS } from "@/lib/constants/leerhulpColors";
 import { splitLearningOutcomeItems } from "@/lib/format";
 import { parseActivityDescription, splitIntoSteps } from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
+import { isFloorplanPreviewUrl } from "@/lib/floorplanPreview";
 import { getFloorplanForActivity } from "@/lib/services/floorplans3d";
 import { getActivityById, isActivityLiked, isActivitySaved } from "@/lib/services/activities";
 import { getContributionStatus } from "@/lib/services/contribution";
@@ -541,24 +542,28 @@ export default async function ActiviteitDetailPage({
 
           {plattegrondSlot}
 
-          <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <span
-                  className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
-                  aria-hidden="true"
+          {/* De automatische 3D-thumbnail is er alleen voor kaarten/OG; de
+              interactieve viewer hierboven laat hetzelfde al zien. */}
+          {!(isFloorplanPreviewUrl(activity.afbeelding) && hasFloorplanContent(floorplan)) && (
+            <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <span
+                    className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
+                    aria-hidden="true"
+                  />
+                  Arrangement
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ActivityImageLightbox
+                  src={activity.afbeelding}
+                  alt={activity.titel}
+                  emptyLabel="Geen arrangement-afbeelding beschikbaar."
                 />
-                Arrangement
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ActivityImageLightbox
-                src={activity.afbeelding}
-                alt={activity.titel}
-                emptyLabel="Geen arrangement-afbeelding beschikbaar."
-              />
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
             <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">

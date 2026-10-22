@@ -35,7 +35,7 @@ function applyPose(camera: THREE.OrthographicCamera, pose: CameraPose, distance:
  * alleen-lezen en bewust beperkt (zie viewer-camera.ts); de besturing
  * (slepen/knoppen/toetsen) leeft in de DOM-shell eromheen, deze rig volgt
  * alleen de stand `view` en animeert daar naartoe. */
-function ViewerCameraRig({
+export function ViewerCameraRig({
   room,
   view,
   instant,
