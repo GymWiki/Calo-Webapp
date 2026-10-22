@@ -78,3 +78,4 @@ fastlane/*.log
 # Claude Code lokale/persoonlijke overrides (bv. MCP-server-approvals) — niet
 # team-breed, nooit in de repo.
 .claude/settings.local.json
+/omgeving-import/

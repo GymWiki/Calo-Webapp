@@ -35,10 +35,19 @@ import {
 } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 import { type CameraMode } from "@/components/canvas-3d/CameraRig";
+import { GymEnvironmentPanel } from "@/components/canvas-3d/GymEnvironmentPanel";
+import {
+  createGymEnvironment,
+  DEFAULT_GYM_LAYOUT,
+  GYM_LAYOUTS,
+  roomForGymLayout,
+  type GymLayoutId,
+} from "@/components/canvas-3d/environments";
 import { MaterialModelPicker3D } from "@/components/canvas-3d/MaterialModelPicker3D";
 import { MyFloorplans3dList } from "@/components/canvas-3d/MyFloorplans3dList";
 import { Scene3D } from "@/components/canvas-3d/Scene3D";
 import {
+  clampItemsToRoom,
   dimsLookupFromModels,
   findItemsResting,
   findNearestFreeSpot,
@@ -283,6 +292,40 @@ export function Floorplan3dEditor({
   }
 
   // ---------------------------------------------------------------------
+  // Ruimte: lege ruimte of gymzaal (indeling, muren, gordijnen, extra's).
+  // ---------------------------------------------------------------------
+  function applyGymLayout(layoutId: GymLayoutId) {
+    pushHistory();
+    const layout = GYM_LAYOUTS[layoutId];
+    const nextRoom: Floorplan3dRoom = { ...roomForGymLayout(layout), environment: createGymEnvironment(layoutId) };
+    const fitted = clampItemsToRoom(items, nextRoom, lookup);
+    setRoom(nextRoom);
+    setItems(fitted.items);
+    if (fitted.moved > 0) {
+      toast.info(`${fitted.moved} ${fitted.moved === 1 ? "item" : "items"} verplaatst om in de nieuwe zaal te passen.`);
+    }
+    scheduleAutosave();
+  }
+
+  function changeRoomKind(kind: "leeg" | "gymzaal") {
+    if (kind === "gymzaal") {
+      if (!room.environment) applyGymLayout(DEFAULT_GYM_LAYOUT);
+      return;
+    }
+    if (!room.environment) return;
+    pushHistory();
+    setRoom({ width_m: room.width_m, length_m: room.length_m });
+    scheduleAutosave();
+  }
+
+  function setEnvironmentHidden(hidden: string[]) {
+    if (!room.environment) return;
+    pushHistory();
+    setRoom({ ...room, environment: { ...room.environment, hidden } });
+    scheduleAutosave();
+  }
+
+  // ---------------------------------------------------------------------
   // Draaien / verwijderen / dupliceren — Stap 4.4 + 4.8.
   // ---------------------------------------------------------------------
   function rotateSelected(deltaDeg: number) {
@@ -466,37 +509,67 @@ export function Floorplan3dEditor({
   );
 
   const roomPanel = (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <label className="space-y-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Breedte (m)
-          <Input
-            type="number"
-            min={1}
-            step={0.5}
-            value={room.width_m}
-            onChange={(event) => {
-              pushHistory();
-              setRoom((prev) => ({ ...prev, width_m: Number(event.target.value) || prev.width_m }));
-              scheduleAutosave();
-            }}
-          />
-        </label>
-        <label className="space-y-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Lengte (m)
-          <Input
-            type="number"
-            min={1}
-            step={0.5}
-            value={room.length_m}
-            onChange={(event) => {
-              pushHistory();
-              setRoom((prev) => ({ ...prev, length_m: Number(event.target.value) || prev.length_m }));
-              scheduleAutosave();
-            }}
-          />
-        </label>
+    <div className="space-y-5">
+      <div>
+        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Soort ruimte</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          <Button
+            type="button"
+            variant={room.environment ? "outline" : "default"}
+            aria-pressed={!room.environment}
+            onClick={() => changeRoomKind("leeg")}
+          >
+            Lege ruimte
+          </Button>
+          <Button
+            type="button"
+            variant={room.environment ? "default" : "outline"}
+            aria-pressed={!!room.environment}
+            onClick={() => changeRoomKind("gymzaal")}
+          >
+            Gymzaal
+          </Button>
+        </div>
       </div>
+
+      {room.environment ? (
+        <GymEnvironmentPanel
+          environment={room.environment}
+          onLayoutChange={applyGymLayout}
+          onHiddenChange={setEnvironmentHidden}
+        />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <label className="space-y-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Breedte (m)
+            <Input
+              type="number"
+              min={1}
+              step={0.5}
+              value={room.width_m}
+              onChange={(event) => {
+                pushHistory();
+                setRoom((prev) => ({ ...prev, width_m: Number(event.target.value) || prev.width_m }));
+                scheduleAutosave();
+              }}
+            />
+          </label>
+          <label className="space-y-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Lengte (m)
+            <Input
+              type="number"
+              min={1}
+              step={0.5}
+              value={room.length_m}
+              onChange={(event) => {
+                pushHistory();
+                setRoom((prev) => ({ ...prev, length_m: Number(event.target.value) || prev.length_m }));
+                scheduleAutosave();
+              }}
+            />
+          </label>
+        </div>
+      )}
 
       <div>
         <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Raster</p>

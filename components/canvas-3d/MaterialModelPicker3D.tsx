@@ -17,38 +17,31 @@ function categoryLabel(categorie: string): string {
   return categorie.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
+/** Preview-vlak: de PNG's hebben een transparante achtergrond, dus altijd op
+ * een vaste lichte ondergrond (ook in dark mode) zodat donkere materialen
+ * zichtbaar blijven. `object-contain` + padding: nooit bijsnijden. */
 function ModelPreview({ model }: { model: MaterialModel }) {
   const [failed, setFailed] = useState(false);
 
-  if (model.devColor) {
-    return (
-      <div
-        className="size-10 shrink-0 rounded-md border"
-        style={{ backgroundColor: model.devColor }}
-        aria-hidden="true"
-      />
-    );
-  }
-
-  if (!model.preview_url || failed) {
-    return (
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Box className="size-5" aria-hidden="true" />
-      </div>
-    );
-  }
-
   return (
-    <div className="relative size-10 shrink-0 overflow-hidden rounded-md border bg-background">
-      <Image
-        src={model.preview_url}
-        alt=""
-        fill
-        sizes="40px"
-        className="object-contain"
-        onError={() => setFailed(true)}
-        unoptimized
-      />
+    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md bg-slate-50 ring-1 ring-black/5">
+      {model.devColor ? (
+        <div className="absolute inset-4 rounded-md" style={{ backgroundColor: model.devColor }} aria-hidden="true" />
+      ) : !model.preview_url || failed ? (
+        <div className="flex size-full items-center justify-center text-slate-400">
+          <Box className="size-8" aria-hidden="true" />
+        </div>
+      ) : (
+        <Image
+          src={model.preview_url}
+          alt=""
+          fill
+          sizes="(min-width: 1024px) 128px, 33vw"
+          className="object-contain p-1.5"
+          onError={() => setFailed(true)}
+          unoptimized
+        />
+      )}
     </div>
   );
 }
@@ -58,17 +51,20 @@ function ModelButton({ model, onSelect }: { model: MaterialModel; onSelect: (mod
     <button
       type="button"
       onClick={() => onSelect(model)}
-      className="flex min-h-16 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg border bg-background p-2 text-center transition-colors duration-150 ease-brand hover:bg-accent active:scale-95"
+      title={model.naam}
+      className="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-background p-1.5 text-left transition-colors duration-150 ease-brand hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95"
     >
       <ModelPreview model={model} />
-      <span className="w-full leading-tight font-medium text-[11px] break-words">{model.naam}</span>
+      <span className="line-clamp-2 min-h-[2.2em] w-full px-0.5 text-xs leading-tight font-medium break-words">
+        {model.naam}
+      </span>
     </button>
   );
 }
 
 function ModelGrid({ models, onSelect }: { models: MaterialModel[]; onSelect: (model: MaterialModel) => void }) {
   return (
-    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 min-[520px]:grid-cols-3 lg:grid-cols-2">
       {models.map((model) => (
         <ModelButton key={model.id} model={model} onSelect={onSelect} />
       ))}

@@ -2,10 +2,12 @@
 
 import * as THREE from "three";
 import { Line } from "@react-three/drei";
+import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import { CameraRig, type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
+import { GymEnvironment } from "@/components/canvas-3d/GymEnvironment";
 import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
 import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
@@ -104,7 +106,14 @@ export function Scene3D({
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
       <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} />
-      <RoomFloor room={room} />
+      {room.environment ? (
+        // Tijdens het laden van de GLB staat de gewone vloer er al; geen leeg scherm.
+        <Suspense fallback={<RoomFloor room={room} />}>
+          <GymEnvironment environment={room.environment} />
+        </Suspense>
+      ) : (
+        <RoomFloor room={room} />
+      )}
 
       {/* Onzichtbaar sleepvlak — ruim boven kamerformaat zodat de
           raycast tijdens het slepen vrijwel altijd raak is, ook als de

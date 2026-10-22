@@ -298,3 +298,28 @@ export function recomputeStackedYs(items: Floorplan3dItem[], lookup: DimsLookup)
   const yById = new Map(placed.map((item) => [item.id, item.y]));
   return items.map((item) => ({ ...item, y: yById.get(item.id) ?? 0 }));
 }
+
+/**
+ * Schuift items die (deels) buiten een nieuwe ruimte vallen terug naar binnen
+ * — nodig bij het wisselen van zaalindeling. Stapelhoogtes worden daarna
+ * opnieuw berekend. `moved` is het aantal verplaatste items.
+ */
+export function clampItemsToRoom(
+  items: Floorplan3dItem[],
+  room: Floorplan3dRoom,
+  lookup: DimsLookup,
+): { items: Floorplan3dItem[]; moved: number } {
+  let moved = 0;
+  const clamped = items.map((item) => {
+    const dims = dimsOf(item, lookup);
+    const aabb = footprintAabb(0, 0, dims.length_m, dims.width_m, item.rot_y_deg);
+    const halfX = (aabb.maxX - aabb.minX) / 2;
+    const halfZ = (aabb.maxZ - aabb.minZ) / 2;
+    const x = Math.min(Math.max(item.x, -room.width_m / 2 + halfX), room.width_m / 2 - halfX);
+    const z = Math.min(Math.max(item.z, -room.length_m / 2 + halfZ), room.length_m / 2 - halfZ);
+    if (Math.abs(x - item.x) < EPS_M && Math.abs(z - item.z) < EPS_M) return item;
+    moved += 1;
+    return { ...item, x, z };
+  });
+  return { items: moved > 0 ? recomputeStackedYs(clamped, lookup) : clamped, moved };
+}

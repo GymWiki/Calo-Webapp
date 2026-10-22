@@ -17,9 +17,21 @@ export const floorplan3dItemSchema = z.object({
 });
 export type Floorplan3dItem = z.infer<typeof floorplan3dItemSchema>;
 
+// Optionele "omgeving" van de ruimte (nu: de gymzaal-GLB's). `hidden` zijn
+// de namen van GLB-nodes die uit staan (muren, gordijnen, lijnen...) —
+// zie components/canvas-3d/environments.ts voor de bekende namen per
+// indeling. Ontbreekt `environment`, dan is het een gewone lege ruimte.
+export const floorplan3dEnvironmentSchema = z.object({
+  type: z.literal("gymzaal"),
+  layout: z.enum(["standaard", "2x2", "4x1"]),
+  hidden: z.array(z.string()).default([]),
+});
+export type Floorplan3dEnvironment = z.infer<typeof floorplan3dEnvironmentSchema>;
+
 export const floorplan3dRoomSchema = z.object({
   width_m: z.number().positive(),
   length_m: z.number().positive(),
+  environment: floorplan3dEnvironmentSchema.optional(),
 });
 export type Floorplan3dRoom = z.infer<typeof floorplan3dRoomSchema>;
 
