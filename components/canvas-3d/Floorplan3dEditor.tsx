@@ -27,7 +27,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
-  DEFAULT_ROOM,
   type Floorplan3dData,
   type Floorplan3dItem,
   type Floorplan3dRoom,
@@ -70,6 +69,12 @@ function createItemId(): string {
 
 type MobilePanel = "materiaal" | "item" | "kamer" | "lijst" | null;
 
+// Nieuwe plattegronden starten in de gymzaal; DEFAULT_ROOM blijft de lege ruimte.
+const NEW_ROOM: Floorplan3dRoom = {
+  ...roomForGymLayout(GYM_LAYOUTS[DEFAULT_GYM_LAYOUT]),
+  environment: createGymEnvironment(DEFAULT_GYM_LAYOUT),
+};
+
 export function Floorplan3dEditor({
   models,
   initialFloorplans,
@@ -90,7 +95,7 @@ export function Floorplan3dEditor({
     [models],
   );
 
-  const [room, setRoom] = useState<Floorplan3dRoom>(initialFloorplan?.data.room ?? DEFAULT_ROOM);
+  const [room, setRoom] = useState<Floorplan3dRoom>(initialFloorplan?.data.room ?? NEW_ROOM);
   const [items, setItems] = useState<Floorplan3dItem[]>(() =>
     initialFloorplan ? recomputeStackedYs(initialFloorplan.data.items, lookup) : [],
   );
@@ -99,6 +104,7 @@ export function Floorplan3dEditor({
   const [floorplans, setFloorplans] = useState<Floorplan3dSummary[]>(initialFloorplans);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sideTab, setSideTab] = useState<"item" | "omgeving">("omgeving");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("angled");
   const [debugGuides, setDebugGuides] = useState<SnapGuide[]>([]);
@@ -204,6 +210,7 @@ export function Floorplan3dEditor({
   // ---------------------------------------------------------------------
   function handleSelect(id: string) {
     setSelectedId(id);
+    setSideTab("item");
   }
 
   function handleBackgroundClick() {
@@ -436,7 +443,7 @@ export function Floorplan3dEditor({
   // ---------------------------------------------------------------------
   function startNewFloorplan() {
     pushHistory();
-    setRoom(DEFAULT_ROOM);
+    setRoom(NEW_ROOM);
     setItems([]);
     setFloorplanId(null);
     setFloorplanName("Nieuwe plattegrond");
@@ -511,16 +518,8 @@ export function Floorplan3dEditor({
   const roomPanel = (
     <div className="space-y-5">
       <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Soort ruimte</p>
+        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Omgeving</p>
         <div className="grid grid-cols-2 gap-1.5">
-          <Button
-            type="button"
-            variant={room.environment ? "outline" : "default"}
-            aria-pressed={!room.environment}
-            onClick={() => changeRoomKind("leeg")}
-          >
-            Lege ruimte
-          </Button>
           <Button
             type="button"
             variant={room.environment ? "default" : "outline"}
@@ -529,6 +528,19 @@ export function Floorplan3dEditor({
           >
             Gymzaal
           </Button>
+          <Button
+            type="button"
+            variant={room.environment ? "outline" : "default"}
+            aria-pressed={!room.environment}
+            onClick={() => changeRoomKind("leeg")}
+          >
+            Lege ruimte
+          </Button>
+          {["Sportveld", "Atletiekbaan", "Zwembad"].map((label) => (
+            <Button key={label} type="button" variant="outline" disabled title="Komt binnenkort">
+              {label}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -668,21 +680,21 @@ export function Floorplan3dEditor({
               Item
             </Button>
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setMobilePanel("kamer")}>
-              Kamer
+              Omgeving
             </Button>
           </div>
         </div>
 
         <aside className="hidden w-80 shrink-0 overflow-y-auto border-l bg-card p-3 lg:block">
-          <Tabs defaultValue="item">
+          <Tabs value={sideTab} onValueChange={(value) => setSideTab(value as "item" | "omgeving")}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="item">Item</TabsTrigger>
-              <TabsTrigger value="kamer">Kamer</TabsTrigger>
+              <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
             </TabsList>
             <TabsContent value="item" className="pt-3">
               {itemPanel}
             </TabsContent>
-            <TabsContent value="kamer" className="pt-3">
+            <TabsContent value="omgeving" className="pt-3">
               {roomPanel}
             </TabsContent>
           </Tabs>
@@ -695,7 +707,7 @@ export function Floorplan3dEditor({
             <SheetTitle>
               {mobilePanel === "materiaal" && "Materiaal"}
               {mobilePanel === "item" && "Item"}
-              {mobilePanel === "kamer" && "Kamer"}
+              {mobilePanel === "kamer" && "Omgeving"}
               {mobilePanel === "lijst" && "Mijn 3D-plattegronden"}
             </SheetTitle>
           </SheetHeader>
