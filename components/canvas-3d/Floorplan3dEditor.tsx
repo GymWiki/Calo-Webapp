@@ -137,6 +137,7 @@ export function Floorplan3dEditor({
   const dragStartSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
   const dragStartItemRef = useRef<Floorplan3dItem | null>(null);
   const dragRestingIdsRef = useRef<Set<string>>(new Set());
+  const sidePanelRef = useRef<HTMLElement>(null);
   const fieldDragRef = useRef<{
     kind: "move" | "resize";
     id: string;
@@ -154,6 +155,11 @@ export function Floorplan3dEditor({
 
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
   const selectedField = coneFields.find((field) => field.id === selectedId) ?? null;
+
+  // Het (hoge) velden-paneel begint bovenaan als je een ander item/veld kiest.
+  useEffect(() => {
+    sidePanelRef.current?.scrollTo({ top: 0 });
+  }, [selectedId, sideTab]);
 
   // ---------------------------------------------------------------------
   // Opslaan (automatisch, gedebounced 2s, en de expliciete knop) — zie
@@ -974,7 +980,7 @@ export function Floorplan3dEditor({
           </div>
         </div>
 
-        <aside className="hidden w-80 shrink-0 overflow-y-auto border-l bg-card p-3 lg:block">
+        <aside ref={sidePanelRef} className="hidden w-80 shrink-0 overflow-y-auto border-l bg-card p-3 lg:block">
           <Tabs value={sideTab} onValueChange={(value) => setSideTab(value as "item" | "omgeving")}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="item">Item</TabsTrigger>

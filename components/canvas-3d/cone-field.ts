@@ -353,10 +353,10 @@ export const CONE_MARKER_LABELS: Record<ConeMarkerType, string> = {
 
 /** Afmetingen van het (procedurele) model per markeertype, in meters. */
 export const CONE_MARKER_DIMS: Record<ConeMarkerType, { height: number; radius: number }> = {
-  pion: { height: 0.3, radius: 0.09 },
-  pion_hoog: { height: 0.5, radius: 0.1 },
-  pion_laag: { height: 0.15, radius: 0.07 },
-  dopje: { height: 0.025, radius: 0.1 },
+  pion: { height: 0.3, radius: 0.115 },
+  pion_hoog: { height: 0.5, radius: 0.13 },
+  pion_laag: { height: 0.15, radius: 0.09 },
+  dopje: { height: 0.03, radius: 0.1 },
 };
 
 export function colorName(hex: string): string {
@@ -460,7 +460,7 @@ export function fieldLabel(field: ConeField): string {
  * totaal aantal en het werkelijke interval per zijde. */
 export function fieldTooltipLines(field: ConeField): string[] {
   const summary = summarizeConeField(field);
-  const noun = field.marker === "dopje" ? "dopjes" : "pionnen";
+  const noun = field.marker === "dopje" ? (summary.total === 1 ? "dopje" : "dopjes") : summary.total === 1 ? "pion" : "pionnen";
   const [bSide, lSide] = summary.sides;
   const sideText = (side: ConeSideInfo) =>
     field.distribution === "exact" && Math.abs(side.lastInterval - side.interval) > 0.005
