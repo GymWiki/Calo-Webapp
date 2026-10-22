@@ -215,6 +215,7 @@ export function ActivityWizardPage({
   onRuleMaterialsChange,
   diagramData,
   diagramImageUrl,
+  plattegrond3d,
   onDiagramExport,
   referenceImageUrl,
 
@@ -337,6 +338,8 @@ export function ActivityWizardPage({
    * getoond. */
   diagramData?: DiagramData | null;
   diagramImageUrl: string | null;
+  /** Alleen mode="view": 3D-plattegrond-sectie (server component) bovenaan, vóór de 2D-plattegrondkaart. */
+  plattegrond3d?: React.ReactNode;
   onDiagramExport?: (data: DiagramData, imageDataUrl: string) => void;
   /** Uit een geüpload document gehaald beeld ("Activiteit uit document",
    * ImportImageReviewBanner) — getoond als semi-transparante natekenreferentie
@@ -855,6 +858,8 @@ export function ActivityWizardPage({
         </Card>
       )}
 
+      {!isEdit && plattegrond3d}
+
       {/* Plattegrond — vaste kaart, zelfde positie in beide modi: in
           mode="view" de geëxporteerde afbeelding, in mode="edit" de
           canvas-tekenaar zelf. De "3D (beta)"-link hieronder is de ENIGE
@@ -873,7 +878,7 @@ export function ActivityWizardPage({
               Plattegrond
             </span>
             <Button asChild variant="outline" size="sm" className="print:hidden">
-              <Link href="/plattegrond-3d">
+              <Link href={activity?.id && isOwnActivity ? `/plattegrond-3d?activiteit=${encodeURIComponent(activity.id)}` : "/plattegrond-3d"}>
                 <Box className="size-4" />
                 3D (beta)
               </Link>

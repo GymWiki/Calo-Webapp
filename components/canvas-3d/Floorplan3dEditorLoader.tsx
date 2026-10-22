@@ -27,6 +27,8 @@ export function Floorplan3dEditorLoader(props: {
   models: MaterialModel[];
   initialFloorplans: Floorplan3dSummary[];
   initialFloorplan: { id: string; naam: string; data: Floorplan3dData } | null;
+  /** Nieuwe plattegrond direct aan deze activiteit koppelen (?activiteit=<id>). */
+  activiteitId?: string;
   debug?: boolean;
 }) {
   return <Floorplan3dEditor {...props} />;

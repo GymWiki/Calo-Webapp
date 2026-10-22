@@ -18,10 +18,13 @@ export function CameraRig({
   mode,
   room,
   controlsEnabled,
+  drawMode = false,
 }: {
   mode: CameraMode;
   room: Floorplan3dRoom;
   controlsEnabled: boolean;
+  /** "Veld afzetten": slepen op de vloer is tekenen — dus geen draaien/pannen met één vinger of muisknop; zoomen blijft. */
+  drawMode?: boolean;
 }) {
   const span = Math.max(room.width_m, room.length_m);
   const orthoZoom = 380 / span;
@@ -48,8 +51,8 @@ export function CameraRig({
       <OrbitControls
         makeDefault
         enabled={controlsEnabled}
-        enableRotate={mode === "free"}
-        enablePan
+        enableRotate={mode === "free" && !drawMode}
+        enablePan={!drawMode}
         enableZoom
         target={[0, 0, 0]}
       />

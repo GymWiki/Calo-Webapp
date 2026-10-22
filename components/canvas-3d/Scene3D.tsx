@@ -2,14 +2,12 @@
 
 import * as THREE from "three";
 import { Line } from "@react-three/drei";
-import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import { CameraRig, type CameraMode } from "@/components/canvas-3d/CameraRig";
-import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
-import { GymEnvironment } from "@/components/canvas-3d/GymEnvironment";
-import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
-import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
+import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
+import { FloorplanContent } from "@/components/canvas-3d/FloorplanContent";
+import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 import { dimsOf, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 import type { SnapGuide } from "@/components/canvas-3d/resolvePlacement";
@@ -78,6 +76,12 @@ export function Scene3D({
   isDragging,
   cameraMode,
   onItemPointerDown,
+  fields,
+  draftField,
+  drawMode,
+  onFieldPointerDown,
+  onFieldHandlePointerDown,
+  onFloorPointerDown,
   onFloorPointerMove,
   onFloorPointerUp,
   onSelect,
@@ -93,6 +97,14 @@ export function Scene3D({
   isDragging: boolean;
   cameraMode: CameraMode;
   onItemPointerDown: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  fields: ConeField[];
+  /** Veld dat op dit moment getekend wordt (live preview). */
+  draftField: ConeField | null;
+  /** "Veld afzetten" actief: items en velden vangen dan geen klikken. */
+  drawMode: boolean;
+  onFieldPointerDown: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  onFieldHandlePointerDown: (id: string, cornerIndex: number, event: ThreeEvent<PointerEvent>) => void;
+  onFloorPointerDown: (event: ThreeEvent<PointerEvent>) => void;
   onFloorPointerMove: (event: ThreeEvent<PointerEvent>) => void;
   onFloorPointerUp: (event: ThreeEvent<PointerEvent>) => void;
   onSelect: (id: string) => void;
@@ -105,38 +117,33 @@ export function Scene3D({
     <Canvas frameloop="demand" dpr={[1, 2]} onPointerMissed={onBackgroundClick}>
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
-      <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} />
-      {room.environment ? (
-        // Tijdens het laden van de GLB staat de gewone vloer er al; geen leeg scherm.
-        <Suspense fallback={<RoomFloor room={room} />}>
-          <GymEnvironment environment={room.environment} />
-        </Suspense>
-      ) : (
-        <RoomFloor room={room} />
-      )}
-
+      <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} drawMode={drawMode} />
       {/* Onzichtbaar sleepvlak — ruim boven kamerformaat zodat de
           raycast tijdens het slepen vrijwel altijd raak is, ook als de
           cursor net buiten de kamer komt. */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         visible={false}
+        onPointerDown={onFloorPointerDown}
         onPointerMove={onFloorPointerMove}
         onPointerUp={onFloorPointerUp}
       >
         <planeGeometry args={[room.width_m * 3, room.length_m * 3]} />
       </mesh>
 
-      {items.map((item) => (
-        <ItemMesh
-          key={item.id}
-          item={item}
-          model={modelBySlug(item.slug)}
-          selected={item.id === selectedId}
-          onPointerDownItem={onItemPointerDown}
-          onSelect={onSelect}
-        />
-      ))}
+      <FloorplanContent
+        room={room}
+        items={items}
+        fields={fields}
+        modelBySlug={modelBySlug}
+        selectedId={selectedId}
+        interactive={!drawMode}
+        onItemPointerDown={onItemPointerDown}
+        onSelect={onSelect}
+        onFieldPointerDown={onFieldPointerDown}
+        onFieldHandlePointerDown={onFieldHandlePointerDown}
+      />
+      {draftField && <ConeFieldMesh field={draftField} preview interactive={false} />}
       {debug && <DebugOverlay items={items} lookup={lookup} guides={debugGuides} draggingId={isDragging ? selectedId : null} />}
     </Canvas>
   );
