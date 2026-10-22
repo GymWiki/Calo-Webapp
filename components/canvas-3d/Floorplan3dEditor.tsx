@@ -27,6 +27,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
+  type ConeField,
   type Floorplan3dData,
   type Floorplan3dItem,
   type Floorplan3dRoom,
@@ -99,6 +100,8 @@ export function Floorplan3dEditor({
   const [items, setItems] = useState<Floorplan3dItem[]>(() =>
     initialFloorplan ? recomputeStackedYs(initialFloorplan.data.items, lookup) : [],
   );
+  // Oudere plattegronden hebben geen `coneFields` (de server geeft de jsonb ongeparsed terug).
+  const [coneFields, setConeFields] = useState<ConeField[]>(initialFloorplan?.data.coneFields ?? []);
   const [floorplanId, setFloorplanId] = useState<string | null>(initialFloorplan?.id ?? null);
   const [floorplanName, setFloorplanName] = useState(initialFloorplan?.naam ?? "Nieuwe plattegrond");
   const [floorplans, setFloorplans] = useState<Floorplan3dSummary[]>(initialFloorplans);
@@ -132,18 +135,18 @@ export function Floorplan3dEditor({
   // bijgewerkt (niet inline tijdens render) — react-hooks/refs staat geen
   // ref-mutatie tijdens render toe.
   // ---------------------------------------------------------------------
-  const latestStateRef = useRef({ room, items, naam: floorplanName });
+  const latestStateRef = useRef({ room, items, coneFields, naam: floorplanName });
   useEffect(() => {
-    latestStateRef.current = { room, items, naam: floorplanName };
-  }, [room, items, floorplanName]);
+    latestStateRef.current = { room, items, coneFields, naam: floorplanName };
+  }, [room, items, coneFields, floorplanName]);
 
   const performSave = useCallback(async () => {
     setSaveStatus("saving");
-    const { room: currentRoom, items: currentItems, naam } = latestStateRef.current;
+    const { room: currentRoom, items: currentItems, coneFields: currentFields, naam } = latestStateRef.current;
     const result = await saveFloorplan3d({
       id: floorplanIdRef.current ?? undefined,
       naam,
-      data: { version: 1, room: currentRoom, items: currentItems },
+      data: { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields },
     });
 
     if ("error" in result) {
@@ -182,7 +185,7 @@ export function Floorplan3dEditor({
   }
 
   function pushHistory() {
-    history.push({ room, items });
+    history.push({ room, items, coneFields });
   }
 
   // ---------------------------------------------------------------------
@@ -219,7 +222,7 @@ export function Floorplan3dEditor({
   }
 
   function handleItemPointerDown(id: string) {
-    dragStartSnapshotRef.current = { room, items };
+    dragStartSnapshotRef.current = { room, items, coneFields };
     dragStartItemRef.current = items.find((item) => item.id === id) ?? null;
     // Items die op het gesleepte item rusten reizen mee: ze tellen niet als
     // "andere" items, anders stapelt het onderste item op zijn eigen stapel
@@ -387,19 +390,23 @@ export function Floorplan3dEditor({
   function applyHistorySnapshot(snapshot: Floorplan3dSnapshot) {
     setRoom(snapshot.room);
     setItems(snapshot.items);
-    if (!snapshot.items.some((item) => item.id === selectedId)) {
+    setConeFields(snapshot.coneFields);
+    if (
+      !snapshot.items.some((item) => item.id === selectedId) &&
+      !snapshot.coneFields.some((field) => field.id === selectedId)
+    ) {
       setSelectedId(null);
     }
     scheduleAutosave();
   }
 
   function handleUndo() {
-    const previous = history.undo({ room, items });
+    const previous = history.undo({ room, items, coneFields });
     if (previous) applyHistorySnapshot(previous);
   }
 
   function handleRedo() {
-    const next = history.redo({ room, items });
+    const next = history.redo({ room, items, coneFields });
     if (next) applyHistorySnapshot(next);
   }
 
@@ -452,6 +459,7 @@ export function Floorplan3dEditor({
     pushHistory();
     setRoom(NEW_ROOM);
     setItems([]);
+    setConeFields([]);
     setFloorplanId(null);
     setFloorplanName("Nieuwe plattegrond");
     setSelectedId(null);

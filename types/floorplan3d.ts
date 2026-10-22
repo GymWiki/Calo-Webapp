@@ -35,17 +35,44 @@ export const floorplan3dRoomSchema = z.object({
 });
 export type Floorplan3dRoom = z.infer<typeof floorplan3dRoomSchema>;
 
+// "Veld afzetten": een afgezet veld is één groep-item met parameters; de
+// pionnen/dopjes zelf worden bij het renderen berekend (cone-field.ts) en
+// worden dus nooit opgeslagen. Positie (x,z) is het middelpunt van het
+// veld, `width_m` loopt langs de lokale X-as en `length_m` langs de
+// lokale Z-as (voor rotatie).
+export const CONE_MARKER_TYPES = ["pion", "pion_hoog", "pion_laag", "dopje"] as const;
+export const coneFieldSchema = z.object({
+  id: z.string().min(1),
+  type: z.literal("coneField"),
+  x: z.number(),
+  z: z.number(),
+  rot_y_deg: z.number(),
+  width_m: z.number().positive(),
+  length_m: z.number().positive(),
+  interval_m: z.number().min(0.5).max(10),
+  distribution: z.enum(["even", "exact"]),
+  marker: z.enum(CONE_MARKER_TYPES),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  corner_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+});
+export type ConeField = z.infer<typeof coneFieldSchema>;
+export type ConeMarkerType = (typeof CONE_MARKER_TYPES)[number];
+export type ConeDistribution = ConeField["distribution"];
+
+// `coneFields` is optioneel bij het lezen (default []) zodat plattegronden
+// die vóór deze feature zijn opgeslagen gewoon blijven laden.
 export const floorplan3dDataSchema = z.object({
   version: z.literal(1),
   room: floorplan3dRoomSchema,
   items: z.array(floorplan3dItemSchema),
+  coneFields: z.array(coneFieldSchema).default([]),
 });
 export type Floorplan3dData = z.infer<typeof floorplan3dDataSchema>;
 
 export const DEFAULT_ROOM: Floorplan3dRoom = { width_m: 15, length_m: 27 };
 
 export function createEmptyFloorplan3dData(): Floorplan3dData {
-  return { version: 1, room: DEFAULT_ROOM, items: [] };
+  return { version: 1, room: DEFAULT_ROOM, items: [], coneFields: [] };
 }
 
 // actions/floorplans3d.ts — server-actie-inputschema's.

@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
+import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 
-export type Floorplan3dSnapshot = { room: Floorplan3dRoom; items: Floorplan3dItem[] };
+export type Floorplan3dSnapshot = { room: Floorplan3dRoom; items: Floorplan3dItem[]; coneFields: ConeField[] };
 
 const MAX_HISTORY = 50;
 
