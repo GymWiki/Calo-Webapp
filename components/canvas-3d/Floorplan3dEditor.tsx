@@ -115,6 +115,7 @@ export function Floorplan3dEditor({
   const history = useFloorplan3dHistory();
   const dragStartSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
   const dragStartItemRef = useRef<Floorplan3dItem | null>(null);
+  const dragRestingIdsRef = useRef<Set<string>>(new Set());
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const floorplanIdRef = useRef(floorplanId);
   useEffect(() => {
@@ -220,6 +221,10 @@ export function Floorplan3dEditor({
   function handleItemPointerDown(id: string) {
     dragStartSnapshotRef.current = { room, items };
     dragStartItemRef.current = items.find((item) => item.id === id) ?? null;
+    // Items die op het gesleepte item rusten reizen mee: ze tellen niet als
+    // "andere" items, anders stapelt het onderste item op zijn eigen stapel
+    // en schuift de hele stapel omhoog (ook bij een gewone klik).
+    dragRestingIdsRef.current = new Set(findItemsResting(id, items, lookup));
     setDraggingId(id);
   }
 
@@ -231,7 +236,7 @@ export function Floorplan3dEditor({
     const placement = resolvePlacement({
       pointer: { x: event.point.x, z: event.point.z },
       dragged: { slug: dragged.slug, rot_y_deg: dragged.rot_y_deg },
-      others: items.filter((item) => item.id !== draggingId),
+      others: items.filter((item) => item.id !== draggingId && !dragRestingIdsRef.current.has(item.id)),
       room,
       grid: snapGrid,
       lookup,
@@ -257,6 +262,9 @@ export function Floorplan3dEditor({
     dragStartSnapshotRef.current = null;
     if (!startItem || !startSnapshot) return;
 
+    const restingIds = dragRestingIdsRef.current;
+    dragRestingIdsRef.current = new Set();
+
     setItems((prev) => {
       const dragged = prev.find((item) => item.id === id);
       if (!dragged) return prev;
@@ -264,7 +272,7 @@ export function Floorplan3dEditor({
       const placement = resolvePlacement({
         pointer: { x: dragged.x, z: dragged.z },
         dragged: { slug: dragged.slug, rot_y_deg: dragged.rot_y_deg },
-        others: prev.filter((item) => item.id !== id),
+        others: prev.filter((item) => item.id !== id && !restingIds.has(item.id)),
         room,
         grid: snapGrid,
         lookup,
@@ -281,7 +289,6 @@ export function Floorplan3dEditor({
       const dx = finalX - startItem.x;
       const dy = finalY - startItem.y;
       const dz = finalZ - startItem.z;
-      const restingIds = new Set(findItemsResting(id, startSnapshot.items, lookup));
 
       // Geschiedenis vastleggen VOORDAT deze definitieve drop-update wordt
       // toegepast: één undo-stap per volledige sleepbeweging, niet per

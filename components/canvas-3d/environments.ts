@@ -159,8 +159,15 @@ export function roomForGymLayout(layout: GymLayout): Pick<Floorplan3dRoom, "widt
   return { width_m: layout.width_m, length_m: layout.length_m };
 }
 
+/** Standaard staan alleen de muren achter en links (een hoek): de andere twee
+ * zijn verborgen zodat je vrij in de zaal kunt kijken en bouwen. */
+const DEFAULT_HIDDEN_SIDES: WallSide[] = ["voor", "rechts"];
+
 export function createGymEnvironment(layoutId: GymLayoutId): Floorplan3dEnvironment {
-  return { type: "gymzaal", layout: layoutId, hidden: [] };
+  const hidden = GYM_LAYOUTS[layoutId].walls
+    .filter((wall) => DEFAULT_HIDDEN_SIDES.includes(wall.side))
+    .flatMap((wall) => wall.nodes);
+  return { type: "gymzaal", layout: layoutId, hidden };
 }
 
 // --- Aan/uit-logica (puur) ------------------------------------------------
