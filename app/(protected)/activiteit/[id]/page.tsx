@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { Check, MapPin, Users } from "lucide-react";
 
@@ -10,6 +11,12 @@ import { LibraryAccessBlocked } from "@/components/library-access-blocked";
 import { SourceBadge } from "@/components/library-item-card";
 import { MaterialChecklist } from "@/components/material-checklist";
 import { PlannedForBanner } from "@/components/planning/PlannedForBanner";
+import {
+  PlattegrondAddLink,
+  PlattegrondSection,
+  PlattegrondSectionSkeleton,
+  hasFloorplanContent,
+} from "@/components/plattegrond/PlattegrondSection";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,6 +26,7 @@ import { LEERHULP_COLORS } from "@/lib/constants/leerhulpColors";
 import { splitLearningOutcomeItems } from "@/lib/format";
 import { parseActivityDescription, splitIntoSteps } from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
+import { getFloorplanForActivity } from "@/lib/services/floorplans3d";
 import { getActivityById, isActivityLiked, isActivitySaved } from "@/lib/services/activities";
 import { getContributionStatus } from "@/lib/services/contribution";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
@@ -273,6 +281,7 @@ export default async function ActiviteitDetailPage({
     activityVersions,
     creatorDisplayName,
     editorDisplayName,
+    floorplan,
   ] = await Promise.all([
     isActivitySaved(profile.id, activity.id),
     isActivityLiked(profile.id, activity.id),
@@ -296,7 +305,19 @@ export default async function ActiviteitDetailPage({
     isOwnTeamActivity && activity.updated_by && activity.updated_by !== activity.author_id
       ? getAuthorNameWithRole(activity.updated_by)
       : Promise.resolve(null),
+    // 3D-plattegrond (floorplans_3d.activiteit_id) — één rij; de materiaalmodellen
+    // worden pas in PlattegrondSection (achter Suspense) opgehaald.
+    getFloorplanForActivity(supabase, activity.id, activity.author_id),
   ]);
+
+  // Alleen de auteur kan de gekoppelde plattegrond bewerken (RLS) of er een toevoegen.
+  const plattegrondSlot = hasFloorplanContent(floorplan) ? (
+    <Suspense fallback={<PlattegrondSectionSkeleton />}>
+      <PlattegrondSection activityId={activity.id} plan={floorplan} canEdit={isOwnActivity} />
+    </Suspense>
+  ) : isOwnActivity ? (
+    <PlattegrondAddLink activityId={activity.id} />
+  ) : null;
 
   // Wizard-activiteiten delen hun volledige weergave met de inline-editor
   // (zie components/activity-wizard-page.tsx: mode="view" hier, mode="edit"
@@ -350,6 +371,7 @@ export default async function ActiviteitDetailPage({
           plaatjePraatje={activity.plaatje_praatje ?? ""}
           aandachtspunten={activity.aandachtspunten ?? ""}
           regels={activity.regels ?? []}
+          plattegrond3d={plattegrondSlot}
           arrangement={activity.arrangement ?? ""}
           baseMaterials={activity.base_materials ?? []}
           ruleMaterials={activity.rule_materials ?? []}
@@ -516,6 +538,8 @@ export default async function ActiviteitDetailPage({
 
             <PlannedForBanner plannedLessons={plannedLessons} />
           </div>
+
+          {plattegrondSlot}
 
           <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
             <CardHeader>

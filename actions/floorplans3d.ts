@@ -2,7 +2,10 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { getMaterialModelsBySlugs } from "@/lib/services/materialModels";
+import type { MaterialModel } from "@/types/materialModel";
 import {
+  floorplan3dDataSchema,
   saveFloorplan3dInputSchema,
   type Floorplan3dData,
   type Floorplan3dRow,
@@ -212,4 +215,30 @@ export async function saveFloorplanPreview(
     return { error: GENERIC_ERROR };
   }
   return { success: true };
+}
+
+/**
+ * Gegevens voor de alleen-lezen viewer (<PlattegrondViewer plattegrondId=...>):
+ * de plattegrond zelf (RLS bepaalt of je hem mag zien) plus alleen de
+ * materiaalmodellen die hij gebruikt.
+ */
+export async function getFloorplan3dViewData(
+  id: string,
+): Promise<{ error: string } | { success: true; data: Floorplan3dData; models: MaterialModel[] }> {
+  const { supabase, user } = await getAuthedSupabase();
+  if (!user) return { error: NOT_LOGGED_IN_ERROR };
+
+  const { data, error } = await supabase.from("floorplans_3d").select("data").eq("id", id).maybeSingle();
+  if (error || !data) return { error: "Plattegrond niet gevonden." };
+
+  const parsed = floorplan3dDataSchema.safeParse(data.data);
+  if (!parsed.success) return { error: "Plattegrond kon niet worden geladen." };
+
+  try {
+    const models = await getMaterialModelsBySlugs(supabase, parsed.data.items.map((item) => item.slug));
+    return { success: true, data: parsed.data, models };
+  } catch (modelError) {
+    logFloorplan3dError("view-models", modelError);
+    return { error: "Plattegrond kon niet worden geladen." };
+  }
 }
