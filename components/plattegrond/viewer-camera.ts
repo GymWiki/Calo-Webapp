@@ -115,6 +115,7 @@ export function fitZoom({
   polarDeg,
   wallHeight = 3,
   margin = 1.12,
+  dragSpreadDeg = DRAG_LIMIT_DEG,
 }: {
   room: { width_m: number; length_m: number };
   viewport: { width: number; height: number };
@@ -122,6 +123,8 @@ export function fitZoom({
   polarDeg: number;
   wallHeight?: number;
   margin?: number;
+  /** Hoeveel graden slepen er nog bij kan; de zoom houdt daar rekening mee. */
+  dragSpreadDeg?: number;
 }): number {
   const hw = Math.max(room.width_m, 0.1) / 2;
   const hl = Math.max(room.length_m, 0.1) / 2;
@@ -129,7 +132,7 @@ export function fitZoom({
   for (const x of [-hw, hw]) for (const z of [-hl, hl]) for (const y of [0, wallHeight]) corners.push([x, y, z]);
 
   let best = Infinity;
-  for (const az of [azimuthDeg - DRAG_LIMIT_DEG, azimuthDeg, azimuthDeg + DRAG_LIMIT_DEG]) {
+  for (const az of [azimuthDeg - dragSpreadDeg, azimuthDeg, azimuthDeg + dragSpreadDeg]) {
     const d = viewDirection(az, polarDeg);
     const right = normalize(cross(d, [0, 1, 0]));
     const up = normalize(cross(right, d));
@@ -144,12 +147,20 @@ export function fitZoom({
 
 export function poseFor(
   view: ViewState,
-  room: { width_m: number; length_m: number },
+  room: { width_m: number; length_m: number; environment?: unknown },
   viewport: { width: number; height: number },
 ): CameraPose {
   const polarDeg = polarDegOf(view.preset);
+  // Ruimte voor de knoppenbalk onderaan (symmetrisch, zodat het midden klopt).
+  viewport = { width: viewport.width, height: Math.max(viewport.height * 0.4, viewport.height - 100) };
   const baseAzimuth = azimuthDegOf({ ...view, offsetDeg: 0 });
-  const fit = fitZoom({ room, viewport, azimuthDeg: baseAzimuth, polarDeg });
+  // Bovenaanzicht: de kamer vult het beeld (geen muurhoogte, en slepen
+  // mag iets uit beeld lopen); de schuine weergave houdt rekening met
+  // muren en het hele sleepbereik zodat er nooit iets wegvalt.
+  const fit =
+    view.preset === "top"
+      ? fitZoom({ room, viewport, azimuthDeg: baseAzimuth, polarDeg, wallHeight: 0, margin: 1.08, dragSpreadDeg: 0 })
+      : fitZoom({ room, viewport, azimuthDeg: baseAzimuth, polarDeg, wallHeight: room.environment ? 5 : 0.5 });
   return { azimuthDeg: azimuthDegOf(view), polarDeg, zoom: fit * view.zoom };
 }
 

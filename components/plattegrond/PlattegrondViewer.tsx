@@ -340,7 +340,7 @@ function ViewerBody({
       )}
 
       {showCanvas && ready && (
-        <div className="pointer-events-none absolute inset-x-2 bottom-2 flex flex-wrap items-center justify-center gap-1.5">
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 flex flex-wrap items-center justify-between gap-1.5 sm:justify-center sm:gap-4">
           <div className="pointer-events-auto flex items-center gap-1.5" data-viewer-control>
             <ControlButton label="Draai naar links" onClick={() => apply((v) => rotateStep(v, -1))}>
               <RotateCcw className="size-4" aria-hidden="true" />
@@ -355,10 +355,11 @@ function ViewerBody({
             </ControlButton>
             <ControlButton label="Bovenaanzicht" pressed={view.preset === "top"} onClick={() => setPreset("top")}>
               <ScanLine className="size-4" aria-hidden="true" />
-              <span className="hidden min-[400px]:inline">Bovenaanzicht</span>
+              <span className="hidden sm:inline">Bovenaanzicht</span>
             </ControlButton>
             <ControlButton label="Weergave terugzetten" onClick={() => apply(() => resetView())}>
-              <ArrowLeftRight className="size-4 rotate-90" aria-hidden="true" /> Reset
+              <ArrowLeftRight className="size-4 rotate-90" aria-hidden="true" />
+              <span className="hidden sm:inline">Reset</span>
             </ControlButton>
           </div>
           <div className="pointer-events-auto flex items-center gap-1.5" data-viewer-control>

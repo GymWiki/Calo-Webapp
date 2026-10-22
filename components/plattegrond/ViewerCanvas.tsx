@@ -40,7 +40,7 @@ function ViewerCameraRig({
   view,
   instant,
 }: {
-  room: Pick<Floorplan3dRoom, "width_m" | "length_m">;
+  room: Pick<Floorplan3dRoom, "width_m" | "length_m" | "environment">;
   view: ViewState;
   instant: boolean;
 }) {
@@ -63,7 +63,7 @@ function ViewerCameraRig({
     invalidate();
     // De afhankelijkheden zijn de echte invoer (stand, kamermaat, canvasgrootte).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, instant, room.width_m, room.length_m, size.width, size.height]);
+  }, [view, instant, room.width_m, room.length_m, room.environment, size.width, size.height]);
 
   useFrame(() => {
     const rig = state.current;
