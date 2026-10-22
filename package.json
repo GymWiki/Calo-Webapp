@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --test \"components/canvas-3d/*.test.ts\"",
     "check:bundle-size": "node scripts/check-bundle-size.mjs",
     "migrate:activiteiten": "node --env-file=.env.local scripts/migrate-activiteiten.mjs",
