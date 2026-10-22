@@ -198,7 +198,7 @@ export function Floorplan3dEditor({
       floorplanIdRef.current = result.id;
     }
     setSaveStatus("saved");
-  }, []);
+  }, [activiteitId]);
 
   const scheduleAutosave = useCallback(() => {
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);

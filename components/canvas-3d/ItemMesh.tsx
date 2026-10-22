@@ -62,14 +62,17 @@ export function ItemMesh({
   interactive = true,
   onPointerDownItem,
   onSelect,
+  onHover,
 }: {
   item: Floorplan3dItem;
   model: MaterialModel | undefined;
   selected: boolean;
   /** false tijdens "Veld afzetten": klikken gaan dan door naar de vloer. */
   interactive?: boolean;
-  onPointerDownItem: (id: string, event: ThreeEvent<PointerEvent>) => void;
-  onSelect: (id: string) => void;
+  onPointerDownItem?: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  onSelect?: (id: string) => void;
+  /** Alleen-lezen weergave: hover/tik geeft het item door (tooltip met naam). */
+  onHover?: (item: Floorplan3dItem | null) => void;
 }) {
   const dims: ItemDims = model
     ? { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m, stackable: model.stackable }
@@ -80,11 +83,17 @@ export function ItemMesh({
       position={[item.x, item.y, item.z]}
       rotation={[0, THREE.MathUtils.degToRad(item.rot_y_deg), 0]}
       onPointerDown={(event) => {
-        if (!interactive) return;
+        if (!interactive) {
+          // Alleen-lezen: tik/klik toont alleen de naam (geen selectie of slepen).
+          if (onHover) onHover(item);
+          return;
+        }
         event.stopPropagation();
-        onSelect(item.id);
-        onPointerDownItem(item.id, event);
+        onSelect?.(item.id);
+        onPointerDownItem?.(item.id, event);
       }}
+      onPointerOver={onHover ? (event) => { event.stopPropagation(); onHover(item); } : undefined}
+      onPointerOut={onHover ? () => onHover(null) : undefined}
     >
       {model ? (
         model.devColor ? (

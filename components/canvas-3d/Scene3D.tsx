@@ -2,14 +2,11 @@
 
 import * as THREE from "three";
 import { Line } from "@react-three/drei";
-import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import { CameraRig, type CameraMode } from "@/components/canvas-3d/CameraRig";
-import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
-import { GymEnvironment } from "@/components/canvas-3d/GymEnvironment";
 import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
-import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
+import { FloorplanContent } from "@/components/canvas-3d/FloorplanContent";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 import { dimsOf, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
@@ -121,15 +118,6 @@ export function Scene3D({
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
       <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} drawMode={drawMode} />
-      {room.environment ? (
-        // Tijdens het laden van de GLB staat de gewone vloer er al; geen leeg scherm.
-        <Suspense fallback={<RoomFloor room={room} />}>
-          <GymEnvironment environment={room.environment} />
-        </Suspense>
-      ) : (
-        <RoomFloor room={room} />
-      )}
-
       {/* Onzichtbaar sleepvlak — ruim boven kamerformaat zodat de
           raycast tijdens het slepen vrijwel altijd raak is, ook als de
           cursor net buiten de kamer komt. */}
@@ -143,28 +131,18 @@ export function Scene3D({
         <planeGeometry args={[room.width_m * 3, room.length_m * 3]} />
       </mesh>
 
-      {items.map((item) => (
-        <ItemMesh
-          key={item.id}
-          item={item}
-          model={modelBySlug(item.slug)}
-          selected={item.id === selectedId}
-          interactive={!drawMode}
-          onPointerDownItem={onItemPointerDown}
-          onSelect={onSelect}
-        />
-      ))}
-      {fields.map((field) => (
-        <ConeFieldMesh
-          key={field.id}
-          field={field}
-          selected={field.id === selectedId}
-          interactive={!drawMode}
-          onSelect={onSelect}
-          onFieldPointerDown={onFieldPointerDown}
-          onHandlePointerDown={onFieldHandlePointerDown}
-        />
-      ))}
+      <FloorplanContent
+        room={room}
+        items={items}
+        fields={fields}
+        modelBySlug={modelBySlug}
+        selectedId={selectedId}
+        interactive={!drawMode}
+        onItemPointerDown={onItemPointerDown}
+        onSelect={onSelect}
+        onFieldPointerDown={onFieldPointerDown}
+        onFieldHandlePointerDown={onFieldHandlePointerDown}
+      />
       {draftField && <ConeFieldMesh field={draftField} preview interactive={false} />}
       {debug && <DebugOverlay items={items} lookup={lookup} guides={debugGuides} draggingId={isDragging ? selectedId : null} />}
     </Canvas>
