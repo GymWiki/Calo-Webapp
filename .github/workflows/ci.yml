@@ -42,6 +42,13 @@ jobs:
 
       - run: npm run lint
 
+      # De build haalt tijdens page-data-collectie echt data uit Supabase
+      # (generateStaticParams, sitemap) en heeft dus de PUBLIEKE URL en
+      # publishable key nodig. Zet ze als repo-secrets met dezelfde waarden
+      # als in Vercel; een placeholder werkt niet (de fetch moet slagen).
       - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
       - run: npm run check:bundle-size
