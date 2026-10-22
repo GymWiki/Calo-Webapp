@@ -8,8 +8,9 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { CameraRig, type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
 import { GymEnvironment } from "@/components/canvas-3d/GymEnvironment";
+import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
 import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
-import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
+import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 import { dimsOf, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 import type { SnapGuide } from "@/components/canvas-3d/resolvePlacement";
@@ -78,6 +79,12 @@ export function Scene3D({
   isDragging,
   cameraMode,
   onItemPointerDown,
+  fields,
+  draftField,
+  drawMode,
+  onFieldPointerDown,
+  onFieldHandlePointerDown,
+  onFloorPointerDown,
   onFloorPointerMove,
   onFloorPointerUp,
   onSelect,
@@ -93,6 +100,14 @@ export function Scene3D({
   isDragging: boolean;
   cameraMode: CameraMode;
   onItemPointerDown: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  fields: ConeField[];
+  /** Veld dat op dit moment getekend wordt (live preview). */
+  draftField: ConeField | null;
+  /** "Veld afzetten" actief: items en velden vangen dan geen klikken. */
+  drawMode: boolean;
+  onFieldPointerDown: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  onFieldHandlePointerDown: (id: string, cornerIndex: number, event: ThreeEvent<PointerEvent>) => void;
+  onFloorPointerDown: (event: ThreeEvent<PointerEvent>) => void;
   onFloorPointerMove: (event: ThreeEvent<PointerEvent>) => void;
   onFloorPointerUp: (event: ThreeEvent<PointerEvent>) => void;
   onSelect: (id: string) => void;
@@ -105,7 +120,7 @@ export function Scene3D({
     <Canvas frameloop="demand" dpr={[1, 2]} onPointerMissed={onBackgroundClick}>
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
-      <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} />
+      <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} drawMode={drawMode} />
       {room.environment ? (
         // Tijdens het laden van de GLB staat de gewone vloer er al; geen leeg scherm.
         <Suspense fallback={<RoomFloor room={room} />}>
@@ -121,6 +136,7 @@ export function Scene3D({
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         visible={false}
+        onPointerDown={onFloorPointerDown}
         onPointerMove={onFloorPointerMove}
         onPointerUp={onFloorPointerUp}
       >
@@ -133,10 +149,23 @@ export function Scene3D({
           item={item}
           model={modelBySlug(item.slug)}
           selected={item.id === selectedId}
+          interactive={!drawMode}
           onPointerDownItem={onItemPointerDown}
           onSelect={onSelect}
         />
       ))}
+      {fields.map((field) => (
+        <ConeFieldMesh
+          key={field.id}
+          field={field}
+          selected={field.id === selectedId}
+          interactive={!drawMode}
+          onSelect={onSelect}
+          onFieldPointerDown={onFieldPointerDown}
+          onHandlePointerDown={onFieldHandlePointerDown}
+        />
+      ))}
+      {draftField && <ConeFieldMesh field={draftField} preview interactive={false} />}
       {debug && <DebugOverlay items={items} lookup={lookup} guides={debugGuides} draggingId={isDragging ? selectedId : null} />}
     </Canvas>
   );

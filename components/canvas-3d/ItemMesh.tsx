@@ -59,12 +59,15 @@ export function ItemMesh({
   item,
   model,
   selected,
+  interactive = true,
   onPointerDownItem,
   onSelect,
 }: {
   item: Floorplan3dItem;
   model: MaterialModel | undefined;
   selected: boolean;
+  /** false tijdens "Veld afzetten": klikken gaan dan door naar de vloer. */
+  interactive?: boolean;
   onPointerDownItem: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onSelect: (id: string) => void;
 }) {
@@ -77,6 +80,7 @@ export function ItemMesh({
       position={[item.x, item.y, item.z]}
       rotation={[0, THREE.MathUtils.degToRad(item.rot_y_deg), 0]}
       onPointerDown={(event) => {
+        if (!interactive) return;
         event.stopPropagation();
         onSelect(item.id);
         onPointerDownItem(item.id, event);

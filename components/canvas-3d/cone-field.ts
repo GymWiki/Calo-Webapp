@@ -455,3 +455,25 @@ export function fieldLabel(field: ConeField): string {
   const noun = field.marker === "dopje" ? (total === 1 ? "dopje" : "dopjes") : total === 1 ? "pion" : "pionnen";
   return `Veld ${formatMeters(field.width_m)} x ${formatMeters(field.length_m)} m, ${total} ${noun}`;
 }
+
+/** Regels voor de tooltip bij het tekenen en in het paneel: afmetingen,
+ * totaal aantal en het werkelijke interval per zijde. */
+export function fieldTooltipLines(field: ConeField): string[] {
+  const summary = summarizeConeField(field);
+  const noun = field.marker === "dopje" ? "dopjes" : "pionnen";
+  const [bSide, lSide] = summary.sides;
+  const sideText = (side: ConeSideInfo) =>
+    field.distribution === "exact" && Math.abs(side.lastInterval - side.interval) > 0.005
+      ? `${formatMeters2(side.interval)} m (laatste ${formatMeters2(side.lastInterval)} m)`
+      : `${formatMeters2(side.interval)} m`;
+  return [
+    `${formatMeters(field.width_m)} x ${formatMeters(field.length_m)} m`,
+    `${summary.total} ${noun}`,
+    `Interval breedte: ${sideText(bSide)}`,
+    `Interval lengte: ${sideText(lSide)}`,
+  ];
+}
+
+function formatMeters2(value: number): string {
+  return value.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+}
