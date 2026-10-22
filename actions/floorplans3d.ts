@@ -89,10 +89,25 @@ export async function saveFloorplan3d(
 
   const { id, naam, activiteitId, data } = parsed.data;
 
+  // Koppelen aan een activiteit mag alleen aan een EIGEN activiteit (de
+  // select-policy op floorplans_3d eist hetzelfde: plattegrond-eigenaar =
+  // auteur van de activiteit). Geen activiteitId meegegeven bij een update =
+  // koppeling ongemoeid laten (voorheen werd die hier stilletjes gewist).
+  if (activiteitId) {
+    const { data: activity } = await supabase
+      .from("activiteiten")
+      .select("author_id")
+      .eq("id", activiteitId)
+      .maybeSingle();
+    if (!activity || activity.author_id !== user.id) {
+      return { error: "Je kunt een plattegrond alleen aan je eigen activiteit koppelen." };
+    }
+  }
+
   if (id) {
     const { error } = await supabase
       .from("floorplans_3d")
-      .update({ naam, activiteit_id: activiteitId ?? null, data })
+      .update({ naam, data, ...(activiteitId ? { activiteit_id: activiteitId } : {}) })
       .eq("id", id)
       .eq("user_id", user.id);
 
@@ -154,6 +169,47 @@ export async function deleteFloorplan3d(
   if (error) {
     logFloorplan3dError("delete", error);
     return { error: "Verwijderen is mislukt. Probeer het opnieuw." };
+  }
+  return { success: true };
+}
+
+const PREVIEW_BUCKET = "floorplan-previews";
+const MAX_PREVIEW_BYTES = 600 * 1024;
+
+/**
+ * Slaat de thumbnail ("statische preview") van een plattegrond op — door de
+ * editor gerenderd (components/canvas-3d/FloorplanThumbnailCapture.tsx) en
+ * hier als data-URL aangeleverd. Pad `${user_id}/${floorplan_id}.webp`
+ * (upsert), zie supabase/migrations/floorplans_3d_activity_view.sql.
+ * Best-effort: een mislukte upload mag het opslaan zelf nooit blokkeren.
+ */
+export async function saveFloorplanPreview(
+  floorplanId: string,
+  dataUrl: string,
+): Promise<{ error: string } | { success: true }> {
+  const match = /^data:image\/webp;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!match) return { error: "Ongeldige preview." };
+
+  const bytes = Buffer.from(match[1], "base64");
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_PREVIEW_BYTES) return { error: "Preview is te groot." };
+
+  const { supabase, user } = await getAuthedSupabase();
+  if (!user) return { error: NOT_LOGGED_IN_ERROR };
+
+  const { data: owned } = await supabase
+    .from("floorplans_3d")
+    .select("id")
+    .eq("id", floorplanId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!owned) return { error: "Plattegrond niet gevonden." };
+
+  const { error } = await supabase.storage
+    .from(PREVIEW_BUCKET)
+    .upload(`${user.id}/${floorplanId}.webp`, bytes, { contentType: "image/webp", upsert: true });
+  if (error) {
+    logFloorplan3dError("preview", error);
+    return { error: GENERIC_ERROR };
   }
   return { success: true };
 }

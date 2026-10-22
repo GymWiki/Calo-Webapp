@@ -93,12 +93,15 @@ export function Floorplan3dEditor({
   models,
   initialFloorplans,
   initialFloorplan,
+  activiteitId,
   debug = false,
 }: {
   models: MaterialModel[];
   initialFloorplans: Floorplan3dSummary[];
   /** Al geopend vanuit "Mijn 3D-plattegronden" (server-side via ?open=<id>) — anders start de editor met een nieuwe, nog niet opgeslagen plattegrond. */
   initialFloorplan: { id: string; naam: string; data: Floorplan3dData } | null;
+  /** Koppelt de plattegrond bij het opslaan aan deze (eigen) activiteit. */
+  activiteitId?: string;
   /** `?debug=1`: voetafdrukken, snaplijnen en een log per drop. */
   debug?: boolean;
 }) {
@@ -180,6 +183,7 @@ export function Floorplan3dEditor({
     const result = await saveFloorplan3d({
       id: floorplanIdRef.current ?? undefined,
       naam,
+      activiteitId,
       data: { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields },
     });
 
@@ -875,7 +879,7 @@ export function Floorplan3dEditor({
   return (
     <div className="flex h-[100dvh] flex-col overscroll-none">
       <div className="flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2">
-        <BackButton fallbackHref="/dashboard" fallbackLabel="Terug" className="-ml-2" />
+        <BackButton fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"} fallbackLabel="Terug" className="-ml-2" />
         <Input
           value={floorplanName}
           onChange={(event) => {
