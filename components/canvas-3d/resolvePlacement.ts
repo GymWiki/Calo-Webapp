@@ -10,18 +10,26 @@ import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import {
   dimsOf,
   findNearestFreeSpot,
-  footprintAabb,
-  footprintCorners,
-  footprintOverlapDepth,
-  footprintsOverlap,
-  itemFootprint,
-  overlapArea,
-  pointInFootprint,
-  polygonArea,
+  itemPolygons,
+  itemVerticalRange,
+  pointInPolygons,
+  polygonsAabb,
+  polygonsArea,
+  polygonsOverlap,
+  polygonsOverlapArea,
+  polygonsOverlapDepth,
+  shapeOfDims,
   type DimsLookup,
   type Point2D,
   type SnapGridSize,
 } from "@/components/canvas-3d/floorplan3d-geometry";
+import {
+  footprintCenter,
+  footprintExtents,
+  footprintPolygons,
+  isElevated,
+  verticalRange,
+} from "@/components/canvas-3d/collision-shape";
 import {
   EPS_M,
   OVERLAP_IGNORE_M,
@@ -59,7 +67,7 @@ export type PlacementResult = {
 };
 
 export type PlacementInput = {
-  /** Gewenst middelpunt (ruwe pointerpositie, vóór snappen). */
+  /** Gewenste positie van de pivot van het item (ruwe pointerpositie, vóór snappen). */
   pointer: Point2D;
   dragged: { slug: string; rot_y_deg: number };
   /** Alle andere items (het gesleepte item zelf niet meegeven). */
@@ -83,7 +91,7 @@ function isRightAngle(rotDeg: number): boolean {
   return rest < 1e-6 || 90 - rest < 1e-6;
 }
 
-type Aabb = ReturnType<typeof footprintAabb>;
+type Aabb = { minX: number; maxX: number; minZ: number; maxZ: number };
 type Correction = { delta: number; guide: SnapGuide; targetSlug: string | null };
 
 function bestCorrection(candidates: Correction[]): Correction | null {
@@ -141,59 +149,79 @@ function axisCorrections(
   return out;
 }
 
+/** Effectieve draaiing van de voetafdruk: draaiing van het item + draaiing van de vorm zelf. */
+function effectiveAngle(rotDeg: number, yawDeg: number): number {
+  return rotDeg + yawDeg;
+}
+
 export function resolvePlacement(input: PlacementInput): PlacementResult {
   const { pointer, dragged, others, room, grid, lookup } = input;
   const dims = dimsOf({ slug: dragged.slug } as Floorplan3dItem, lookup);
+  const shape = shapeOfDims(dims);
   const rot = dragged.rot_y_deg;
-  const draggedRight = isRightAngle(rot);
+  // Puur visueel materiaal botst nergens mee; hangend materiaal (touwen, ringen,
+  // netten) staat nooit op iets en wordt ook nergens door gedragen.
+  const collides = shape.kind !== "none";
+  const canStack = collides && !isElevated(shape);
+  const draggedRight = isRightAngle(effectiveAngle(rot, shape.yaw_deg));
 
-  const rawFootprint = footprintCorners(pointer.x, pointer.z, dims.length_m, dims.width_m, rot);
-  const rawArea = polygonArea(rawFootprint);
+  const rawPolygons = footprintPolygons(shape, pointer.x, pointer.z, rot);
+  const rawArea = polygonsArea(rawPolygons);
+  const rawCenter = footprintCenter(shape, pointer.x, pointer.z, rot);
 
   // --- 1. Stapelen: op de RUWE positie, vóór enige snap. -----------------
   const stackBases: Floorplan3dItem[] = [];
   let blockedByUnstackable = false;
-  for (const other of others) {
-    const otherFootprint = itemFootprint(other, lookup);
-    if (footprintOverlapDepth(rawFootprint, otherFootprint) < OVERLAP_IGNORE_M) continue;
+  if (canStack) {
+    for (const other of others) {
+      const otherPolygons = itemPolygons(other, lookup);
+      if (polygonsOverlapDepth(rawPolygons, otherPolygons) < OVERLAP_IGNORE_M) continue;
 
-    const otherArea = polygonArea(otherFootprint);
-    const ratio = overlapArea(rawFootprint, otherFootprint) / Math.min(rawArea, otherArea);
-    const stacks = ratio > STACK_OVERLAP_MIN || pointInFootprint(pointer, otherFootprint);
-    if (!stacks) continue; // Randoverlap: wordt hieronder naast-elkaar opgelost.
+      const otherArea = polygonsArea(otherPolygons);
+      if (otherArea <= 0 || rawArea <= 0) continue;
+      const ratio = polygonsOverlapArea(rawPolygons, otherPolygons) / Math.min(rawArea, otherArea);
+      const stacks = ratio > STACK_OVERLAP_MIN || pointInPolygons(rawCenter, otherPolygons);
+      if (!stacks) continue; // Randoverlap: wordt hieronder naast-elkaar opgelost.
 
-    if (dimsOf(other, lookup).stackable) stackBases.push(other);
-    else blockedByUnstackable = true;
+      // Hangend materiaal boven de vloer is geen ondergrond én geen obstakel voor de vloer.
+      if (isElevated(shapeOfDims(dimsOf(other, lookup)))) continue;
+      if (dimsOf(other, lookup).stackable) stackBases.push(other);
+      else blockedByUnstackable = true;
+    }
   }
 
   const stacking = stackBases.length > 0 && !blockedByUnstackable;
-  const y = stacking
-    ? Math.max(...stackBases.map((base) => base.y + dimsOf(base, lookup).height_m))
-    : 0;
+  // Onderkant van het item op de bovenkant van de hoogste basis.
+  const y = stacking ? Math.max(...stackBases.map((base) => itemVerticalRange(base, lookup)[1])) - shape.base_m : 0;
+  const ownRange = verticalRange(shape, y);
+  const sameHeight = (other: Floorplan3dItem) => {
+    const [lo, hi] = itemVerticalRange(other, lookup);
+    return lo < ownRange[1] - EPS_M && ownRange[0] < hi - EPS_M;
+  };
 
   // --- 2. Rand-snap (nooit het stapelen verstoren: y ligt al vast). -------
-  const own = footprintAabb(pointer.x, pointer.z, dims.length_m, dims.width_m, rot);
+  const extent = footprintExtents(shape, rot);
+  const own = {
+    minX: pointer.x + extent.minX,
+    maxX: pointer.x + extent.maxX,
+    minZ: pointer.z + extent.minZ,
+    maxZ: pointer.z + extent.maxZ,
+  };
 
   const snapTargets: { slug: string; aabb: Aabb; abut: boolean }[] = [];
-  const candidates = stacking
-    ? stackBases.map((base) => ({ base, abut: false }))
-    : others
-        .filter((other) => {
-          // Alleen items op dezelfde hoogte (verticale overlap) zijn buren.
-          const otherDims = dimsOf(other, lookup);
-          return other.y < y + dims.height_m - EPS_M && y < other.y + otherDims.height_m - EPS_M;
-        })
-        .map((base) => ({ base, abut: true }));
+  const candidates = !collides
+    ? []
+    : stacking
+      ? stackBases.map((base) => ({ base, abut: false }))
+      : others.filter(sameHeight).map((base) => ({ base, abut: true }));
 
   if (draggedRight) {
     for (const { base, abut } of candidates) {
-      if (!isRightAngle(base.rot_y_deg)) continue;
-      const baseDims = dimsOf(base, lookup);
-      snapTargets.push({
-        slug: base.slug,
-        abut,
-        aabb: footprintAabb(base.x, base.z, baseDims.length_m, baseDims.width_m, base.rot_y_deg),
-      });
+      const baseShape = shapeOfDims(dimsOf(base, lookup));
+      if (!isRightAngle(effectiveAngle(base.rot_y_deg, baseShape.yaw_deg))) continue;
+      const polygons = itemPolygons(base, lookup);
+      if (polygons.length === 0) continue;
+      snapTargets.push({ slug: base.slug, abut, aabb: polygonsAabb(polygons) });
     }
   }
 
@@ -209,25 +237,21 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
   let x = snapAxis(pointer.x, xCorrection);
   let z = snapAxis(pointer.z, zCorrection);
 
-  // Blijf binnen de kamer, ook na snapping.
-  const halfExtentX = (own.maxX - own.minX) / 2;
-  const halfExtentZ = (own.maxZ - own.minZ) / 2;
-  x = Math.min(Math.max(x, -halfRoomX + halfExtentX), halfRoomX - halfExtentX);
-  z = Math.min(Math.max(z, -halfRoomZ + halfExtentZ), halfRoomZ - halfExtentZ);
+  // Blijf binnen de kamer, ook na snapping (de voetafdruk kan t.o.v. de pivot verschoven zijn).
+  if (collides) {
+    x = Math.min(Math.max(x, -halfRoomX - extent.minX), halfRoomX - extent.maxX);
+    z = Math.min(Math.max(z, -halfRoomZ - extent.minZ), halfRoomZ - extent.maxZ);
+  }
 
   const guides = [xCorrection, zCorrection].flatMap((c) => (c ? [c.guide] : []));
   const edgeTargets = [xCorrection, zCorrection].flatMap((c) => (c ? [c.targetSlug] : []));
 
   // --- 4. Blijft er een significante overlap die niet mag? ----------------
-  const finalFootprint = footprintCorners(x, z, dims.length_m, dims.width_m, rot);
+  const finalPolygons = footprintPolygons(shape, x, z, rot);
   const blocked =
-    blockedByUnstackable ||
-    (!stacking &&
-      others.some((other) => {
-        const otherDims = dimsOf(other, lookup);
-        const verticalOverlap = other.y < dims.height_m - EPS_M && 0 < other.y + otherDims.height_m - EPS_M;
-        return verticalOverlap && footprintsOverlap(finalFootprint, itemFootprint(other, lookup));
-      }));
+    collides &&
+    (blockedByUnstackable ||
+      (!stacking && others.some((other) => sameHeight(other) && polygonsOverlap(finalPolygons, itemPolygons(other, lookup)))));
 
   if (blocked && input.final) {
     const spot = findNearestFreeSpot(x, z, dims, rot, others, room, lookup);

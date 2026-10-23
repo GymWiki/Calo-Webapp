@@ -68,9 +68,12 @@ import { EnvironmentPanel } from "@/components/canvas-3d/EnvironmentPanel";
 import { MaterialModelPicker3D } from "@/components/canvas-3d/MaterialModelPicker3D";
 import { MyFloorplans3dList } from "@/components/canvas-3d/MyFloorplans3dList";
 import { Scene3D } from "@/components/canvas-3d/Scene3D";
+import { originForCenter } from "@/components/canvas-3d/collision-shape";
 import {
   clampItemsToRoom,
   dimsLookupFromModels,
+  dimsOf,
+  shapeOfDims,
   findItemsResting,
   findNearestFreeSpot,
   normalizeRotationDeg,
@@ -106,6 +109,8 @@ export function Floorplan3dEditor({
   initialFloorplan,
   activiteitId,
   debug = false,
+  debugCollision = false,
+  debugLegacy = false,
 }: {
   models: MaterialModel[];
   initialFloorplans: Floorplan3dSummary[];
@@ -115,9 +120,13 @@ export function Floorplan3dEditor({
   activiteitId?: string;
   /** `?debug=1`: voetafdrukken, snaplijnen en een log per drop. */
   debug?: boolean;
+  /** `?debug=collision`: collision-vormen (blauw) en mesh-bounds (groen) per item. */
+  debugCollision?: boolean;
+  /** `?debug=collision-legacy`: de oude gecentreerde box (voor/na-vergelijking). */
+  debugLegacy?: boolean;
 }) {
   const router = useRouter();
-  const lookup = useMemo(() => dimsLookupFromModels(models), [models]);
+  const lookup = useMemo(() => dimsLookupFromModels(models, debugLegacy), [models, debugLegacy]);
   const modelBySlug = useCallback(
     (slug: string) => models.find((model) => model.slug === slug),
     [models],
@@ -161,6 +170,8 @@ export function Floorplan3dEditor({
     moved: boolean;
   } | null>(null);
   const fieldEditRef = useRef<{ key: string; at: number } | null>(null);
+  // Klik op de lege vloer (pointerdown + loslaten zonder te slepen) = selectie opheffen.
+  const backgroundDownRef = useRef<{ x: number; y: number } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tijdelijke offscreen render voor de statische preview (zie FloorplanThumbnailCapture).
@@ -273,8 +284,11 @@ export function Floorplan3dEditor({
   // ---------------------------------------------------------------------
   function handleAddModel(model: MaterialModel) {
     pushHistory();
-    const dims = { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m, stackable: model.stackable };
-    const spot = findNearestFreeSpot(0, 0, dims, 0, items, room, lookup);
+    // Collision-vorm uit de lookup (offset/onderkant/draaiing); start zo dat het MIDDEN van de
+    // voetafdruk in het midden van de kamer ligt, niet de pivot van het model.
+    const dims = lookup(model.slug) ?? { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m, stackable: model.stackable };
+    const start = originForCenter(shapeOfDims(dims), 0, 0, 0);
+    const spot = findNearestFreeSpot(start.x, start.z, dims, 0, items, room, lookup);
     const newItem: Floorplan3dItem = {
       id: createItemId(),
       slug: model.slug,
@@ -340,7 +354,11 @@ export function Floorplan3dEditor({
   }
 
   function handleFloorPointerDown(event: ThreeEvent<PointerEvent>) {
-    if (!drawMode) return;
+    if (!drawMode) {
+      // Items en velden stoppen de event zelf; alleen een klik op de lege vloer komt hier.
+      backgroundDownRef.current = { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+      return;
+    }
     event.stopPropagation();
     const point = snapFieldPoint({ x: event.point.x, z: event.point.z }, fieldSnapContext());
     if (!draft) setDraft({ a: point, c: point, phase: "dragging" });
@@ -459,8 +477,10 @@ export function Floorplan3dEditor({
     const dragged = items.find((item) => item.id === draggingId);
     if (!dragged) return;
 
+    // De cursor houdt het MIDDEN van de voetafdruk vast (niet de pivot van het model).
+    const origin = originForCenter(shapeOfDims(dimsOf(dragged, lookup)), event.point.x, event.point.z, dragged.rot_y_deg);
     const placement = resolvePlacement({
-      pointer: { x: event.point.x, z: event.point.z },
+      pointer: origin,
       dragged: { slug: dragged.slug, rot_y_deg: dragged.rot_y_deg },
       others: items.filter((item) => item.id !== draggingId && !dragRestingIdsRef.current.has(item.id)),
       room,
@@ -476,7 +496,13 @@ export function Floorplan3dEditor({
     );
   }
 
-  function handleFloorPointerUp() {
+  function handleFloorPointerUp(event: ThreeEvent<PointerEvent>) {
+    const backgroundDown = backgroundDownRef.current;
+    backgroundDownRef.current = null;
+    if (backgroundDown && !drawMode) {
+      const moved = Math.hypot(event.nativeEvent.clientX - backgroundDown.x, event.nativeEvent.clientY - backgroundDown.y);
+      if (moved < 5) setSelectedId(null);
+    }
     if (drawMode) {
       if (draft?.phase === "dragging") {
         const width = Math.abs(draft.c.x - draft.a.x);
@@ -1007,6 +1033,7 @@ export function Floorplan3dEditor({
             onSelect={handleSelect}
             onBackgroundClick={handleBackgroundClick}
             debug={debug}
+            debugCollision={debugCollision}
             debugGuides={debugGuides}
             lookup={lookup}
           />

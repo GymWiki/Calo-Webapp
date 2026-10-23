@@ -1,6 +1,5 @@
 "use client";
 
-import * as THREE from "three";
 import { Line } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
@@ -9,11 +8,11 @@ import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
 import { FloorplanContent } from "@/components/canvas-3d/FloorplanContent";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
-import { dimsOf, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
+import { dimsOf, itemPolygons, shapeOfDims, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 import type { SnapGuide } from "@/components/canvas-3d/resolvePlacement";
 
-/** `?debug=1`: voetafdrukken als platte vlakken op de vloer (de exacte
- * rechthoeken waarmee plaatsen/snappen rekent) + de actieve snaplijnen. */
+/** `?debug=1`: voetafdrukken als omtrek (de exacte polygonen waarmee
+ * plaatsen/snappen rekent) + de actieve snaplijnen. */
 function DebugOverlay({
   items,
   lookup,
@@ -28,20 +27,19 @@ function DebugOverlay({
   return (
     <group>
       {items.map((item) => {
-        const dims = dimsOf(item, lookup);
-        return (
-          <group key={item.id} position={[item.x, 0.004 + item.y, item.z]} rotation={[0, THREE.MathUtils.degToRad(item.rot_y_deg), 0]}>
-            <mesh rotation={[-Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[dims.length_m, dims.width_m]} />
-              <meshBasicMaterial
-                color={item.id === draggingId ? "#f97316" : "#22c55e"}
-                transparent
-                opacity={0.35}
-                depthTest={false}
-              />
-            </mesh>
-          </group>
-        );
+        const shape = shapeOfDims(dimsOf(item, lookup));
+        const y = item.y + shape.base_m + 0.01;
+        const color = item.id === draggingId ? "#f97316" : "#22c55e";
+        // Dezelfde (oriented) polygonen als waarmee plaatsen/snappen/stapelen rekent.
+        return itemPolygons(item, lookup).map((polygon, index) => (
+          <Line
+            key={`${item.id}-${index}`}
+            points={[...polygon, polygon[0]].map((p) => [p.x, y, p.z] as [number, number, number])}
+            color={color}
+            lineWidth={2}
+            depthTest={false}
+          />
+        ));
       })}
       {guides.map((guide, index) => (
         <Line
@@ -87,6 +85,7 @@ export function Scene3D({
   onSelect,
   onBackgroundClick,
   debug = false,
+  debugCollision = false,
   debugGuides = [],
   lookup,
 }: {
@@ -110,6 +109,7 @@ export function Scene3D({
   onSelect: (id: string) => void;
   onBackgroundClick: () => void;
   debug?: boolean;
+  debugCollision?: boolean;
   debugGuides?: SnapGuide[];
   lookup: DimsLookup;
 }) {
@@ -136,6 +136,8 @@ export function Scene3D({
         items={items}
         fields={fields}
         modelBySlug={modelBySlug}
+        lookup={lookup}
+        debugCollision={debugCollision}
         selectedId={selectedId}
         interactive={!drawMode}
         onItemPointerDown={onItemPointerDown}

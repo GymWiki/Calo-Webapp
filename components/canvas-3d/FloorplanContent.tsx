@@ -8,6 +8,7 @@ import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
+import type { DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 
 /**
  * Alles wat een plattegrond ZIET: de kamer (gymzaal-GLB of lege vloer), de
@@ -24,6 +25,8 @@ export function FloorplanContent({
   items,
   fields,
   modelBySlug,
+  lookup,
+  debugCollision = false,
   selectedId = null,
   interactive = false,
   onItemPointerDown,
@@ -36,6 +39,10 @@ export function FloorplanContent({
   items: Floorplan3dItem[];
   fields: ConeField[];
   modelBySlug: (slug: string) => MaterialModel | undefined;
+  /** Collision-vormen per asset (selectie-outline en debug); zonder: de maten uit het model. */
+  lookup?: DimsLookup;
+  /** `?debug=collision`. */
+  debugCollision?: boolean;
   selectedId?: string | null;
   /** false = alleen-lezen (viewer) of tijdens "Veld afzetten" in de editor. */
   interactive?: boolean;
@@ -62,6 +69,8 @@ export function FloorplanContent({
           key={item.id}
           item={item}
           model={modelBySlug(item.slug)}
+          dims={lookup?.(item.slug)}
+          debugCollision={debugCollision}
           selected={item.id === selectedId}
           interactive={interactive}
           onPointerDownItem={onItemPointerDown}

@@ -30,6 +30,10 @@ export function Floorplan3dEditorLoader(props: {
   /** Nieuwe plattegrond direct aan deze activiteit koppelen (?activiteit=<id>). */
   activiteitId?: string;
   debug?: boolean;
+  /** `?debug=collision`: collision-vormen (blauw) en mesh-bounds (groen) per item. */
+  debugCollision?: boolean;
+  /** `?debug=collision-legacy`: de oude gecentreerde box (voor/na-vergelijking). */
+  debugLegacy?: boolean;
 }) {
   return <Floorplan3dEditor {...props} />;
 }

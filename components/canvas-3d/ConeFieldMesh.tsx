@@ -17,9 +17,15 @@ const SELECTION_COLOR = "#2563eb"; // zelfde blauw als ItemMesh
 const DRAFT_COLOR = "#f97316"; // GymWiki-oranje
 const HANDLE_RADIUS_M = 0.28; // ruim genoeg om met een vinger te raken
 
-// Pionnen zijn puur visueel: ze vangen geen pointer-events (het veld als
-// geheel is het klikdoel, zie het onzichtbare vlak hieronder).
+// De zichtbare pionnen zelf vangen geen pointer-events; het klikdoel van een
+// veld zijn onzichtbare, ruimere "raakvlakken" rond elke pion (HitInstances).
+// Zo selecteer je een veld door op een pion te klikken — niet door ergens
+// binnen de (grote) rechthoek te klikken.
 const noRaycast = () => null;
+
+/** Minimale straal/hoogte van het raakvlak rond een pion (m): ruim genoeg voor een vinger of muis. */
+const HIT_MIN_RADIUS_M = 0.3;
+const HIT_MIN_HEIGHT_M = 0.35;
 
 /** Low-poly, procedureel model per markeertype; oorsprong op de vloer. */
 function markerGeometry(marker: ConeMarkerType): THREE.BufferGeometry {
@@ -62,6 +68,50 @@ function MarkerInstances({ points, marker, color }: { points: Vec2[]; marker: Co
   );
 }
 
+/** Onzichtbare, iets grotere cilinders op elke pion: het klikdoel van het veld. */
+function HitInstances({
+  points,
+  marker,
+  onPointerDown,
+}: {
+  points: Vec2[];
+  marker: ConeMarkerType;
+  onPointerDown: (event: ThreeEvent<PointerEvent>) => void;
+}) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const invalidate = useThree((state) => state.invalidate);
+  const geometry = useMemo(() => {
+    const { height, radius } = CONE_MARKER_DIMS[marker];
+    const hitHeight = Math.max(height, HIT_MIN_HEIGHT_M);
+    const g = new THREE.CylinderGeometry(Math.max(radius, HIT_MIN_RADIUS_M), Math.max(radius, HIT_MIN_RADIUS_M), hitHeight, 10);
+    g.translate(0, hitHeight / 2, 0);
+    return g;
+  }, [marker]);
+
+  useLayoutEffect(() => () => geometry.dispose(), [geometry]);
+
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const matrix = new THREE.Matrix4();
+    points.forEach((point, index) => {
+      matrix.makeTranslation(point.x, 0, point.z);
+      mesh.setMatrixAt(index, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    // Een InstancedMesh-raycast gebruikt de bounding sphere; na wijziging opnieuw berekenen.
+    mesh.computeBoundingSphere();
+    invalidate();
+  }, [points, geometry, invalidate]);
+
+  if (points.length === 0) return null;
+  return (
+    <instancedMesh key={points.length} ref={ref} args={[geometry, undefined, points.length]} frustumCulled={false} visible={false} onPointerDown={onPointerDown}>
+      <meshBasicMaterial />
+    </instancedMesh>
+  );
+}
+
 export function ConeFieldMesh({
   field,
   selected = false,
@@ -92,6 +142,8 @@ export function ConeFieldMesh({
     [field.width_m, field.length_m, field.interval_m, field.distribution],
   );
 
+  const allPoints = useMemo(() => [...corners, ...edges], [corners, edges]);
+
   const hw = field.width_m / 2;
   const hl = field.length_m / 2;
   const outline = useMemo<[number, number, number][]>(
@@ -109,20 +161,17 @@ export function ConeFieldMesh({
 
   return (
     <group position={[field.x, 0, field.z]} rotation={[0, THREE.MathUtils.degToRad(field.rot_y_deg), 0]}>
-      {/* Onzichtbaar klikvlak: selecteren/verplaatsen van het hele veld. */}
+      {/* Klikdoel: alleen de pionnen zelf (met een ruimer onzichtbaar raakvlak). */}
       {interactive && !preview && (
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, 0.02, 0]}
-          visible={false}
+        <HitInstances
+          points={allPoints}
+          marker={field.marker}
           onPointerDown={(event) => {
             event.stopPropagation();
             onSelect?.(field.id);
             onFieldPointerDown?.(field.id, event);
           }}
-        >
-          <planeGeometry args={[Math.max(field.width_m, 0.3), Math.max(field.length_m, 0.3)]} />
-        </mesh>
+        />
       )}
 
       {(selected || preview) && field.width_m > 0.01 && field.length_m > 0.01 && (
