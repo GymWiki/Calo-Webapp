@@ -4,18 +4,20 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import { environmentModelUrl, GYM_LAYOUTS } from "@/components/canvas-3d/environments";
+import { environmentModelUrl } from "@/components/canvas-3d/environments";
+import { resolveEnvironment } from "@/components/canvas-3d/environment-kinds";
 import type { Floorplan3dEnvironment } from "@/types/floorplan3d";
 
 /**
- * De gymzaal-GLB als omgeving. Eén GLB per indeling; muren, gordijnen,
- * wandrekken en sportlijnen zijn losse nodes met vaste namen en worden hier
- * alleen zichtbaar/onzichtbaar gezet (`environment.hidden`). Het model is
- * niet interactief (raycast uit): slepen/selecteren gaat altijd door de
- * muren en de vloer heen naar het onzichtbare sleepvlak in Scene3D.
+ * De omgeving (gymzaal, sportveld, atletiekbaan of zwembad) als GLB. Eén
+ * GLB per indeling; wanden, lijnen, trappen enz. zijn losse nodes met vaste
+ * namen en worden hier alleen zichtbaar/onzichtbaar gezet
+ * (`environment.hidden`). Het model is niet interactief (raycast uit):
+ * slepen/selecteren gaat altijd door muren en vloer heen naar het
+ * onzichtbare sleepvlak in Scene3D.
  */
-export function GymEnvironment({ environment }: { environment: Floorplan3dEnvironment }) {
-  const layout = GYM_LAYOUTS[environment.layout];
+export function EnvironmentModel({ environment }: { environment: Floorplan3dEnvironment }) {
+  const layout = resolveEnvironment(environment);
   const gltf = useGLTF(environmentModelUrl(layout));
   const scene = useMemo(() => {
     const cloned = gltf.scene.clone(true);

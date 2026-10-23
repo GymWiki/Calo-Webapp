@@ -57,6 +57,14 @@ import {
   roomForGymLayout,
   type GymLayoutId,
 } from "@/components/canvas-3d/environments";
+import {
+  createEnvironment,
+  defaultLayoutId,
+  ENVIRONMENT_KIND_ORDER,
+  roomForEnvironment,
+  type EnvironmentKind,
+} from "@/components/canvas-3d/environment-kinds";
+import { EnvironmentPanel } from "@/components/canvas-3d/EnvironmentPanel";
 import { MaterialModelPicker3D } from "@/components/canvas-3d/MaterialModelPicker3D";
 import { MyFloorplans3dList } from "@/components/canvas-3d/MyFloorplans3dList";
 import { Scene3D } from "@/components/canvas-3d/Scene3D";
@@ -133,7 +141,7 @@ export function Floorplan3dEditor({
   const [drawMode, setDrawMode] = useState(false);
   const [draft, setDraft] = useState<{ a: Vec2; c: Vec2; phase: "dragging" | "waiting" } | null>(null);
   const [fieldDragActive, setFieldDragActive] = useState(false);
-  const [cameraMode, setCameraMode] = useState<CameraMode>("angled");
+  const [cameraMode, setCameraMode] = useState<CameraMode>("free");
   const [debugGuides, setDebugGuides] = useState<SnapGuide[]>([]);
   const [snapGrid, setSnapGrid] = useState<SnapGridSize>(0.1);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
@@ -543,18 +551,23 @@ export function Floorplan3dEditor({
   // ---------------------------------------------------------------------
   // Ruimte: lege ruimte of gymzaal (indeling, muren, gordijnen, extra's).
   // ---------------------------------------------------------------------
-  function applyGymLayout(layoutId: GymLayoutId) {
+  /** Zet een omgeving (gymzaal, sportveld, ...) met een bepaalde indeling neer. */
+  function applyEnvironment(kind: EnvironmentKind, layoutId: string) {
     pushHistory();
-    const layout = GYM_LAYOUTS[layoutId];
-    const nextRoom: Floorplan3dRoom = { ...roomForGymLayout(layout), environment: createGymEnvironment(layoutId) };
+    const environment = createEnvironment(kind, layoutId);
+    const nextRoom: Floorplan3dRoom = { ...roomForEnvironment(environment), environment };
     const fitted = clampItemsToRoom(items, nextRoom, lookup);
     setRoom(nextRoom);
     setItems(fitted.items);
     setConeFields((prev) => fitFieldsToRoom(prev, nextRoom));
     if (fitted.moved > 0) {
-      toast.info(`${fitted.moved} ${fitted.moved === 1 ? "item" : "items"} verplaatst om in de nieuwe zaal te passen.`);
+      toast.info(`${fitted.moved} ${fitted.moved === 1 ? "item" : "items"} verplaatst om in de nieuwe omgeving te passen.`);
     }
     scheduleAutosave();
+  }
+
+  function applyGymLayout(layoutId: GymLayoutId) {
+    applyEnvironment("gymzaal", layoutId);
   }
 
   function resizeEmptyRoom(patch: Partial<Pick<Floorplan3dRoom, "width_m" | "length_m">>) {
@@ -565,9 +578,9 @@ export function Floorplan3dEditor({
     scheduleAutosave();
   }
 
-  function changeRoomKind(kind: "leeg" | "gymzaal") {
-    if (kind === "gymzaal") {
-      if (!room.environment) applyGymLayout(DEFAULT_GYM_LAYOUT);
+  function changeRoomKind(kind: EnvironmentKind | "leeg") {
+    if (kind !== "leeg") {
+      if (room.environment?.type !== kind) applyEnvironment(kind, defaultLayoutId(kind));
       return;
     }
     if (!room.environment) return;
@@ -819,14 +832,20 @@ export function Floorplan3dEditor({
       <div>
         <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Omgeving</p>
         <div className="grid grid-cols-2 gap-1.5">
-          <Button
-            type="button"
-            variant={room.environment ? "default" : "outline"}
-            aria-pressed={!!room.environment}
-            onClick={() => changeRoomKind("gymzaal")}
-          >
-            Gymzaal
-          </Button>
+          {ENVIRONMENT_KIND_ORDER.map(({ id, label }) => {
+            const active = room.environment?.type === id;
+            return (
+              <Button
+                key={id}
+                type="button"
+                variant={active ? "default" : "outline"}
+                aria-pressed={active}
+                onClick={() => changeRoomKind(id)}
+              >
+                {label}
+              </Button>
+            );
+          })}
           <Button
             type="button"
             variant={room.environment ? "outline" : "default"}
@@ -835,18 +854,19 @@ export function Floorplan3dEditor({
           >
             Lege ruimte
           </Button>
-          {["Sportveld", "Atletiekbaan", "Zwembad"].map((label) => (
-            <Button key={label} type="button" variant="outline" disabled title="Komt binnenkort">
-              {label}
-            </Button>
-          ))}
         </div>
       </div>
 
-      {room.environment ? (
+      {room.environment?.type === "gymzaal" ? (
         <GymEnvironmentPanel
           environment={room.environment}
           onLayoutChange={applyGymLayout}
+          onHiddenChange={setEnvironmentHidden}
+        />
+      ) : room.environment ? (
+        <EnvironmentPanel
+          environment={room.environment}
+          onLayoutChange={(layoutId) => applyEnvironment(room.environment!.type, layoutId)}
           onHiddenChange={setEnvironmentHidden}
         />
       ) : (

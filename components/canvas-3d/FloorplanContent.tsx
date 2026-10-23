@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
-import { GymEnvironment } from "@/components/canvas-3d/GymEnvironment";
+import { EnvironmentModel } from "@/components/canvas-3d/EnvironmentModel";
 import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
@@ -51,7 +51,7 @@ export function FloorplanContent({
       {room.environment ? (
         // Tijdens het laden van de GLB staat de gewone vloer er al; geen leeg scherm.
         <Suspense fallback={<RoomFloor room={room} />}>
-          <GymEnvironment environment={room.environment} />
+          <EnvironmentModel environment={room.environment} />
         </Suspense>
       ) : (
         <RoomFloor room={room} />

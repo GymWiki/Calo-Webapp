@@ -256,7 +256,7 @@ export function GymEnvironmentPanel({
   onLayoutChange: (layout: GymLayoutId) => void;
   onHiddenChange: (hidden: string[]) => void;
 }) {
-  const layout = GYM_LAYOUTS[environment.layout];
+  const layout = GYM_LAYOUTS[environment.layout as GymLayoutId] ?? GYM_LAYOUTS.standaard;
   const { hidden } = environment;
 
   const wallsOn = layout.walls.filter((wall) => isPartOn(wall, hidden)).length;
