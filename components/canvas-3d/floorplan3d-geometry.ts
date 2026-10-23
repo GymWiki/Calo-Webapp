@@ -9,16 +9,85 @@
 import type { MaterialModel } from "@/types/materialModel";
 import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import { EPS_M, OVERLAP_IGNORE_M } from "@/components/canvas-3d/placement-config";
+import { COLLISION_OVERRIDES } from "@/components/canvas-3d/collision-overrides";
+import { COLLISION_PROFILES } from "@/components/canvas-3d/collision-profiles.generated";
+import {
+  footprintExtents,
+  footprintPolygons,
+  isElevated,
+  resolveCollisionShape,
+  rotateXZ,
+  verticalRange,
+  type CollisionShape,
+  type ShapePart,
+} from "@/components/canvas-3d/collision-shape";
 
-export type ItemDims = { length_m: number; width_m: number; height_m: number; stackable: boolean };
+/**
+ * Afmetingen + collision-vorm van een asset. Alleen lengte/breedte/hoogte/
+ * stackable zijn verplicht (zo blijven eenvoudige testdata en onbekende
+ * assets werken); de rest komt uit de collision-vorm (collision-shape.ts):
+ * middelpunt-offset t.o.v. de pivot, onderkant, draaiing van de vorm en
+ * het vormtype.
+ */
+export type ItemDims = {
+  length_m: number;
+  width_m: number;
+  height_m: number;
+  stackable: boolean;
+  kind?: CollisionShape["kind"];
+  offset_x?: number;
+  offset_z?: number;
+  base_m?: number;
+  yaw_deg?: number;
+  parts?: ShapePart[];
+};
+
+/** De volledige collision-vorm van een asset (ontbrekende velden = gecentreerde box op de vloer). */
+export function shapeOfDims(dims: ItemDims): CollisionShape {
+  return {
+    kind: dims.kind ?? "box",
+    length_m: dims.length_m,
+    width_m: dims.width_m,
+    height_m: dims.height_m,
+    offset_x: dims.offset_x ?? 0,
+    offset_z: dims.offset_z ?? 0,
+    base_m: dims.base_m ?? 0,
+    yaw_deg: dims.yaw_deg ?? 0,
+    parts: dims.parts,
+    source: "db",
+  };
+}
 
 /** Modellen-opzoektabel op slug — elke geometriefunctie hieronder heeft de
  * afmetingen/stackable-vlag van ELK item nodig, niet alleen van het item
  * waarmee net geïnteracteerd wordt. */
 export type DimsLookup = (slug: string) => ItemDims | undefined;
 
+/** Dims van één model: vorm uit de geometrie (profiel) of override, anders de oude box uit de database. */
+export function dimsOfModel(model: MaterialModel): ItemDims {
+  const profile = COLLISION_PROFILES[model.slug];
+  const shape = resolveCollisionShape({
+    db: { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m },
+    auto: profile ? { shape: { kind: "box", ...profile.shape, source: "mesh" }, aabb: profile.aabb } : null,
+    override: COLLISION_OVERRIDES[model.slug] ?? null,
+  });
+  return {
+    length_m: shape.length_m,
+    width_m: shape.width_m,
+    height_m: shape.height_m,
+    // Verhoogd (hangend) of puur visueel materiaal wordt nooit een ondergrond.
+    stackable: model.stackable && shape.kind !== "none" && !isElevated(shape),
+    kind: shape.kind,
+    offset_x: shape.offset_x,
+    offset_z: shape.offset_z,
+    base_m: shape.base_m,
+    yaw_deg: shape.yaw_deg,
+    parts: shape.parts,
+  };
+}
+
 export function dimsLookupFromModels(models: MaterialModel[]): DimsLookup {
-  const bySlug = new Map(models.map((model) => [model.slug, model]));
+  const bySlug = new Map(models.map((model) => [model.slug, dimsOfModel(model)]));
   return (slug) => bySlug.get(slug);
 }
 
@@ -43,11 +112,10 @@ export function footprintCorners(
 ): Point2D[] {
   const halfL = lengthM / 2;
   const halfW = widthM / 2;
-  const rad = (rotYDeg * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
 
-  // Lokale hoekpunten (langs X=length, Z=width) vóór rotatie.
+  // Lokale hoekpunten (langs X=length, Z=width) vóór rotatie. De rotatie
+  // volgt three.js (`rotation.y = +graden`), zodat de voetafdruk exact
+  // samenvalt met wat de scene tekent (zie collision-shape.ts).
   const local: Point2D[] = [
     { x: -halfL, z: -halfW },
     { x: halfL, z: -halfW },
@@ -55,10 +123,10 @@ export function footprintCorners(
     { x: -halfL, z: halfW },
   ];
 
-  return local.map((p) => ({
-    x: x + p.x * cos - p.z * sin,
-    z: z + p.x * sin + p.z * cos,
-  }));
+  return local.map((p) => {
+    const r = rotateXZ(p.x, p.z, rotYDeg);
+    return { x: x + r.x, z: z + r.z };
+  });
 }
 
 /** Axis-aligned bounding box van een (mogelijk geroteerde) voetafdruk —
@@ -79,16 +147,14 @@ export function footprintAabb(x: number, z: number, lengthM: number, widthM: num
 // ----------------------------------------------------------------------------
 
 function unitAxesOf(corners: Point2D[]): Point2D[] {
-  // Twee onafhankelijke randnormalen per rechthoek (de andere twee zijn
-  // hun tegenovergestelde, niet nodig voor SAT), genormaliseerd zodat de
-  // projectie-overlap in meters is.
-  const edges = [
-    { x: corners[1].x - corners[0].x, z: corners[1].z - corners[0].z },
-    { x: corners[2].x - corners[1].x, z: corners[2].z - corners[1].z },
-  ];
-  return edges.map((edge) => {
-    const length = Math.hypot(edge.x, edge.z) || 1;
-    return { x: -edge.z / length, z: edge.x / length };
+  // Randnormalen van alle zijden (rechthoek, cirkel-achtige of capsule-
+  // polygonen), genormaliseerd zodat de projectie-overlap in meters is.
+  return corners.map((corner, index) => {
+    const next = corners[(index + 1) % corners.length];
+    const dx = next.x - corner.x;
+    const dz = next.z - corner.z;
+    const length = Math.hypot(dx, dz) || 1;
+    return { x: -dz / length, z: dx / length };
   });
 }
 
@@ -175,9 +241,51 @@ export function pointInFootprint(point: Point2D, footprint: Point2D[]): boolean 
   return true;
 }
 
-export function itemFootprint(item: Floorplan3dItem, lookup: DimsLookup): Point2D[] {
-  const dims = dimsOf(item, lookup);
-  return footprintCorners(item.x, item.z, dims.length_m, dims.width_m, item.rot_y_deg);
+/** Convexe voetafdruk-polygonen van een geplaatst item (leeg voor puur visueel materiaal). */
+export function itemPolygons(item: Floorplan3dItem, lookup: DimsLookup): Point2D[][] {
+  return footprintPolygons(shapeOfDims(dimsOf(item, lookup)), item.x, item.z, item.rot_y_deg);
+}
+
+/** Verticaal bereik [onder, boven] van een geplaatst item. */
+export function itemVerticalRange(item: Floorplan3dItem, lookup: DimsLookup): [number, number] {
+  return verticalRange(shapeOfDims(dimsOf(item, lookup)), item.y);
+}
+
+// --- Verzamelingen polygonen (een vorm kan uit meerdere delen bestaan) -------
+
+/** Grootste indringdiepte over alle paren delen; -Infinity als een van beide leeg is. */
+export function polygonsOverlapDepth(a: Point2D[][], b: Point2D[][]): number {
+  let depth = -Infinity;
+  for (const pa of a) for (const pb of b) depth = Math.max(depth, footprintOverlapDepth(pa, pb));
+  return depth;
+}
+
+export function polygonsOverlap(a: Point2D[][], b: Point2D[][], minDepthM: number = OVERLAP_IGNORE_M): boolean {
+  return polygonsOverlapDepth(a, b) >= minDepthM;
+}
+
+export function polygonsOverlapArea(a: Point2D[][], b: Point2D[][]): number {
+  let area = 0;
+  for (const pa of a) for (const pb of b) area += overlapArea(pa, pb);
+  return area;
+}
+
+export function polygonsArea(polygons: Point2D[][]): number {
+  return polygons.reduce((sum, polygon) => sum + polygonArea(polygon), 0);
+}
+
+export function pointInPolygons(point: Point2D, polygons: Point2D[][]): boolean {
+  return polygons.some((polygon) => pointInFootprint(point, polygon));
+}
+
+export function polygonsAabb(polygons: Point2D[][]) {
+  const points = polygons.flat();
+  return {
+    minX: Math.min(...points.map((p) => p.x)),
+    maxX: Math.max(...points.map((p) => p.x)),
+    minZ: Math.min(...points.map((p) => p.z)),
+    maxZ: Math.max(...points.map((p) => p.z)),
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -200,12 +308,23 @@ export function findNearestFreeSpot(
   const step = 0.2; // 20cm per ring — fijn genoeg, blijft snel voor normale kamers/itemaantallen.
   const maxRings = Math.ceil(Math.max(room.width_m, room.length_m) / step) + 2;
 
-  function fitsAt(x: number, z: number): boolean {
-    if (x - dims.length_m / 2 < -halfL || x + dims.length_m / 2 > halfL) return false;
-    if (z - dims.width_m / 2 < -halfW || z + dims.width_m / 2 > halfW) return false;
+  const shape = shapeOfDims(dims);
+  const extent = footprintExtents(shape, rotYDeg);
+  // Alleen items die op dezelfde hoogte staan blokkeren de plek (hangend materiaal niet).
+  const ownRange = verticalRange(shape, 0);
+  const blockers = otherItems.filter((other) => {
+    const [lo, hi] = itemVerticalRange(other, lookup);
+    return lo < ownRange[1] - EPS_M && ownRange[0] < hi - EPS_M;
+  });
 
-    const candidateFootprint = footprintCorners(x, z, dims.length_m, dims.width_m, rotYDeg);
-    return !otherItems.some((other) => footprintsOverlap(candidateFootprint, itemFootprint(other, lookup)));
+  function fitsAt(x: number, z: number): boolean {
+    if (shape.kind !== "none") {
+      if (x + extent.minX < -halfL || x + extent.maxX > halfL) return false;
+      if (z + extent.minZ < -halfW || z + extent.maxZ > halfW) return false;
+    }
+
+    const candidate = footprintPolygons(shape, x, z, rotYDeg);
+    return !blockers.some((other) => polygonsOverlap(candidate, itemPolygons(other, lookup)));
   }
 
   if (fitsAt(startX, startZ)) return { x: startX, z: startZ };
@@ -239,15 +358,15 @@ export type SnapGridSize = 0 | 0.1 | 0.5;
 export function findItemsResting(baseId: string, items: Floorplan3dItem[], lookup: DimsLookup): string[] {
   const base = items.find((item) => item.id === baseId);
   if (!base) return [];
-  const baseDims = dimsOf(base, lookup);
-  const baseTop = base.y + baseDims.height_m;
-  const baseFootprint = itemFootprint(base, lookup);
+  const baseTop = itemVerticalRange(base, lookup)[1];
+  const basePolygons = itemPolygons(base, lookup);
 
   const directlyOn = items.filter(
     (item) =>
       item.id !== baseId &&
-      Math.abs(item.y - baseTop) < EPS_M &&
-      footprintsOverlap(baseFootprint, itemFootprint(item, lookup)),
+      // Een item rust op de bovenkant van de basis als zijn ONDERKANT daar ligt.
+      Math.abs(itemVerticalRange(item, lookup)[0] - baseTop) < EPS_M &&
+      polygonsOverlap(basePolygons, itemPolygons(item, lookup)),
   );
 
   const result = directlyOn.map((item) => item.id);
@@ -284,13 +403,20 @@ export function recomputeStackedYs(items: Floorplan3dItem[], lookup: DimsLookup)
 
   const placed: Floorplan3dItem[] = [];
   for (const { item } of order) {
-    const footprint = itemFootprint(item, lookup);
+    const shape = shapeOfDims(dimsOf(item, lookup));
+    // Hangend of puur visueel materiaal stapelt nooit: de pivot blijft op de vloer.
+    if (shape.kind === "none" || isElevated(shape)) {
+      placed.push({ ...item, y: 0 });
+      continue;
+    }
+
+    const polygons = itemPolygons(item, lookup);
     let y = 0;
     for (const base of placed) {
-      if (!footprintsOverlap(footprint, itemFootprint(base, lookup))) continue;
-      const baseDims = dimsOf(base, lookup);
-      if (!baseDims.stackable) continue;
-      y = Math.max(y, base.y + baseDims.height_m);
+      if (!dimsOf(base, lookup).stackable) continue;
+      if (!polygonsOverlap(polygons, itemPolygons(base, lookup))) continue;
+      // Onderkant van dit item op de bovenkant van de basis.
+      y = Math.max(y, itemVerticalRange(base, lookup)[1] - shape.base_m);
     }
     placed.push({ ...item, y });
   }
@@ -311,12 +437,12 @@ export function clampItemsToRoom(
 ): { items: Floorplan3dItem[]; moved: number } {
   let moved = 0;
   const clamped = items.map((item) => {
-    const dims = dimsOf(item, lookup);
-    const aabb = footprintAabb(0, 0, dims.length_m, dims.width_m, item.rot_y_deg);
-    const halfX = (aabb.maxX - aabb.minX) / 2;
-    const halfZ = (aabb.maxZ - aabb.minZ) / 2;
-    const x = Math.min(Math.max(item.x, -room.width_m / 2 + halfX), room.width_m / 2 - halfX);
-    const z = Math.min(Math.max(item.z, -room.length_m / 2 + halfZ), room.length_m / 2 - halfZ);
+    const shape = shapeOfDims(dimsOf(item, lookup));
+    if (shape.kind === "none") return item;
+    // Grenzen van de voetafdruk t.o.v. de itempositie (offset en draaiing inbegrepen).
+    const extent = footprintExtents(shape, item.rot_y_deg);
+    const x = Math.min(Math.max(item.x, -room.width_m / 2 - extent.minX), room.width_m / 2 - extent.maxX);
+    const z = Math.min(Math.max(item.z, -room.length_m / 2 - extent.minZ), room.length_m / 2 - extent.maxZ);
     if (Math.abs(x - item.x) < EPS_M && Math.abs(z - item.z) < EPS_M) return item;
     moved += 1;
     return { ...item, x, z };
