@@ -64,7 +64,9 @@ export function shapeOfDims(dims: ItemDims): CollisionShape {
 export type DimsLookup = (slug: string) => ItemDims | undefined;
 
 /** Dims van één model: vorm uit de geometrie (profiel) of override, anders de oude box uit de database. */
-export function dimsOfModel(model: MaterialModel): ItemDims {
+export function dimsOfModel(model: MaterialModel, legacy = false): ItemDims {
+  // `legacy` (alleen voor ?debug=collision-legacy): de oude, gecentreerde box uit de database — voor voor/na-vergelijkingen.
+  if (legacy) return { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m, stackable: model.stackable };
   const profile = COLLISION_PROFILES[model.slug];
   const shape = resolveCollisionShape({
     db: { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m },
@@ -86,8 +88,8 @@ export function dimsOfModel(model: MaterialModel): ItemDims {
   };
 }
 
-export function dimsLookupFromModels(models: MaterialModel[]): DimsLookup {
-  const bySlug = new Map(models.map((model) => [model.slug, dimsOfModel(model)]));
+export function dimsLookupFromModels(models: MaterialModel[], legacy = false): DimsLookup {
+  const bySlug = new Map(models.map((model) => [model.slug, dimsOfModel(model, legacy)]));
   return (slug) => bySlug.get(slug);
 }
 

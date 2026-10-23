@@ -67,6 +67,8 @@ export default async function Plattegrond3dPage({
       initialFloorplan={initialFloorplan}
       activiteitId={activiteit}
       debug={debug === "1"}
+      debugCollision={debug === "collision" || debug === "collision-legacy"}
+      debugLegacy={debug === "collision-legacy"}
     />
   );
 }
