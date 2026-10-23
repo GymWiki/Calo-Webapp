@@ -33,7 +33,7 @@ export function CameraRig({
   // referentie-op-vector bij recht-naar-onder-kijken — gimbal-lock-achtig
   // probleem).
   const topPosition: [number, number, number] = [0, span * 1.4, 0.001];
-  const freePosition: [number, number, number] = [span * 0.7, span * 0.55, span * 0.9];
+  const freePosition: [number, number, number] = [span * 0.95, span * 0.75, span * 1.2];
 
   return (
     <group key={mode}>

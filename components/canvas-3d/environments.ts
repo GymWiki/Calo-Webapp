@@ -9,7 +9,7 @@
 
 import type { Floorplan3dEnvironment, Floorplan3dRoom } from "@/types/floorplan3d";
 
-export type GymLayoutId = Floorplan3dEnvironment["layout"];
+export type GymLayoutId = "standaard" | "2x2" | "4x1";
 
 export type WallSide = "voor" | "achter" | "links" | "rechts";
 
@@ -150,7 +150,7 @@ export const GYM_LAYOUT_ORDER: GymLayoutId[] = ["standaard", "2x2", "4x1"];
 export const DEFAULT_GYM_LAYOUT: GymLayoutId = "standaard";
 
 /** De GLB's staan in dezelfde publieke bucket als het materiaal. */
-export function environmentModelUrl(layout: GymLayout): string {
+export function environmentModelUrl(layout: { glb: string }): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   return `${base}/storage/v1/object/public/materials-3d/environments/${layout.glb}.glb`;
 }
