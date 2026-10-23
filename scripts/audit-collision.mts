@@ -21,6 +21,7 @@ import {
   convexHull,
   footprintPolygons,
   legacyShape,
+  rotateXZ,
   resolveCollisionShape,
   shapeFromExtent,
   type CollisionShape,
@@ -259,6 +260,7 @@ type Row = {
   overridden: boolean;
   aabbInflation45: number;
   scaleOk: boolean;
+  rotationOk: boolean;
   diagnostics: Diagnostics;
   extent: MeshExtent;
 };
@@ -271,6 +273,33 @@ function polygonArea(poly: Point[]) {
     s += p.x * q.z - q.x * p.z;
   }
   return Math.abs(s) / 2;
+}
+
+/** Is het punt binnen een convex polygon (tegen de klok in of met de klok mee), met marge `tol` (m)? */
+function insideConvex(p: Point, polygon: Point[], tol: number): boolean {
+  let sign = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const length = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    const cross = ((b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x)) / length;
+    if (Math.abs(cross) <= tol) continue;
+    const s = Math.sign(cross);
+    if (sign === 0) sign = s;
+    else if (s !== sign) return false;
+  }
+  return true;
+}
+
+/** Omvat de (oriented) voetafdruk de mesh bij elke gebruikte rotatie van het item? */
+function rotationCheck(shape: CollisionShape, extent: MeshExtent): boolean {
+  if (shape.kind === "none") return true;
+  for (const rot of ROTATIONS) {
+    const polygons = footprintPolygons(shape, 0, 0, rot);
+    const hull = extent.hull.map((p) => rotateXZ(p.x, p.z, rot));
+    if (!hull.every((p) => polygons.some((polygon) => insideConvex(p, polygon, 0.005)))) return false;
+  }
+  return true;
 }
 
 function scaleCheck(extent: MeshExtent): boolean {
@@ -331,6 +360,7 @@ async function audit(assets: Asset[]): Promise<Row[]> {
       overridden: Boolean(override),
       aabbInflation45: polygon.length ? aabbArea / Math.max(polygonArea(polygon), 1e-9) : 1,
       scaleOk: scaleCheck(extent),
+      rotationOk: rotationCheck(afterShape, extent),
       diagnostics,
       extent,
     });
@@ -382,8 +412,21 @@ function markdownReport(rows: Row[]): string {
   lines.push("", `Assets met overrides: ${rows.filter((r) => r.overridden).map((r) => `\`${r.slug}\``).join(", ") || "geen"}.`, "");
   const noScale = rows.filter((r) => !r.scaleOk);
   lines.push(`Schaaltest (uniform 2× en 1,5/1/0,7): ${noScale.length === 0 ? "alle assets OK" : `afwijkend: ${noScale.map((r) => r.slug).join(", ")}`}.`, "");
+  const noRotation = rows.filter((r) => !r.rotationOk && !r.overridden);
+  lines.push(`Rotatietest (${ROTATIONS.join("°, ")}°): de oriented box omvat de mesh bij alle rotaties voor ${rows.length - noRotation.length} van ${rows.length} assets${noRotation.length ? `; afwijkend: ${noRotation.map((r) => r.slug).join(", ")}` : ""}.`, "");
   const inflation = rows.filter((r) => r.aabbInflation45 > 1.1);
   lines.push(`Een world-AABB (oude aanpak) is bij 45° rotatie gemiddeld ${(rows.reduce((s, r) => s + r.aabbInflation45, 0) / rows.length).toFixed(2)}× zo groot als de oriented box; ${inflation.length} assets > 10% groter.`, "");
+  lines.push("## Assets die een Blender-aanpassing nodig hebben", "");
+  lines.push("De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing komen uit de geometrie), dus er is niets kapot. Wie het model zelf wil opschonen, kan dit in Blender doen; regels staan in `docs/blender-naming.md`.", "");
+  const bySlug = (pred: (r: Row) => boolean) => rows.filter(pred).map((r) => `\`${r.slug}\``).join(", ") || "geen";
+  lines.push(`- **Rotatie toepassen (Ctrl+A → Rotation)** — model is schuin gemodelleerd (yaw ≥ 0,5°): ${bySlug((r) => Math.abs(r.ideal.yaw_deg) >= 0.5)}`);
+  lines.push(`- **Schaal toepassen (Ctrl+A → Scale)** — niet-uniforme schaal op een node: ${bySlug((r) => r.diagnostics.nonUniformScale > 0)}`);
+  lines.push(`- **Origin naar onderkant-midden (Object → Set Origin) — pivot meer dan 5 cm van het midden** : ${bySlug((r) => Math.hypot(r.ideal.offset_x, r.ideal.offset_z) > 0.05)}`);
+  lines.push(`- **Controleren of dit zo bedoeld is — onderkant meer dan 2 cm boven de vloer (hangend/wandmodel)**: ${bySlug((r) => r.ideal.base_m > 0.02)}`);
+  lines.push(`- **Controleren — onderkant meer dan 2 cm onder de vloer**: ${bySlug((r) => r.ideal.base_m < -0.02)}`);
+  lines.push(`- Skinned of instanced meshes: ${bySlug((r) => r.diagnostics.skinned > 0 || r.diagnostics.instanced > 0)}`);
+  lines.push(`- Lege nodes zonder mesh (helpers): ${bySlug((r) => r.diagnostics.emptyLeaves > 0)}`);
+  lines.push("");
   lines.push("## Assets die VOOR de fix FAIL waren", "");
   lines.push("| Asset | Voor | Na | Oorzaak | Fix |", "|---|---|---|---|---|");
   for (const r of failing) {
@@ -421,6 +464,42 @@ ${entries}
 `;
 }
 
+// ----------------------------------------------------------------------------
+// Contactsheet (bovenaanzicht): mesh-omtrek (groen), oude box (rood, gestreept), nieuwe vorm (blauw)
+// ----------------------------------------------------------------------------
+
+function contactSheetSvg(rows: Row[]): string {
+  const columns = 12;
+  const tile = 170;
+  const label = 26;
+  const height = Math.ceil(rows.length / columns) * (tile + label);
+  const parts: string[] = [];
+  const f = (v: number) => v.toFixed(1);
+  rows.forEach((row, index) => {
+    const ox = (index % columns) * tile;
+    const oy = Math.floor(index / columns) * (tile + label);
+    // Schaal: de grootste uitbreiding van mesh, oude box en nieuwe vorm past in de tegel.
+    const polys = footprintPolygons(row.afterShape, 0, 0, 0).flat();
+    const old = footprintPolygons(row.beforeShape, 0, 0, 0).flat();
+    const all = [...row.extent.hull, ...polys, ...old];
+    const reach = Math.max(...all.map((p) => Math.max(Math.abs(p.x), Math.abs(p.z))), 0.05);
+    const scale = (tile / 2 - 10) / reach;
+    const cx = ox + tile / 2;
+    const cy = oy + tile / 2;
+    const pts = (poly: Point[]) => poly.map((p) => `${f(cx + p.x * scale)},${f(cy + p.z * scale)}`).join(" ");
+    parts.push(`<g><rect x="${ox + 1}" y="${oy + 1}" width="${tile - 2}" height="${tile + label - 2}" fill="${row.afterVerdict.pass ? "#fff" : "#fee2e2"}" stroke="#e5e7eb"/>`);
+    parts.push(`<polygon points="${pts(row.extent.hull)}" fill="#16a34a" fill-opacity="0.35" stroke="#16a34a" stroke-width="1"/>`);
+    parts.push(`<polygon points="${pts(convexHull(old))}" fill="none" stroke="#dc2626" stroke-width="1.2" stroke-dasharray="4 3"/>`);
+    for (const part of footprintPolygons(row.afterShape, 0, 0, 0)) parts.push(`<polygon points="${pts(part)}" fill="none" stroke="#2563eb" stroke-width="1.6"/>`);
+    parts.push(`<path d="M${f(cx - 4)} ${f(cy)}h8M${f(cx)} ${f(cy - 4)}v8" stroke="#111" stroke-width="0.8"/>`);
+    parts.push(`<text x="${ox + 6}" y="${oy + tile + 11}" font-family="monospace" font-size="9" fill="#111">${row.slug.slice(0, 30)}</text>`);
+    const flagText = [row.beforeVerdict.pass ? "" : `voor: ${row.causes[0] ?? "afwijking"}`.slice(0, 34)].join("");
+    parts.push(`<text x="${ox + 6}" y="${oy + tile + 22}" font-family="monospace" font-size="8" fill="#6b7280">${flagText}</text></g>`);
+  });
+  const header = `<text x="8" y="14" font-family="sans-serif" font-size="11" fill="#111">Groen = mesh-omtrek · rood gestreept = oude box (database, op de pivot) · blauw = nieuwe vorm · kruis = pivot</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${columns * tile}" height="${height + 20}" viewBox="0 -20 ${columns * tile} ${height + 20}"><rect x="0" y="-20" width="100%" height="100%" fill="#fff"/>${header}${parts.join("")}</svg>`;
+}
+
 const assets = source === "db" ? await loadFromDb() : await loadLocal();
 const rows = await audit(assets);
 consoleTable(rows);
@@ -431,8 +510,24 @@ if (flag("--write")) {
   await writeFile(REPORT_PATH, markdownReport(rows));
   console.log(`\nGeschreven: ${path.relative(ROOT, PROFILES_PATH)}, ${path.relative(ROOT, REPORT_PATH)}`);
 }
-if (flag("--json")) await writeFile(path.join(ROOT, "audit-collision.json"), JSON.stringify(rows.map(({ extent, ...rest }) => rest), null, 1));
-if (flag("--check") && rows.some((r) => !r.afterVerdict.pass)) {
-  console.error("\nFAIL: er zijn assets zonder passende vorm of override.");
-  process.exit(1);
+if (flag("--sheet")) {
+  const sheetPath = path.join(ROOT, "docs", "collision-contactsheet.svg");
+  await writeFile(sheetPath, contactSheetSvg(rows));
+  console.log(`Geschreven: ${path.relative(ROOT, sheetPath)}`);
+}
+if (flag("--json")) await writeFile(path.join(ROOT, "audit-collision.json"), JSON.stringify(rows.map((row) => ({ ...row, extent: undefined })), null, 1));
+if (flag("--check")) {
+  let failed = false;
+  if (rows.some((r) => !r.afterVerdict.pass)) {
+    console.error("\nFAIL: er zijn assets zonder passende vorm of override.");
+    failed = true;
+  }
+  // Het opgeslagen profiel moet bij de huidige GLB's horen; anders: opnieuw genereren met --write.
+  const stored = await readFile(PROFILES_PATH, "utf8").catch(() => "");
+  if (!only && stored !== profilesSource(rows)) {
+    console.error("\nFAIL: collision-profiles.generated.ts is verouderd — draai `npm run audit:collision -- --write`.");
+    failed = true;
+  }
+  if (failed) process.exit(1);
+  console.log("\n--check: alles in orde.");
 }

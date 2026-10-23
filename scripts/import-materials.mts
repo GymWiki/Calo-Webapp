@@ -349,6 +349,12 @@ async function main() {
   if (results.some((r) => r.status === "fout")) {
     process.exit(1);
   }
+
+  // De collision-vorm (offset, onderkant, draaiing) staat in een gegenereerd profiel
+  // naast de code; zonder nieuw profiel valt een asset terug op de oude gecentreerde box.
+  console.log(
+    "\nTip: draai `npm run audit:collision -- --write` en commit components/canvas-3d/collision-profiles.generated.ts voor nieuwe of gewijzigde GLB's.",
+  );
 }
 
 main();

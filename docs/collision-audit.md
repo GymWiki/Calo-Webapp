@@ -26,7 +26,21 @@ Assets met overrides: `dikke_mat_300x200x30`.
 
 Schaaltest (uniform 2× en 1,5/1/0,7): alle assets OK.
 
+Rotatietest (0°, 30°, 45°, 90°): de oriented box omvat de mesh bij alle rotaties voor 240 van 240 assets.
+
 Een world-AABB (oude aanpak) is bij 45° rotatie gemiddeld 7.06× zo groot als de oriented box; 238 assets > 10% groter.
+
+## Assets die een Blender-aanpassing nodig hebben
+
+De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing komen uit de geometrie), dus er is niets kapot. Wie het model zelf wil opschonen, kan dit in Blender doen; regels staan in `docs/blender-naming.md`.
+
+- **Rotatie toepassen (Ctrl+A → Rotation)** — model is schuin gemodelleerd (yaw ≥ 0,5°): `ballenpomp_en_drukmeter_set`, `dopjes_kleurenset_4stuks`, `dumbbell_hex_paar`, `korfbalmand_riet_los`, `pion_opbergstapel`, `pion_oranje_wit_gestreept`, `reactiebal_noppen`, `start_finish_vlag_en_klepper`, `stopwatch_roze_met_koord`, `yogamat_opgerold_set`
+- **Schaal toepassen (Ctrl+A → Scale)** — niet-uniforme schaal op een node: `minitrampoline`
+- **Origin naar onderkant-midden (Object → Set Origin) — pivot meer dan 5 cm van het midden** : `ab_roller_en_pushup_steunen`, `basketbal_muur_vast`, `basketbal_muur_wegdraaibaar`, `basketbaltoren_mobiel_jeugd`, `basketbaltoren_mobiel_senior`, `dopjes_kleurenset_4stuks`, `floorballstick_unihockey`, `fluitje_met_koord_en_kaarten`, `grensrechter_vlaggen_paar`, `klimnet_schuin_gymzaalframe`, `korfbalmand_kunststof_geel_los`, `korfbalmand_riet_los`, `korfbalpaal_compleet_250`, `korfbalpaal_compleet_300`, `korfbalpaal_compleet_350`, `lacrossestick_crosse`, `mattenkar_compleet`, `mattenkar_leeg`, `rekstok_wand_uitklapbaar`, `springtouw_speedrope`, `start_finish_vlag_en_klepper`, `stopwatch_digitaal`, `stopwatch_roze_met_koord`, `stopwatch_set_klassiek_en_digitaal`, `turnkast_140x83x114`, `turnkast_5_delig`, `turnkast_6_delig_1_recht`, `turnkast_7_delig_2_recht`, `veldhockeydoel_180x120_jeugd`, `veldhockeydoel_366x214_vast`, `veldhockeydoel_366x214_verplaatsbaar`, `veldvoetbaldoel_500x200_vast`, `veldvoetbaldoel_500x200_verplaatsbaar`, `veldvoetbaldoel_732x244_vast`, `veldvoetbaldoel_732x244_verplaatsbaar`, `volleybal_veldopstelling_compleet_dames`, `volleybal_veldopstelling_compleet_heren`, `volleybalpalen_mobiel_set`, `volleybalpalen_vloerbus_set`, `wandrek_uitklapbaar_zwenk`, `zaalhockeybalken_gekoppeld_rij`, `zaalhockeydoel_300x200_inklapbaar`, `zaalhockeydoel_300x200_roodwit`, `zaalhockeydoel_300x200_wit`, `zaaltimer_intervalklok_digitaal`, `zaalvoetbal_handbaldoel_3x2`
+- **Controleren of dit zo bedoeld is — onderkant meer dan 2 cm boven de vloer (hangend/wandmodel)**: `badmintonnet_los_610`, `basketbal_muur_vast`, `basketbal_muur_wegdraaibaar`, `basketbalbord_los`, `klimtouwen_opgebonden_opslag`, `klimtouwen_set_2_hangend`, `klimtouwen_set_4_hangend`, `ringenstel_fig_officieel`, `ringenstel_opgetakeld_opslag`, `scorebord_elektronisch_wand_led`, `touwladder_hangend_5m`, `volleybalnet_compleet_antennes_los`, `whiteboard_wandmodel_vakwerk`, `zwaairingen_gymzaal_laag`
+- **Controleren — onderkant meer dan 2 cm onder de vloer**: `battle_rope_met_anker`, `bosu_balanstrainer_en_foamroller`, `grote_trampoline_vrijstaand_uitgeklapt`, `megafoon_en_luchthoorn`, `padelracket_carbon`, `plankoline_klassiek_multiplex`, `plankoline_modern_staalframe`, `springbok_hoog_versteld_130cm`, `springbok_laag_jeugd_80cm`, `springbok_modern_staal_hefinrichting`, `springbok_standaard_105cm`, `springpaard_klassiek_160`, `springpaard_modern_staal`, `start_finish_vlag_en_klepper`, `voltigepaard_compleet_beugels`
+- Skinned of instanced meshes: geen
+- Lege nodes zonder mesh (helpers): geen
 
 ## Assets die VOOR de fix FAIL waren
 
