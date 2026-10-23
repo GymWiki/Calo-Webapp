@@ -67,7 +67,7 @@ jobs:
 
       - name: Build-artefact bewaren (ter inzage, ook al is 'm al geüpload)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-build-${{ inputs.lane }}
           path: build/ios/**/*.ipa
