@@ -161,6 +161,8 @@ export function Floorplan3dEditor({
     moved: boolean;
   } | null>(null);
   const fieldEditRef = useRef<{ key: string; at: number } | null>(null);
+  // Klik op de lege vloer (pointerdown + loslaten zonder te slepen) = selectie opheffen.
+  const backgroundDownRef = useRef<{ x: number; y: number } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tijdelijke offscreen render voor de statische preview (zie FloorplanThumbnailCapture).
@@ -340,7 +342,11 @@ export function Floorplan3dEditor({
   }
 
   function handleFloorPointerDown(event: ThreeEvent<PointerEvent>) {
-    if (!drawMode) return;
+    if (!drawMode) {
+      // Items en velden stoppen de event zelf; alleen een klik op de lege vloer komt hier.
+      backgroundDownRef.current = { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+      return;
+    }
     event.stopPropagation();
     const point = snapFieldPoint({ x: event.point.x, z: event.point.z }, fieldSnapContext());
     if (!draft) setDraft({ a: point, c: point, phase: "dragging" });
@@ -476,7 +482,13 @@ export function Floorplan3dEditor({
     );
   }
 
-  function handleFloorPointerUp() {
+  function handleFloorPointerUp(event: ThreeEvent<PointerEvent>) {
+    const backgroundDown = backgroundDownRef.current;
+    backgroundDownRef.current = null;
+    if (backgroundDown && !drawMode) {
+      const moved = Math.hypot(event.nativeEvent.clientX - backgroundDown.x, event.nativeEvent.clientY - backgroundDown.y);
+      if (moved < 5) setSelectedId(null);
+    }
     if (drawMode) {
       if (draft?.phase === "dragging") {
         const width = Math.abs(draft.c.x - draft.a.x);
