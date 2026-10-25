@@ -114,7 +114,10 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://*.supabase.co",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      // `blob:` in connect-src: GLTFLoader decodeert ingebedde GLB-texturen via
+      // fetch() op een blob:-URL. Zonder dit weigert de browser dat en blijven
+      // modellen met een kleurentextuur (o.a. de ballen) wit/grijs.
+      "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
