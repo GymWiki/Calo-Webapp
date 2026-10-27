@@ -1102,7 +1102,7 @@ export function Floorplan3dEditor({
             </SheetTitle>
           </SheetHeader>
           <div className={cn("px-4 pb-6")}>
-            {mobilePanel === "materiaal" && <MaterialModelPicker3D models={models} onSelect={handleAddModel} />}
+            {mobilePanel === "materiaal" && <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName="bg-background" />}
             {mobilePanel === "item" && itemPanel}
             {mobilePanel === "kamer" && roomPanel}
             {mobilePanel === "lijst" && (
