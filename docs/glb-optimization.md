@@ -23,3 +23,17 @@
 | american_football | 2.01 MB | 0.42 MB |
 | volleybal_beach_softtouch | 1.94 MB | 0.39 MB |
 | basketbal_maat_5 | 1.98 MB | 0.43 MB |
+
+## Let op: geskinde modellen (leerlingen met armature)
+
+`optimize-glbs.mts` slaat GLB's met een skin over en neemt ze ongewijzigd over. Meshopt-quantisatie maakt van de
+bounding box van een geskind model ±1 m en laat de afmetingen/collision verkeerd uitkomen. Alle andere GLB's zijn
+na optimalisatie binnen 1 cm gelijk aan het origineel (gecontroleerd over alle 184).
+
+`import-materials.mts` en `audit-collision.mts` kunnen Meshopt-gecomprimeerde GLB's lezen (decoder geregistreerd).
+
+Uploadstatus: de 184 geoptimaliseerde modellen staan in Supabase (`materials-3d/models/<slug>.glb`).
+De nieuwe leerlingen `leerling_staand_rust`, `leerling_zittend_turnbank` en `leerling_rennen` zijn **niet** geüpload:
+hun GLB staat in een A-pose (armen schuin omlaag, staand), niet in de houding van de preview (rennend / zittend op
+de bank). De pose zit niet in de GLB-export; exporteer vanuit Blender met de pose toegepast (Armature-modifier
+toepassen of "Apply Pose" voor export) en lever opnieuw aan.

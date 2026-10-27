@@ -142,6 +142,13 @@ export const CATEGORY_IDS: readonly string[] = LIBRARY_CATEGORIES.map((category)
 export const SPORT_IDS: readonly string[] = LIBRARY_SPORTS.map((sport) => sport.id);
 export const PERSONS_ID = PERSONS_CATEGORY.id;
 
+/**
+ * Toont de sectie "Personen" (leerlingen) in de bibliotheek. Tijdelijk uit: de nieuwe leerling-modellen
+ * (staand/zittend/rennen) hebben nog niet de juiste pose in de GLB (zie docs/glb-optimization.md). De modellen blijven in
+ * de database, zodat bestaande plattegronden ze blijven tonen; alleen toevoegen kan niet meer. Zet op true om terug te halen.
+ */
+export const SHOW_PERSONS_IN_LIBRARY = false;
+
 const CATEGORY_BY_ID = new Map<string, LibraryCategory>(
   [...LIBRARY_CATEGORIES, PERSONS_CATEGORY].map((category) => [category.id, category]),
 );

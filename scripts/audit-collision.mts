@@ -15,6 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NodeIO, getBounds } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { MeshoptDecoder } from "meshoptimizer";
 import {
   aabbDims,
   compareShapeToMesh,
@@ -47,7 +48,9 @@ const option = (name: string) => args.find((a) => a.startsWith(`${name}=`))?.sli
 const source = option("--source") ?? "local";
 const only = option("--only")?.split(",");
 
-const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+// GLB's uit scripts/optimize-glbs.mts zijn Meshopt-gecomprimeerd: de decoder moet klaarstaan voor io.read.
+await MeshoptDecoder.ready;
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.decoder": MeshoptDecoder });
 
 type Asset = { slug: string; glb: Uint8Array; db: { length_m: number; width_m: number; height_m: number }; dbSource: string };
 
