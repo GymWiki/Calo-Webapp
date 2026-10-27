@@ -163,7 +163,7 @@ export function Scene3D({
       }}
       onPointerMissed={handleMissed}
     >
-      {onPerformanceChange && <PerformanceMonitor bounds={() => [28, 50]} onChange={({ factor }) => onPerformanceChange(factor)} />}
+      {onPerformanceChange && <PerformanceMonitor factor={1} bounds={() => [28, 50]} onChange={({ factor }) => onPerformanceChange(factor)} />}
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
       <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} drawMode={drawMode} resetKey={cameraResetKey} onViewCenter={onViewCenter} />

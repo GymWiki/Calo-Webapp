@@ -9,7 +9,7 @@ Gemeten met Chromium device-emulatie (iPhone SE 375×667, iPhone 14 390×844, Pi
 - Onder de breakpoint `lg` (1024 px) staan drie losse knoppen (Materiaal / Item / Omgeving) over het canvas heen, zonder safe-area. De drawers zijn een vaste Radix-sheet van 70 vh: geen halve/volle stand, niet te slepen.
 - Tussen 640 en 1024 px (tablet, telefoon landscape) is er niets tablet-specifieks: dezelfde telefoonindeling.
 - Vanaf 1024 px (iPad landscape 1180) staan beide zijpanelen (288 + 320 px) vast naast het canvas: het canvas krijgt maar 45% van het scherm.
-- `100dvh` wordt al gebruikt (goed). Er is geen `viewport-fit=cover`, dus `env(safe-area-inset-*)` werkt niet op iOS.
+- `100dvh` wordt al gebruikt en `viewportFit: "cover"` staat al in `app/layout.tsx`, dus `env(safe-area-inset-*)` werkt; alleen werd er in de editor geen gebruik van gemaakt.
 
 **Touch-targets en tekst**
 - 4–5 knoppen in beeld zijn kleiner dan 44 px (alle 36 px hoog), op iPad landscape 36. In de bibliotheek zijn 31–36 elementen kleiner dan 44 px (sportchips 26 px, weergave-knoppen 32 px, accordeonkoppen).

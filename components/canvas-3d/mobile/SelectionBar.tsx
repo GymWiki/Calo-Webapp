@@ -18,7 +18,10 @@ export function SelectionBar({
   onToggleLock,
   onDelete,
   onDeselect,
+  compact = false,
 }: {
+  /** Telefoon in landscape: geen titelregel en geen labels (houdt het canvas zichtbaar). */
+  compact?: boolean;
   title: string;
   locked: boolean;
   /** Velden kunnen niet worden vergrendeld. */
@@ -36,40 +39,42 @@ export function SelectionBar({
         aria-label={`Acties voor ${title}`}
         className="pointer-events-auto flex max-w-full flex-col gap-1 rounded-2xl border bg-card/95 p-1.5 shadow-lg backdrop-blur-sm"
       >
-        <p className="truncate px-2 text-center text-xs font-medium text-muted-foreground">
-          {locked && <Lock className="mr-1 inline size-3" aria-hidden="true" />}
-          {title}
-        </p>
+        {!compact && (
+          <p className="truncate px-2 text-center text-xs font-medium text-muted-foreground">
+            {locked && <Lock className="mr-1 inline size-3" aria-hidden="true" />}
+            {title}
+          </p>
+        )}
         <div className="flex items-center justify-center gap-0.5 overflow-x-auto">
           <BarButton label="Links draaien (−15°)" disabled={locked} onClick={() => onRotate(-15)}>
             <RotateCcw className="size-5" aria-hidden="true" />
-            <span>15°</span>
+            <span className={compact ? "sr-only" : undefined}>15°</span>
           </BarButton>
           <BarButton label="Rechts draaien (+15°)" disabled={locked} onClick={() => onRotate(15)}>
             <RotateCw className="size-5" aria-hidden="true" />
-            <span>15°</span>
+            <span className={compact ? "sr-only" : undefined}>15°</span>
           </BarButton>
           <BarButton label="Kwartslag draaien (+90°)" disabled={locked} onClick={() => onRotate(90)}>
             <RotateCw className="size-5" aria-hidden="true" />
-            <span>90°</span>
+            <span className={compact ? "sr-only" : undefined}>90°</span>
           </BarButton>
           <BarButton label="Dupliceren" onClick={onDuplicate}>
             <Copy className="size-5" aria-hidden="true" />
-            <span>Kopie</span>
+            <span className={compact ? "sr-only" : undefined}>Kopie</span>
           </BarButton>
           {canLock && (
             <BarButton label={locked ? "Ontgrendelen" : "Vergrendelen"} pressed={locked} onClick={onToggleLock}>
               {locked ? <LockOpen className="size-5" aria-hidden="true" /> : <Lock className="size-5" aria-hidden="true" />}
-              <span>{locked ? "Los" : "Slot"}</span>
+              <span className={compact ? "sr-only" : undefined}>{locked ? "Los" : "Slot"}</span>
             </BarButton>
           )}
           <BarButton label="Verwijderen" danger disabled={locked} onClick={onDelete}>
             <Trash2 className="size-5" aria-hidden="true" />
-            <span>Weg</span>
+            <span className={compact ? "sr-only" : undefined}>Weg</span>
           </BarButton>
           <BarButton label="Klaar (deselecteren)" onClick={onDeselect}>
             <X className="size-5" aria-hidden="true" />
-            <span>Klaar</span>
+            <span className={compact ? "sr-only" : undefined}>Klaar</span>
           </BarButton>
         </div>
       </div>
@@ -100,7 +105,7 @@ function BarButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex min-h-12 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 text-[10px] leading-none font-medium transition-colors duration-150 ease-brand focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 disabled:opacity-40",
+        "flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 text-[10px] leading-none font-medium transition-colors duration-150 ease-brand focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 disabled:opacity-40",
         danger ? "text-destructive hover:bg-destructive/10" : "hover:bg-accent",
         pressed && "bg-primary/15 text-primary",
       )}

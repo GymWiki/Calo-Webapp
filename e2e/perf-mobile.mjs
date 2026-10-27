@@ -1,5 +1,5 @@
 // Prestatiemeting van de 3D-editor op "mobiel" (emulatie + CPU-throttling).
-//   node e2e/perf-mobile.mjs --url=http://localhost:3123/dev-editor?n=30 --label=voor [--device="iPhone 14"] [--cpu=4] [--out=docs/mobile-perf-voor.json]
+//   node e2e/perf-mobile.mjs --url=http://localhost:3123/dev-editor?n=30 --label=voor [--device="iPhone 14"] [--cpu=4] [--quality=auto|hoog|laag] [--orbit=3] [--out=docs/mobile-perf-voor.json]
 // Meet: tijd tot eerste frame, aantal gerenderde frames/s tijdens een camera-rondje,
 // draw calls per frame en JS-heap. Frames en draw calls worden geteld door de WebGL-aanroepen
 // te tellen (clear = één R3F-frame), zodat dit ook werkt met frameloop="demand".
@@ -14,6 +14,8 @@ const deviceName = args.device ?? "iPhone 14";
 const cpu = Number(args.cpu ?? 4);
 const label = args.label ?? "meting";
 const runs = Number(args.runs ?? 2);
+const quality = args.quality ?? null; // zet de kwaliteitsinstelling van de editor vooraf (alleen nieuwe versie)
+const orbitSeconds = Number(args.orbit ?? 3);
 
 const browser = await chromium.launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH ?? (process.env.PLAYWRIGHT_BROWSERS_PATH ? `${process.env.PLAYWRIGHT_BROWSERS_PATH}/chromium` : undefined),
@@ -23,7 +25,9 @@ const browser = await chromium.launch({
 async function once() {
   const context = await browser.newContext({ ...devices[deviceName], defaultBrowserType: undefined });
   const page = await context.newPage();
+  if (quality) await page.addInitScript((q) => window.localStorage.setItem("gymwiki.editor.settings.v1", JSON.stringify({ quality: q, closeLibraryAfterPlace: true })), quality);
   await page.addInitScript(() => {
+    try { window.localStorage.setItem("gymwiki.editor.onboarding.v1", "1"); } catch {}
     const stats = { clears: 0, draws: 0, firstClearAt: 0, instanced: 0 };
     window.__gl = stats;
     for (const Ctx of [window.WebGL2RenderingContext, window.WebGLRenderingContext]) {
@@ -50,7 +54,7 @@ async function once() {
   const loadMs = stableSince - t0;
   const heapAfterLoad = await page.evaluate(() => (performance.memory ? performance.memory.usedJSHeapSize / 1048576 : null));
 
-  // camera-rondje: 3 s slepen met één vinger/muis op het canvas
+  // camera-rondje: orbitSeconds s slepen met één vinger/muis op het canvas
   const box = await page.locator("canvas").first().boundingBox();
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2, r = Math.min(box.width, box.height) / 4;
   const before = await page.evaluate(() => ({ ...window.__gl }));
@@ -58,7 +62,7 @@ async function once() {
   await page.mouse.move(cx, cy - r);
   await page.mouse.down();
   let i = 0;
-  while (Date.now() - start < 3000) {
+  while (Date.now() - start < orbitSeconds * 1000) {
     const a = (i++ / 40) * Math.PI * 2;
     await page.mouse.move(cx + r * Math.sin(a), cy - r * Math.cos(a));
     await page.waitForTimeout(8);

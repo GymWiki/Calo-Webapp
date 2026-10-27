@@ -1,0 +1,31 @@
+{
+ "label": "na-laag",
+ "url": "http://localhost:3123/dev-editor?n=30",
+ "device": "iPhone 14",
+ "cpuThrottle": 4,
+ "runs": [
+  {
+   "loadMs": 6317,
+   "fps": 12.9,
+   "drawCallsPerFrame": 480,
+   "frames": 42,
+   "heapAfterLoadMB": 213,
+   "heapEndMB": 225
+  },
+  {
+   "loadMs": 6038,
+   "fps": 13.1,
+   "drawCallsPerFrame": 480,
+   "frames": 43,
+   "heapAfterLoadMB": 215,
+   "heapEndMB": 227
+  }
+ ],
+ "median": {
+  "loadMs": 6317,
+  "fps": 13.1,
+  "drawCallsPerFrame": 480,
+  "heapAfterLoadMB": 215,
+  "heapEndMB": 227
+ }
+}

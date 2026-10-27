@@ -1323,8 +1323,10 @@ export function Floorplan3dEditor({
     if (panel === "materiaal") {
       return <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName={layout === "phone" ? "bg-background" : "bg-card"} />;
     }
-    if (panel === "item") return itemPanel;
-    if (panel === "kamer") return roomPanel;
+    // Op touch: knoppen en velden in de panelen minimaal 44 px hoog (de panelen zelf zijn voor muis ontworpen).
+    const touchSizing = "[&_button:not([role=switch])]:pointer-coarse:min-h-11 [&_input]:pointer-coarse:min-h-11";
+    if (panel === "item") return <div className={touchSizing}>{itemPanel}</div>;
+    if (panel === "kamer") return <div className={touchSizing}>{roomPanel}</div>;
     return (
       <MyFloorplans3dList
         floorplans={floorplans}
@@ -1397,6 +1399,7 @@ export function Floorplan3dEditor({
           {hasSelection && !drawMode && !(layout === "phone" && mobilePanel) && (
             <SelectionBar
               title={selectionTitle}
+              compact={shortViewport}
               locked={Boolean(selectedItem?.locked)}
               canLock={Boolean(selectedItem)}
               onRotate={rotateSelected}
