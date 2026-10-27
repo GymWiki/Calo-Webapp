@@ -6,7 +6,6 @@ import {
   LIBRARY_CATEGORIES,
   LIBRARY_SPORTS,
   PERSONS_ID,
-  categoryLabel,
   sportLabel,
   subgroupLabel,
 } from "@/lib/constants/libraryTaxonomy";
@@ -95,12 +94,11 @@ function searchWords(item: LibraryItemMeta): string[] {
     ...item.tags,
     ...item.sporten.map(sportLabel),
     item.subgroep ? subgroupLabel(item.categorie, item.subgroep) : "",
-    categoryLabel(item.categorie),
   ].join(" ");
   return [...new Set(normalizeText(text).split(" ").filter(Boolean))];
 }
 
-/** Elk zoekwoord moet iets in naam, tags, sport, subgroep of categorie raken. */
+/** Elk zoekwoord moet iets in naam, tags, sport of subgroep raken (bewust niet de categorienaam: "mat" zou anders alles onder "materiaal" vinden). */
 export function matchesQuery(item: LibraryItemMeta, query: string): boolean {
   const words = normalizeText(query).split(" ").filter(Boolean);
   if (words.length === 0) return true;

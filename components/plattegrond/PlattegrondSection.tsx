@@ -60,7 +60,13 @@ export async function PlattegrondSection({
   }
 
   const nameBySlug = new Map(models.map((model) => [model.slug, model.naam]));
-  const summary = summarizeFloorplan(plan.data.items, plan.data.coneFields, (slug) => nameBySlug.get(slug));
+  const categoryBySlug = new Map(models.map((model) => [model.slug, model.categorie]));
+  const summary = summarizeFloorplan(
+    plan.data.items,
+    plan.data.coneFields,
+    (slug) => nameBySlug.get(slug),
+    (slug) => categoryBySlug.get(slug),
+  );
 
   return (
     <section aria-labelledby={`plattegrond-3d-${plan.id}`} className="animate-fade-up space-y-3 print:hidden">

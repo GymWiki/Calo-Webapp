@@ -57,7 +57,7 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { validateTaxonomy } from "../lib/constants/libraryTaxonomy.ts";
 import { classifyModel } from "../lib/library/classify.ts";
 import { NodeIO, getBounds } from "@gltf-transform/core";
@@ -253,7 +253,7 @@ async function resolveItem(item: DiscoveredItem): Promise<ResolvedItem> {
  * JSON of automatische indeling, gevalideerd; bestaand item → alleen
  * wijzigen als de JSON expliciet "sporten" bevat.
  */
-async function resolveTaxonomyFields(item: ResolvedItem): Promise<Record<string, unknown>> {
+async function resolveTaxonomyFields(supabase: SupabaseClient, item: ResolvedItem): Promise<Record<string, unknown>> {
   const probe = await supabase.from(TABLE).select("categorie_oud").limit(1);
   if (probe.error) return { categorie: item.categorie };
 
@@ -363,7 +363,7 @@ async function main() {
         .upload(previewPath, pngBuffer, { contentType: "image/png", upsert: true });
       if (pngError) throw pngError;
 
-      const taxonomy = await resolveTaxonomyFields(item);
+      const taxonomy = await resolveTaxonomyFields(supabase, item);
 
       const { error: upsertError } = await supabase
         .from(TABLE)

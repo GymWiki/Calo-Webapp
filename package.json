@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --test \"components/canvas-3d/*.test.ts\" \"components/plattegrond/*.test.ts\" \"lib/library/*.test.ts\"",
+    "library:csv": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/library-taxonomy-csv.mts",
     "migrate:categories": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/migrate-categories.mts",
     "audit:collision": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs scripts/audit-collision.mts",
     "check:bundle-size": "node scripts/check-bundle-size.mjs",

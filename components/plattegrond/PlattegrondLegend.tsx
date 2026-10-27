@@ -33,19 +33,32 @@ export function PlattegrondLegend({ summary }: { summary: FloorplanSummary }) {
           </dd>
         </div>
       )}
-      {summary.items.length > 0 && (
+      {summary.groups.length > 0 && (
         <div>
           <dt className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Materialen</dt>
-          <dd>
-            <ul className="space-y-0.5">
-              {summary.items.map((item) => (
-                <li key={item.slug} className="flex gap-2">
-                  <span className="w-7 shrink-0 text-right font-medium tabular-nums">{item.count}×</span>
-                  <span>{item.naam}</span>
-                </li>
-              ))}
-            </ul>
+          <dd className="space-y-2">
+            {summary.groups.map((group) => (
+              <div key={group.categorie}>
+                <p className="mb-0.5 text-xs font-medium text-muted-foreground">
+                  {group.label} <span className="tabular-nums">({group.total})</span>
+                </p>
+                <ul className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <li key={item.slug} className="flex gap-2">
+                      <span className="w-7 shrink-0 text-right font-medium tabular-nums">{item.count}×</span>
+                      <span>{item.naam}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </dd>
+        </div>
+      )}
+      {summary.personTotal > 0 && (
+        <div>
+          <dt className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Personen</dt>
+          <dd>{summary.personTotal} {summary.personTotal === 1 ? "persoon" : "personen"}</dd>
         </div>
       )}
     </dl>

@@ -211,3 +211,10 @@ test("groupByCategory: taxonomie-volgorde, subgroepen, geen personen", () => {
   assert.deepEqual(ballen.subgroups.map((subgroup) => subgroup.id), ["basketbal", "overig"]);
   assert.equal(groupByCategory([item("leerling_blauw", "leerlingen")]).length, 0);
 });
+
+test("zoeken: de categorienaam zelf telt niet mee (\"mat\" vindt geen heel 'Klein materiaal')", () => {
+  const pion = item("pion_effen_kleurenset", "signaleringsmateriaal", "Pion effen kleurenset");
+  const mat = item("turnmat_200x100x6", "matten", "Turnmat 200x100x6");
+  assert.equal(matchesQuery(pion, "mat"), false);
+  assert.equal(matchesQuery(mat, "mat"), true);
+});
