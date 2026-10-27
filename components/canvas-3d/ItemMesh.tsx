@@ -12,13 +12,35 @@ import { measureMeshExtent } from "@/components/canvas-3d/collision-measure";
 import type { MeshExtent } from "@/components/canvas-3d/collision-shape";
 import { isTapDelta } from "@/components/canvas-3d/mobile/mobile-logic";
 import { trackModelScene } from "@/components/canvas-3d/model-cache";
+import { isTilted, rotationOf, tiltCenter } from "@/components/canvas-3d/orientation";
 
 const SELECTION_COLOR = "#2563eb"; // tailwind blue-600
 const UNKNOWN_BOX_COLOR = "#9ca3af"; // tailwind gray-400
 
-/** Selectie-outline = de echte collision-vorm (oriented, met offset en onderkant), niet een gecentreerde box. */
-function SelectionOutline({ dims }: { dims: ItemDims }) {
-  return <ShapeWireframe shape={shapeOfDims(dims)} color={SELECTION_COLOR} />;
+const OUTSIDE_COLOR = "#dc2626"; // tailwind red-600
+
+/** Selectie-outline = de echte collision-vorm (oriented, met offset en onderkant), niet een gecentreerde box.
+ * Rood als (een deel van) het item buiten de zaal valt. */
+function SelectionOutline({ dims, outside = false }: { dims: ItemDims; outside?: boolean }) {
+  return <ShapeWireframe shape={shapeOfDims(dims)} color={outside ? OUTSIDE_COLOR : SELECTION_COLOR} />;
+}
+
+/**
+ * Kantelen: eerst om het onderste midden van de voetafdruk (Rx·Rz), de heading (Y) doet de buitenste groep
+ * om de pivot. Zonder kanteling geeft dit de kinderen ongewijzigd terug — de scene is dan identiek aan
+ * die van vóór de kantelfunctie. Moet exact overeenkomen met `localToWorld` in orientation.ts.
+ */
+function TiltFrame({ dims, item, children }: { dims: ItemDims; item: Floorplan3dItem; children: React.ReactNode }) {
+  const rot = rotationOf(item);
+  if (!isTilted(rot)) return <>{children}</>;
+  const [cx, cy, cz] = tiltCenter(shapeOfDims(dims));
+  return (
+    <group position={[cx, cy, cz]}>
+      <group rotation={new THREE.Euler(THREE.MathUtils.degToRad(rot.x), 0, THREE.MathUtils.degToRad(rot.z), "XZY")}>
+        <group position={[-cx, -cy, -cz]}>{children}</group>
+      </group>
+    </group>
+  );
 }
 
 /** Geladen GLB-model (useGLTF, Suspense + drei's cache — zie Stap 4.1: de
@@ -98,7 +120,10 @@ export function ItemMesh({
   onHover,
   touchUi = false,
   onRotateHandleDown,
+  outsideRoom = false,
 }: {
+  /** Een gekanteld item steekt buiten de zaal: subtiele rode outline (waarschuwing, geen blokkade). */
+  outsideRoom?: boolean;
   item: Floorplan3dItem;
   model: MaterialModel | undefined;
   /** Collision-vorm en maten van dit asset (uit de dims-lookup); zonder: de oude box uit het model. */
@@ -172,23 +197,26 @@ export function ItemMesh({
           : undefined
       }
     >
-      {model ? (
-        model.devColor ? (
-          <DevPlaceholderBox dims={dims} color={model.devColor} />
+      <TiltFrame dims={dims} item={item}>
+        {model ? (
+          model.devColor ? (
+            <DevPlaceholderBox dims={dims} color={model.devColor} />
+          ) : (
+            <Suspense fallback={<UnknownItemBox />}>
+              <LoadedModel modelUrl={model.model_url} onMeasured={debugCollision ? handleMeasured : undefined} />
+            </Suspense>
+          )
         ) : (
-          <Suspense fallback={<UnknownItemBox />}>
-            <LoadedModel modelUrl={model.model_url} onMeasured={debugCollision ? handleMeasured : undefined} />
-          </Suspense>
-        )
-      ) : (
-        <UnknownItemBox />
-      )}
-      {selected && !debugCollision && <SelectionOutline dims={dims} />}
+          <UnknownItemBox />
+        )}
+        {selected && !debugCollision && <SelectionOutline dims={dims} outside={outsideRoom} />}
+        {!selected && outsideRoom && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={OUTSIDE_COLOR} />}
+        {debugCollision && (
+          <CollisionDebug slug={item.slug} shape={shapeOfDims(dims)} extent={measured} labelVisible={selected || hovered} />
+        )}
+      </TiltFrame>
       {selected && touchUi && interactive && !item.locked && !debugCollision && onRotateHandleDown && (
         <RotateHandle dims={dims} onPointerDown={(event) => { event.stopPropagation(); onRotateHandleDown(item.id, event); }} />
-      )}
-      {debugCollision && (
-        <CollisionDebug slug={item.slug} shape={shapeOfDims(dims)} extent={measured} labelVisible={selected || hovered} />
       )}
     </group>
   );

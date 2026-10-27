@@ -195,6 +195,7 @@ export function Scene3D({
         onFieldHandlePointerDown={onFieldHandlePointerDown}
         touchUi={touchUi}
         onRotateHandleDown={onRotateHandleDown}
+        warnOutside
       />
       {draftField && <ConeFieldMesh field={draftField} preview interactive={false} />}
       {debug && <DebugOverlay items={items} lookup={lookup} guides={debugGuides} draggingId={isDragging ? selectedId : null} />}

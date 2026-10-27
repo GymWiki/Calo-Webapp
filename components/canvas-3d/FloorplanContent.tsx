@@ -8,7 +8,8 @@ import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
-import type { DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
+import { dimsOf, shapeOfDims, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
+import { isOutsideRoom, itemIsTilted, rotationOf } from "@/components/canvas-3d/orientation";
 
 /**
  * Alles wat een plattegrond ZIET: de kamer (gymzaal-GLB of lege vloer), de
@@ -36,7 +37,10 @@ export function FloorplanContent({
   onItemHover,
   touchUi = false,
   onRotateHandleDown,
+  warnOutside = false,
 }: {
+  /** Editor: gekantelde items die buiten de zaal vallen krijgen een rode outline. */
+  warnOutside?: boolean;
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
   fields: ConeField[];
@@ -83,6 +87,11 @@ export function FloorplanContent({
           onHover={onItemHover}
           touchUi={touchUi}
           onRotateHandleDown={onRotateHandleDown}
+          outsideRoom={
+            warnOutside && lookup && itemIsTilted(item)
+              ? isOutsideRoom(shapeOfDims(dimsOf(item, lookup)), [item.x, item.y, item.z], rotationOf(item), room)
+              : false
+          }
         />
       ))}
       {fields.map((field) => (
