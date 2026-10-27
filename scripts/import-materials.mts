@@ -27,6 +27,15 @@
 // Ontbreekt "naam", dan wordt die afgeleid van de slug ("kast_6" -> "Kast 6").
 // Ontbreekt "categorie", dan is de default "overig".
 //
+// Indeling (lib/constants/libraryTaxonomy.ts): NIEUWE items krijgen verplicht
+// een hoofdcategorie en minstens één sport. Staat dat niet in de JSON
+// ("categorie" als nieuwe id + "sporten": [...], optioneel "subgroep" en
+// "tags"), dan deelt lib/library/classify.ts het item automatisch in (op basis
+// van "categorie" als oude categorie en de slug) en wordt het gevalideerd.
+// BESTAANDE items behouden hun indeling: die wordt alleen aangepast als de
+// JSON expliciet "sporten" bevat. Zo overschrijft her-importeren nooit de
+// indeling (zie scripts/migrate-categories.mts en library-taxonomy-csv.mts).
+//
 // Her-draaien overschrijft (upsert op slug / storage-pad).
 //
 // Gebruik:
@@ -49,6 +58,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { validateTaxonomy } from "../lib/constants/libraryTaxonomy.ts";
+import { classifyModel } from "../lib/library/classify.ts";
 import { NodeIO, getBounds } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 
@@ -64,6 +75,9 @@ const SLUG_PATTERN = /^[a-z0-9_]+$/;
 type JsonOverrides = {
   naam?: string;
   categorie?: string;
+  subgroep?: string;
+  sporten?: string[];
+  tags?: string[];
   length_m?: number;
   width_m?: number;
   height_m?: number;
@@ -181,6 +195,9 @@ type ResolvedItem = {
   slug: string;
   naam: string;
   categorie: string;
+  subgroep: string | null;
+  sporten: string[] | null;
+  tags: string[] | null;
   length_m: number;
   width_m: number;
   height_m: number;
@@ -214,6 +231,9 @@ async function resolveItem(item: DiscoveredItem): Promise<ResolvedItem> {
     slug: item.slug,
     naam: overrides.naam ?? deriveNameFromSlug(item.slug),
     categorie: overrides.categorie ?? "overig",
+    subgroep: overrides.subgroep ?? null,
+    sporten: overrides.sporten ?? null,
+    tags: overrides.tags ?? null,
     length_m: overrides.length_m ?? computed!.length_m,
     width_m: overrides.width_m ?? computed!.width_m,
     height_m: overrides.height_m ?? computed!.height_m,
@@ -225,6 +245,35 @@ async function resolveItem(item: DiscoveredItem): Promise<ResolvedItem> {
     glbSize,
     pngSize,
   };
+}
+
+/**
+ * Indeling voor de upsert. Zonder taxonomie-kolommen (migratie nog niet
+ * gedraaid) blijft het oude gedrag: alleen `categorie`. Anders: nieuw item →
+ * JSON of automatische indeling, gevalideerd; bestaand item → alleen
+ * wijzigen als de JSON expliciet "sporten" bevat.
+ */
+async function resolveTaxonomyFields(item: ResolvedItem): Promise<Record<string, unknown>> {
+  const probe = await supabase.from(TABLE).select("categorie_oud").limit(1);
+  if (probe.error) return { categorie: item.categorie };
+
+  const { data: existing } = await supabase.from(TABLE).select("id").eq("slug", item.slug).maybeSingle();
+
+  if (existing && !item.sporten) return {};
+
+  const fields =
+    item.sporten && item.sporten.length > 0
+      ? { categorie: item.categorie, subgroep: item.subgroep, sporten: item.sporten, tags: item.tags ?? [] }
+      : (() => {
+          const result = classifyModel({ slug: item.slug, naam: item.naam, categorie_oud: item.categorie });
+          return { categorie: result.categorie, subgroep: result.subgroep, sporten: result.sporten, tags: item.tags ?? result.tags };
+        })();
+
+  const errors = validateTaxonomy(fields);
+  if (errors.length > 0) {
+    throw new Error(`Ongeldige indeling voor ${item.slug}: ${errors.join("; ")}`);
+  }
+  return existing ? fields : { ...fields, categorie_oud: item.categorie };
 }
 
 async function main() {
@@ -314,6 +363,8 @@ async function main() {
         .upload(previewPath, pngBuffer, { contentType: "image/png", upsert: true });
       if (pngError) throw pngError;
 
+      const taxonomy = await resolveTaxonomyFields(item);
+
       const { error: upsertError } = await supabase
         .from(TABLE)
         .upsert(
@@ -321,7 +372,7 @@ async function main() {
             slug: item.slug,
             material_id: item.material_id,
             naam: item.naam,
-            categorie: item.categorie,
+            ...taxonomy,
             model_path: modelPath,
             preview_path: previewPath,
             length_m: item.length_m,
