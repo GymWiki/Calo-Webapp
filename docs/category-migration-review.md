@@ -33,7 +33,7 @@ Controleer deze; pas aan via de CSV-export/-import (`npm run library:csv`) of la
 | `floorball_puck` (Floorball puck) | accessoires_doelobjecten | Klein materiaal > Overig | Floorball | Accessoire zonder eigen categorie: bij Klein materiaal gezet |
 | `floorball_ring_blauw` (Floorball ring blauw) | accessoires_doelobjecten | Klein materiaal > Overig | Floorball | Accessoire zonder eigen categorie: bij Klein materiaal gezet |
 | `floorball_ring_geel` (Floorball ring geel) | accessoires_doelobjecten | Klein materiaal > Overig | Floorball | Accessoire zonder eigen categorie: bij Klein materiaal gezet |
-| `floorballstick_unihockey` (Floorballstick unihockey) | sticks_rackets | Klein materiaal > Sticks & rackets | Hockey, Floorball | Sticks en rackets staan niet in de lijst met categorieën: bij Klein materiaal > Sticks & rackets gezet |
+| `floorballstick_unihockey` (Floorballstick unihockey) | sticks_rackets | Klein materiaal > Sticks & rackets | Floorball | Sticks en rackets staan niet in de lijst met categorieën: bij Klein materiaal > Sticks & rackets gezet |
 | `honkbalknuppel_aluminium` (Honkbalknuppel aluminium) | sticks_rackets | Klein materiaal > Sticks & rackets | Slagspelen | Sticks en rackets staan niet in de lijst met categorieën: bij Klein materiaal > Sticks & rackets gezet |
 | `honkbalknuppel_hout` (Honkbalknuppel hout) | sticks_rackets | Klein materiaal > Sticks & rackets | Slagspelen | Sticks en rackets staan niet in de lijst met categorieën: bij Klein materiaal > Sticks & rackets gezet |
 | `honkbalknuppel_veiligheidsschuim` (Honkbalknuppel veiligheidsschuim) | sticks_rackets | Klein materiaal > Sticks & rackets | Slagspelen | Sticks en rackets staan niet in de lijst met categorieën: bij Klein materiaal > Sticks & rackets gezet |
@@ -120,7 +120,7 @@ Controleer deze; pas aan via de CSV-export/-import (`npm run library:csv`) of la
 | `floorball_ring_blauw` | accessoires_doelobjecten | Klein materiaal > Overig | Floorball |
 | `floorball_ring_geel` | accessoires_doelobjecten | Klein materiaal > Overig | Floorball |
 | `floorballbal_geperforeerd` | ballen | Ballen > Overig | Floorball |
-| `floorballstick_unihockey` | sticks_rackets | Klein materiaal > Sticks & rackets | Hockey, Floorball |
+| `floorballstick_unihockey` | sticks_rackets | Klein materiaal > Sticks & rackets | Floorball |
 | `fluitje_met_koord_en_kaarten` | signaleringsmateriaal | Klein materiaal > Overig | Algemeen |
 | `foambal_groot_20cm` | ballen | Ballen > Overig | Trefspelen |
 | `foambal_klein_7cm` | ballen | Ballen > Overig | Trefspelen |
