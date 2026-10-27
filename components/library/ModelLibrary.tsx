@@ -9,7 +9,7 @@ import { ModelItem } from "@/components/library/ModelItem";
 import { SportFilter } from "@/components/library/SportFilter";
 import { LIBRARY_ICONS } from "@/components/library/library-icons";
 import { RECENT_LIMIT, useLibraryPrefs, type LibraryView } from "@/components/library/useLibraryPrefs";
-import { PERSONS_CATEGORY, getCategory, type LibraryCategory } from "@/lib/constants/libraryTaxonomy";
+import { PERSONS_CATEGORY, SHOW_PERSONS_IN_LIBRARY, getCategory, type LibraryCategory } from "@/lib/constants/libraryTaxonomy";
 import { filterItems, groupByCategory, isPerson, sportCounts, type CategoryGroup } from "@/lib/library/search";
 import { useShortViewport } from "@/components/canvas-3d/mobile/useEditorLayout";
 import { cn } from "@/lib/utils";
@@ -188,7 +188,7 @@ export function ModelLibrary({
   const stickyOffset = shortViewport ? 0 : headHeight;
   const favorites = useMemo(() => new Set(prefs.favorites), [prefs.favorites]);
   const materials = useMemo(() => models.filter((model) => !isPerson(model)), [models]);
-  const persons = useMemo(() => models.filter(isPerson), [models]);
+  const persons = useMemo(() => (SHOW_PERSONS_IN_LIBRARY ? models.filter(isPerson) : []), [models]);
 
   const isFiltering = query.trim().length > 0 || sports.length > 0;
   const filtered = useMemo(() => filterItems(materials, { query, sports }), [materials, query, sports]);
@@ -254,7 +254,7 @@ export function ModelLibrary({
         </div>
       )}
 
-      {mode === "personen" ? (
+      {mode === "personen" && persons.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">{PERSONS_CATEGORY.description}</p>
           <ItemGrid
