@@ -43,7 +43,7 @@ const FAQ_ITEMS = [
   {
     question: "Voor wie is GymWiki?",
     answer:
-      "GymWiki is gebouwd voor vakleerkrachten lichamelijke opvoeding en CALO-studenten die hun gymles voorbereiden. Gebruikers doorzoeken de activiteitenbibliotheek, dragen zelf activiteiten bij, en gebruiken een canvas-editor om plattegronden en veldopstellingen te ontwerpen.",
+      "GymWiki is gebouwd voor vakleerkrachten lichamelijke opvoeding en CALO-studenten die hun gymles voorbereiden. Gebruikers doorzoeken de activiteitenbibliotheek, dragen zelf activiteiten bij, en gebruiken de 3D-plattegrondeditor om plattegronden en veldopstellingen te ontwerpen.",
   },
   {
     question: "Wat kost GymWiki?",

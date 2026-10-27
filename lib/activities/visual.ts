@@ -34,7 +34,7 @@ export type ActivityImageFields = {
 
 const clean = (url: string | null | undefined) => (typeof url === "string" && url.trim() !== "" ? url : null);
 
-/** De losse afbeelding van een activiteit: `afbeelding` (storage-URL) vóór `diagram_image_url` (oudere 2D-export). */
+/** De losse afbeelding van een activiteit: `afbeelding` (storage-URL) vóór `diagram_image_url` (legacy: export van de verwijderde 2D-editor). */
 export function getActivityImageUrl(activity: ActivityImageFields): string | null {
   return clean(activity.afbeelding) ?? clean(activity.diagram_image_url);
 }

@@ -35,9 +35,9 @@ const ACTIONS: QuickAction[] = [
     accent: "yellow",
   },
   {
-    href: "/les-maken?tab=voorbereiding",
-    label: "Zaal-Plattegrond Tekenen",
-    description: "Spring direct naar de canvas en bouw de opstelling.",
+    href: "/plattegrond-3d",
+    label: "Plattegrond maken",
+    description: "Open de 3D-plattegrondeditor en bouw de opstelling.",
     icon: LayoutTemplate,
     accent: "blue",
   },

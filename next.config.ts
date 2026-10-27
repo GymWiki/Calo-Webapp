@@ -50,6 +50,28 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // De 2D-plattegrondeditor is verwijderd; de 3D-editor is de enige. De enige oude ingang was de deeplink
+  // /les-maken?tab=voorbereiding ("Zaal-Plattegrond Tekenen"): permanent door naar de editor, met behoud van het activiteit-id.
+  async redirects() {
+    return [
+      {
+        source: "/les-maken",
+        has: [
+          { type: "query", key: "tab", value: "voorbereiding" },
+          { type: "query", key: "vanuit", value: "(?<activiteit>.+)" },
+        ],
+        destination: "/plattegrond-3d?activiteit=:activiteit",
+        permanent: true,
+      },
+      {
+        source: "/les-maken",
+        has: [{ type: "query", key: "tab", value: "voorbereiding" }],
+        missing: [{ type: "query", key: "vanuit" }],
+        destination: "/plattegrond-3d",
+        permanent: true,
+      },
+    ];
+  },
   experimental: {
     serverActions: {
       // createLesson's payload can include a base64 PNG of the exported

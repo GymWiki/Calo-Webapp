@@ -1,7 +1,7 @@
 // 3D-tegenhanger van types/material.ts se `Material` — rijen uit
 // public.material_models (supabase/migrations/material_models_3d.sql).
 // Begint LEEG; gevuld via `npm run import:materials` (scripts/import-materials.ts),
-// nooit automatisch afgeleid van de 2D-materialenbibliotheek. `categorie`
+// nooit automatisch afgeleid van de oudere materialenbibliotheek (`materials`). `categorie`
 // is één van de hoofdcategorieën uit lib/constants/libraryTaxonomy.ts
 // (of "personen"); de oorspronkelijke vrije-tekst categorie staat in
 // `categorie_oud`. Subgroep, sporten en tags sturen filter en zoeken.

@@ -6,8 +6,7 @@ import type { Floorplan3dData, Floorplan3dSummary } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 
 // three/@react-three/fiber raken `window`/WebGL aan bij het laden — moet
-// dus ssr:false, net als components/canvas/FullscreenDiagramEditor.tsx
-// voor de 2D-editor (Konva) al doet. Dit houdt three/fiber/drei ook
+// dus ssr:false. Dit houdt three/fiber/drei ook
 // volledig buiten elke andere pagina se bundel: alleen wie /plattegrond-3d
 // daadwerkelijk bezoekt, laadt deze chunk.
 const Floorplan3dEditor = dynamic(

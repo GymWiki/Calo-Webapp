@@ -218,7 +218,7 @@ export async function saveFloorplanPreview(
 
   // Heeft de gekoppelde (eigen) activiteit nog geen afbeelding, dan wordt de
   // thumbnail ook de kaartafbeelding / OG-afbeelding van de activiteit
-  // (activiteiten.afbeelding). Een eigen (2D-)afbeelding wordt NOOIT
+  // (activiteiten.afbeelding). Een eigen afbeelding wordt NOOIT
   // overschreven; alleen een eerdere thumbnail wordt ververst.
   if (owned.activiteit_id) {
     const { data: activity } = await supabase
