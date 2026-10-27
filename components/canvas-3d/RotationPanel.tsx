@@ -49,7 +49,7 @@ const AXIS_HINT: Record<RotationAxis, string> = {
 const BTN =
   "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border bg-background px-2 text-sm font-medium tabular-nums hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 disabled:pointer-events-none disabled:opacity-40";
 
-function DegInput({ value, min, max, label, disabled, onChange }: { value: number; min: number; max: number; label: string; disabled: boolean; onChange: (deg: number) => void }) {
+function DegInput({ value, min, max, label, disabled, big, onChange }: { value: number; min: number; max: number; label: string; disabled: boolean; big: boolean; onChange: (deg: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
     <input
@@ -65,7 +65,7 @@ function DegInput({ value, min, max, label, disabled, onChange }: { value: numbe
         if (event.target.value.trim() !== "" && Number.isFinite(parsed)) onChange(Math.min(max, Math.max(min, parsed)));
       }}
       onBlur={() => setDraft(null)}
-      className="h-9 min-h-9 w-full min-w-0 rounded-lg border bg-background px-1 text-center text-base tabular-nums outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-40"
+      className={cn("h-9 min-h-9 w-full min-w-0 rounded-lg border bg-background px-1 text-center text-base tabular-nums outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-40", big && "h-11 min-h-11")}
     />
   );
 }
@@ -87,7 +87,7 @@ function AxisControl({
 }) {
   const [min, max] = AXIS_RANGE[axis];
   const label = AXIS_LABEL[axis];
-  const btn = cn(BTN, big && "min-h-11");
+  const btn = cn(BTN, big && "min-h-11 min-w-11");
   return (
     <div data-testid={`rotatie-as-${axis}`} className={cn("space-y-1.5", disabled && "opacity-60")}>
       <div className="flex items-baseline justify-between gap-2">
@@ -116,7 +116,7 @@ function AxisControl({
         <button type="button" disabled={disabled} className={btn} aria-label={`${label} −15°`} onClick={() => onStep(axis, -15)}>
           −15°
         </button>
-        <DegInput value={value} min={axis === "y" ? 0 : min} max={max} label={`${label} (graden)`} disabled={disabled} onChange={(deg) => onSet(axis, deg)} />
+        <DegInput value={value} min={axis === "y" ? 0 : min} max={max} label={`${label} (graden)`} disabled={disabled} big={big} onChange={(deg) => onSet(axis, deg)} />
         <button type="button" disabled={disabled} className={btn} aria-label={`${label} +15°`} onClick={() => onStep(axis, 15)}>
           +15°
         </button>
@@ -164,7 +164,7 @@ export function RotationPanel({
 }) {
   const drawer = variant === "drawer";
   const free = lift !== undefined;
-  const btn = cn(BTN, drawer && "min-h-11");
+  const btn = cn(BTN, drawer && "min-h-11 min-w-11");
 
   return (
     <section aria-label="Rotatie" data-testid="rotatie-paneel" className="space-y-4">
@@ -228,7 +228,7 @@ export function RotationPanel({
       </div>
 
       {!drawer && orientation.allowTilt && (
-        <label className="flex min-h-9 items-center justify-between gap-3 text-sm">
+        <label className={cn("flex min-h-9 items-center justify-between gap-3 text-sm", drawer && "min-h-11")}>
           <span>
             Lokale assen
             <span className="block text-xs text-muted-foreground">De ringen draaien om de assen van het item i.p.v. die van de zaal.</span>
@@ -238,7 +238,7 @@ export function RotationPanel({
       )}
 
       <div className="space-y-2">
-        <label className="flex min-h-9 items-center justify-between gap-3 text-sm">
+        <label className={cn("flex min-h-9 items-center justify-between gap-3 text-sm", drawer && "min-h-11")}>
           <span>
             Op vloer houden
             <span className="block text-xs text-muted-foreground">Het laagste punt blijft op de vloer, ook na kantelen.</span>

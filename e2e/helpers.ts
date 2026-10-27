@@ -28,7 +28,8 @@ export async function canvasCenter(page: Page) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2, box };
 }
 
-type Draft = { naam: string; items: { id: string; slug: string; x: number; z: number; rot_y_deg: number; locked?: boolean }[]; coneFields: unknown[] };
+export type DraftItem = { id: string; slug: string; x: number; y: number; z: number; rot_y_deg: number; rot_x_deg?: number; rot_z_deg?: number; lift_m?: number; locked?: boolean };
+type Draft = { naam: string; items: DraftItem[]; coneFields: unknown[] };
 
 /** De lokale kladversie van de editor (500 ms na elke wijziging) — de testbare staat van de plattegrond. */
 export async function readDraft(page: Page, wanted?: (draft: Draft) => boolean): Promise<Draft> {

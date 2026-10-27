@@ -37,6 +37,8 @@ export const E2E_MODELS: MaterialModel[] = [
   model("basketbal_test", "Basketbal test", "ballen", "basketbal", ["basketbal"], [0.24, 0.24, 0.24], "#ea580c"),
   model("voetbal_test", "Voetbal test", "ballen", "voetbal", ["voetbal"], [0.22, 0.22, 0.22], "#f1f5f9"),
   model("turnbank_test", "Turnbank test", "toestellen", "banken", ["turnen"], [3, 0.4, 0.5], "#b45309"),
+  model("springplank_test", "Springplank test", "toestellen", "springtoestellen", ["turnen"], [1.2, 0.6, 0.25], "#15803d"),
+  model("evenwichtsbalk_test", "Evenwichtsbalk test", "toestellen", "balken", ["turnen"], [3, 0.2, 0.2], "#be123c"),
   model("turnkast_test", "Turnkast test", "toestellen", "kasten", ["turnen"], [1.4, 0.8, 1.1], "#a16207"),
   model("korfbalpaal_test", "Korfbalpaal test", "doelen_netten", null, ["korfbal"], [0.4, 0.4, 3.5], "#2563eb"),
   model("pion_test", "Pion test", "klein_materiaal", "afzetten", ["algemeen"], [0.3, 0.3, 0.3], "#f97316"),
