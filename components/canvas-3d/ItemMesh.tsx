@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { useGLTF } from "@react-three/drei";
+import { Line, useGLTF } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { Floorplan3dItem } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
@@ -10,13 +10,37 @@ import { shapeOfDims, type ItemDims } from "@/components/canvas-3d/floorplan3d-g
 import { CollisionDebug, ShapeWireframe } from "@/components/canvas-3d/CollisionDebug";
 import { measureMeshExtent } from "@/components/canvas-3d/collision-measure";
 import type { MeshExtent } from "@/components/canvas-3d/collision-shape";
+import { isTapDelta } from "@/components/canvas-3d/mobile/mobile-logic";
+import { trackModelScene } from "@/components/canvas-3d/model-cache";
+import { isTilted, rotationOf, tiltCenter } from "@/components/canvas-3d/orientation";
 
 const SELECTION_COLOR = "#2563eb"; // tailwind blue-600
 const UNKNOWN_BOX_COLOR = "#9ca3af"; // tailwind gray-400
 
-/** Selectie-outline = de echte collision-vorm (oriented, met offset en onderkant), niet een gecentreerde box. */
-function SelectionOutline({ dims }: { dims: ItemDims }) {
-  return <ShapeWireframe shape={shapeOfDims(dims)} color={SELECTION_COLOR} />;
+const OUTSIDE_COLOR = "#dc2626"; // tailwind red-600
+
+/** Selectie-outline = de echte collision-vorm (oriented, met offset en onderkant), niet een gecentreerde box.
+ * Rood als (een deel van) het item buiten de zaal valt. */
+function SelectionOutline({ dims, outside = false }: { dims: ItemDims; outside?: boolean }) {
+  return <ShapeWireframe shape={shapeOfDims(dims)} color={outside ? OUTSIDE_COLOR : SELECTION_COLOR} />;
+}
+
+/**
+ * Kantelen: eerst om het onderste midden van de voetafdruk (Rx·Rz), de heading (Y) doet de buitenste groep
+ * om de pivot. Zonder kanteling geeft dit de kinderen ongewijzigd terug — de scene is dan identiek aan
+ * die van vóór de kantelfunctie. Moet exact overeenkomen met `localToWorld` in orientation.ts.
+ */
+function TiltFrame({ dims, item, children }: { dims: ItemDims; item: Floorplan3dItem; children: React.ReactNode }) {
+  const rot = rotationOf(item);
+  if (!isTilted(rot)) return <>{children}</>;
+  const [cx, cy, cz] = tiltCenter(shapeOfDims(dims));
+  return (
+    <group position={[cx, cy, cz]}>
+      <group rotation={new THREE.Euler(THREE.MathUtils.degToRad(rot.x), 0, THREE.MathUtils.degToRad(rot.z), "XZY")}>
+        <group position={[-cx, -cy, -cz]}>{children}</group>
+      </group>
+    </group>
+  );
 }
 
 /** Geladen GLB-model (useGLTF, Suspense + drei's cache — zie Stap 4.1: de
@@ -26,6 +50,10 @@ function SelectionOutline({ dims }: { dims: ItemDims }) {
 function LoadedModel({ modelUrl, onMeasured }: { modelUrl: string; onMeasured?: (extent: MeshExtent | null) => void }) {
   const gltf = useGLTF(modelUrl);
   const cloned = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
+  // Voor het opruimen van GPU-geheugen zodra het laatste exemplaar van dit model weg is (model-cache.ts).
+  useEffect(() => {
+    trackModelScene(modelUrl, gltf.scene);
+  }, [modelUrl, gltf.scene]);
   // Alleen in de debug-weergave: de zichtbare geometrie meten (gecachet per model).
   useEffect(() => {
     if (onMeasured) onMeasured(measureMeshExtent(gltf.scene));
@@ -57,6 +85,29 @@ function DevPlaceholderBox({ dims, color }: { dims: ItemDims; color: string }) {
   );
 }
 
+/** Rotatiehandvat voor touch: een oranje bolletje voor het item, met een ruim (onzichtbaar)
+ * raakvlak voor een vinger. Slepen draait het item (afgehandeld in Floorplan3dEditor). */
+function RotateHandle({ dims, onPointerDown }: { dims: ItemDims; onPointerDown: (event: ThreeEvent<PointerEvent>) => void }) {
+  const shape = shapeOfDims(dims);
+  const reach = Math.max(shape.length_m, shape.width_m) / 2 + 0.55;
+  const cx = shape.offset_x;
+  const cz = shape.offset_z;
+  const y = shape.base_m + 0.05;
+  return (
+    <group position={[cx, y, cz]}>
+      <Line points={[[0, 0, 0], [reach, 0, 0]]} color="#f97316" lineWidth={2} depthTest={false} />
+      <mesh position={[reach, 0, 0]} renderOrder={10} onPointerDown={onPointerDown}>
+        <sphereGeometry args={[0.2, 20, 14]} />
+        <meshBasicMaterial color="#f97316" depthTest={false} />
+      </mesh>
+      {/* Groot raakvlak (≈ 0,5 m): een vingertop is veel groter dan de muiscursor. */}
+      <mesh position={[reach, 0, 0]} visible={false} onPointerDown={onPointerDown}>
+        <sphereGeometry args={[0.5, 8, 6]} />
+      </mesh>
+    </group>
+  );
+}
+
 export function ItemMesh({
   item,
   model,
@@ -67,7 +118,12 @@ export function ItemMesh({
   onPointerDownItem,
   onSelect,
   onHover,
+  touchUi = false,
+  onRotateHandleDown,
+  outsideRoom = false,
 }: {
+  /** Een gekanteld item steekt buiten de zaal: subtiele rode outline (waarschuwing, geen blokkade). */
+  outsideRoom?: boolean;
   item: Floorplan3dItem;
   model: MaterialModel | undefined;
   /** Collision-vorm en maten van dit asset (uit de dims-lookup); zonder: de oude box uit het model. */
@@ -81,7 +137,11 @@ export function ItemMesh({
   onSelect?: (id: string) => void;
   /** Alleen-lezen weergave: hover/tik geeft het item door (tooltip met naam). */
   onHover?: (item: Floorplan3dItem | null) => void;
+  /** Touch-bediening: rotatiehandvat bij het geselecteerde item. */
+  touchUi?: boolean;
+  onRotateHandleDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
 }) {
+  const lastPointerTypeRef = useRef<string>("mouse");
   const dims: ItemDims =
     dimsFromLookup ??
     (model
@@ -101,9 +161,23 @@ export function ItemMesh({
           if (onHover) onHover(item);
           return;
         }
+        lastPointerTypeRef.current = event.nativeEvent.pointerType;
+        // Touch: een vinger op een NIET-geselecteerd item draait de camera (OrbitControls luistert
+        // op het canvas zelf); selecteren gebeurt pas bij een tik (onClick). Alleen het
+        // geselecteerde item is sleepbaar — zo verschuift er nooit iets per ongeluk.
+        if (event.nativeEvent.pointerType === "touch" && !selected) return;
         event.stopPropagation();
         onSelect?.(item.id);
+        // Vergrendelde items selecteer je wel, maar slepen niet.
+        if (item.locked) return;
         onPointerDownItem?.(item.id, event);
+      }}
+      onClick={(event) => {
+        if (!interactive) return;
+        if (lastPointerTypeRef.current === "touch" && !selected && isTapDelta(event.delta)) {
+          event.stopPropagation();
+          onSelect?.(item.id);
+        }
       }}
       onPointerOver={
         onHover || debugCollision
@@ -123,20 +197,26 @@ export function ItemMesh({
           : undefined
       }
     >
-      {model ? (
-        model.devColor ? (
-          <DevPlaceholderBox dims={dims} color={model.devColor} />
+      <TiltFrame dims={dims} item={item}>
+        {model ? (
+          model.devColor ? (
+            <DevPlaceholderBox dims={dims} color={model.devColor} />
+          ) : (
+            <Suspense fallback={<UnknownItemBox />}>
+              <LoadedModel modelUrl={model.model_url} onMeasured={debugCollision ? handleMeasured : undefined} />
+            </Suspense>
+          )
         ) : (
-          <Suspense fallback={<UnknownItemBox />}>
-            <LoadedModel modelUrl={model.model_url} onMeasured={debugCollision ? handleMeasured : undefined} />
-          </Suspense>
-        )
-      ) : (
-        <UnknownItemBox />
-      )}
-      {selected && !debugCollision && <SelectionOutline dims={dims} />}
-      {debugCollision && (
-        <CollisionDebug slug={item.slug} shape={shapeOfDims(dims)} extent={measured} labelVisible={selected || hovered} />
+          <UnknownItemBox />
+        )}
+        {selected && !debugCollision && <SelectionOutline dims={dims} outside={outsideRoom} />}
+        {!selected && outsideRoom && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={OUTSIDE_COLOR} />}
+        {debugCollision && (
+          <CollisionDebug slug={item.slug} shape={shapeOfDims(dims)} extent={measured} labelVisible={selected || hovered} />
+        )}
+      </TiltFrame>
+      {selected && touchUi && interactive && !item.locked && !debugCollision && onRotateHandleDown && (
+        <RotateHandle dims={dims} onPointerDown={(event) => { event.stopPropagation(); onRotateHandleDown(item.id, event); }} />
       )}
     </group>
   );

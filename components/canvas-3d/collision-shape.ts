@@ -279,7 +279,7 @@ function stripUndefined<T extends object>(value: T): Partial<T> {
 const CIRCLE_SEGMENTS = 20;
 const CAP_SEGMENTS = 8;
 
-function partsOf(shape: CollisionShape): ShapePart[] {
+export function partsOf(shape: CollisionShape): ShapePart[] {
   if (shape.kind === "none") return [];
   if (shape.kind === "compound" && shape.parts && shape.parts.length > 0) return shape.parts;
   return [

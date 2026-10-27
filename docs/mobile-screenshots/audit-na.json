@@ -1,0 +1,278 @@
+{
+ "iphone-se": {
+  "start": {
+   "vw": 375,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "375x557 (84% van scherm)"
+  },
+  "bibliotheek": {
+   "vw": 375,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "375x557 (84% van scherm)"
+  },
+  "geplaatst": {
+   "vw": 375,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "375x557 (84% van scherm)"
+  },
+  "itemPaneel": {
+   "vw": 375,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "375x557 (84% van scherm)"
+  },
+  "kamer": {
+   "vw": 375,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "375x557 (84% van scherm)"
+  },
+  "errors": []
+ },
+ "iphone-14": {
+  "start": {
+   "vw": 390,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "390x554 (83% van scherm)"
+  },
+  "bibliotheek": {
+   "vw": 390,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "390x554 (83% van scherm)"
+  },
+  "geplaatst": {
+   "vw": 390,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "390x554 (83% van scherm)"
+  },
+  "itemPaneel": {
+   "vw": 390,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "390x554 (83% van scherm)"
+  },
+  "kamer": {
+   "vw": 390,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "390x554 (83% van scherm)"
+  },
+  "errors": []
+ },
+ "pixel-7": {
+  "start": {
+   "vw": 412,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "412x729 (87% van scherm)"
+  },
+  "bibliotheek": {
+   "vw": 412,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "412x729 (87% van scherm)"
+  },
+  "geplaatst": {
+   "vw": 412,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "412x729 (87% van scherm)"
+  },
+  "itemPaneel": {
+   "vw": 412,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "412x729 (87% van scherm)"
+  },
+  "kamer": {
+   "vw": 412,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "412x729 (87% van scherm)"
+  },
+  "errors": []
+ },
+ "ipad-portrait": {
+  "start": {
+   "vw": 820,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "820x1070 (91% van scherm)"
+  },
+  "bibliotheek": {
+   "vw": 820,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 1,
+   "canvas": "820x1070 (91% van scherm)"
+  },
+  "geplaatst": {
+   "vw": 820,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "820x1070 (91% van scherm)"
+  },
+  "itemPaneel": {
+   "vw": 820,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "820x1070 (91% van scherm)"
+  },
+  "kamer": {
+   "vw": 820,
+   "overflowX": false,
+   "smallCount": 2,
+   "small": [
+    "BUTTON 48x28",
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "820x1070 (91% van scherm)"
+  },
+  "errors": []
+ },
+ "iphone-14-landscape": {
+  "start": {
+   "vw": 750,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "750x242 (71% van scherm)"
+  },
+  "bibliotheek": {
+   "vw": 750,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "750x242 (71% van scherm)"
+  },
+  "geplaatst": {
+   "vw": 750,
+   "overflowX": false,
+   "smallCount": 0,
+   "small": [],
+   "inputsUnder16": 0,
+   "canvas": "750x242 (71% van scherm)"
+  },
+  "itemPaneel": {
+   "vw": 750,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "750x242 (71% van scherm)"
+  },
+  "kamer": {
+   "vw": 750,
+   "overflowX": false,
+   "smallCount": 1,
+   "small": [
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 0,
+   "canvas": "750x242 (71% van scherm)"
+  },
+  "errors": []
+ },
+ "ipad-landscape": {
+  "start": {
+   "vw": 1180,
+   "overflowX": false,
+   "smallCount": 8,
+   "small": [
+    "Terug 79x36",
+    "INPUT 224x36",
+    "Veld afzetten 131x36",
+    "Mijn plattegronden 149x36",
+    "Opslaan 96x36",
+    "Item 129x29",
+    "Omgeving 129x29",
+    "Alle muren weg 263x36"
+   ],
+   "inputsUnder16": 2,
+   "canvas": "636x759 (50% van scherm)"
+  },
+  "geplaatst": {
+   "vw": 1180,
+   "overflowX": false,
+   "smallCount": 9,
+   "small": [
+    "Terug 79x36",
+    "INPUT 224x36",
+    "Veld afzetten 131x36",
+    "Mijn plattegronden 149x36",
+    "Opslaan 96x36",
+    "Item 129x29",
+    "Omgeving 129x29",
+    "Alle muren weg 263x36",
+    "Opnieuw proberen 123x24"
+   ],
+   "inputsUnder16": 2,
+   "canvas": "636x759 (50% van scherm)"
+  },
+  "errors": []
+ }
+}

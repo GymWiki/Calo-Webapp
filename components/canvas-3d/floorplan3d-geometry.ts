@@ -21,6 +21,18 @@ import {
   type CollisionShape,
   type ShapePart,
 } from "@/components/canvas-3d/collision-shape";
+import {
+  isTilted,
+  itemIsTilted,
+  itemObbs,
+  lowestOffset,
+  obbsOverlap,
+  rotatedExtents,
+  rotatedVerticalRange,
+  rotationOf,
+  tiltedPolygons,
+  type Rotation3,
+} from "@/components/canvas-3d/orientation";
 
 /**
  * Afmetingen + collision-vorm van een asset. Alleen lengte/breedte/hoogte/
@@ -243,14 +255,55 @@ export function pointInFootprint(point: Point2D, footprint: Point2D[]): boolean 
   return true;
 }
 
+// --- Kanteling -------------------------------------------------------------
+// Zonder kanteling (rot_x_deg = rot_z_deg = 0, oude plattegronden) blijft ALLES precies de oude
+// 2D-berekening. Een gekanteld item gebruikt de projectie van zijn oriented 3D-doos op de vloer.
+
+/** Voetafdruk van een vorm op (x, z) met een volledige rotatie. */
+export function polygonsAt(shape: CollisionShape, x: number, z: number, rot: Rotation3): Point2D[][] {
+  return isTilted(rot) ? tiltedPolygons(shape, x, z, rot) : footprintPolygons(shape, x, z, rot.y);
+}
+
+/** Grenzen van de voetafdruk t.o.v. de pivot, ook voor gekantelde items. */
+export function extentsFor(shape: CollisionShape, rot: Rotation3) {
+  return isTilted(rot) ? rotatedExtents(shape, rot) : footprintExtents(shape, rot.y);
+}
+
+/** Verticaal bereik van een vorm met pivot op hoogte `y` en een volledige rotatie. */
+export function rangeFor(shape: CollisionShape, y: number, rot: Rotation3): [number, number] {
+  return isTilted(rot) ? rotatedVerticalRange(shape, y, rot) : verticalRange(shape, y);
+}
+
+/**
+ * Pivothoogte voor een vrij op de vloer rustend item: het laagste punt op de vloer (`lift` erboven bij
+ * "Vrij in hoogte"). Zonder kanteling is dat de oude waarde: pivot op de vloer (+ lift).
+ */
+export function floorY(shape: CollisionShape, rot: Rotation3, lift = 0): number {
+  return isTilted(rot) ? lift - lowestOffset(shape, rot) : lift;
+}
+
+/** Botsen twee geplaatste dingen? Bij een gekanteld item exact in 3D, anders de oude 2D + hoogte. */
+export function shapesCollide(
+  a: { shape: CollisionShape; pos: [number, number, number]; rot: Rotation3 },
+  b: { shape: CollisionShape; pos: [number, number, number]; rot: Rotation3 },
+): boolean {
+  if (isTilted(a.rot) || isTilted(b.rot)) {
+    return obbsOverlap(itemObbs(a.shape, a.pos, a.rot), itemObbs(b.shape, b.pos, b.rot), OVERLAP_IGNORE_M / 2);
+  }
+  const [aLo, aHi] = verticalRange(a.shape, a.pos[1]);
+  const [bLo, bHi] = verticalRange(b.shape, b.pos[1]);
+  if (!(aLo < bHi - EPS_M && bLo < aHi - EPS_M)) return false;
+  return polygonsOverlap(footprintPolygons(a.shape, a.pos[0], a.pos[2], a.rot.y), footprintPolygons(b.shape, b.pos[0], b.pos[2], b.rot.y));
+}
+
 /** Convexe voetafdruk-polygonen van een geplaatst item (leeg voor puur visueel materiaal). */
 export function itemPolygons(item: Floorplan3dItem, lookup: DimsLookup): Point2D[][] {
-  return footprintPolygons(shapeOfDims(dimsOf(item, lookup)), item.x, item.z, item.rot_y_deg);
+  return polygonsAt(shapeOfDims(dimsOf(item, lookup)), item.x, item.z, rotationOf(item));
 }
 
 /** Verticaal bereik [onder, boven] van een geplaatst item. */
 export function itemVerticalRange(item: Floorplan3dItem, lookup: DimsLookup): [number, number] {
-  return verticalRange(shapeOfDims(dimsOf(item, lookup)), item.y);
+  return rangeFor(shapeOfDims(dimsOf(item, lookup)), item.y, rotationOf(item));
 }
 
 // --- Verzamelingen polygonen (een vorm kan uit meerdere delen bestaan) -------
@@ -304,6 +357,8 @@ export function findNearestFreeSpot(
   otherItems: Floorplan3dItem[],
   room: Floorplan3dRoom,
   lookup: DimsLookup,
+  /** Kanteling en hoogte van het te plaatsen item (weggelaten = plat, op de vloer). */
+  tilt: { x?: number; z?: number; lift?: number } = {},
 ): Point2D {
   const halfL = room.width_m / 2;
   const halfW = room.length_m / 2;
@@ -311,9 +366,11 @@ export function findNearestFreeSpot(
   const maxRings = Math.ceil(Math.max(room.width_m, room.length_m) / step) + 2;
 
   const shape = shapeOfDims(dims);
-  const extent = footprintExtents(shape, rotYDeg);
+  const ownRot: Rotation3 = { x: tilt.x ?? 0, y: rotYDeg, z: tilt.z ?? 0 };
+  const ownY = floorY(shape, ownRot, tilt.lift ?? 0);
+  const extent = extentsFor(shape, ownRot);
   // Alleen items die op dezelfde hoogte staan blokkeren de plek (hangend materiaal niet).
-  const ownRange = verticalRange(shape, 0);
+  const ownRange = rangeFor(shape, ownY, ownRot);
   const blockers = otherItems.filter((other) => {
     const [lo, hi] = itemVerticalRange(other, lookup);
     return lo < ownRange[1] - EPS_M && ownRange[0] < hi - EPS_M;
@@ -325,6 +382,14 @@ export function findNearestFreeSpot(
       if (z + extent.minZ < -halfW || z + extent.maxZ > halfW) return false;
     }
 
+    if (isTilted(ownRot) || blockers.some(itemIsTilted)) {
+      return !blockers.some((other) =>
+        shapesCollide(
+          { shape, pos: [x, ownY, z], rot: ownRot },
+          { shape: shapeOfDims(dimsOf(other, lookup)), pos: [other.x, other.y, other.z], rot: rotationOf(other) },
+        ),
+      );
+    }
     const candidate = footprintPolygons(shape, x, z, rotYDeg);
     return !blockers.some((other) => polygonsOverlap(candidate, itemPolygons(other, lookup)));
   }
@@ -359,13 +424,15 @@ export type SnapGridSize = 0 | 0.1 | 0.5;
  * meeverplaatst, zie Stap 4.5: "niets zweeft". */
 export function findItemsResting(baseId: string, items: Floorplan3dItem[], lookup: DimsLookup): string[] {
   const base = items.find((item) => item.id === baseId);
-  if (!base) return [];
+  // Op een gekanteld item rust niets: het is geen vlakke ondergrond.
+  if (!base || itemIsTilted(base)) return [];
   const baseTop = itemVerticalRange(base, lookup)[1];
   const basePolygons = itemPolygons(base, lookup);
 
   const directlyOn = items.filter(
     (item) =>
       item.id !== baseId &&
+      !itemIsTilted(item) &&
       // Een item rust op de bovenkant van de basis als zijn ONDERKANT daar ligt.
       Math.abs(itemVerticalRange(item, lookup)[0] - baseTop) < EPS_M &&
       polygonsOverlap(basePolygons, itemPolygons(item, lookup)),
@@ -406,21 +473,28 @@ export function recomputeStackedYs(items: Floorplan3dItem[], lookup: DimsLookup)
   const placed: Floorplan3dItem[] = [];
   for (const { item } of order) {
     const shape = shapeOfDims(dimsOf(item, lookup));
-    // Hangend of puur visueel materiaal stapelt nooit: de pivot blijft op de vloer.
+    const rot = rotationOf(item);
+    const lift = item.lift_m ?? 0;
+    // Hangend of puur visueel materiaal stapelt nooit: de pivot blijft op de vloer (+ eventuele "vrij in hoogte").
     if (shape.kind === "none" || isElevated(shape)) {
-      placed.push({ ...item, y: 0 });
+      placed.push({ ...item, y: lift });
+      continue;
+    }
+    // Een gekanteld item rust met zijn laagste punt op de vloer (+ lift): nooit door de vloer, nooit zwevend.
+    if (isTilted(rot)) {
+      placed.push({ ...item, y: floorY(shape, rot, lift) });
       continue;
     }
 
     const polygons = itemPolygons(item, lookup);
     let y = 0;
     for (const base of placed) {
-      if (!dimsOf(base, lookup).stackable) continue;
+      if (!dimsOf(base, lookup).stackable || itemIsTilted(base)) continue;
       if (!polygonsOverlap(polygons, itemPolygons(base, lookup))) continue;
       // Onderkant van dit item op de bovenkant van de basis.
       y = Math.max(y, itemVerticalRange(base, lookup)[1] - shape.base_m);
     }
-    placed.push({ ...item, y });
+    placed.push({ ...item, y: y + lift });
   }
 
   const yById = new Map(placed.map((item) => [item.id, item.y]));
@@ -442,7 +516,7 @@ export function clampItemsToRoom(
     const shape = shapeOfDims(dimsOf(item, lookup));
     if (shape.kind === "none") return item;
     // Grenzen van de voetafdruk t.o.v. de itempositie (offset en draaiing inbegrepen).
-    const extent = footprintExtents(shape, item.rot_y_deg);
+    const extent = extentsFor(shape, rotationOf(item));
     const x = Math.min(Math.max(item.x, -room.width_m / 2 - extent.minX), room.width_m / 2 - extent.maxX);
     const z = Math.min(Math.max(item.z, -room.length_m / 2 - extent.minZ), room.length_m / 2 - extent.maxZ);
     if (Math.abs(x - item.x) < EPS_M && Math.abs(z - item.z) < EPS_M) return item;

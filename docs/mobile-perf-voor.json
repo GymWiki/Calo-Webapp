@@ -1,0 +1,31 @@
+{
+ "label": "voor",
+ "url": "http://localhost:3123/dev-editor?n=30",
+ "device": "iPhone 14",
+ "cpuThrottle": 4,
+ "runs": [
+  {
+   "loadMs": 7365,
+   "fps": 2.9,
+   "drawCallsPerFrame": 480,
+   "frames": 11,
+   "heapAfterLoadMB": 192,
+   "heapEndMB": 197
+  },
+  {
+   "loadMs": 6945,
+   "fps": 3,
+   "drawCallsPerFrame": 480,
+   "frames": 12,
+   "heapAfterLoadMB": 190,
+   "heapEndMB": 195
+  }
+ ],
+ "median": {
+  "loadMs": 7365,
+  "fps": 3,
+  "drawCallsPerFrame": 480,
+  "heapAfterLoadMB": 192,
+  "heapEndMB": 197
+ }
+}

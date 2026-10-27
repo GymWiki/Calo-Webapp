@@ -1,9 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isValidCategory } from "@/lib/constants/libraryTaxonomy";
+import { classifyModel } from "@/lib/library/classify";
 import type { MaterialModel } from "@/types/materialModel";
 
 const BUCKET = "materials-3d";
-const MATERIAL_MODEL_SELECT =
+const BASE_SELECT =
   "id, slug, material_id, naam, categorie, model_path, preview_path, length_m, width_m, height_m, stackable, sort_order";
+// Nieuwe indelingskolommen (supabase/migrations/material_models_taxonomy.sql).
+// Zolang die migratie nog niet is gedraaid, valt de service terug op BASE_SELECT
+// en deelt classifyModel de items in — de bibliotheek werkt dus vóór én na de migratie.
+const TAXONOMY_SELECT = `${BASE_SELECT}, categorie_oud, subgroep, sporten, tags`;
 
 type MaterialModelRow = {
   id: string;
@@ -18,7 +24,29 @@ type MaterialModelRow = {
   height_m: number;
   stackable: boolean;
   sort_order: number;
+  categorie_oud?: string | null;
+  subgroep?: string | null;
+  sporten?: string[] | null;
+  tags?: string[] | null;
 };
+
+/** Gebruikt de opgeslagen indeling als die compleet is, anders de automatische. */
+function resolveTaxonomy(row: MaterialModelRow): Pick<MaterialModel, "categorie" | "subgroep" | "sporten" | "tags"> {
+  if (isValidCategory(row.categorie) && row.sporten && row.sporten.length > 0) {
+    return { categorie: row.categorie, subgroep: row.subgroep ?? null, sporten: row.sporten, tags: row.tags ?? [] };
+  }
+  const classification = classifyModel({
+    slug: row.slug,
+    naam: row.naam,
+    categorie_oud: row.categorie_oud ?? row.categorie,
+  });
+  return {
+    categorie: classification.categorie,
+    subgroep: classification.subgroep,
+    sporten: classification.sporten,
+    tags: [...new Set([...(row.tags ?? []), ...classification.tags])],
+  };
+}
 
 function toMaterialModel(supabase: SupabaseClient, row: MaterialModelRow): MaterialModel {
   return {
@@ -26,7 +54,7 @@ function toMaterialModel(supabase: SupabaseClient, row: MaterialModelRow): Mater
     slug: row.slug,
     material_id: row.material_id,
     naam: row.naam,
-    categorie: row.categorie,
+    ...resolveTaxonomy(row),
     model_url: supabase.storage.from(BUCKET).getPublicUrl(row.model_path).data.publicUrl,
     preview_url: supabase.storage.from(BUCKET).getPublicUrl(row.preview_path).data.publicUrl,
     length_m: Number(row.length_m),
@@ -45,18 +73,23 @@ function toMaterialModel(supabase: SupabaseClient, row: MaterialModelRow): Mater
  * maken.
  */
 export async function getActiveMaterialModels(supabase: SupabaseClient): Promise<MaterialModel[]> {
-  const { data, error } = await supabase
-    .from("material_models")
-    .select(MATERIAL_MODEL_SELECT)
-    .eq("active", true)
-    .order("sort_order", { ascending: true })
-    .order("naam", { ascending: true });
+  const query = (select: string) =>
+    supabase
+      .from("material_models")
+      .select(select)
+      .eq("active", true)
+      .order("sort_order", { ascending: true })
+      .order("naam", { ascending: true });
+
+  let { data, error } = await query(TAXONOMY_SELECT);
+  // 42703 = undefined_column: de taxonomie-migratie is nog niet gedraaid.
+  if (error?.code === "42703") ({ data, error } = await query(BASE_SELECT));
 
   if (error) {
     throw new Error(`Kon 3D-materiaalmodellen niet ophalen: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => toMaterialModel(supabase, row as MaterialModelRow));
+  return ((data ?? []) as unknown as MaterialModelRow[]).map((row) => toMaterialModel(supabase, row));
 }
 
 /**
@@ -73,15 +106,19 @@ export async function getMaterialModelsBySlugs(
 ): Promise<MaterialModel[]> {
   if (slugs.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("material_models")
-    .select(MATERIAL_MODEL_SELECT)
-    .eq("active", true)
-    .in("slug", [...new Set(slugs)]);
+  const query = (select: string) =>
+    supabase
+      .from("material_models")
+      .select(select)
+      .eq("active", true)
+      .in("slug", [...new Set(slugs)]);
+
+  let { data, error } = await query(TAXONOMY_SELECT);
+  if (error?.code === "42703") ({ data, error } = await query(BASE_SELECT));
 
   if (error) {
     throw new Error(`Kon 3D-materiaalmodellen niet ophalen: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => toMaterialModel(supabase, row as MaterialModelRow));
+  return ((data ?? []) as unknown as MaterialModelRow[]).map((row) => toMaterialModel(supabase, row));
 }

@@ -2,15 +2,23 @@
 // public.material_models (supabase/migrations/material_models_3d.sql).
 // Begint LEEG; gevuld via `npm run import:materials` (scripts/import-materials.ts),
 // nooit automatisch afgeleid van de 2D-materialenbibliotheek. `categorie`
-// is net als bij de 2D-tabel een vrije tekstkolom — nieuwe categorieën
-// verschijnen in de UI onder hun eigen label zodra ze voorkomen.
+// is één van de hoofdcategorieën uit lib/constants/libraryTaxonomy.ts
+// (of "personen"); de oorspronkelijke vrije-tekst categorie staat in
+// `categorie_oud`. Subgroep, sporten en tags sturen filter en zoeken.
 
 export type MaterialModel = {
   id: string;
   slug: string;
   material_id: string | null;
   naam: string;
+  /** Hoofdcategorie-id (lib/constants/libraryTaxonomy.ts), of "personen". */
   categorie: string;
+  /** Optionele subgroep binnen de categorie (bijv. Ballen > basketbal). */
+  subgroep: string | null;
+  /** Sport-id's voor het sportfilter; minstens één ("algemeen" als terugval). */
+  sporten: string[];
+  /** Vrije zoektermen. */
+  tags: string[];
   /** Publieke URL (materials-3d-bucket), niet het rauwe storage-pad. */
   model_url: string;
   preview_url: string;

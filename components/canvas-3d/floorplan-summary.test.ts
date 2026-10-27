@@ -40,3 +40,24 @@ test("velden: label, totaal en pionnen per kleur", () => {
   assert.equal(summary.coneMaterials[0].count, 30);
   assert.equal(summary.isEmpty, false);
 });
+
+test("materiaal wordt per hoofdcategorie gegroepeerd; personen apart", () => {
+  const cats: Record<string, string> = { bank: "toestellen", mat: "matten", leerling: "personen" };
+  const label: Record<string, string> = { ...names, leerling: "Leerling blauw" };
+  const summary = summarizeFloorplan(
+    [item("1", "bank"), item("2", "mat"), item("3", "mat"), item("4", "leerling"), item("5", "leerling"), item("6", "x")],
+    [],
+    (slug) => label[slug],
+    (slug) => cats[slug],
+  );
+  assert.deepEqual(
+    summary.groups.map((group) => [group.label, group.total]),
+    [
+      ["Toestellen", 1],
+      ["Matten", 2],
+      ["Overig", 1],
+    ],
+  );
+  assert.equal(summary.personTotal, 2);
+  assert.equal(summary.itemTotal, 6);
+});

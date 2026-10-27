@@ -110,7 +110,9 @@ const nextConfig: NextConfig = {
   async headers() {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+      // Alleen in `next dev`: React/Next gebruiken in development eval() (o.a. voor
+      // foutoverlays en refresh); zonder dit blokkeert de CSP het hele dev-script.
+      `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://*.supabase.co",
       "font-src 'self' data:",
