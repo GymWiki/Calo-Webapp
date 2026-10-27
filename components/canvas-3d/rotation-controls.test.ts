@@ -40,6 +40,12 @@ describe("rotation-controls", () => {
     assert.deepEqual(applyPose("plat", current, FREE), { x: 0, y: 120, z: 0 });
     assert.deepEqual(applyPose("rechtop", current, FREE), { x: 90, y: 120, z: 0 });
     assert.deepEqual(applyPose("schuin30", current, FREE), { x: 30, y: 120, z: 0 });
+    // Langwerpig (bank 3 × 0,4): een uiteinde omhoog = kanteling om Z.
+    const bench = { length_m: 3, width_m: 0.4 };
+    assert.deepEqual(applyPose("schuin30", current, FREE, bench), { x: 0, y: 120, z: 30 });
+    assert.deepEqual(applyPose("rechtop", current, FREE, bench), { x: 0, y: 120, z: 90 });
+    // Mat (6 × 4): rechtop op de lange rand = kanteling om X.
+    assert.deepEqual(applyPose("rechtop", current, FREE, { length_m: 6, width_m: 4 }), { x: 90, y: 120, z: 0 });
     assert.deepEqual(applyPose("opkop", current, FREE), { x: 0, y: 120, z: 180 });
     assert.deepEqual(applyPose("reset", current, FREE), { x: 0, y: 0, z: 0 });
     assert.equal(poseAllowed("rechtop", FLAT), false);
@@ -49,6 +55,7 @@ describe("rotation-controls", () => {
   it("respecteert maxTiltDeg", () => {
     const limited = { allowTilt: true, maxTiltDeg: 30 };
     assert.equal(applyPose("rechtop", { x: 0, y: 0, z: 0 }, limited).x, 30);
+    assert.equal(applyPose("rechtop", { x: 0, y: 0, z: 0 }, limited, { length_m: 3, width_m: 0.4 }).z, 30);
     assert.equal(poseAllowed("rechtop", limited), false);
     assert.equal(poseAllowed("schuin30", limited), true);
   });

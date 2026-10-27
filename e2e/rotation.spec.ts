@@ -32,12 +32,13 @@ test("kantelen met knoppen, rechtop zetten en weer plat leggen", async ({ page }
   expect(draft.items[0].y).toBeGreaterThan(0);
 
   await panel(page).getByRole("button", { name: "Rechtop (90°)" }).click();
-  draft = await readDraft(page, (d) => d.items[0].rot_x_deg === 90);
-  expect(draft.items[0].rot_z_deg ?? 0).toBe(0);
-  expect(draft.items[0].y).toBeGreaterThan(0.1); // de bank staat op zijn lange kant: laagste punt op de vloer
+  // Een bank is langwerpig: "Rechtop" zet hem op zijn uiteinde (kanteling om Z), 3 m hoog met pivot op de vloer.
+  draft = await readDraft(page, (d) => d.items[0].rot_z_deg === 90);
+  expect(draft.items[0].rot_x_deg ?? 0).toBe(0);
+  expect(draft.items[0].y).toBeGreaterThan(1);
 
-  await panel(page).getByRole("button", { name: "Kantelen zijwaarts +15°" }).click();
-  await readDraft(page, (d) => d.items[0].rot_z_deg === 15);
+  await panel(page).getByRole("button", { name: "Kantelen zijwaarts −15°" }).click();
+  await readDraft(page, (d) => d.items[0].rot_z_deg === 75);
 
   await panel(page).getByRole("button", { name: "Plat" }).click();
   draft = await readDraft(page, (d) => !d.items[0].rot_x_deg && !d.items[0].rot_z_deg);
@@ -69,18 +70,18 @@ test("opslaan en herladen: dezelfde stand komt terug", async ({ page }) => {
   await placeBench(page);
   await panel(page).getByRole("button", { name: "Schuin 30°" }).click();
   await panel(page).getByRole("button", { name: "Draaien +90°" }).click();
-  await panel(page).getByRole("button", { name: "Kantelen zijwaarts −15°" }).click();
-  const before = await readDraft(page, (d) => d.items[0].rot_x_deg === 30 && d.items[0].rot_y_deg === 90 && d.items[0].rot_z_deg === -15);
+  await panel(page).getByRole("button", { name: "Kantelen voor/achter −15°" }).click();
+  const before = await readDraft(page, (d) => d.items[0].rot_z_deg === 30 && d.items[0].rot_y_deg === 90 && d.items[0].rot_x_deg === -15);
 
   await page.reload({ waitUntil: "load" });
   await expect(page.getByText("Niet-opgeslagen wijzigingen gevonden")).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "Herstellen" }).click();
-  const after = await readDraft(page, (d) => d.items.length === 1 && d.items[0].rot_x_deg === 30);
+  const after = await readDraft(page, (d) => d.items.length === 1 && d.items[0].rot_z_deg === 30);
   expect(after.items[0]).toMatchObject({
     slug: before.items[0].slug,
-    rot_x_deg: 30,
+    rot_x_deg: -15,
     rot_y_deg: 90,
-    rot_z_deg: -15,
+    rot_z_deg: 30,
   });
   expect(after.items[0].y).toBeCloseTo(before.items[0].y, 3);
 });
@@ -203,8 +204,8 @@ test("mobiel: rotatie-drawer heeft grote doelen, geen horizontale scroll en laat
   expect(small, "touch-doelen kleiner dan 44 px").toEqual([]);
 
   await panel(page).getByRole("button", { name: "Rechtop (90°)" }).click();
-  await readDraft(page, (d) => d.items[0].rot_x_deg === 90);
-  await panel(page).getByRole("button", { name: "Kantelen zijwaarts +90°" }).click();
   await readDraft(page, (d) => d.items[0].rot_z_deg === 90);
+  await panel(page).getByRole("button", { name: "Kantelen voor/achter +15°" }).click();
+  await readDraft(page, (d) => d.items[0].rot_x_deg === 15);
   if (isPhone(page)) await expectNoHorizontalOverflow(page);
 });

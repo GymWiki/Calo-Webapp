@@ -993,7 +993,7 @@ export function Floorplan3dEditor({
 
   function applySelectedPose(pose: PoseId) {
     if (!selectedItem) return;
-    editSelectedOrientation({ rot: applyPose(pose, rotationOf(selectedItem), orientationOfSlug(selectedItem.slug)) }, false);
+    editSelectedOrientation({ rot: applyPose(pose, rotationOf(selectedItem), orientationOfSlug(selectedItem.slug), dimsOf(selectedItem, lookup)) }, false);
   }
 
   function setSelectedLift(meters: number | null) {
@@ -1368,6 +1368,8 @@ export function Floorplan3dEditor({
   // een canvas-eerst-indeling met werkbalk onderaan en drawers/zijpaneel.
   // -------------------------------------------------------------------
   const isDesktop = layout === "desktop";
+  // De rotatie-drawer hoort bij een geselecteerd item: zonder selectie sluit hij vanzelf.
+  const activePanel: MobilePanel = mobilePanel === "rotatie" && !selectedItem ? null : mobilePanel;
   const hasSelection = Boolean(selectedItem || selectedField);
   const selectionTitle = selectedField ? fieldLabel(selectedField) : selectedItem ? (modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item") : "";
 
@@ -1547,7 +1549,7 @@ export function Floorplan3dEditor({
               onReset={resetCamera}
             />
           )}
-          {hasSelection && !drawMode && !(layout === "phone" && mobilePanel) && (
+          {hasSelection && !drawMode && !(layout === "phone" && activePanel) && (
             <SelectionBar
               title={selectionTitle}
               compact={shortViewport}
@@ -1561,16 +1563,16 @@ export function Floorplan3dEditor({
               onDeselect={() => setSelectedId(null)}
             />
           )}
-          {layout === "tablet" && mobilePanel && (
-            <SidePanel side={mobilePanel === "materiaal" ? "left" : "right"} title={panelTitle[mobilePanel]} onClose={() => setMobilePanel(null)}>
-              {panelContent(mobilePanel)}
+          {layout === "tablet" && activePanel && (
+            <SidePanel side={activePanel === "materiaal" ? "left" : "right"} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)}>
+              {panelContent(activePanel)}
             </SidePanel>
           )}
           {onboarding && <GestureOnboarding onClose={() => setOnboarding(false)} />}
         </div>
 
         <MobileToolbar
-          panel={mobilePanel}
+          panel={activePanel}
           onPanel={(panel) => {
             setCameraMenuOpen(false);
             setMobilePanel(panel);
@@ -1587,9 +1589,9 @@ export function Floorplan3dEditor({
           compact={shortViewport}
         />
 
-        {layout === "phone" && mobilePanel && (
-          <BottomSheet key={mobilePanel} title={panelTitle[mobilePanel]} onClose={() => setMobilePanel(null)}>
-            {panelContent(mobilePanel)}
+        {layout === "phone" && activePanel && (
+          <BottomSheet key={activePanel} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} peek={activePanel === "rotatie"}>
+            {panelContent(activePanel)}
           </BottomSheet>
         )}
 
@@ -1696,23 +1698,23 @@ export function Floorplan3dEditor({
         />
       )}
 
-      <Sheet open={mobilePanel !== null} onOpenChange={(open) => !open && setMobilePanel(null)}>
+      <Sheet open={activePanel !== null} onOpenChange={(open) => !open && setMobilePanel(null)}>
         <SheetContent side="bottom" className="h-[70vh] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>
-              {mobilePanel === "materiaal" && "Materiaal"}
-              {mobilePanel === "item" && "Item"}
-              {mobilePanel === "rotatie" && "Rotatie"}
-              {mobilePanel === "kamer" && "Omgeving"}
-              {mobilePanel === "lijst" && "Mijn 3D-plattegronden"}
+              {activePanel === "materiaal" && "Materiaal"}
+              {activePanel === "item" && "Item"}
+              {activePanel === "rotatie" && "Rotatie"}
+              {activePanel === "kamer" && "Omgeving"}
+              {activePanel === "lijst" && "Mijn 3D-plattegronden"}
             </SheetTitle>
           </SheetHeader>
           <div className={cn("px-4 pb-6")}>
-            {mobilePanel === "materiaal" && <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName="bg-background" />}
-            {mobilePanel === "item" && itemPanel}
-            {mobilePanel === "rotatie" && rotationPanel}
-            {mobilePanel === "kamer" && roomPanel}
-            {mobilePanel === "lijst" && (
+            {activePanel === "materiaal" && <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName="bg-background" />}
+            {activePanel === "item" && itemPanel}
+            {activePanel === "rotatie" && rotationPanel}
+            {activePanel === "kamer" && roomPanel}
+            {activePanel === "lijst" && (
               <MyFloorplans3dList
                 floorplans={floorplans}
                 activeId={floorplanId}

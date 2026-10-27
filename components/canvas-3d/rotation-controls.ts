@@ -68,31 +68,52 @@ export type Pose = { id: PoseId; label: string; hint: string };
 
 export const QUICK_POSES: Pose[] = [
   { id: "plat", label: "Plat", hint: "Kanteling weg; het item ligt weer plat (draairichting blijft)" },
-  { id: "rechtop", label: "Rechtop (90°)", hint: "Kantel 90° voorover: het item staat rechtop" },
-  { id: "schuin15", label: "Schuin 15°", hint: "Kantel 15° voorover" },
-  { id: "schuin30", label: "Schuin 30°", hint: "Kantel 30° voorover" },
-  { id: "schuin45", label: "Schuin 45°", hint: "Kantel 45° voorover" },
+  { id: "rechtop", label: "Rechtop (90°)", hint: "Zet het item rechtop (90°): langwerpige items op hun uiteinde, matten op hun lange rand" },
+  { id: "schuin15", label: "Schuin 15°", hint: "Kantel 15°: een uiteinde of rand omhoog" },
+  { id: "schuin30", label: "Schuin 30°", hint: "Kantel 30°: een uiteinde of rand omhoog" },
+  { id: "schuin45", label: "Schuin 45°", hint: "Kantel 45°: een uiteinde of rand omhoog" },
   { id: "opkop", label: "Op kop", hint: "Draai het item 180° zijwaarts: ondersteboven" },
   { id: "reset", label: "Reset rotatie", hint: "Terug naar de standaardstand: plat en met de voorkant naar voren" },
 ];
 
-/** Past een snelle stand toe. "Plat/Rechtop/Schuin/Op kop" houden de draairichting (Y); alleen "Reset" zet ook Y terug. */
-export function applyPose(pose: PoseId, current: Rotation3, config: OrientationConfig): Rotation3 {
+/** Langwerpig (lengte ≥ 2× breedte: banken, balken, ladders, planken): "schuin" tilt dan een uiteinde omhoog. */
+export const ELONGATED_RATIO = 2;
+
+/**
+ * Om welke as kantelt "Schuin"/"Rechtop"? Langwerpige items rijzen met één uiteinde (Z-kanteling, de
+ * lengteas ligt op X); brede items zoals matten staan rechtop op hun lange rand (X-kanteling).
+ */
+export function poseTiltAxis(dims?: { length_m: number; width_m: number }): "x" | "z" {
+  if (!dims || dims.width_m <= 0) return "x";
+  return dims.length_m / dims.width_m >= ELONGATED_RATIO ? "z" : "x";
+}
+
+/**
+ * Past een snelle stand toe. "Plat/Rechtop/Schuin/Op kop" houden de draairichting (Y); alleen "Reset"
+ * zet ook Y terug. De kantelas van "Schuin"/"Rechtop" volgt de vorm van het item (zie `poseTiltAxis`).
+ */
+export function applyPose(
+  pose: PoseId,
+  current: Rotation3,
+  config: OrientationConfig,
+  dims?: { length_m: number; width_m: number },
+): Rotation3 {
   const base = { x: 0, y: current.y, z: 0 };
   const defaults = config.defaultRotation;
+  const tilt = (deg: number): Rotation3 => (poseTiltAxis(dims) === "z" ? { ...base, z: deg } : { ...base, x: deg });
   switch (pose) {
     case "reset":
       return clampRotation({ x: defaults?.x ?? 0, y: defaults?.y ?? 0, z: defaults?.z ?? 0 }, config);
     case "plat":
       return clampRotation(base, config);
     case "rechtop":
-      return clampRotation({ ...base, x: 90 }, config);
+      return clampRotation(tilt(90), config);
     case "schuin15":
-      return clampRotation({ ...base, x: 15 }, config);
+      return clampRotation(tilt(15), config);
     case "schuin30":
-      return clampRotation({ ...base, x: 30 }, config);
+      return clampRotation(tilt(30), config);
     case "schuin45":
-      return clampRotation({ ...base, x: 45 }, config);
+      return clampRotation(tilt(45), config);
     case "opkop":
       return clampRotation({ ...base, z: 180 }, config);
   }

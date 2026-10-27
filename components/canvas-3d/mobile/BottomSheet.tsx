@@ -16,10 +16,13 @@ export function BottomSheet({
   title,
   onClose,
   children,
+  peek = false,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  /** Compacte drawer zonder donkere achtergrond: het canvas erboven blijft zichtbaar en bruikbaar (rotatie). */
+  peek?: boolean;
 }) {
   const [snap, setSnap] = useState<SheetSnap>("half");
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -63,8 +66,8 @@ export function BottomSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-40">
-      <div className="absolute inset-0 bg-black/30" onPointerDown={onClose} aria-hidden="true" />
+    <div className={cn("fixed inset-0 z-40", peek && "pointer-events-none")}>
+      {!peek && <div className="absolute inset-0 bg-black/30" onPointerDown={onClose} aria-hidden="true" />}
       <div
         ref={sheetRef}
         role="dialog"
@@ -72,8 +75,16 @@ export function BottomSheet({
         tabIndex={-1}
         className={cn(
           "animate-sheet-up absolute inset-x-0 bottom-0 flex flex-col rounded-t-2xl border-t bg-background shadow-2xl outline-none transition-[height,transform] duration-200 ease-out",
+          peek && "pointer-events-auto",
         )}
-        style={{ height: snap === "half" ? "min(62dvh, 36rem)" : "calc(100dvh - env(safe-area-inset-top) - 2.5rem)" }}
+        style={{
+          height:
+            snap === "half"
+              ? peek
+                ? "min(42dvh, 22rem)"
+                : "min(62dvh, 36rem)"
+              : "calc(100dvh - env(safe-area-inset-top) - 2.5rem)",
+        }}
       >
         <div
           className="touch-none select-none"
