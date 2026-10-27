@@ -79,3 +79,5 @@ fastlane/*.log
 # team-breed, nooit in de repo.
 .claude/settings.local.json
 /omgeving-import/
+test-results/
+playwright-report/
