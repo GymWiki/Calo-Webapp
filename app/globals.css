@@ -218,6 +218,47 @@
     animation: fade-up 0.4s var(--ease-brand) both;
   }
 
+  /* Mobiele editor: drawer en zijpanelen. Geen fill-mode, zodat de inline transform
+     van het slepen na afloop weer geldt. */
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .animate-sheet-up {
+    animation: sheet-up 0.25s var(--ease-brand);
+  }
+
+  @keyframes slide-in-left {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slide-in-left {
+    animation: slide-in-left 0.22s var(--ease-brand);
+  }
+
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.22s var(--ease-brand);
+  }
+
   @keyframes shimmer {
     0% {
       background-position: 100% 50%;
@@ -242,6 +283,9 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-landing-rise,
   .animate-fade-up,
+  .animate-sheet-up,
+  .animate-slide-in-left,
+  .animate-slide-in-right,
   .animate-shimmer {
     animation: none;
   }

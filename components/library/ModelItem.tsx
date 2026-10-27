@@ -61,7 +61,7 @@ function FavoriteStar({
       title={favorite ? "Uit favorieten halen" : "Als favoriet markeren"}
       onClick={onToggle}
       className={cn(
-        "flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 ease-brand hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        "flex size-7 items-center justify-center rounded-full pointer-coarse:size-11 text-muted-foreground transition-colors duration-150 ease-brand hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
         favorite && "text-primary",
         className,
       )}
@@ -88,7 +88,8 @@ export function ModelItem({
   const compact = view === "list";
 
   return (
-    <div className={cn("group relative min-w-0", compact && "flex items-center gap-1")}>
+    // scroll-mt: bij toetsenbord- of schermlezer-focus scrolt de browser het item niet onder de sticky zoekbalk en categoriekop.
+    <div className={cn("group relative min-w-0 scroll-mt-[calc(var(--library-sticky-top,0px)+3.5rem)]", compact && "flex items-center gap-1")}>
       <button
         type="button"
         onClick={() => onSelect(model)}

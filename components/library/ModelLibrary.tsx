@@ -11,6 +11,7 @@ import { LIBRARY_ICONS } from "@/components/library/library-icons";
 import { RECENT_LIMIT, useLibraryPrefs, type LibraryView } from "@/components/library/useLibraryPrefs";
 import { PERSONS_CATEGORY, getCategory, type LibraryCategory } from "@/lib/constants/libraryTaxonomy";
 import { filterItems, groupByCategory, isPerson, sportCounts, type CategoryGroup } from "@/lib/library/search";
+import { useShortViewport } from "@/components/canvas-3d/mobile/useEditorLayout";
 import { cn } from "@/lib/utils";
 import type { MaterialModel } from "@/types/materialModel";
 
@@ -82,7 +83,7 @@ function Section({
             aria-expanded={open}
             aria-controls={`library-panel-${id}`}
             onClick={() => onOpenChange(!open)}
-            className="flex w-full items-center justify-between gap-2 rounded-md py-2 text-left text-sm font-semibold hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="flex w-full items-center justify-between gap-2 rounded-md py-2 text-left text-sm font-semibold pointer-coarse:min-h-11 hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             <span id={`library-${id}`} className="flex items-center gap-2">
               <span style={color ? { color } : undefined} aria-hidden="true">
@@ -129,7 +130,7 @@ function SubgroupTabs({
             aria-selected={active === tab.id}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "rounded-md px-2 py-1 text-xs font-medium transition-colors duration-150 ease-brand focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+              "rounded-md px-2 py-1 text-xs font-medium transition-colors duration-150 ease-brand pointer-coarse:min-h-11 pointer-coarse:px-3 pointer-coarse:text-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
               active === tab.id ? "bg-primary/15 text-foreground ring-1 ring-primary/40" : "text-muted-foreground hover:bg-accent",
             )}
           >
@@ -159,6 +160,9 @@ export function ModelLibrary({
   surfaceClassName?: string;
 }) {
   const prefs = useLibraryPrefs();
+  // Telefoon in landscape: weinig hoogte. Zoekbalk en chips scrollen dan mee (alleen de categoriekop
+  // blijft plakken), anders blijft er nauwelijks ruimte voor de items zelf.
+  const shortViewport = useShortViewport();
   const [query, setQuery] = useState("");
   const [sports, setSports] = useState<string[]>([]);
   const [mode, setMode] = useState<"materiaal" | "personen">("materiaal");
@@ -181,6 +185,7 @@ export function ModelLibrary({
     return () => observer.disconnect();
   }, []);
 
+  const stickyOffset = shortViewport ? 0 : headHeight;
   const favorites = useMemo(() => new Set(prefs.favorites), [prefs.favorites]);
   const materials = useMemo(() => models.filter((model) => !isPerson(model)), [models]);
   const persons = useMemo(() => models.filter(isPerson), [models]);
@@ -229,7 +234,7 @@ export function ModelLibrary({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" style={{ "--library-sticky-top": `${stickyOffset}px` } as React.CSSProperties}>
       {persons.length > 0 && (
         <div role="group" aria-label="Materiaal of personen" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
           {(["materiaal", "personen"] as const).map((option) => (
@@ -239,7 +244,7 @@ export function ModelLibrary({
               aria-pressed={mode === option}
               onClick={() => setMode(option)}
               className={cn(
-                "rounded-md px-2 py-1.5 text-sm font-medium transition-colors duration-150 ease-brand focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+                "rounded-md px-2 py-1.5 text-sm font-medium transition-colors duration-150 ease-brand focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none pointer-coarse:min-h-11",
                 mode === option ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -262,7 +267,7 @@ export function ModelLibrary({
         </div>
       ) : (
         <>
-          <div ref={headRef} className={cn("sticky top-0 z-20 -mx-1 space-y-2 px-1 pt-1 pb-2", surfaceClassName)}>
+          <div ref={headRef} className={cn("z-20 -mx-1 space-y-2 px-1 pt-1 pb-2", !shortViewport && "sticky top-0", surfaceClassName)}>
             <div className="flex items-center gap-1.5">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -298,7 +303,7 @@ export function ModelLibrary({
                     title={label}
                     onClick={() => prefs.setView(value)}
                     className={cn(
-                      "flex size-8 items-center justify-center first:rounded-l-md last:rounded-r-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+                      "flex size-8 items-center justify-center first:rounded-l-md last:rounded-r-md pointer-coarse:size-11 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
                       prefs.view === value ? "bg-primary text-primary-foreground" : "hover:bg-accent",
                     )}
                   >
@@ -328,7 +333,7 @@ export function ModelLibrary({
                   color="var(--primary)"
                   open={isOpen("favorieten")}
                   onOpenChange={(open) => setOpen("favorieten", open)}
-                  stickyTop={headHeight}
+                  stickyTop={stickyOffset}
                   surface={surfaceClassName}
                 >
                   <ItemGrid models={favoriteModels} view={prefs.view} favorites={favorites} onSelect={handleSelect} onToggleFavorite={prefs.toggleFavorite} />
@@ -342,7 +347,7 @@ export function ModelLibrary({
                   icon={<Clock className="size-4" />}
                   open={isOpen("recent")}
                   onOpenChange={(open) => setOpen("recent", open)}
-                  stickyTop={headHeight}
+                  stickyTop={stickyOffset}
                   surface={surfaceClassName}
                 >
                   <ItemGrid models={recentModels} view={prefs.view} favorites={favorites} onSelect={handleSelect} onToggleFavorite={prefs.toggleFavorite} />
@@ -363,7 +368,7 @@ export function ModelLibrary({
                     color={category?.color}
                     open={isOpen(group.id)}
                     onOpenChange={(open) => setOpen(group.id, open)}
-                    stickyTop={headHeight}
+                    stickyTop={stickyOffset}
                     surface={surfaceClassName}
                   >
                     {group.subgroups.length > 1 && (

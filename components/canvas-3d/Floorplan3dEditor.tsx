@@ -4,16 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ThreeEvent } from "@react-three/fiber";
 import {
+  AlertTriangle,
+  Check,
   Cone,
   Copy,
   Loader2,
+  Lock,
+  LockOpen,
   Redo2,
   RotateCw,
   Save,
   Trash2,
   Undo2,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/canvas-3d/mobile/editor-toast";
 
 import { deleteFloorplan3d, renameFloorplan3d, saveFloorplan3d, saveFloorplanPreview } from "@/actions/floorplans3d";
 import { BackButton } from "@/components/BackButton";
@@ -42,6 +46,7 @@ import { GymEnvironmentPanel } from "@/components/canvas-3d/GymEnvironmentPanel"
 import {
   clampFieldToRoom,
   createFieldFromCorners,
+  fieldLabel,
   isUsableField,
   MIN_FIELD_SIZE_M,
   normalizeFieldRotation,
@@ -68,7 +73,28 @@ import { EnvironmentPanel } from "@/components/canvas-3d/EnvironmentPanel";
 import { MaterialModelPicker3D } from "@/components/canvas-3d/MaterialModelPicker3D";
 import { MyFloorplans3dList } from "@/components/canvas-3d/MyFloorplans3dList";
 import { Scene3D } from "@/components/canvas-3d/Scene3D";
-import { originForCenter } from "@/components/canvas-3d/collision-shape";
+import { footprintCenter, originForCenter } from "@/components/canvas-3d/collision-shape";
+import { BottomSheet } from "@/components/canvas-3d/mobile/BottomSheet";
+import { CameraMenu } from "@/components/canvas-3d/mobile/CameraMenu";
+import { GestureOnboarding, hasSeenOnboarding } from "@/components/canvas-3d/mobile/GestureOnboarding";
+import { MobileToolbar } from "@/components/canvas-3d/mobile/MobileToolbar";
+import { OverflowMenu } from "@/components/canvas-3d/mobile/OverflowMenu";
+import { SelectionBar } from "@/components/canvas-3d/mobile/SelectionBar";
+import { SidePanel } from "@/components/canvas-3d/mobile/SidePanel";
+import {
+  angleFromCenterDeg,
+  draftStorageKey,
+  resolveQuality,
+  shouldOfferDraft,
+  snapRotationDeg,
+  type DraftPlan,
+  type MobilePanel,
+} from "@/components/canvas-3d/mobile/mobile-logic";
+import { useCoarsePointer, useEditorLayout, useShortViewport } from "@/components/canvas-3d/mobile/useEditorLayout";
+import { useEditorSettings } from "@/components/canvas-3d/mobile/useEditorSettings";
+import { NumberStepper } from "@/components/ui/number-stepper";
+import { releaseAllModels, releaseModel } from "@/components/canvas-3d/model-cache";
+import { haptic } from "@/lib/haptics";
 import {
   clampItemsToRoom,
   dimsLookupFromModels,
@@ -94,8 +120,6 @@ function createItemId(): string {
     ? crypto.randomUUID()
     : `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
-type MobilePanel = "materiaal" | "item" | "kamer" | "lijst" | null;
 
 // Nieuwe plattegronden starten in de gymzaal; DEFAULT_ROOM blijft de lege ruimte.
 const NEW_ROOM: Floorplan3dRoom = {
@@ -154,6 +178,30 @@ export function Floorplan3dEditor({
   const [debugGuides, setDebugGuides] = useState<SnapGuide[]>([]);
   const [snapGrid, setSnapGrid] = useState<SnapGridSize>(0.1);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
+  // Mobiel/tablet: layout per schermbreedte, touch per invoerapparaat, instellingen in localStorage.
+  const layout = useEditorLayout();
+  const coarsePointer = useCoarsePointer();
+  const shortViewport = useShortViewport();
+  const { settings, update: updateSettings } = useEditorSettings();
+  const [autoFactor, setAutoFactor] = useState(1);
+  const [cameraMenuOpen, setCameraMenuOpen] = useState(false);
+  const [cameraResetKey, setCameraResetKey] = useState(0);
+  const [onboarding, setOnboarding] = useState(() => window.matchMedia("(pointer: coarse)").matches && !hasSeenOnboarding());
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
+  const viewCenterRef = useRef({ x: 0, z: 0 });
+  const handleViewCenter = useCallback((center: { x: number; z: number }) => {
+    viewCenterRef.current = center;
+  }, []);
+  const lastSnappedRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const lowEndDevice = useMemo(() => {
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    return (nav.hardwareConcurrency ?? 8) <= 4 || (nav.deviceMemory ?? 8) <= 4;
+  }, []);
+  const quality = useMemo(
+    () => resolveQuality({ setting: settings.quality, devicePixelRatio: window.devicePixelRatio || 1, lowEndDevice, autoFactor }),
+    [settings.quality, lowEndDevice, autoFactor],
+  );
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const history = useFloorplan3dHistory();
@@ -170,6 +218,7 @@ export function Floorplan3dEditor({
     moved: boolean;
   } | null>(null);
   const fieldEditRef = useRef<{ key: string; at: number } | null>(null);
+  const itemEditRef = useRef<number | null>(null);
   // Klik op de lege vloer (pointerdown + loslaten zonder te slepen) = selectie opheffen.
   const backgroundDownRef = useRef<{ x: number; y: number } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -228,22 +277,41 @@ export function Floorplan3dEditor({
     if (id) void saveFloorplanPreview(id, dataUrl).catch(() => undefined);
   }, []);
 
+  const performSaveRef = useRef<() => Promise<void>>(async () => {});
   const performSave = useCallback(async () => {
     setSaveStatus("saving");
     const { room: currentRoom, items: currentItems, coneFields: currentFields, naam } = latestStateRef.current;
-    const result = await saveFloorplan3d({
-      id: floorplanIdRef.current ?? undefined,
-      naam,
-      activiteitId,
-      data: { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields },
-    });
+    let result: Awaited<ReturnType<typeof saveFloorplan3d>>;
+    try {
+      result = await saveFloorplan3d({
+        id: floorplanIdRef.current ?? undefined,
+        naam,
+        activiteitId,
+        data: { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields },
+      });
+    } catch {
+      result = { error: "Geen verbinding met de server." };
+    }
 
     if ("error" in result) {
       setSaveStatus("error");
-      toast.error(result.error);
+      // Je werk staat in de lokale kladversie (zie draft-effect): niets gaat verloren.
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      toast.error(offline ? "Je bent offline. Je wijzigingen zijn lokaal bewaard en worden opgeslagen zodra je weer online bent." : result.error, {
+        id: "save-error",
+        action: { label: "Opnieuw proberen", onClick: () => void performSaveRef.current() },
+      });
       return;
     }
 
+    toast.dismiss("save-error");
+    dirtyRef.current = false;
+    try {
+      window.localStorage.removeItem(draftStorageKey(floorplanIdRef.current));
+      window.localStorage.removeItem(draftStorageKey(null));
+    } catch {
+      // geen localStorage: niets op te ruimen
+    }
     if (!floorplanIdRef.current) {
       setFloorplanId(result.id);
       floorplanIdRef.current = result.id;
@@ -252,7 +320,12 @@ export function Floorplan3dEditor({
     scheduleThumbnail();
   }, [activiteitId, scheduleThumbnail]);
 
+  useEffect(() => {
+    performSaveRef.current = performSave;
+  }, [performSave]);
+
   const scheduleAutosave = useCallback(() => {
+    dirtyRef.current = true;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
@@ -264,6 +337,122 @@ export function Floorplan3dEditor({
     return () => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
       if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
+    };
+  }, []);
+
+  // GPU-geheugen: een model dat niet meer op de plattegrond staat, wordt na 30 s opgeruimd (zodat
+  // "ongedaan maken" nog snel kan); bij het sluiten van de editor gaat alles weg.
+  const usedModelUrlsRef = useRef(new Set<string>());
+  const releaseTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const inUse = new Set(items.map((item) => modelBySlug(item.slug)?.model_url).filter((url): url is string => Boolean(url)));
+    for (const url of inUse) {
+      usedModelUrlsRef.current.add(url);
+      const pending = releaseTimersRef.current.get(url);
+      if (pending) {
+        clearTimeout(pending);
+        releaseTimersRef.current.delete(url);
+      }
+    }
+    for (const url of usedModelUrlsRef.current) {
+      if (inUse.has(url) || releaseTimersRef.current.has(url)) continue;
+      releaseTimersRef.current.set(
+        url,
+        setTimeout(() => {
+          releaseTimersRef.current.delete(url);
+          usedModelUrlsRef.current.delete(url);
+          releaseModel(url);
+        }, 30_000),
+      );
+    }
+  }, [items, modelBySlug]);
+  useEffect(() => {
+    const timers = releaseTimersRef.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+      releaseAllModels();
+    };
+  }, []);
+
+  // Lokale kladversie: elke wijziging (die nog niet is opgeslagen) wordt kort daarna in
+  // localStorage bewaard, zodat een crash, per ongeluk sluiten of slechte verbinding niets kost.
+  useEffect(() => {
+    if (!dirtyRef.current) return;
+    const timer = setTimeout(() => {
+      try {
+        const draft: DraftPlan = { savedAt: Date.now(), naam: floorplanName, room, items, coneFields };
+        window.localStorage.setItem(draftStorageKey(floorplanId), JSON.stringify(draft));
+      } catch {
+        // vol of geblokkeerd: de serverautosave blijft werken
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [room, items, coneFields, floorplanName, floorplanId]);
+
+  // Bij openen: staat er een nieuwere, niet-opgeslagen kladversie, bied herstel aan.
+  useEffect(() => {
+    let draft: DraftPlan | null = null;
+    const key = draftStorageKey(initialFloorplan?.id ?? null);
+    try {
+      const raw = window.localStorage.getItem(key);
+      draft = raw ? (JSON.parse(raw) as DraftPlan) : null;
+    } catch {
+      draft = null;
+    }
+    const loaded = {
+      naam: initialFloorplan?.naam ?? "Nieuwe plattegrond",
+      room: initialFloorplan?.data.room ?? NEW_ROOM,
+      items: initialFloorplan?.data.items ?? [],
+      coneFields: initialFloorplan?.data.coneFields ?? [],
+    };
+    if (!draft || !shouldOfferDraft(draft, loaded)) return;
+    const found = draft;
+    toast("Niet-opgeslagen wijzigingen gevonden", {
+      id: "draft-restore",
+      description: "Van een eerdere sessie. Wil je die herstellen?",
+      duration: Infinity,
+      action: {
+        label: "Herstellen",
+        onClick: () => {
+          setRoom(found.room as Floorplan3dRoom);
+          setItems(found.items as Floorplan3dItem[]);
+          setConeFields(found.coneFields as ConeField[]);
+          setFloorplanName(found.naam);
+          dirtyRef.current = true;
+          scheduleAutosave();
+        },
+      },
+      cancel: {
+        label: "Negeren",
+        onClick: () => {
+          try {
+            window.localStorage.removeItem(key);
+          } catch {
+            // niet erg
+          }
+        },
+      },
+    });
+    // alleen bij het openen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Waarschuwing bij verlaten met onopgeslagen wijzigingen; opnieuw proberen zodra de verbinding terug is.
+  useEffect(() => {
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    function onOnline() {
+      if (dirtyRef.current) void performSaveRef.current();
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("online", onOnline);
     };
   }, []);
 
@@ -287,7 +476,9 @@ export function Floorplan3dEditor({
     // Collision-vorm uit de lookup (offset/onderkant/draaiing); start zo dat het MIDDEN van de
     // voetafdruk in het midden van de kamer ligt, niet de pivot van het model.
     const dims = lookup(model.slug) ?? { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m, stackable: model.stackable };
-    const start = originForCenter(shapeOfDims(dims), 0, 0, 0);
+    // Midden van het zichtbare vlak (waar de camera naar kijkt); zonder pannen is dat het midden van de kamer.
+    const center = viewCenterRef.current;
+    const start = originForCenter(shapeOfDims(dims), center.x, center.z, 0);
     const spot = findNearestFreeSpot(start.x, start.z, dims, 0, items, room, lookup);
     const newItem: Floorplan3dItem = {
       id: createItemId(),
@@ -299,7 +490,8 @@ export function Floorplan3dEditor({
     };
     setItems((prev) => [...prev, newItem]);
     setSelectedId(newItem.id);
-    setMobilePanel(null);
+    if (settings.closeLibraryAfterPlace) setMobilePanel(null);
+    haptic(12);
     scheduleAutosave();
   }
 
@@ -461,7 +653,32 @@ export function Floorplan3dEditor({
     setDraggingId(id);
   }
 
+  function handleRotateHandleDown(id: string) {
+    const item = items.find((candidate) => candidate.id === id);
+    if (!item || item.locked) return;
+    pushHistory();
+    lastSnappedRef.current = false;
+    setRotatingId(id);
+  }
+
+  /** Draait het item zo dat zijn voorkant naar de vinger wijst (per 15°), met het midden van de voetafdruk op zijn plek. */
+  function rotateByHandle(point: { x: number; z: number }) {
+    const item = items.find((candidate) => candidate.id === rotatingId);
+    if (!item) return;
+    const shape = shapeOfDims(dimsOf(item, lookup));
+    const center = footprintCenter(shape, item.x, item.z, item.rot_y_deg);
+    const target = normalizeRotationDeg(snapRotationDeg(angleFromCenterDeg(center.x, center.z, point.x, point.z)));
+    if (target === normalizeRotationDeg(item.rot_y_deg)) return;
+    const origin = originForCenter(shape, center.x, center.z, target);
+    haptic(6);
+    setItems((prev) => prev.map((candidate) => (candidate.id === item.id ? { ...candidate, rot_y_deg: target, x: origin.x, z: origin.z } : candidate)));
+  }
+
   function handleFloorPointerMove(event: ThreeEvent<PointerEvent>) {
+    if (rotatingId) {
+      rotateByHandle({ x: event.point.x, z: event.point.z });
+      return;
+    }
     if (drawMode) {
       if (draft) {
         const point = snapFieldPoint({ x: event.point.x, z: event.point.z }, fieldSnapContext());
@@ -488,6 +705,10 @@ export function Floorplan3dEditor({
       lookup,
     });
     if (debug) setDebugGuides(placement.guides);
+    // Subtiele trilling zodra het item aan een lijn/ander item vastklikt (waar ondersteund).
+    const snapped = placement.guides.length > 0;
+    if (snapped && !lastSnappedRef.current) haptic(8);
+    lastSnappedRef.current = snapped;
 
     setItems((prev) =>
       prev.map((item) =>
@@ -497,6 +718,11 @@ export function Floorplan3dEditor({
   }
 
   function handleFloorPointerUp(event: ThreeEvent<PointerEvent>) {
+    if (rotatingId) {
+      setRotatingId(null);
+      scheduleAutosave();
+      return;
+    }
     const backgroundDown = backgroundDownRef.current;
     backgroundDownRef.current = null;
     if (backgroundDown && !drawMode) {
@@ -524,6 +750,8 @@ export function Floorplan3dEditor({
     const id = draggingId;
     setDraggingId(null);
     setDebugGuides([]);
+    lastSnappedRef.current = false;
+    haptic(10);
 
     const startItem = dragStartItemRef.current;
     const startSnapshot = dragStartSnapshotRef.current;
@@ -631,6 +859,10 @@ export function Floorplan3dEditor({
       return;
     }
     if (!selectedItem) return;
+    if (selectedItem.locked) {
+      toast.info("Dit item is vergrendeld.");
+      return;
+    }
     pushHistory();
     const newRot = normalizeRotationDeg(selectedItem.rot_y_deg + deltaDeg);
     setItems((prev) => prev.map((item) => (item.id === selectedItem.id ? { ...item, rot_y_deg: newRot } : item)));
@@ -638,17 +870,43 @@ export function Floorplan3dEditor({
   }
 
   function deleteSelected() {
+    // Geen bevestigingsdialoog maar een toast met "Ongedaan maken": sneller en minder foutgevoelig op touch.
+    const undoAction = { label: "Ongedaan maken", onClick: () => handleUndoRef.current() };
     if (selectedField) {
       pushHistory();
       setConeFields((prev) => prev.filter((field) => field.id !== selectedField.id));
       setSelectedId(null);
       scheduleAutosave();
+      toast("Veld verwijderd", { action: undoAction, duration: 6000 });
       return;
     }
     if (!selectedItem) return;
+    if (selectedItem.locked) {
+      toast.info("Dit item is vergrendeld. Ontgrendel het eerst om te verwijderen.");
+      return;
+    }
     pushHistory();
     setItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
     setSelectedId(null);
+    scheduleAutosave();
+    toast("Item verwijderd", { action: undoAction, duration: 6000 });
+  }
+
+  function toggleLockSelected() {
+    if (!selectedItem) return;
+    pushHistory();
+    setItems((prev) => prev.map((item) => (item.id === selectedItem.id ? { ...item, locked: item.locked ? undefined : true } : item)));
+    scheduleAutosave();
+  }
+
+  /** Exacte rotatie (graden) uit het item-paneel; opeenvolgende wijzigingen binnen 1 s tellen als één undo-stap. */
+  function setSelectedRotation(deg: number) {
+    if (!selectedItem || selectedItem.locked) return;
+    const now = Date.now();
+    if (!itemEditRef.current || now - itemEditRef.current > 1000) pushHistory();
+    itemEditRef.current = now;
+    const rot = normalizeRotationDeg(deg);
+    setItems((prev) => prev.map((item) => (item.id === selectedItem.id ? { ...item, rot_y_deg: rot } : item)));
     scheduleAutosave();
   }
 
@@ -703,6 +961,11 @@ export function Floorplan3dEditor({
     const previous = history.undo({ room, items, coneFields });
     if (previous) applyHistorySnapshot(previous);
   }
+
+  const handleUndoRef = useRef(handleUndo);
+  useEffect(() => {
+    handleUndoRef.current = handleUndo;
+  });
 
   function handleRedo() {
     const next = history.redo({ room, items, coneFields });
@@ -837,6 +1100,21 @@ export function Floorplan3dEditor({
               <RotateCw className="size-4" /> +90°
             </Button>
           </div>
+          <div>
+            <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Rotatie</p>
+            <NumberStepper
+              label="Rotatie"
+              unit="°"
+              value={Math.round(normalizeRotationDeg(selectedItem.rot_y_deg))}
+              step={ROTATION_STEP_SMALL_DEG}
+              min={0}
+              max={360}
+              onChange={setSelectedRotation}
+            />
+          </div>
+          <Button type="button" variant={selectedItem.locked ? "default" : "outline"} className="w-full" aria-pressed={Boolean(selectedItem.locked)} onClick={toggleLockSelected}>
+            {selectedItem.locked ? <LockOpen className="size-4" /> : <Lock className="size-4" />} {selectedItem.locked ? "Ontgrendelen" : "Vergrendelen"}
+          </Button>
           <Button type="button" variant="outline" className="w-full" onClick={duplicateSelected}>
             <Copy className="size-4" /> Dupliceren (Ctrl+D)
           </Button>
@@ -956,6 +1234,223 @@ export function Floorplan3dEditor({
     </div>
   );
 
+  // -------------------------------------------------------------------
+  // Weergave: desktop (≥ 1024 px) houdt de vaste drie kolommen; telefoon en tablet krijgen
+  // een canvas-eerst-indeling met werkbalk onderaan en drawers/zijpaneel.
+  // -------------------------------------------------------------------
+  const isDesktop = layout === "desktop";
+  const hasSelection = Boolean(selectedItem || selectedField);
+  const selectionTitle = selectedField ? fieldLabel(selectedField) : selectedItem ? (modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item") : "";
+
+  function resetCamera() {
+    viewCenterRef.current = { x: 0, z: 0 };
+    setCameraResetKey((key) => key + 1);
+  }
+
+  const scene = (
+    <Scene3D
+      room={room}
+      items={items}
+      modelBySlug={modelBySlug}
+      selectedId={selectedId}
+      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null}
+      cameraMode={cameraMode}
+      onItemPointerDown={handleItemPointerDown}
+      fields={coneFields}
+      draftField={draftField}
+      drawMode={drawMode}
+      onFieldPointerDown={handleFieldPointerDown}
+      onFieldHandlePointerDown={handleFieldHandlePointerDown}
+      onFloorPointerDown={handleFloorPointerDown}
+      onFloorPointerMove={handleFloorPointerMove}
+      onFloorPointerUp={handleFloorPointerUp}
+      onSelect={handleSelect}
+      onBackgroundClick={handleBackgroundClick}
+      debug={debug}
+      debugCollision={debugCollision}
+      debugGuides={debugGuides}
+      lookup={lookup}
+      quality={quality}
+      onPerformanceChange={settings.quality === "auto" ? setAutoFactor : undefined}
+      onViewCenter={handleViewCenter}
+      cameraResetKey={cameraResetKey}
+      onResetCamera={resetCamera}
+      touchUi={coarsePointer}
+      onRotateHandleDown={handleRotateHandleDown}
+    />
+  );
+
+  // Zwevend label tijdens "Veld afzetten": instructie, en zodra er een rechthoek is de afmetingen en het aantal pionnen.
+  const drawChip = drawMode && (
+    <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
+      <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl bg-slate-900/90 px-3 py-1.5 text-xs text-white shadow">
+        <Cone className="size-3.5 shrink-0" aria-hidden="true" />
+        <span>
+          {draft?.phase === "waiting"
+            ? "Tik op de tegenoverliggende hoek"
+            : "Sleep een rechthoek op de vloer, of tik twee hoeken"}
+        </span>
+        {draftField && draft && Math.abs(draft.c.x - draft.a.x) > 0.3 && <strong>{fieldLabel(draftField)}</strong>}
+        <button type="button" onClick={stopDrawing} className="min-h-8 rounded-full bg-white/15 px-3 py-0.5 font-medium hover:bg-white/25">
+          Stoppen{isDesktop ? " (Esc)" : ""}
+        </button>
+      </div>
+    </div>
+  );
+
+  // Na het afzetten blijft het veld geselecteerd (handles om aan te passen): label met afmetingen + "Klaar".
+  const fieldHud =
+    !isDesktop && !drawMode && selectedField ? (
+      <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
+        <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-2xl bg-slate-900/90 py-1 pr-1 pl-3 text-xs text-white shadow">
+          <Cone className="size-3.5 shrink-0" aria-hidden="true" />
+          <strong className="truncate">{fieldLabel(selectedField)}</strong>
+          <button type="button" onClick={() => setSelectedId(null)} className="min-h-9 rounded-xl bg-primary px-4 font-semibold text-primary-foreground">
+            Klaar
+          </button>
+        </div>
+      </div>
+    ) : null;
+
+  const panelTitle: Record<Exclude<MobilePanel, null>, string> = {
+    materiaal: "Bibliotheek",
+    item: "Item",
+    kamer: "Omgeving",
+    lijst: "Mijn 3D-plattegronden",
+  };
+
+  function panelContent(panel: Exclude<MobilePanel, null>) {
+    if (panel === "materiaal") {
+      return <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName={layout === "phone" ? "bg-background" : "bg-card"} />;
+    }
+    if (panel === "item") return itemPanel;
+    if (panel === "kamer") return roomPanel;
+    return (
+      <MyFloorplans3dList
+        floorplans={floorplans}
+        activeId={floorplanId}
+        onOpen={handleOpen}
+        onRename={handleRename}
+        onDelete={handleDelete}
+        onCreateNew={startNewFloorplan}
+      />
+    );
+  }
+
+  const saveIcon =
+    saveStatus === "saving" ? (
+      <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+    ) : saveStatus === "saved" ? (
+      <Check className="size-4 text-green-600" aria-hidden="true" />
+    ) : saveStatus === "error" ? (
+      <AlertTriangle className="size-4 text-destructive" aria-hidden="true" />
+    ) : null;
+
+  if (!isDesktop) {
+    return (
+      <div className="flex h-[100dvh] flex-col overscroll-none">
+        <header className="flex shrink-0 items-center gap-1 border-b bg-card px-2 pt-[env(safe-area-inset-top)]">
+          <BackButton fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"} fallbackLabel="Terug" className="-ml-1 h-11" />
+          <input
+            value={floorplanName}
+            onChange={(event) => {
+              setFloorplanName(event.target.value);
+              scheduleAutosave();
+            }}
+            aria-label="Naam van de plattegrond"
+            className="h-11 min-w-0 flex-1 truncate rounded-md bg-transparent px-2 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          />
+          <span role="status" aria-label={saveStatusLabel[saveStatus]} className="flex size-6 shrink-0 items-center justify-center">
+            {saveIcon}
+          </span>
+          <button
+            type="button"
+            aria-label="Opslaan"
+            onClick={() => void handleSaveNow()}
+            disabled={saveStatus === "saving"}
+            className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 disabled:opacity-60"
+          >
+            <Save className="size-5" aria-hidden="true" />
+          </button>
+          <OverflowMenu
+            settings={settings}
+            onSettings={updateSettings}
+            onOpenList={() => setMobilePanel("lijst")}
+            onShowHelp={() => setOnboarding(true)}
+          />
+        </header>
+
+        <div className="relative min-h-0 flex-1 overflow-hidden" data-testid="editor-canvas-area">
+          {scene}
+          {drawChip}
+          {fieldHud}
+          {cameraMenuOpen && (
+            <CameraMenu
+              mode={cameraMode}
+              onMode={(mode) => {
+                setCameraMode(mode);
+                resetCamera();
+              }}
+              onReset={resetCamera}
+            />
+          )}
+          {hasSelection && !drawMode && !(layout === "phone" && mobilePanel) && (
+            <SelectionBar
+              title={selectionTitle}
+              locked={Boolean(selectedItem?.locked)}
+              canLock={Boolean(selectedItem)}
+              onRotate={rotateSelected}
+              onDuplicate={duplicateSelected}
+              onToggleLock={toggleLockSelected}
+              onDelete={deleteSelected}
+              onDeselect={() => setSelectedId(null)}
+            />
+          )}
+          {layout === "tablet" && mobilePanel && (
+            <SidePanel side={mobilePanel === "materiaal" ? "left" : "right"} title={panelTitle[mobilePanel]} onClose={() => setMobilePanel(null)}>
+              {panelContent(mobilePanel)}
+            </SidePanel>
+          )}
+          {onboarding && <GestureOnboarding onClose={() => setOnboarding(false)} />}
+        </div>
+
+        <MobileToolbar
+          panel={mobilePanel}
+          onPanel={(panel) => {
+            setCameraMenuOpen(false);
+            setMobilePanel(panel);
+          }}
+          hasSelection={hasSelection}
+          drawMode={drawMode}
+          onToggleDraw={() => (drawMode ? stopDrawing() : startDrawing())}
+          cameraMenuOpen={cameraMenuOpen}
+          onToggleCameraMenu={() => setCameraMenuOpen((open) => !open)}
+          canUndo={history.canUndo}
+          canRedo={history.canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          compact={shortViewport}
+        />
+
+        {layout === "phone" && mobilePanel && (
+          <BottomSheet key={mobilePanel} title={panelTitle[mobilePanel]} onClose={() => setMobilePanel(null)}>
+            {panelContent(mobilePanel)}
+          </BottomSheet>
+        )}
+
+        {thumbnailJob && (
+          <FloorplanThumbnailCapture
+            room={thumbnailJob.room}
+            items={thumbnailJob.items}
+            fields={thumbnailJob.coneFields}
+            models={models}
+            onCapture={handleThumbnailCaptured}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[100dvh] flex-col overscroll-none">
       <div className="flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2">
@@ -1000,7 +1495,7 @@ export function Floorplan3dEditor({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <aside className="hidden w-72 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block">
+        <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block xl:w-72">
           <Button
             type="button"
             variant={drawMode ? "default" : "outline"}
@@ -1014,58 +1509,13 @@ export function Floorplan3dEditor({
         </aside>
 
         <div className="relative min-w-0 flex-1">
-          <Scene3D
-            room={room}
-            items={items}
-            modelBySlug={modelBySlug}
-            selectedId={selectedId}
-            isDragging={draggingId !== null || fieldDragActive}
-            cameraMode={cameraMode}
-            onItemPointerDown={handleItemPointerDown}
-            fields={coneFields}
-            draftField={draftField}
-            drawMode={drawMode}
-            onFieldPointerDown={handleFieldPointerDown}
-            onFieldHandlePointerDown={handleFieldHandlePointerDown}
-            onFloorPointerDown={handleFloorPointerDown}
-            onFloorPointerMove={handleFloorPointerMove}
-            onFloorPointerUp={handleFloorPointerUp}
-            onSelect={handleSelect}
-            onBackgroundClick={handleBackgroundClick}
-            debug={debug}
-            debugCollision={debugCollision}
-            debugGuides={debugGuides}
-            lookup={lookup}
-          />
+          {scene}
 
-          {drawMode && (
-            <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
-              <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-slate-900/90 px-3 py-1.5 text-xs text-white shadow">
-                <Cone className="size-3.5" aria-hidden="true" />
-                {draft?.phase === "waiting"
-                  ? "Tik op de tegenoverliggende hoek"
-                  : "Sleep een rechthoek op de vloer, of tik twee hoeken"}
-                <button type="button" onClick={stopDrawing} className="rounded-full bg-white/15 px-2 py-0.5 font-medium hover:bg-white/25">
-                  Stoppen (Esc)
-                </button>
-              </div>
-            </div>
-          )}
+          {drawChip}
 
-          <div className="absolute inset-x-0 bottom-0 flex gap-2 p-2 lg:hidden">
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setMobilePanel("materiaal")}>
-              Materiaal
-            </Button>
-            <Button type="button" variant="secondary" className="flex-1" disabled={!selectedId} onClick={() => setMobilePanel("item")}>
-              Item
-            </Button>
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setMobilePanel("kamer")}>
-              Omgeving
-            </Button>
-          </div>
         </div>
 
-        <aside ref={sidePanelRef} className="hidden w-80 shrink-0 overflow-y-auto border-l bg-card p-3 lg:block">
+        <aside ref={sidePanelRef} className="hidden w-72 shrink-0 overflow-y-auto border-l bg-card p-3 lg:block xl:w-80">
           <Tabs value={sideTab} onValueChange={(value) => setSideTab(value as "item" | "omgeving")}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="item">Item</TabsTrigger>
