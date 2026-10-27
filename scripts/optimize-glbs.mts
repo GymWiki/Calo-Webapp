@@ -8,7 +8,7 @@
 // geoptimaliseerde bestanden in die map (de originelen blijven onaangeroerd). Dit script uploadt
 // NIETS: controleer eerst visueel en zet ze daarna met `npm run import:materials` in Supabase.
 
-import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
@@ -39,6 +39,14 @@ for (const name of files) {
   const source = path.join(dir, name);
   const before = (await stat(source)).size;
   const document = await io.read(source);
+  // Geskinde modellen (personen met armature) niet comprimeren: Meshopt-quantisatie schuift hun
+  // bounding box (±1 m) en de pose breekt. Ze zijn klein genoeg; ongewijzigd overnemen.
+  if (document.getRoot().listSkins().length > 0) {
+    if (outDir) await copyFile(source, path.join(outDir, name));
+    rows.push({ slug: name.replace(/\.glb$/, ""), before, after: before });
+    console.log(`overgeslagen (geskind): ${name}`);
+    continue;
+  }
   await document.transform(
     dedup(),
     prune(),

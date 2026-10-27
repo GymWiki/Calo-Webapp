@@ -62,6 +62,7 @@ import { validateTaxonomy } from "../lib/constants/libraryTaxonomy.ts";
 import { classifyModel } from "../lib/library/classify.ts";
 import { NodeIO, getBounds } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { MeshoptDecoder } from "meshoptimizer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IMPORT_DIR = path.join(__dirname, "..", "materiaal-import");
@@ -177,7 +178,9 @@ async function readJsonOverrides(jsonPath: string | null): Promise<JsonOverrides
   return JSON.parse(raw) as JsonOverrides;
 }
 
-const gltfIo = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+// GLB's uit scripts/optimize-glbs.mts zijn Meshopt-gecomprimeerd: de decoder moet klaarstaan voor io.read.
+await MeshoptDecoder.ready;
+const gltfIo = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.decoder": MeshoptDecoder });
 
 async function computeGlbDimensions(glbPath: string) {
   const document = await gltfIo.read(glbPath);
