@@ -14,7 +14,7 @@ type BannerStatus = "loading" | "ready" | "empty" | "error";
  * Toont de uit het geüploade document gehaalde afbeeldingen (plattegronden,
  * foto's — zie lib/ai/documentNormalization.ts's extractAttachments en
  * activityImportProcessor.ts se uploadExtractedImages) zodat de gebruiker er
- * één als natekenreferentie voor de plattegrond-tekenaar kan kiezen. Haalt de
+ * één als afbeelding van de plattegrond kan kiezen. Haalt de
  * signed URL's pas op het moment dat de banner daadwerkelijk rendert (niet
  * vooraf bij job-voltooiing gecachet) — de gebruiker kan pas veel later, na
  * de rest van het formulier in te vullen, hierop klikken, ruim voorbij de
@@ -22,11 +22,11 @@ type BannerStatus = "loading" | "ready" | "empty" | "error";
  */
 export function ImportImageReviewBanner({
   jobId,
-  onUseAsBackground,
+  onUseAsImage,
   onDiscard,
 }: {
   jobId: string;
-  onUseAsBackground: (imageUrl: string) => void;
+  onUseAsImage: (imageUrl: string) => void;
   onDiscard: () => void;
 }) {
   const [status, setStatus] = useState<BannerStatus>("loading");
@@ -72,7 +72,7 @@ export function ImportImageReviewBanner({
         <CardTitle className="text-base">Afbeeldingen uit het document</CardTitle>
         <CardDescription>
           Dit document bevatte {images.length === 1 ? "een afbeelding" : `${images.length} afbeeldingen`} — wil
-          je er één gebruiken als natekenreferentie voor de plattegrond?
+          je er één gebruiken als afbeelding van de plattegrond? (Later vervang je die door een 3D-plattegrond.)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -82,8 +82,8 @@ export function ImportImageReviewBanner({
               <div className="relative h-28 w-40 overflow-hidden rounded-lg border bg-muted">
                 <Image src={image.url} alt="" fill className="object-cover" unoptimized />
               </div>
-              <Button type="button" size="sm" onClick={() => onUseAsBackground(image.url)}>
-                Gebruik als achtergrond
+              <Button type="button" size="sm" onClick={() => onUseAsImage(image.url)}>
+                Gebruik als plattegrond-afbeelding
               </Button>
             </div>
           ))}

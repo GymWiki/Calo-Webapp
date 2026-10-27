@@ -6,7 +6,10 @@ import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { getActivityById } from "@/lib/services/activities";
 import type { Activity } from "@/types/activity";
 import type { CreateLessonFormInput, DidacticItem } from "@/types/lesson";
-import type { DiagramData } from "@/components/canvas/gym-canvas-types";
+import { cookies } from "next/headers";
+import { getActivityVisual } from "@/lib/activities/visual";
+import { getFloorplanForActivity } from "@/lib/services/floorplans3d";
+import { createClient } from "@/utils/supabase/server";
 import { LesMakenFlow } from "./lesson-flow";
 
 // Ruimere functie-timeout voor de server-acties die deze pagina aanroept —
@@ -153,16 +156,16 @@ export default async function LesMakenPage({
     ? await getActivityKnowledgeSources(activity.id)
     : undefined;
 
-  // Zaadt de fullscreen-canvas-editor met het al opgeslagen arrangement bij
-  // het hervatten van een eigen wizard-activiteit — zonder dit begint de
-  // tekening leeg (zie het commentaar bij initialDiagram in lesson-form.tsx).
-  const initialDiagram =
-    resumingOwnActivity && activity.diagram_data && activity.diagram_image_url
-      ? {
-          data: activity.diagram_data as DiagramData,
-          imageDataUrl: activity.diagram_image_url,
-        }
-      : undefined;
+  // Plattegrond van een hervatte eigen activiteit: dezelfde weergaveregel als overal (lib/activities/visual.ts) — een geldige
+  // 3D-plattegrond wint (thumbnail + "Plattegrond bewerken"), anders de bestaande afbeelding ("Vervang door 3D-plattegrond").
+  let initialImageUrl: string | null = null;
+  let initialFloorplan: { id: string; previewUrl: string } | null = null;
+  if (resumingOwnActivity) {
+    const floorplan = await getFloorplanForActivity(createClient(await cookies()), activity.id, activity.author_id);
+    const visual = getActivityVisual(activity, floorplan);
+    if (visual.type === "3d") initialFloorplan = { id: visual.plattegrond.id, previewUrl: visual.plattegrond.previewUrl };
+    else if (visual.type === "image") initialImageUrl = visual.url;
+  }
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6 sm:px-8 sm:py-10 lg:max-w-5xl xl:max-w-6xl">
@@ -185,7 +188,8 @@ export default async function LesMakenPage({
         authorName={`${profile.first_name} ${profile.last_name}`.trim()}
         initialValues={initialValues}
         initialActivityId={resumingOwnActivity ? activity.id : undefined}
-        initialDiagram={initialDiagram}
+        initialImageUrl={initialImageUrl}
+        initialFloorplan={initialFloorplan}
         isEditingSavedActivity={resumingOwnActivity && !isDraftResume}
         initialTab={initialTab}
         activeSourceCount={activeSourceCount}

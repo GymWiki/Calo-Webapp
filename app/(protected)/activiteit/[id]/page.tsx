@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { Check, MapPin, Users } from "lucide-react";
 
 import { ActivityDetailActions } from "@/components/activity-detail-actions";
-import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { ActivityInfoStrip, type InfoStripItem } from "@/components/activity-info-strip";
 import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { BackButton } from "@/components/BackButton";
@@ -11,12 +10,8 @@ import { LibraryAccessBlocked } from "@/components/library-access-blocked";
 import { SourceBadge } from "@/components/library-item-card";
 import { MaterialChecklist } from "@/components/material-checklist";
 import { PlannedForBanner } from "@/components/planning/PlannedForBanner";
-import {
-  PlattegrondAddLink,
-  PlattegrondSection,
-  PlattegrondSectionSkeleton,
-  hasFloorplanContent,
-} from "@/components/plattegrond/PlattegrondSection";
+import { PlattegrondCard } from "@/components/plattegrond/PlattegrondCard";
+import { PlattegrondSection, PlattegrondSectionSkeleton } from "@/components/plattegrond/PlattegrondSection";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +21,7 @@ import { LEERHULP_COLORS } from "@/lib/constants/leerhulpColors";
 import { splitLearningOutcomeItems } from "@/lib/format";
 import { parseActivityDescription, splitIntoSteps } from "@/lib/activityDescription";
 import { getUserPermissions } from "@/lib/permissions";
-import { isFloorplanPreviewUrl } from "@/lib/floorplanPreview";
+import { getActivityVisual, withFloorplanThumbnail } from "@/lib/activities/visual";
 import { getFloorplanForActivity } from "@/lib/services/floorplans3d";
 import { getActivityById, isActivityLiked, isActivitySaved } from "@/lib/services/activities";
 import { getContributionStatus } from "@/lib/services/contribution";
@@ -311,14 +306,17 @@ export default async function ActiviteitDetailPage({
     getFloorplanForActivity(supabase, activity.id, activity.author_id),
   ]);
 
-  // Alleen de auteur kan de gekoppelde plattegrond bewerken (RLS) of er een toevoegen.
-  const plattegrondSlot = hasFloorplanContent(floorplan) ? (
-    <Suspense fallback={<PlattegrondSectionSkeleton />}>
-      <PlattegrondSection activityId={activity.id} plan={floorplan} canEdit={isOwnActivity} />
-    </Suspense>
-  ) : isOwnActivity ? (
-    <PlattegrondAddLink activityId={activity.id} />
-  ) : null;
+  // Eén weergaveregel (lib/activities/visual.ts): een geldige 3D-plattegrond wint van de afbeelding — dan alleen de viewer,
+  // nergens de afbeelding (ook niet in de PDF). Alleen de auteur kan de gekoppelde plattegrond bewerken of er een maken (RLS).
+  const visual = getActivityVisual(activity, floorplan);
+  const plattegrondSlot =
+    visual.type === "3d" ? (
+      <Suspense fallback={<PlattegrondSectionSkeleton />}>
+        <PlattegrondSection activityId={activity.id} plan={visual.plattegrond} canEdit={isOwnActivity} />
+      </Suspense>
+    ) : null;
+  const plattegrondImageUrl = visual.type === "image" ? visual.url : null;
+  const displayActivity = withFloorplanThumbnail(activity, visual.type === "3d" ? visual.plattegrond.previewUrl : null);
 
   // Wizard-activiteiten delen hun volledige weergave met de inline-editor
   // (zie components/activity-wizard-page.tsx: mode="view" hier, mode="edit"
@@ -331,7 +329,7 @@ export default async function ActiviteitDetailPage({
         <PlannedForBanner plannedLessons={plannedLessons} />
         <ActivityWizardPage
           mode="view"
-          activity={activity}
+          activity={displayActivity}
           classes={classes}
           title={activity.titel}
           learningLine={activity.leerlijn ?? ""}
@@ -376,7 +374,8 @@ export default async function ActiviteitDetailPage({
           arrangement={activity.arrangement ?? ""}
           baseMaterials={activity.base_materials ?? []}
           ruleMaterials={activity.rule_materials ?? []}
-          diagramImageUrl={activity.diagram_image_url}
+          plattegrondImageUrl={plattegrondImageUrl}
+          canEditPlattegrond={isOwnActivity}
           didacticItems={didacticItems}
           usedKnowledgeSources={usedKnowledgeSources}
         />
@@ -500,7 +499,7 @@ export default async function ActiviteitDetailPage({
                 onderste navigatiebalk. Verdwijnt vanaf lg: daar staan
                 dezelfde drie acties al in de sticky zijbalk. */}
             <ActivityDetailActions
-              activity={activity}
+              activity={displayActivity}
               initiallySaved={saved}
               initiallyLiked={liked}
               isOwnActivity={isOwnActivity}
@@ -542,27 +541,14 @@ export default async function ActiviteitDetailPage({
 
           {plattegrondSlot}
 
-          {/* De automatische 3D-thumbnail is er alleen voor kaarten/OG; de
-              interactieve viewer hierboven laat hetzelfde al zien. */}
-          {!(isFloorplanPreviewUrl(activity.afbeelding) && hasFloorplanContent(floorplan)) && (
-            <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <span
-                    className={`inline-block size-2.5 shrink-0 rounded-[3px] ${getCategoryColor(activity.categorie).dot}`}
-                    aria-hidden="true"
-                  />
-                  Arrangement
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ActivityImageLightbox
-                  src={activity.afbeelding}
-                  alt={activity.titel}
-                  emptyLabel="Geen arrangement-afbeelding beschikbaar."
-                />
-              </CardContent>
-            </Card>
+          {visual.type !== "3d" && (
+            <PlattegrondCard
+              imageUrl={plattegrondImageUrl}
+              activityId={activity.id}
+              canEdit={isOwnActivity}
+              dotClassName={getCategoryColor(activity.categorie).dot}
+              animationDelay="40ms"
+            />
           )}
 
           <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
@@ -701,7 +687,7 @@ export default async function ActiviteitDetailPage({
           <Card>
             <CardContent className="pt-6">
               <ActivityDetailActions
-                activity={activity}
+                activity={displayActivity}
                 initiallySaved={saved}
                 initiallyLiked={liked}
                 isOwnActivity={isOwnActivity}

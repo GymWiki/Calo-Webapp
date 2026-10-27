@@ -1,17 +1,13 @@
+import { getActivityImageUrl } from "@/lib/activities/visual";
 import type { Activity } from "@/types/activity";
 
 /**
- * De afbeelding die de PDF-export als "plattegrond/veldopstelling" moet
- * tonen — diagram_image_url (canvas-editor-export) heeft voorrang op het
- * oudere, losse afbeelding-veld. GEEN aanname dat diagram_data ooit gevuld
- * is zodra diagram_image_url dat is: voor GymWiki-basisbibliotheek-content
- * (geïmporteerd vóór de canvas-editor bestond) is diagram_data altijd null,
- * ook als er wél een afbeelding staat.
+ * De afbeelding die de PDF-export als "plattegrond/veldopstelling" toont: dezelfde regel als overal (lib/activities/visual.ts) —
+ * `afbeelding` vóór `diagram_image_url`. Heeft de activiteit een 3D-plattegrond, dan hebben de aanroepers de activiteit al via
+ * withFloorplanThumbnail op de 3D-thumbnail gezet, zodat de PDF nooit de losse afbeelding naast een 3D-plattegrond toont.
  */
-export function getArrangementImage(
-  activity: Pick<Activity, "diagram_image_url" | "afbeelding">,
-): string | null {
-  return activity.diagram_image_url ?? activity.afbeelding ?? null;
+export function getArrangementImage(activity: Pick<Activity, "diagram_image_url" | "afbeelding">): string | null {
+  return getActivityImageUrl(activity);
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Box, Pencil, Plus } from "lucide-react";
+import { Box, Pencil } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -11,25 +11,6 @@ import { Button } from "@/components/ui/button";
 import type { ActivityFloorplan } from "@/lib/services/floorplans3d";
 import { getMaterialModelsBySlugs } from "@/lib/services/materialModels";
 import { createClient } from "@/utils/supabase/server";
-
-/** Een plattegrond met inhoud (de pagina toont anders niets of de toevoeg-link). */
-export function hasFloorplanContent(plan: ActivityFloorplan | null): plan is ActivityFloorplan {
-  return Boolean(plan && (plan.data.items.length > 0 || plan.data.coneFields.length > 0));
-}
-
-/** Subtiele link voor de eigenaar van een activiteit zonder plattegrond. */
-export function PlattegrondAddLink({ activityId }: { activityId: string }) {
-  return (
-    <div className="print:hidden">
-      <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-        <Link href={`/plattegrond-3d?activiteit=${encodeURIComponent(activityId)}`}>
-          <Plus className="size-4" aria-hidden="true" />
-          Plattegrond toevoegen
-        </Link>
-      </Button>
-    </div>
-  );
-}
 
 /**
  * "Plattegrond (3D)" bij de activiteitbeschrijving — async server component
@@ -69,14 +50,14 @@ export async function PlattegrondSection({
   );
 
   return (
-    <section aria-labelledby={`plattegrond-3d-${plan.id}`} className="animate-fade-up space-y-3 print:hidden">
+    <section aria-labelledby={`plattegrond-3d-${plan.id}`} className="animate-fade-up space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 id={`plattegrond-3d-${plan.id}`} className="flex items-center gap-2 text-base font-semibold">
           <Box className="size-4 text-primary" aria-hidden="true" />
           Plattegrond
         </h2>
         {canEdit && (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="print:hidden">
             <Link href={`/plattegrond-3d?open=${plan.id}&activiteit=${encodeURIComponent(activityId)}`}>
               <Pencil className="size-4" aria-hidden="true" />
               Bewerken in editor
@@ -84,8 +65,15 @@ export async function PlattegrondSection({
           </Button>
         )}
       </div>
-      <PlattegrondViewer data={plan.data} models={models} previewUrl={plan.previewUrl} title={plan.naam} />
-      <PlattegrondLegend summary={summary} />
+      <div className="print:hidden">
+        <PlattegrondViewer data={plan.data} models={models} previewUrl={plan.previewUrl} title={plan.naam} />
+      </div>
+      {/* Print: de interactieve viewer past niet op papier — de 3D-thumbnail is dan het beeld (nooit de losse afbeelding). */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={plan.previewUrl} alt={`3D-plattegrond: ${plan.naam}`} className="hidden w-full max-w-xl rounded-lg border print:block" />
+      <div className="print:hidden">
+        <PlattegrondLegend summary={summary} />
+      </div>
     </section>
   );
 }
