@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Lock, LockOpen, RotateCcw, RotateCw, Trash2, X } from "lucide-react";
+import { Copy, Lock, LockOpen, Move3d, RotateCcw, RotateCw, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ export function SelectionBar({
   locked,
   canLock,
   onRotate,
+  onOpenRotation,
   onDuplicate,
   onToggleLock,
   onDelete,
@@ -27,6 +28,8 @@ export function SelectionBar({
   /** Velden kunnen niet worden vergrendeld. */
   canLock: boolean;
   onRotate: (deltaDeg: number) => void;
+  /** Opent de rotatie-drawer (kantelen, rechtop zetten); alleen voor items, niet voor velden. */
+  onOpenRotation?: () => void;
   onDuplicate: () => void;
   onToggleLock: () => void;
   onDelete: () => void;
@@ -58,6 +61,12 @@ export function SelectionBar({
             <RotateCw className="size-5" aria-hidden="true" />
             <span className={compact ? "sr-only" : undefined}>90°</span>
           </BarButton>
+          {onOpenRotation && (
+            <BarButton label="Rotatie en kantelen" disabled={locked} onClick={onOpenRotation}>
+              <Move3d className="size-5" aria-hidden="true" />
+              <span className={compact ? "sr-only" : undefined}>Rotatie</span>
+            </BarButton>
+          )}
           <BarButton label="Dupliceren" onClick={onDuplicate}>
             <Copy className="size-5" aria-hidden="true" />
             <span className={compact ? "sr-only" : undefined}>Kopie</span>

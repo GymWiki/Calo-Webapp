@@ -6,6 +6,7 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { CameraRig, type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
 import { FloorplanContent } from "@/components/canvas-3d/FloorplanContent";
+import { RotationGizmo } from "@/components/canvas-3d/RotationGizmo";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 import { dimsOf, itemPolygons, shapeOfDims, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
@@ -97,6 +98,7 @@ export function Scene3D({
   onResetCamera,
   touchUi = false,
   onRotateHandleDown,
+  gizmo = null,
 }: {
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
@@ -132,6 +134,8 @@ export function Scene3D({
   onResetCamera?: () => void;
   touchUi?: boolean;
   onRotateHandleDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  /** Desktop: 3D-ringen om het geselecteerde item (draaien/kantelen). */
+  gizmo?: React.ComponentProps<typeof RotationGizmo> | null;
 }) {
   const lastPointerTypeRef = useRef("mouse");
   const lastTapRef = useRef<TapRecord | null>(null);
@@ -197,6 +201,7 @@ export function Scene3D({
         onRotateHandleDown={onRotateHandleDown}
         warnOutside
       />
+      {gizmo && <RotationGizmo {...gizmo} />}
       {draftField && <ConeFieldMesh field={draftField} preview interactive={false} />}
       {debug && <DebugOverlay items={items} lookup={lookup} guides={debugGuides} draggingId={isDragging ? selectedId : null} />}
     </Canvas>

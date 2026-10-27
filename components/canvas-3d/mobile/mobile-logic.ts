@@ -107,4 +107,4 @@ export function shouldOfferDraft(draft: DraftPlan | null, loaded: { naam: string
 }
 
 /** Welk paneel is open op telefoon/tablet (één tegelijk). */
-export type MobilePanel = "materiaal" | "item" | "kamer" | "lijst" | null;
+export type MobilePanel = "materiaal" | "item" | "rotatie" | "kamer" | "lijst" | null;

@@ -12,7 +12,6 @@ import {
   Lock,
   LockOpen,
   Redo2,
-  RotateCw,
   Save,
   Trash2,
   Undo2,
@@ -73,7 +72,19 @@ import { EnvironmentPanel } from "@/components/canvas-3d/EnvironmentPanel";
 import { MaterialModelPicker3D } from "@/components/canvas-3d/MaterialModelPicker3D";
 import { MyFloorplans3dList } from "@/components/canvas-3d/MyFloorplans3dList";
 import { Scene3D } from "@/components/canvas-3d/Scene3D";
-import { footprintCenter, originForCenter } from "@/components/canvas-3d/collision-shape";
+import { footprintCenter, isElevated, originForCenter } from "@/components/canvas-3d/collision-shape";
+import { normalizeItemRotation, orientationFor, type ResolvedOrientation } from "@/components/canvas-3d/asset-orientation";
+import { itemIsTilted, localToWorld, rotationOf, type Rotation3 } from "@/components/canvas-3d/orientation";
+import { RotationPanel } from "@/components/canvas-3d/RotationPanel";
+import {
+  DEFAULT_SNAP_DEG,
+  applyPose,
+  rotateWithGizmo,
+  stepAxis,
+  withAxis,
+  type PoseId,
+  type RotationAxis,
+} from "@/components/canvas-3d/rotation-controls";
 import { BottomSheet } from "@/components/canvas-3d/mobile/BottomSheet";
 import { CameraMenu } from "@/components/canvas-3d/mobile/CameraMenu";
 import { GestureOnboarding, hasSeenOnboarding } from "@/components/canvas-3d/mobile/GestureOnboarding";
@@ -92,7 +103,6 @@ import {
 } from "@/components/canvas-3d/mobile/mobile-logic";
 import { useCoarsePointer, useEditorLayout, useShortViewport } from "@/components/canvas-3d/mobile/useEditorLayout";
 import { useEditorSettings } from "@/components/canvas-3d/mobile/useEditorSettings";
-import { NumberStepper } from "@/components/ui/number-stepper";
 import { releaseAllModels, releaseModel } from "@/components/canvas-3d/model-cache";
 import { haptic } from "@/lib/haptics";
 import {
@@ -104,7 +114,6 @@ import {
   findNearestFreeSpot,
   normalizeRotationDeg,
   recomputeStackedYs,
-  ROTATION_STEP_LARGE_DEG,
   ROTATION_STEP_SMALL_DEG,
   type SnapGridSize,
 } from "@/components/canvas-3d/floorplan3d-geometry";
@@ -156,9 +165,22 @@ export function Floorplan3dEditor({
     [models],
   );
 
+  /** Kantelregels van een asset (categorie, hangend materiaal, handmatige uitzonderingen). */
+  function orientationOfSlug(slug: string): ResolvedOrientation {
+    const model = models.find((candidate) => candidate.slug === slug);
+    const dims = lookup(slug);
+    return orientationFor({ slug, categorie: model?.categorie, subgroep: model?.subgroep }, dims ? isElevated(shapeOfDims(dims)) : false);
+  }
+
   const [room, setRoom] = useState<Floorplan3dRoom>(initialFloorplan?.data.room ?? NEW_ROOM);
   const [items, setItems] = useState<Floorplan3dItem[]>(() =>
-    initialFloorplan ? recomputeStackedYs(initialFloorplan.data.items, lookup) : [],
+    initialFloorplan
+      ? recomputeStackedYs(
+          // Kantelhoeken binnen de limieten van het asset (oude plattegronden hebben er geen: ongewijzigd).
+          initialFloorplan.data.items.map((item) => normalizeItemRotation(item, orientationOfSlug(item.slug))),
+          lookup,
+        )
+      : [],
   );
   // Oudere plattegronden hebben geen `coneFields` (de server geeft de jsonb ongeparsed terug).
   const [coneFields, setConeFields] = useState<ConeField[]>(initialFloorplan?.data.coneFields ?? []);
@@ -188,6 +210,11 @@ export function Floorplan3dEditor({
   const [cameraResetKey, setCameraResetKey] = useState(0);
   const [onboarding, setOnboarding] = useState(() => window.matchMedia("(pointer: coarse)").matches && !hasSeenOnboarding());
   const [rotatingId, setRotatingId] = useState<string | null>(null);
+  // Rotatie over alle assen: snapping, wereld/lokale assen en de 3D-ringen (desktop).
+  const [snapDeg, setSnapDeg] = useState(DEFAULT_SNAP_DEG);
+  const [localAxes, setLocalAxes] = useState(false);
+  const [gizmoActive, setGizmoActive] = useState(false);
+  const gizmoRef = useRef<{ id: string; start: Rotation3 } | null>(null);
   const viewCenterRef = useRef({ x: 0, z: 0 });
   const handleViewCenter = useCallback((center: { x: number; z: number }) => {
     viewCenterRef.current = center;
@@ -479,16 +506,26 @@ export function Floorplan3dEditor({
     // Midden van het zichtbare vlak (waar de camera naar kijkt); zonder pannen is dat het midden van de kamer.
     const center = viewCenterRef.current;
     const start = originForCenter(shapeOfDims(dims), center.x, center.z, 0);
-    const spot = findNearestFreeSpot(start.x, start.z, dims, 0, items, room, lookup);
+    const orientation = orientationOfSlug(model.slug);
+    const defaults = orientation.defaultRotation;
+    const rotated = normalizeItemRotation(
+      {
+        rot_y_deg: defaults?.y ?? 0,
+        ...(defaults?.x ? { rot_x_deg: defaults.x } : {}),
+        ...(defaults?.z ? { rot_z_deg: defaults.z } : {}),
+      },
+      orientation,
+    );
+    const spot = findNearestFreeSpot(start.x, start.z, dims, rotated.rot_y_deg, items, room, lookup, { x: rotated.rot_x_deg, z: rotated.rot_z_deg });
     const newItem: Floorplan3dItem = {
       id: createItemId(),
       slug: model.slug,
       x: spot.x,
       y: 0,
       z: spot.z,
-      rot_y_deg: 0,
+      ...rotated,
     };
-    setItems((prev) => [...prev, newItem]);
+    setItems((prev) => (itemIsTilted(newItem) ? recomputeStackedYs([...prev, newItem], lookup) : [...prev, newItem]));
     setSelectedId(newItem.id);
     if (settings.closeLibraryAfterPlace) setMobilePanel(null);
     haptic(12);
@@ -643,6 +680,11 @@ export function Floorplan3dEditor({
     scheduleAutosave();
   }
 
+  /** De velden van een item die plaatsing nodig heeft: model, draaiing, kanteling en hoogte. */
+  function draggedFields(item: Floorplan3dItem) {
+    return { slug: item.slug, rot_y_deg: item.rot_y_deg, rot_x_deg: item.rot_x_deg, rot_z_deg: item.rot_z_deg, lift_m: item.lift_m };
+  }
+
   function handleItemPointerDown(id: string) {
     dragStartSnapshotRef.current = { room, items, coneFields };
     dragStartItemRef.current = items.find((item) => item.id === id) ?? null;
@@ -698,7 +740,7 @@ export function Floorplan3dEditor({
     const origin = originForCenter(shapeOfDims(dimsOf(dragged, lookup)), event.point.x, event.point.z, dragged.rot_y_deg);
     const placement = resolvePlacement({
       pointer: origin,
-      dragged: { slug: dragged.slug, rot_y_deg: dragged.rot_y_deg },
+      dragged: draggedFields(dragged),
       others: items.filter((item) => item.id !== draggingId && !dragRestingIdsRef.current.has(item.id)),
       room,
       grid: snapGrid,
@@ -768,7 +810,7 @@ export function Floorplan3dEditor({
 
       const placement = resolvePlacement({
         pointer: { x: dragged.x, z: dragged.z },
-        dragged: { slug: dragged.slug, rot_y_deg: dragged.rot_y_deg },
+        dragged: draggedFields(dragged),
         others: prev.filter((item) => item.id !== id && !restingIds.has(item.id)),
         room,
         grid: snapGrid,
@@ -899,14 +941,89 @@ export function Floorplan3dEditor({
     scheduleAutosave();
   }
 
-  /** Exacte rotatie (graden) uit het item-paneel; opeenvolgende wijzigingen binnen 1 s tellen als één undo-stap. */
-  function setSelectedRotation(deg: number) {
-    if (!selectedItem || selectedItem.locked) return;
+  // ---------------------------------------------------------------------
+  // Rotatie over alle assen: draaien (Y), kantelen voor/achter (X) en zijwaarts (Z), plus hoogte.
+  // ---------------------------------------------------------------------
+  /** Schrijft rotatie en/of hoogte naar één item; herberekent daarna de hoogtes (laagste punt op de vloer). */
+  function commitOrientation(id: string, patch: { rot?: Rotation3; lift?: number | null }) {
+    setItems((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (!target) return prev;
+      let next: Floorplan3dItem = { ...target };
+      if (patch.rot) {
+        next.rot_y_deg = normalizeRotationDeg(patch.rot.y);
+        next.rot_x_deg = patch.rot.x;
+        next.rot_z_deg = patch.rot.z;
+      }
+      if (patch.lift !== undefined) {
+        if (patch.lift === null) delete next.lift_m;
+        else next.lift_m = patch.lift;
+      }
+      next = normalizeItemRotation(next, orientationOfSlug(next.slug));
+      return recomputeStackedYs(prev.map((item) => (item.id === id ? next : item)), lookup);
+    });
+  }
+
+  /**
+   * Eén bewerking op het geselecteerde item. `coalesce` (schuifregelaar, invoerveld): opeenvolgende
+   * wijzigingen binnen 1 s tellen als één undo-stap; knoppen en sneltoetsen zijn elk een eigen stap.
+   */
+  function editSelectedOrientation(patch: { rot?: Rotation3; lift?: number | null }, coalesce: boolean) {
+    if (!selectedItem) return;
+    if (selectedItem.locked) {
+      toast.info("Dit item is vergrendeld.");
+      return;
+    }
     const now = Date.now();
-    if (!itemEditRef.current || now - itemEditRef.current > 1000) pushHistory();
-    itemEditRef.current = now;
-    const rot = normalizeRotationDeg(deg);
-    setItems((prev) => prev.map((item) => (item.id === selectedItem.id ? { ...item, rot_y_deg: rot } : item)));
+    if (!coalesce || !itemEditRef.current || now - itemEditRef.current > 1000) pushHistory();
+    itemEditRef.current = coalesce ? now : null;
+    commitOrientation(selectedItem.id, patch);
+    scheduleAutosave();
+  }
+
+  function setSelectedAxis(axis: RotationAxis, deg: number) {
+    if (!selectedItem) return;
+    editSelectedOrientation({ rot: withAxis(rotationOf(selectedItem), axis, deg, orientationOfSlug(selectedItem.slug)) }, true);
+  }
+
+  function stepSelectedAxis(axis: RotationAxis, deltaDeg: number) {
+    if (!selectedItem) return;
+    editSelectedOrientation({ rot: stepAxis(rotationOf(selectedItem), axis, deltaDeg, orientationOfSlug(selectedItem.slug)) }, false);
+  }
+
+  function applySelectedPose(pose: PoseId) {
+    if (!selectedItem) return;
+    editSelectedOrientation({ rot: applyPose(pose, rotationOf(selectedItem), orientationOfSlug(selectedItem.slug)) }, false);
+  }
+
+  function setSelectedLift(meters: number | null) {
+    editSelectedOrientation({ lift: meters }, true);
+  }
+
+  // 3D-ringen (desktop): één undo-stap per sleepbeweging, rotatie berekend uit de startstand.
+  function handleGizmoStart() {
+    if (!selectedItem || selectedItem.locked) return;
+    pushHistory();
+    gizmoRef.current = { id: selectedItem.id, start: rotationOf(selectedItem) };
+    setGizmoActive(true);
+  }
+
+  function handleGizmoDrag(axis: RotationAxis, deltaDeg: number, free: boolean) {
+    const drag = gizmoRef.current;
+    if (!drag) return;
+    const target = items.find((item) => item.id === drag.id);
+    if (!target) return;
+    const next = rotateWithGizmo(drag.start, axis, deltaDeg, {
+      local: localAxes,
+      snapDeg: free ? 0 : snapDeg,
+      config: orientationOfSlug(target.slug),
+    });
+    commitOrientation(drag.id, { rot: next });
+  }
+
+  function handleGizmoEnd() {
+    gizmoRef.current = null;
+    setGizmoActive(false);
     scheduleAutosave();
   }
 
@@ -930,7 +1047,9 @@ export function Floorplan3dEditor({
       items,
       room,
       lookup,
+      { x: selectedItem.rot_x_deg, z: selectedItem.rot_z_deg, lift: selectedItem.lift_m },
     );
+    // De kopie houdt de volledige rotatie (en eventuele hoogte) van het origineel.
     const copy: Floorplan3dItem = {
       id: createItemId(),
       slug: selectedItem.slug,
@@ -938,8 +1057,12 @@ export function Floorplan3dEditor({
       y: 0,
       z: spot.z,
       rot_y_deg: selectedItem.rot_y_deg,
+      ...(selectedItem.rot_x_deg !== undefined ? { rot_x_deg: selectedItem.rot_x_deg } : {}),
+      ...(selectedItem.rot_z_deg !== undefined ? { rot_z_deg: selectedItem.rot_z_deg } : {}),
+      ...(selectedItem.lift_m !== undefined ? { lift_m: selectedItem.lift_m } : {}),
     };
-    setItems((prev) => [...prev, copy]);
+    const needsY = itemIsTilted(copy) || copy.lift_m !== undefined;
+    setItems((prev) => (needsY ? recomputeStackedYs([...prev, copy], lookup) : [...prev, copy]));
     setSelectedId(copy.id);
     scheduleAutosave();
   }
@@ -1010,16 +1133,29 @@ export function Floorplan3dEditor({
         }
         return;
       }
-      if (event.key.toLowerCase() === "r" && selectedId) {
+      if (event.ctrlKey || event.metaKey || event.altKey || !selectedId) return;
+      const key = event.key.toLowerCase();
+      const direction = event.shiftKey ? -1 : 1;
+      const step = snapDeg > 0 ? snapDeg : ROTATION_STEP_SMALL_DEG;
+      if (key === "r") {
+        // R = draaien (Y), Shift+R = de andere kant op.
         event.preventDefault();
-        rotateSelected(ROTATION_STEP_SMALL_DEG);
+        if (selectedItem) stepSelectedAxis("y", direction * step);
+        else rotateSelected(direction * ROTATION_STEP_SMALL_DEG);
+      } else if (key === "t" && selectedItem) {
+        // T = kantelen voor/achter (X), G = kantelen zijwaarts (Z); Shift keert om.
+        event.preventDefault();
+        stepSelectedAxis("x", direction * step);
+      } else if (key === "g" && selectedItem) {
+        event.preventDefault();
+        stepSelectedAxis("z", direction * step);
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, selectedItem, selectedField, items, coneFields, room, drawMode, draft]);
+  }, [selectedId, selectedItem, selectedField, items, coneFields, room, drawMode, draft, snapDeg]);
 
   // ---------------------------------------------------------------------
   // "Mijn 3D-plattegronden" — openen/hernoemen/verwijderen.
@@ -1073,6 +1209,24 @@ export function Floorplan3dEditor({
     <ConeFieldOverview fields={coneFields} selectedId={selectedId} onSelect={handleSelect} />
   );
 
+  const rotationPanel = selectedItem ? (
+    <RotationPanel
+      variant={layout === "desktop" ? "panel" : "drawer"}
+      rotation={rotationOf(selectedItem)}
+      lift={selectedItem.lift_m}
+      orientation={orientationOfSlug(selectedItem.slug)}
+      locked={Boolean(selectedItem.locked)}
+      snapDeg={snapDeg}
+      onSnapChange={setSnapDeg}
+      localAxes={localAxes}
+      onLocalAxesChange={setLocalAxes}
+      onSetAxis={setSelectedAxis}
+      onStepAxis={stepSelectedAxis}
+      onPose={applySelectedPose}
+      onLift={setSelectedLift}
+    />
+  ) : null;
+
   const itemPanel = selectedField ? (
     <ConeFieldPanel
       field={selectedField}
@@ -1086,32 +1240,7 @@ export function Floorplan3dEditor({
       {selectedItem ? (
         <>
           <p className="text-sm font-medium">{modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item"}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" onClick={() => rotateSelected(-ROTATION_STEP_SMALL_DEG)}>
-              <RotateCw className="size-4 -scale-x-100" /> -15°
-            </Button>
-            <Button type="button" variant="outline" onClick={() => rotateSelected(ROTATION_STEP_SMALL_DEG)}>
-              <RotateCw className="size-4" /> +15°
-            </Button>
-            <Button type="button" variant="outline" onClick={() => rotateSelected(-ROTATION_STEP_LARGE_DEG)}>
-              <RotateCw className="size-4 -scale-x-100" /> -90°
-            </Button>
-            <Button type="button" variant="outline" onClick={() => rotateSelected(ROTATION_STEP_LARGE_DEG)}>
-              <RotateCw className="size-4" /> +90°
-            </Button>
-          </div>
-          <div>
-            <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Rotatie</p>
-            <NumberStepper
-              label="Rotatie"
-              unit="°"
-              value={Math.round(normalizeRotationDeg(selectedItem.rot_y_deg))}
-              step={ROTATION_STEP_SMALL_DEG}
-              min={0}
-              max={360}
-              onChange={setSelectedRotation}
-            />
-          </div>
+          {rotationPanel}
           <Button type="button" variant={selectedItem.locked ? "default" : "outline"} className="w-full" aria-pressed={Boolean(selectedItem.locked)} onClick={toggleLockSelected}>
             {selectedItem.locked ? <LockOpen className="size-4" /> : <Lock className="size-4" />} {selectedItem.locked ? "Ontgrendelen" : "Vergrendelen"}
           </Button>
@@ -1247,13 +1376,33 @@ export function Floorplan3dEditor({
     setCameraResetKey((key) => key + 1);
   }
 
+  // 3D-ringen: alleen met een muis (desktop), voor een ontgrendeld item dat niet gesleept wordt.
+  const gizmoItem = isDesktop && !coarsePointer && !drawMode && !draggingId && !rotatingId && selectedItem && !selectedItem.locked ? selectedItem : null;
+  const gizmoProps = (() => {
+    if (!gizmoItem) return null;
+    const shape = shapeOfDims(dimsOf(gizmoItem, lookup));
+    if (shape.kind === "none") return null;
+    const rotation = rotationOf(gizmoItem);
+    return {
+      center: localToWorld(shape, [gizmoItem.x, gizmoItem.y, gizmoItem.z], rotation, [shape.offset_x, shape.base_m + shape.height_m / 2, shape.offset_z]),
+      radius: Math.hypot(shape.length_m, shape.width_m, shape.height_m) / 2,
+      rotation,
+      local: localAxes,
+      axes: orientationOfSlug(gizmoItem.slug).allowTilt ? (["y", "x", "z"] as RotationAxis[]) : (["y"] as RotationAxis[]),
+      onStart: handleGizmoStart,
+      onDrag: handleGizmoDrag,
+      onEnd: handleGizmoEnd,
+    };
+  })();
+
   const scene = (
     <Scene3D
       room={room}
       items={items}
       modelBySlug={modelBySlug}
       selectedId={selectedId}
-      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null}
+      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive}
+      gizmo={gizmoProps}
       cameraMode={cameraMode}
       onItemPointerDown={handleItemPointerDown}
       fields={coneFields}
@@ -1315,6 +1464,7 @@ export function Floorplan3dEditor({
   const panelTitle: Record<Exclude<MobilePanel, null>, string> = {
     materiaal: "Bibliotheek",
     item: "Item",
+    rotatie: "Rotatie",
     kamer: "Omgeving",
     lijst: "Mijn 3D-plattegronden",
   };
@@ -1326,6 +1476,7 @@ export function Floorplan3dEditor({
     // Op touch: knoppen en velden in de panelen minimaal 44 px hoog (de panelen zelf zijn voor muis ontworpen).
     const touchSizing = "[&_button:not([role=switch])]:pointer-coarse:min-h-11 [&_input]:pointer-coarse:min-h-11";
     if (panel === "item") return <div className={touchSizing}>{itemPanel}</div>;
+    if (panel === "rotatie") return <div className={touchSizing}>{rotationPanel}</div>;
     if (panel === "kamer") return <div className={touchSizing}>{roomPanel}</div>;
     return (
       <MyFloorplans3dList
@@ -1403,6 +1554,7 @@ export function Floorplan3dEditor({
               locked={Boolean(selectedItem?.locked)}
               canLock={Boolean(selectedItem)}
               onRotate={rotateSelected}
+              onOpenRotation={selectedItem ? () => setMobilePanel("rotatie") : undefined}
               onDuplicate={duplicateSelected}
               onToggleLock={toggleLockSelected}
               onDelete={deleteSelected}
@@ -1550,6 +1702,7 @@ export function Floorplan3dEditor({
             <SheetTitle>
               {mobilePanel === "materiaal" && "Materiaal"}
               {mobilePanel === "item" && "Item"}
+              {mobilePanel === "rotatie" && "Rotatie"}
               {mobilePanel === "kamer" && "Omgeving"}
               {mobilePanel === "lijst" && "Mijn 3D-plattegronden"}
             </SheetTitle>
@@ -1557,6 +1710,7 @@ export function Floorplan3dEditor({
           <div className={cn("px-4 pb-6")}>
             {mobilePanel === "materiaal" && <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName="bg-background" />}
             {mobilePanel === "item" && itemPanel}
+            {mobilePanel === "rotatie" && rotationPanel}
             {mobilePanel === "kamer" && roomPanel}
             {mobilePanel === "lijst" && (
               <MyFloorplans3dList
