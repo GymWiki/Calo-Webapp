@@ -1,0 +1,23 @@
+{
+ "label": "voor-cpu1",
+ "url": "http://localhost:3123/dev-editor?n=30",
+ "device": "iPhone 14",
+ "cpuThrottle": 1,
+ "runs": [
+  {
+   "loadMs": 3530,
+   "fps": 3.9,
+   "drawCallsPerFrame": 480,
+   "frames": 15,
+   "heapAfterLoadMB": 189,
+   "heapEndMB": 195
+  }
+ ],
+ "median": {
+  "loadMs": 3530,
+  "fps": 3.9,
+  "drawCallsPerFrame": 480,
+  "heapAfterLoadMB": 189,
+  "heapEndMB": 195
+ }
+}
