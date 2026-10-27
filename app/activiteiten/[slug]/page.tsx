@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Breadcrumbs } from "@/components/public/Breadcrumbs";
+import { getActivityImageUrl } from "@/lib/activities/visual";
 import { PublicActivityCard } from "@/components/public/PublicActivityCard";
 import {
   MONTHLY_CONTRIBUTION_REQUIRED_COUNT,
@@ -154,13 +155,13 @@ export async function generateMetadata({
       url: canonical,
       siteName: "GymWiki",
       locale: "nl_NL",
-      images: activity.afbeelding ? [{ url: activity.afbeelding }] : undefined,
+      images: getActivityImageUrl(activity) ? [{ url: getActivityImageUrl(activity) as string }] : undefined,
     },
     twitter: {
       card: "summary_large_image",
       title: buildMetaTitle(activity),
       description: activity.seo_summary,
-      images: activity.afbeelding ? [activity.afbeelding] : undefined,
+      images: getActivityImageUrl(activity) ? [getActivityImageUrl(activity) as string] : undefined,
     },
   };
 }

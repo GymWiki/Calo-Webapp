@@ -10,7 +10,7 @@ import { LibraryAccessBlocked } from "@/components/library-access-blocked";
 import { SourceBadge } from "@/components/library-item-card";
 import { MaterialChecklist } from "@/components/material-checklist";
 import { PlannedForBanner } from "@/components/planning/PlannedForBanner";
-import { PlattegrondCard } from "@/components/plattegrond/PlattegrondCard";
+import { ActivityPlattegrondBlock } from "@/components/plattegrond/ActivityPlattegrondBlock";
 import { PlattegrondSection, PlattegrondSectionSkeleton } from "@/components/plattegrond/PlattegrondSection";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -539,17 +539,12 @@ export default async function ActiviteitDetailPage({
             <PlannedForBanner plannedLessons={plannedLessons} />
           </div>
 
-          {plattegrondSlot}
-
-          {visual.type !== "3d" && (
-            <PlattegrondCard
-              imageUrl={plattegrondImageUrl}
-              activityId={activity.id}
-              canEdit={isOwnActivity}
-              dotClassName={getCategoryColor(activity.categorie).dot}
-              animationDelay="40ms"
-            />
-          )}
+          <ActivityPlattegrondBlock
+            activityId={activity.id}
+            visual={visual}
+            canEdit={isOwnActivity}
+            dotClassName={getCategoryColor(activity.categorie).dot}
+          />
 
           <Tabs defaultValue="lesinhoud" className="animate-fade-up" style={{ animationDelay: "80ms" }}>
             <TabsList className="sticky top-0 z-30 grid h-auto w-full grid-cols-3 gap-1 border bg-background/95 p-1 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">

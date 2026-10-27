@@ -23,21 +23,26 @@ export async function PlattegrondSection({
   activityId,
   plan,
   canEdit,
+  models: providedModels,
 }: {
   activityId: string;
   plan: ActivityFloorplan;
   /** Alleen de auteur kan de plattegrond bewerken (RLS: floorplans_3d is van de eigenaar). */
   canEdit: boolean;
+  /** Reeds opgehaalde modellen (testharnas); zonder deze prop worden ze hier uit Supabase gehaald. */
+  models?: Awaited<ReturnType<typeof getMaterialModelsBySlugs>>;
 }) {
-  const supabase = createClient(await cookies());
-  let models: Awaited<ReturnType<typeof getMaterialModelsBySlugs>> = [];
-  try {
-    models = await getMaterialModelsBySlugs(
-      supabase,
-      plan.data.items.map((item) => item.slug),
-    );
-  } catch {
-    // Zonder modellen toont de viewer grijze "onbekend"-vakjes; de pagina blijft werken.
+  let models: Awaited<ReturnType<typeof getMaterialModelsBySlugs>> = providedModels ?? [];
+  if (!providedModels) {
+    try {
+      const supabase = createClient(await cookies());
+      models = await getMaterialModelsBySlugs(
+        supabase,
+        plan.data.items.map((item) => item.slug),
+      );
+    } catch {
+      // Zonder modellen toont de viewer grijze "onbekend"-vakjes; de pagina blijft werken.
+    }
   }
 
   const nameBySlug = new Map(models.map((model) => [model.slug, model.naam]));
