@@ -16,6 +16,15 @@ export const floorplan3dItemSchema = z.object({
   rot_y_deg: z.number(),
   /** Vergrendeld: niet te verplaatsen, draaien of verwijderen (mobiele contextbalk). Optioneel: oudere plattegronden hebben het niet. */
   locked: z.boolean().optional(),
+  /**
+   * Kanteling in graden (naast `rot_y_deg` = draaien om de verticale as). Euler-volgorde YXZ: eerst heading,
+   * dan kanteling. `rot_x_deg` = voor/achter, `rot_z_deg` = zijwaarts. Optioneel en weggelaten bij 0:
+   * plattegronden van vóór deze feature blijven byte-voor-byte hetzelfde. Zie components/canvas-3d/orientation.ts.
+   */
+  rot_x_deg: z.number().min(-180).max(180).optional(),
+  rot_z_deg: z.number().min(-180).max(180).optional(),
+  /** "Vrij in hoogte": hoogte (m) van het laagste punt boven de ondergrond. Weggelaten = op de vloer houden. */
+  lift_m: z.number().min(0).max(10).optional(),
 });
 export type Floorplan3dItem = z.infer<typeof floorplan3dItemSchema>;
 
