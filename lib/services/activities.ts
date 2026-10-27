@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import type { Activity } from "@/types/activity";
+import { attachFloorplanThumbnails } from "@/lib/services/floorplans3d";
 
 const ACTIVITY_SELECT =
   "id, titel, actcode, afbeelding, beginsituatie, beschrijving, categorie, beweegthema, doel, leerlijn, loopt, lukt, leeft, niveau, materiaal, onderwijs_type, veld, regels, doelgroep, learning_outcomes, author_id, status, rejection_reason, submitted_at, created_at, " +
@@ -63,7 +64,7 @@ export async function getAllActivities(): Promise<Activity[]> {
     throw new Error(`Kon activiteiten niet ophalen: ${error.message}`);
   }
 
-  return data ?? [];
+  return attachFloorplanThumbnails(supabase, data ?? []);
 }
 
 /**
@@ -87,7 +88,7 @@ export async function getOwnSubmissions(authorId: string): Promise<Activity[]> {
     throw new Error(`Kon eigen bijdragen niet ophalen: ${error.message}`);
   }
 
-  return data ?? [];
+  return attachFloorplanThumbnails(supabase, data ?? []);
 }
 
 /**
@@ -116,7 +117,7 @@ export async function getActivityDrafts(authorId: string): Promise<Activity[]> {
     throw new Error(`Kon concepten niet ophalen: ${error.message}`);
   }
 
-  return data ?? [];
+  return attachFloorplanThumbnails(supabase, data ?? []);
 }
 
 export async function getActivityById(
@@ -165,7 +166,7 @@ export async function getPublicActivities(): Promise<Activity[]> {
     throw new Error(`Kon publieke activiteiten niet ophalen: ${error.message}`);
   }
 
-  return data ?? [];
+  return attachFloorplanThumbnails(supabase, data ?? []);
 }
 
 /**
@@ -203,7 +204,7 @@ export async function getTeamActivities(teamId: string): Promise<Activity[]> {
     throw new Error(`Kon teambibliotheek niet ophalen: ${error.message}`);
   }
 
-  return data ?? [];
+  return attachFloorplanThumbnails(supabase, data ?? []);
 }
 
 export async function isActivitySaved(
@@ -275,7 +276,7 @@ export async function getSavedActivities(userId: string): Promise<Activity[]> {
     throw new Error(`Kon opgeslagen activiteiten niet ophalen: ${error.message}`);
   }
 
-  const byId = new Map((activities ?? []).map((activity) => [activity.id, activity]));
+  const byId = new Map((await attachFloorplanThumbnails(supabase, activities ?? [])).map((activity) => [activity.id, activity]));
   return orderedIds
     .map((id) => byId.get(id))
     .filter((activity): activity is Activity => activity !== undefined);

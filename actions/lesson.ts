@@ -14,7 +14,6 @@ import {
   type CreateLessonFormInput,
   type CreateLessonInput,
 } from "@/types/lesson";
-import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 
 // Vertaalt een wizard-activiteit naar de generieke vorm die
 // checkActivityQuality verwacht (zie lib/ai/activityQualityCheck.ts) — de
@@ -138,16 +137,12 @@ function toActivitiesRow(values: CreateLessonInput | CreateLessonFormInput) {
  */
 export async function createLesson(
   input: CreateLessonInput,
-  diagram: { data: DiagramData; imageDataUrl: string } | null = null,
   isAiGenerated = false,
   activityId: string | null = null,
   destination: ActivityDestination = "public",
-  /** Publieke Storage-URL van de automatisch uit het canvas gegenereerde
-   * PNG (zie components/canvas/FullscreenDiagramEditor.tsx en
-   * les-maken/lesson-form.tsx's handleDiagramSave). `undefined` (de
-   * standaardwaarde) laat de bestaande `afbeelding`-kolom ongemoeid — alleen
-   * wanneer de gebruiker deze sessie daadwerkelijk een arrangement heeft
-   * opgeslagen, wordt hij hier expliciet meegegeven. */
+  /** Publieke Storage-URL van een afbeelding die de gebruiker deze sessie vastlegde (importafbeelding, zie
+   * les-maken/lesson-form.tsx's handleUseImportImage). `undefined` (de standaardwaarde) laat de bestaande
+   * `afbeelding`-kolom ongemoeid. */
   afbeeldingUrl?: string,
 ): Promise<CreateLessonResult> {
   const parsed = createLessonInputSchema.safeParse(input);
@@ -227,13 +222,6 @@ export async function createLesson(
 
   const row = {
     ...toActivitiesRow(values),
-    // Alleen overschrijven wanneer deze sessie daadwerkelijk een tekening
-    // exporteerde — anders zou het hervatten van een al opgeslagen
-    // activiteit zonder de plattegrond aan te raken de bestaande
-    // diagram_data/diagram_image_url stilzwijgend op null zetten (de lokale
-    // `diagram`-state in lesson-form.tsx begint immers leeg totdat de
-    // gebruiker de canvas-editor daadwerkelijk opent).
-    ...(diagram ? { diagram_data: diagram.data, diagram_image_url: diagram.imageDataUrl } : {}),
     ...(afbeeldingUrl !== undefined ? { afbeelding: afbeeldingUrl } : {}),
     is_ai_generated: isAiGenerated,
     status,
@@ -337,7 +325,6 @@ export async function createLesson(
  */
 export async function saveLessonDraft(
   input: CreateLessonFormInput,
-  diagram: { data: DiagramData; imageDataUrl: string } | null,
   isAiGenerated: boolean,
   activityId: string | null,
   /** Zie createLesson hierboven — zelfde "alleen zetten wanneer expliciet
@@ -360,8 +347,6 @@ export async function saveLessonDraft(
     // Nooit een titel-loze rij: een leeg concept is voor de "Mijn
     // activiteiten"-lijst niet identificeerbaar. Andere velden mogen leeg.
     titel: input.title || "Naamloos concept",
-    // Zie de gelijknamige toelichting in createLesson hierboven.
-    ...(diagram ? { diagram_data: diagram.data, diagram_image_url: diagram.imageDataUrl } : {}),
     ...(afbeeldingUrl !== undefined ? { afbeelding: afbeeldingUrl } : {}),
     is_ai_generated: isAiGenerated,
     status: "draft" as const,

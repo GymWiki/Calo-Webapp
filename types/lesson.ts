@@ -241,8 +241,8 @@ export type Lesson = {
   participants_bench: number | null;
   base_materials: string[] | null;
   rule_materials: string[] | null;
-  // Loosely typed here (JSONB) — the canvas module owns the rich shape via
-  // components/canvas/gym-canvas-types.ts's DiagramData.
+  // Legacy: de vroegere 2D-tekening (JSONB) en zijn afbeelding. De 2D-editor bestaat niet meer; de kolommen blijven bestaan
+  // zodat bestaande afbeeldingen zichtbaar blijven (zie lib/activities/visual.ts).
   diagram_data: unknown | null;
   diagram_image_url: string | null;
   // Legacy "Game-Based Pedagogy"-velden (spelcategorie/speldimensies) —

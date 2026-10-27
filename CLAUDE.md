@@ -28,12 +28,12 @@ nuances, and gate any "this is a real desktop layout now" change behind `lg:`
 
 GymWiki targets a Lighthouse mobile performance score of **≥90** on Dashboard,
 Bibliotheek, Activiteit-detail, Activiteit maken/bewerken (les-maken), the
-fullscreen canvas-editor, and Kennisbank — and a client-side JS bundle that
+3D-plattegrondeditor (`/plattegrond-3d`), and Kennisbank — and a client-side JS bundle that
 doesn't creep back up over time. Three concrete rules keep it that way:
 
 - **Code-split any client-only library that isn't needed on first paint of
   the page it lives on.** `next/dynamic` (see
-  `components/canvas/FullscreenDiagramEditor.tsx` for the canvas-editor) for
+  `components/canvas-3d/Floorplan3dEditorLoader.tsx` for the plattegrondeditor) for
   a whole component; a plain `await import(...)` *inside the event handler
   that actually needs it* (see `components/pdf/ActivityPdfButton.tsx` and its
   siblings) when the component itself is cheap but a dependency it only uses
@@ -128,7 +128,7 @@ before hand-rolling loading/error state again:
 `lib/` is the reference pattern: grouped by domain (`lib/ai`, `lib/services`,
 `lib/constants`, `lib/supabase`, `lib/stripe`), never a flat dump. `components/`
 is only partially there — `components/ui` (shadcn primitives), `components/profile`,
-`components/canvas`, and now `components/pdf` (the PDF export buttons/documents,
+`components/canvas-3d`, and now `components/pdf` (the PDF export buttons/documents,
 grouped together when they were split into dynamic imports) are real domain
 folders; everything else still sits flat at the top level from years of
 one-off additions. Match `lib/`'s pattern for **new** components: a

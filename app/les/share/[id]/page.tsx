@@ -12,7 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, splitLearningOutcomeItems } from "@/lib/format";
+import { getActivityImageUrl, withFloorplanThumbnail } from "@/lib/activities/visual";
 import { getActivityById } from "@/lib/services/activities";
+import { getPublicFloorplanThumbnails } from "@/lib/services/floorplans3d";
 import { getActivityKnowledgeSources } from "@/lib/services/knowledgeUsage";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
@@ -132,6 +134,12 @@ export default async function SharedActivityPage({
 
   const usedKnowledgeSources = await getActivityKnowledgeSources(activity.id);
 
+  // Deelpagina's kunnen anoniem bekeken worden: de 3D-thumbnail (publiek) is dan het beeld; de afbeelding wordt bij een 3D-plattegrond
+  // nergens getoond (ook niet in de PDF) — zie lib/activities/visual.ts.
+  const floorplanThumbnail = (await getPublicFloorplanThumbnails([activity.id])).get(activity.id) ?? null;
+  const shareImageUrl = floorplanThumbnail ?? getActivityImageUrl(activity);
+  const shareActivity = withFloorplanThumbnail(activity, floorplanThumbnail);
+
   const didacticItems = (activity.didactic_items ?? []) as DidacticItem[];
 
   return (
@@ -183,17 +191,17 @@ export default async function SharedActivityPage({
             <CardTitle>Plattegrond</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {activity.diagram_image_url ? (
+            {shareImageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={activity.diagram_image_url}
+                src={shareImageUrl}
                 alt="Plattegrond van het arrangement"
                 className="w-full max-w-xl rounded-lg border"
               />
             ) : (
               <p className="text-sm text-muted-foreground">Geen tekening toegevoegd.</p>
             )}
-            <LessonPdfButton activity={activity} authorName={authorName} />
+            <LessonPdfButton activity={shareActivity} authorName={authorName} />
           </CardContent>
         </Card>
 

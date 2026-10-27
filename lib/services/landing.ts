@@ -2,6 +2,7 @@ import { createServiceClient } from "@/utils/supabase/service";
 import { ACTIVITY_LIST_SELECT } from "@/lib/services/activities";
 import type { LibraryListItem } from "@/components/library-item-card";
 import type { Activity } from "@/types/activity";
+import { attachFloorplanThumbnails } from "@/lib/services/floorplans3d";
 
 const PREVIEW_COUNT = 6;
 
@@ -47,7 +48,7 @@ export async function getLandingSnapshot(): Promise<LandingSnapshot> {
     throw new Error(`Kon landingspagina-preview niet ophalen: ${previewError.message}`);
   }
 
-  const previewItems: LibraryListItem[] = (previewRows ?? []).map((activity) => ({
+  const previewItems: LibraryListItem[] = (await attachFloorplanThumbnails(supabase, previewRows ?? [])).map((activity) => ({
     id: activity.id,
     source: activity.author_id ? "public" : "gymwiki",
     activity,

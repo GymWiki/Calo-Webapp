@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { Bot, Box, Check, ImageOff, Loader2, MapPinned, Pencil } from "lucide-react";
+import { Bot, Check, Loader2, Pencil } from "lucide-react";
 
-import { ActivityImageLightbox } from "@/components/activity-image-lightbox";
 import { BackButton } from "@/components/BackButton";
 import { DidacticsForm } from "@/components/DidacticsForm";
 import { DidacticsMatrix } from "@/components/didactics-matrix";
@@ -23,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import { getActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
 import { BEWEGINGSTHEMAS, LEARNING_LINE_CATEGORIES } from "@/lib/constants/learningLines";
@@ -35,7 +32,7 @@ import type { DidacticSuggestion, LescoachSection, LescoachSuggestion } from "@/
 import { DOELGROEP_LABELS, DOELGROEP_WAARDEN, type Activity } from "@/types/activity";
 import { REQUIRED_LESSON_FIELDS, type DidacticItem } from "@/types/lesson";
 import type { PlanningClass } from "@/types/planning";
-import { FullscreenDiagramEditor } from "@/components/canvas/FullscreenDiagramEditor";
+import { PlattegrondCard } from "@/components/plattegrond/PlattegrondCard";
 
 const IMPORT_FLAG_CLASS = "border-amber-400 ring-1 ring-amber-300/70 focus-visible:ring-amber-400";
 
@@ -213,11 +210,11 @@ export function ActivityWizardPage({
   onBaseMaterialsChange,
   ruleMaterials,
   onRuleMaterialsChange,
-  diagramData,
-  diagramImageUrl,
+  plattegrondImageUrl,
+  canEditPlattegrond,
   plattegrond3d,
-  onDiagramExport,
-  referenceImageUrl,
+  floorplan,
+  onOpenFloorplanEditor,
 
   didacticItems,
   onDidacticItemsChange,
@@ -247,9 +244,7 @@ export function ActivityWizardPage({
   activity?: Activity;
   /** Alleen nodig in mode="view" — voor AddToPlanningButton in de actiebalk. */
   classes?: PlanningClass[];
-  /** Welke tab standaard open staat — gebruikt door de "Zaal-Plattegrond
-   * Tekenen"-snelkoppeling op het dashboard, die direct bij "Materiaal"
-   * (waar de plattegrondtekenaar in mode="edit" staat) wil uitkomen. */
+  /** Welke tab standaard open staat (bijv. direct bij "Materiaal"). */
   defaultTab?: "lesinhoud" | "materiaal" | "leerhulp";
 
   title: string;
@@ -332,20 +327,16 @@ export function ActivityWizardPage({
   onBaseMaterialsChange?: (items: string[]) => void;
   ruleMaterials: string[];
   onRuleMaterialsChange?: (items: string[]) => void;
-  /** Ruwe canvas-state — nodig om de volledig-scherm editor te heropenen
-   * met het bestaande arrangement (zie FullscreenDiagramEditor). Alleen
-   * relevant in mode="edit"; in mode="view" wordt enkel diagramImageUrl
-   * getoond. */
-  diagramData?: DiagramData | null;
-  diagramImageUrl: string | null;
-  /** Alleen mode="view": 3D-plattegrond-sectie (server component) bovenaan, vóór de 2D-plattegrondkaart. */
+  /** De losse afbeelding van de plattegrond (alleen meegegeven als er GEEN 3D-plattegrond is: 3D wint altijd, zie lib/activities/visual.ts). */
+  plattegrondImageUrl: string | null;
+  /** Alleen mode="view": mag de gebruiker de plattegrond maken/vervangen? (de auteur; 3D-plattegronden zijn van de auteur zelf.) */
+  canEditPlattegrond?: boolean;
+  /** Alleen mode="view": de 3D-viewer (server component) — alleen gezet bij een geldige 3D-plattegrond met inhoud. */
   plattegrond3d?: React.ReactNode;
-  onDiagramExport?: (data: DiagramData, imageDataUrl: string) => void;
-  /** Uit een geüpload document gehaald beeld ("Activiteit uit document",
-   * ImportImageReviewBanner) — getoond als semi-transparante natekenreferentie
-   * in de canvas-editor, nooit zelf opgeslagen. Alleen relevant in
-   * mode="edit". */
-  referenceImageUrl?: string | null;
+  /** Alleen mode="edit": de 3D-plattegrond die al aan dit concept hangt (thumbnail + "Plattegrond bewerken"). */
+  floorplan?: { id: string; previewUrl: string } | null;
+  /** Alleen mode="edit": bewaart het concept en opent daarna de 3D-editor. */
+  onOpenFloorplanEditor?: () => void | Promise<void>;
 
   didacticItems: DidacticItem[];
   onDidacticItemsChange?: (items: DidacticItem[]) => void;
@@ -446,10 +437,6 @@ export function ActivityWizardPage({
   // staat — nodig voor zowel de klikbare missing-fields-lijst als een
   // mislukte submit-poging elders (lesson-form.tsx's onInvalid).
   const [activeTab, setActiveTab] = useState<"lesinhoud" | "materiaal" | "leerhulp">(defaultTab);
-  // Volledig-scherm canvas-editor (zie FullscreenDiagramEditor) — vervangt
-  // de vroegere altijd-ingebedde DiagramEditorCard; de kaart hieronder toont
-  // nu enkel nog een compacte preview + knop die dit opent.
-  const [diagramModalOpen, setDiagramModalOpen] = useState(false);
 
   // Puur DOM-werk, geen setState — mag dus gewoon in een effect (zie
   // hieronder) zonder de react-hooks/set-state-in-effect-regel te raken.
@@ -860,79 +847,27 @@ export function ActivityWizardPage({
 
       {!isEdit && plattegrond3d}
 
-      {/* Plattegrond — vaste kaart, zelfde positie in beide modi: in
-          mode="view" de geëxporteerde afbeelding, in mode="edit" de
-          canvas-tekenaar zelf. De "3D (beta)"-link hieronder is de ENIGE
-          wijziging die deze kaart voor de nieuwe 3D-plattegrondeditor
-          (app/(protected)/plattegrond-3d) krijgt — een losse, eigen route
-          met eigen opslag (floorplans_3d), niet verbonden met deze
-          2D-tekening/diagramData. */}
-      <Card className="animate-fade-up" style={{ animationDelay: "40ms" }}>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between gap-2 text-base">
-            <span className="flex items-center gap-2">
-              <span
-                className={cn("size-2.5 shrink-0 rounded-[3px]", WIZARD_CATEGORY_COLOR.dot)}
-                aria-hidden="true"
-              />
-              Plattegrond
-            </span>
-            <Button asChild variant="outline" size="sm" className="print:hidden">
-              <Link href={activity?.id && isOwnActivity ? `/plattegrond-3d?activiteit=${encodeURIComponent(activity.id)}` : "/plattegrond-3d"}>
-                <Box className="size-4" />
-                3D (beta)
-              </Link>
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isEdit ? (
-            <>
-              {diagramImageUrl ? (
-                <button
-                  type="button"
-                  onClick={() => setDiagramModalOpen(true)}
-                  className="group relative block h-48 w-full overflow-hidden rounded-2xl border bg-muted"
-                >
-                  <Image
-                    src={diagramImageUrl}
-                    alt="Plattegrond van het arrangement"
-                    fill
-                    sizes="(min-width: 768px) 700px, 100vw"
-                    className="object-contain transition-transform duration-200 ease-brand group-hover:scale-[1.01]"
-                  />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setDiagramModalOpen(true)}
-                  className="flex h-48 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed text-muted-foreground transition-colors duration-150 ease-brand hover:border-primary/50 hover:text-foreground"
-                >
-                  <ImageOff className="size-6" aria-hidden="true" />
-                  <p className="text-sm">Nog geen plattegrond — maak er één</p>
-                </button>
-              )}
-              <Button type="button" className="mt-3 w-full sm:w-auto" onClick={() => setDiagramModalOpen(true)}>
-                <MapPinned className="size-4" />
-                Plattegrond bewerken
-              </Button>
-              <FullscreenDiagramEditor
-                open={diagramModalOpen}
-                onOpenChange={setDiagramModalOpen}
-                initialData={diagramData ?? null}
-                onSave={(data, imageDataUrl) => onDiagramExport?.(data, imageDataUrl)}
-                referenceImageUrl={referenceImageUrl}
-              />
-            </>
-          ) : (
-            <ActivityImageLightbox
-              src={diagramImageUrl}
-              alt="Plattegrond van het arrangement"
-              emptyLabel="Geen tekening toegevoegd."
-            />
-          )}
-        </CardContent>
-      </Card>
+      {/* Plattegrond — de 3D-editor is de enige plattegrondeditor. Met een 3D-plattegrond toont de view-modus alleen de viewer
+          (plattegrond3d hierboven); anders deze kaart: afbeelding + "Vervang door 3D-plattegrond", of "Plattegrond maken". */}
+      {isEdit ? (
+        <PlattegrondCard
+          imageUrl={plattegrondImageUrl}
+          floorplan={floorplan ?? null}
+          activityId={activity?.id ?? null}
+          canEdit
+          onOpenEditor={onOpenFloorplanEditor}
+          dotClassName={WIZARD_CATEGORY_COLOR.dot}
+          animationDelay="40ms"
+        />
+      ) : plattegrond3d ? null : (
+        <PlattegrondCard
+          imageUrl={plattegrondImageUrl}
+          activityId={activity?.id ?? null}
+          canEdit={Boolean((canEditPlattegrond ?? isOwnActivity) && activity?.id)}
+          dotClassName={WIZARD_CATEGORY_COLOR.dot}
+          animationDelay="40ms"
+        />
+      )}
 
       <Tabs
         value={activeTab}

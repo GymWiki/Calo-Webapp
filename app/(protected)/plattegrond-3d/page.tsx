@@ -10,10 +10,9 @@ import { createClient } from "@/utils/supabase/server";
 import type { Floorplan3dData } from "@/types/floorplan3d";
 
 /**
- * 3D-plattegrondeditor — NAAST de bestaande 2D-canvas-editor
- * (components/canvas/GymCanvas.tsx, ongewijzigd). Eigen route, eigen
- * opslag (public.floorplans_3d), bereikbaar via de "3D (beta)"-knop op de
- * Plattegrond-kaart (components/activity-wizard-page.tsx) of rechtstreeks.
+ * De plattegrondeditor — de ENIGE manier om een plattegrond te maken en te bewerken (de 2D-editor is verwijderd). Eigen opslag
+ * (public.floorplans_3d), bereikbaar via de "Plattegrond"-kaart van een activiteit
+ * (components/plattegrond/PlattegrondCard.tsx), het menu en de snelle actie op het dashboard.
  *
  * three/@react-three/fiber/@react-three/drei raken `window`/WebGL aan —
  * Floorplan3dEditorLoader doet de ssr:false dynamic-import, dus deze

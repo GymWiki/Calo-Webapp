@@ -4,7 +4,6 @@ import { useState } from "react";
 import { FileUp, NotebookPen, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { DiagramData } from "@/components/canvas/gym-canvas-types";
 import type { UsedKnowledgeChunk } from "@/lib/ai/knowledgeUsageLogging";
 import type { UnplacedContentItem } from "@/lib/ai/extractedActivityMapping";
 import type { CreateLessonFormInput } from "@/types/lesson";
@@ -89,7 +88,8 @@ export function LesMakenFlow({
   authorName,
   initialValues,
   initialActivityId,
-  initialDiagram,
+  initialImageUrl,
+  initialFloorplan,
   isEditingSavedActivity,
   initialTab,
   activeSourceCount,
@@ -107,7 +107,8 @@ export function LesMakenFlow({
   initialActivityId?: string;
   /** Zie de gelijknamige prop op LessonForm — enkel gezet wanneer die eigen
    * activiteit al een opgeslagen arrangement had. */
-  initialDiagram?: { data: DiagramData; imageDataUrl: string };
+  initialImageUrl?: string | null;
+  initialFloorplan?: { id: string; previewUrl: string } | null;
   /** Zie LessonForm's initialUsedKnowledgeSources — de al eerder gelogde
    * "Gebruikte bronnen" van de hervatte activiteit. */
   initialUsedKnowledgeSources?: UsedKnowledgeChunk[];
@@ -155,7 +156,7 @@ export function LesMakenFlow({
         <ChoiceCard
           icon={NotebookPen}
           title="Zelf een activiteit samenstellen"
-          description="Bouw je activiteit vanaf nul op met de plattegrond-tekenaar, 3 L'en en lesblokken."
+          description="Bouw je activiteit vanaf nul op met een 3D-plattegrond, 3 L'en en lesblokken."
           actionLabel="Beginnen →"
           accent="primary"
           onClick={() => setMode("form")}
@@ -195,7 +196,8 @@ export function LesMakenFlow({
       // Een upload start altijd een NIEUW concept — het hervat-id geldt
       // alleen als er geen upload heeft plaatsgevonden.
       initialActivityId={uploadedValues ? undefined : initialActivityId}
-      initialDiagram={uploadedValues ? undefined : initialDiagram}
+      initialImageUrl={uploadedValues ? undefined : initialImageUrl}
+      initialFloorplan={uploadedValues ? undefined : initialFloorplan}
       isEditingSavedActivity={uploadedValues ? false : isEditingSavedActivity}
       initialScrollTarget={initialTab === "voorbereiding" ? "materiaal" : undefined}
       activeSourceCount={activeSourceCount}

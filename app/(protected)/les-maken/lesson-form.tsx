@@ -28,7 +28,7 @@ import {
   type CreateLessonInput,
   type DidacticItem,
 } from "@/types/lesson";
-import type { DiagramData } from "@/components/canvas/gym-canvas-types";
+import { floorplanEditorHref } from "@/components/plattegrond/PlattegrondCard";
 import type { RequiredLessonFormField } from "./activity-upload-step";
 
 // Welke velden deze mapping bijhoudt voor de import-feedbacklus (zie
@@ -102,7 +102,8 @@ export function LessonForm({
   authorName,
   initialValues,
   initialActivityId,
-  initialDiagram,
+  initialImageUrl,
+  initialFloorplan,
   isEditingSavedActivity,
   initialScrollTarget,
   activeSourceCount,
@@ -121,12 +122,11 @@ export function LessonForm({
   /** Gezet wanneer dit formulier een eerder opgeslagen concept hervat — dan
    * werkt auto-save/opslaan diezelfde rij bij i.p.v. een nieuwe aan te maken. */
   initialActivityId?: string;
-  /** Zaadt de lokale `diagram`-state met een al bestaand arrangement (zie
-   * les-maken/page.tsx) — zonder dit zou het hervatten van een activiteit
-   * met een al opgeslagen plattegrond die leeg tonen, en zou een
-   * eerstvolgende autosave 'm stilzwijgend wissen (zie het commentaar bij
-   * diagram_data in actions/lesson.ts). */
-  initialDiagram?: { data: DiagramData; imageDataUrl: string } | null;
+  /** De bestaande afbeelding van de plattegrond van een hervatte activiteit (`afbeelding ?? diagram_image_url`), zodat de
+   * plattegrondkaart hem toont met "Vervang door 3D-plattegrond". */
+  initialImageUrl?: string | null;
+  /** De 3D-plattegrond die al aan dit concept hangt (id + thumbnail) — dan toont de kaart "Plattegrond bewerken". */
+  initialFloorplan?: { id: string; previewUrl: string } | null;
   /** True wanneer initialActivityId een AL opgeslagen (niet-concept)
    * activiteit is: saveLessonDraft werkt alleen status='draft'-rijen bij, dus
    * concept-autosave zou hier stilzwijgend niets doen — beter helemaal uit,
@@ -178,15 +178,10 @@ export function LessonForm({
   const [didacticItems, setDidacticItems] = useState<DidacticItem[]>(
     initialValues?.didacticItems ?? [],
   );
-  const [diagram, setDiagram] = useState<{
-    data: DiagramData;
-    imageDataUrl: string;
-  } | null>(() => initialDiagram ?? null);
-  // Publieke Storage-URL van de laatst geüploade canvas-PNG (zie
-  // handleDiagramSave) — blijft `null` totdat de gebruiker deze sessie
-  // daadwerkelijk een arrangement opslaat, zodat een save vóór dat moment
-  // de bestaande `afbeelding`-kolom van een hervatte activiteit niet
-  // overschrijft (zie actions/lesson.ts's afbeeldingUrl-parameter).
+  // De afbeelding die de plattegrondkaart toont (alleen zonder 3D-plattegrond). `afbeeldingUrl` hieronder blijft `null`
+  // totdat de gebruiker deze sessie daadwerkelijk een afbeelding vastlegt (importafbeelding), zodat een save daarvóór de
+  // bestaande `afbeelding`-kolom van een hervatte activiteit niet overschrijft (zie actions/lesson.ts's afbeeldingUrl).
+  const [plattegrondImageUrl, setPlattegrondImageUrl] = useState<string | null>(initialImageUrl ?? null);
   const [afbeeldingUrl, setAfbeeldingUrl] = useState<string | null>(null);
 
   // Herbouwde documentimport: "Niet geplaatst"-brontekst die de gebruiker
@@ -206,10 +201,6 @@ export function LessonForm({
   const [pendingAiSuggestionFields, setPendingAiSuggestionFields] = useState<Set<string>>(
     () => (initialImportJobId ? new Set(["plaatjePraatje"]) : new Set()),
   );
-  // Uit het document geëxtraheerd beeld (plattegrond/foto), gekozen via
-  // ImportImageReviewBanner — getoond als semi-transparante natekenreferentie
-  // in de canvas-editor, nooit zelf opgeslagen.
-  const [referenceImageUrlForEditor, setReferenceImageUrlForEditor] = useState<string | null>(null);
   const [imagesBannerDismissed, setImagesBannerDismissed] = useState(false);
 
   // Concept-rij die auto-save aanmaakt/bijwerkt (zie saveLessonDraft) — als
@@ -277,14 +268,6 @@ export function LessonForm({
     setUnplacedContent((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function handleUseImageAsBackground(imageUrl: string) {
-    setReferenceImageUrlForEditor(imageUrl);
-    setImagesBannerDismissed(true);
-    toast.success(
-      "Afbeelding ingesteld als natekenreferentie — open 'Plattegrond bewerken' om 'm te zien.",
-    );
-  }
-
   function handleDiscardImportImages() {
     setImagesBannerDismissed(true);
   }
@@ -308,7 +291,7 @@ export function LessonForm({
         learningOutcomes,
         didacticItems,
       };
-      const result = await saveLessonDraft(payload, diagram, false, activityId, afbeeldingUrl ?? undefined);
+      const result = await saveLessonDraft(payload, false, activityId, afbeeldingUrl ?? undefined);
       if ("error" in result) {
         consecutiveFailuresRef.current += 1;
         console.error(
@@ -337,21 +320,11 @@ export function LessonForm({
     }
   }
 
-  // Zet de net geëxporteerde canvas-afbeelding (data-URL, zie GymCanvas.tsx's
-  // exportDiagram) om naar een permanente Supabase Storage-URL — rechtstreeks
-  // vanuit de browser (buiten Vercel om, zelfde architectuurkeuze als de
-  // activity-imports-upload in activity_import_jobs.sql), op een stabiel pad
-  // per activiteit (upsert:true) zodat elke nieuwe versie de vorige gewoon
-  // vervangt. De bestandsextensie/contentType worden van het ECHTE
-  // blob.type afgeleid i.p.v. ".png" aan te nemen: exportDiagram vraagt WebP
-  // aan, maar een browser zonder WebP-canvas-encode-ondersteuning valt
-  // stilzwijgend op PNG terug, dus dit moet met beide uitkomsten correct
-  // omgaan. Geeft `null` terug bij een fout — de aanroeper laat in dat geval
-  // simpelweg de bestaande `afbeelding` ongemoeid.
-  async function uploadDiagramImage(
-    imageDataUrl: string,
-    forActivityId: string,
-  ): Promise<string | null> {
+  // Zet een afbeelding (importafbeelding uit een document) om naar een permanente Supabase Storage-URL — rechtstreeks vanuit de
+  // browser (buiten Vercel om, zelfde architectuurkeuze als de activity-imports-upload in activity_import_jobs.sql), op een
+  // stabiel pad per activiteit (upsert:true) zodat een nieuwe afbeelding de vorige vervangt. Extensie/contentType volgen het
+  // ECHTE blob.type. Geeft `null` terug bij een fout — de aanroeper laat dan de bestaande `afbeelding` ongemoeid.
+  async function uploadPlattegrondImage(imageUrl: string, forActivityId: string): Promise<string | null> {
     try {
       const supabase = createClient();
       const {
@@ -359,11 +332,7 @@ export function LessonForm({
       } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const blob = await (await fetch(imageDataUrl)).blob();
-      // "Activiteit uit video" (STAP7, "direct gebruiken"-pad) hergebruikt
-      // deze functie ongewijzigd met een JPEG-videoframe i.p.v. een canvas-
-      // export — dus de extensie moet ook dat geval correct afleiden i.p.v.
-      // een jpeg-blob stilzwijgend als ".png" op te slaan.
+      const blob = await (await fetch(imageUrl)).blob();
       const extension = blob.type === "image/webp" ? "webp" : blob.type === "image/jpeg" ? "jpg" : "png";
       const path = `${user.id}/${forActivityId}.${extension}`;
       const { error } = await supabase.storage
@@ -375,9 +344,7 @@ export function LessonForm({
       }
 
       const { data } = supabase.storage.from("activiteit-afbeeldingen").getPublicUrl(path);
-      // Cache-buster: hetzelfde pad wordt bij elke wijziging overschreven
-      // (upsert), dus zonder query-param zou een CDN/browsercache de vorige
-      // afbeelding kunnen blijven tonen na een update.
+      // Cache-buster: hetzelfde pad wordt overschreven (upsert).
       return `${data.publicUrl}?v=${Date.now()}`;
     } catch (error) {
       console.error("Plattegrond-afbeelding uploaden mislukt:", error);
@@ -385,78 +352,53 @@ export function LessonForm({
     }
   }
 
-  // Aangeroepen zodra de volledig-scherm canvas-editor sluit (zie
-  // activity-wizard-page.tsx's FullscreenDiagramEditor-gebruik): slaat de
-  // tekening direct op (niet via de gedebouncete scheduleAutosave — dat zou
-  // een net-gesloten plattegrond soms pas na de eerstvolgende veldwijziging
-  // écht opslaan) én genereert/vervangt de activiteit-hoofdafbeelding. Een
-  // activityId is nodig vóór de upload kan beginnen (stabiel Storage-pad),
-  // dus zonder concept wordt die eerst aangemaakt.
-  async function handleDiagramSave(data: DiagramData, imageDataUrl: string) {
-    setDiagram({ data, imageDataUrl });
+  // Het concept hoeft nog niet te bestaan: de plattegrond (3D-editor) en de importafbeelding hebben een activiteit-id nodig.
+  // Bestaat er nog geen conceptrij, dan wordt die hier aangemaakt (zelfde save als de autosave).
+  async function ensureActivityId(): Promise<string | null> {
+    if (activityId) return activityId;
+    const values = form.getValues();
+    const payload: CreateLessonFormInput = { ...values, baseMaterials, ruleMaterials, rules, learningOutcomes, didacticItems };
+    const created = await saveLessonDraft(payload, false, null);
+    if ("error" in created) {
+      toast.error("Opslaan is mislukt. Probeer het opnieuw.");
+      return null;
+    }
+    setActivityId(created.activityId);
+    return created.activityId;
+  }
 
-    if (isEditingSavedActivity) {
-      // Geen conceptrij om bij te werken (saveLessonDraft raakt alleen
-      // status='draft'-rijen aan) — "Activiteit opslaan" blijft de enige
-      // manier om dit daadwerkelijk vast te leggen. De afbeelding kan wel
-      // alvast geüpload worden (activityId ligt al vast), zodat de URL
-      // klaarstaat zodra de gebruiker opslaat.
-      if (activityId) {
-        const uploadedUrl = await uploadDiagramImage(imageDataUrl, activityId);
-        if (uploadedUrl) setAfbeeldingUrl(uploadedUrl);
-      }
+  // "Plattegrond maken / bewerken / Vervang door 3D-plattegrond": eerst de ingevulde velden bewaren (niets gaat verloren),
+  // dan naar de 3D-editor — de enige plattegrondeditor — gekoppeld aan deze activiteit.
+  async function openFloorplanEditor() {
+    await flushAutosave();
+    const id = await ensureActivityId();
+    if (!id) return;
+    router.push(floorplanEditorHref({ activityId: id, floorplanId: initialFloorplan?.id }));
+  }
+
+  // Een uit het document gehaalde afbeelding als afbeelding van de plattegrond vastleggen (tot er een 3D-plattegrond is).
+  async function handleUseImportImage(imageUrl: string) {
+    setImagesBannerDismissed(true);
+    const id = await ensureActivityId();
+    if (!id) return;
+    const uploadedUrl = await uploadPlattegrondImage(imageUrl, id);
+    if (!uploadedUrl) {
+      toast.error("De afbeelding kon niet worden opgeslagen. Probeer het opnieuw.");
+      setImagesBannerDismissed(false);
       return;
     }
-
-    isSavingDraftRef.current = true;
-    setSaveStatus("saving");
-    try {
+    setAfbeeldingUrl(uploadedUrl);
+    setPlattegrondImageUrl(uploadedUrl);
+    if (!isEditingSavedActivity) {
       const values = form.getValues();
-      const payload: CreateLessonFormInput = {
-        ...values,
-        baseMaterials,
-        ruleMaterials,
-        rules,
-        learningOutcomes,
-        didacticItems,
-      };
-
-      let currentActivityId = activityId;
-      if (!currentActivityId) {
-        const created = await saveLessonDraft(payload, { data, imageDataUrl }, false, null);
-        if ("error" in created) {
-          toast.error("Plattegrond opslaan is mislukt. Probeer het opnieuw.");
-          return;
-        }
-        currentActivityId = created.activityId;
-        setActivityId(currentActivityId);
-      }
-
-      const uploadedUrl = await uploadDiagramImage(imageDataUrl, currentActivityId);
-      if (uploadedUrl) setAfbeeldingUrl(uploadedUrl);
-
-      const result = await saveLessonDraft(
-        payload,
-        { data, imageDataUrl },
-        false,
-        currentActivityId,
-        uploadedUrl ?? undefined,
-      );
+      const payload: CreateLessonFormInput = { ...values, baseMaterials, ruleMaterials, rules, learningOutcomes, didacticItems };
+      const result = await saveLessonDraft(payload, false, id, uploadedUrl);
       if ("error" in result) {
-        consecutiveFailuresRef.current += 1;
-        setSaveStatus(consecutiveFailuresRef.current >= FAILURE_TOAST_THRESHOLD ? "error" : "idle");
-        toast.error("Plattegrond opslaan is mislukt. Probeer het opnieuw.");
+        toast.error("De afbeelding is geüpload maar het concept opslaan is mislukt.");
         return;
       }
-      consecutiveFailuresRef.current = 0;
-      setSaveStatus("saved");
-    } finally {
-      isSavingDraftRef.current = false;
-      if (pendingSaveRef.current) {
-        pendingSaveRef.current = false;
-        void performSave();
-      }
     }
+    toast.success("Afbeelding ingesteld als plattegrond. Maak er later een 3D-plattegrond van met 'Vervang door 3D-plattegrond'.");
   }
 
   // Gedebouncet: pas ~1,3s na de laatste wijziging daadwerkelijk opslaan, in
@@ -487,7 +429,7 @@ export function LessonForm({
   // debounced wijziging direct opslaan i.p.v. te laten verlopen, zodat er
   // niets verloren gaat wanneer de gebruiker meteen wegnavigeert na een
   // laatste veldwijziging. Wacht daarna op elke lopende/gequeuede save —
-  // zowel performSave (tekstvelden) als handleDiagramSave (plattegrond)
+  // zowel performSave (tekstvelden) als het openen van de plattegrondeditor
   // zetten isSavingDraftRef/pendingSaveRef, dus polling op die refs dekt
   // beide save-paden zonder een aparte promise-keten te hoeven bijhouden.
   async function flushAutosave() {
@@ -532,7 +474,6 @@ export function LessonForm({
       deelnemers_regels: values.deelnemersRegels,
       plaatje_praatje: values.plaatjePraatje,
       aandachtspunten: values.aandachtspunten,
-      ...(diagram ? { diagram_data: diagram.data, diagram_image_url: diagram.imageDataUrl } : {}),
       ...(afbeeldingUrl !== null ? { afbeelding: afbeeldingUrl } : {}),
     };
   }
@@ -586,7 +527,6 @@ export function LessonForm({
 
       const result = await createLesson(
         payload,
-        diagram,
         false,
         activityId,
         values.destination,
@@ -965,7 +905,7 @@ export function LessonForm({
         {initialImportJobId && !imagesBannerDismissed && (
           <ImportImageReviewBanner
             jobId={initialImportJobId}
-            onUseAsBackground={handleUseImageAsBackground}
+            onUseAsImage={(url) => void handleUseImportImage(url)}
             onDiscard={handleDiscardImportImages}
           />
         )}
@@ -1055,10 +995,9 @@ export function LessonForm({
           onBaseMaterialsChange={setBaseMaterials}
           ruleMaterials={ruleMaterials}
           onRuleMaterialsChange={setRuleMaterials}
-          diagramData={diagram?.data ?? null}
-          diagramImageUrl={diagram?.imageDataUrl ?? null}
-          onDiagramExport={(data, imageDataUrl) => void handleDiagramSave(data, imageDataUrl)}
-          referenceImageUrl={referenceImageUrlForEditor}
+          plattegrondImageUrl={plattegrondImageUrl}
+          floorplan={initialFloorplan ?? null}
+          onOpenFloorplanEditor={openFloorplanEditor}
           lowConfidenceFields={initialLowConfidenceFields}
           didacticItems={didacticItems}
           onDidacticItemsChange={setDidacticItems}

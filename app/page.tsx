@@ -114,7 +114,7 @@ const FAQ_ITEMS = [
   {
     question: "Wie kan GymWiki gebruiken?",
     answer:
-      "GymWiki is gebouwd voor vakleerkrachten lichamelijke opvoeding en CALO-studenten die hun gymles voorbereiden. Iedereen met een GymWiki-account kan de activiteitenbibliotheek gebruiken, zelf activiteiten toevoegen en delen, en de canvas-editor gebruiken om plattegronden en oefeningen te ontwerpen.",
+      "GymWiki is gebouwd voor vakleerkrachten lichamelijke opvoeding en CALO-studenten die hun gymles voorbereiden. Iedereen met een GymWiki-account kan de activiteitenbibliotheek gebruiken, zelf activiteiten toevoegen en delen, en de 3D-plattegrondeditor gebruiken om plattegronden en oefeningen te ontwerpen.",
   },
   {
     question: "Heeft GymWiki een teamabonnement voor scholen?",
@@ -284,10 +284,9 @@ function ActivityStructurePreview() {
 
 /**
  * Decoratieve, met SVG getekende "zaalvloer" — bewust geen stockfoto (zie de
- * brief) maar dezelfde belijnings-esthetiek als de canvas-editor zelf
+ * brief) maar een belijnings-esthetiek zoals in de plattegrondeditor
  * (rechthoekige veldrand, middencirkel, boogvormige zone, spelers als
- * stippen — vergelijkbaar met de sportveld-presets in
- * components/canvas/field-presets.ts), puur decoratief dus aria-hidden.
+ * stippen), puur decoratief dus aria-hidden.
  */
 function HeroCourtIllustration() {
   return (
@@ -320,7 +319,7 @@ function HeroCourtIllustration() {
           Zo bouw je &apos;m zelf
         </p>
         <p className="mt-1 text-sm font-semibold text-paper">
-          Plattegronden, sportveld-presets en materiaal — één canvas-editor per activiteit.
+          Plattegronden, sportvelden en materiaal — één 3D-plattegrond per activiteit.
         </p>
       </div>
     </div>
