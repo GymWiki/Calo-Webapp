@@ -1,5 +1,7 @@
 import { createPublicClient } from "@/utils/supabase/public";
 import { slugifyTitle } from "@/lib/services/activitySlug";
+import { withFloorplanThumbnail } from "@/lib/activities/visual";
+import { getPublicFloorplanThumbnails } from "@/lib/services/floorplans3d";
 import { DOELGROEP_SLUGS } from "@/types/activity";
 
 /**
@@ -62,6 +64,16 @@ export function getLeerlijnSlug(leerlijn: string): string {
   return slugifyTitle(leerlijn);
 }
 
+/**
+ * Heeft een publieke activiteit een 3D-plattegrond, dan is de 3D-thumbnail het beeld (kaart, OG, Twitter-kaart) en wordt de
+ * afbeelding niet getoond — de afbeelding zelf blijft ongemoeid in de database (zie lib/activities/visual.ts).
+ */
+async function withPublicThumbnails<T extends { id: string; afbeelding: string | null }>(rows: T[]): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const thumbs = await getPublicFloorplanThumbnails(rows.map((row) => row.id));
+  return thumbs.size === 0 ? rows : rows.map((row) => withFloorplanThumbnail(row, thumbs.get(row.id)));
+}
+
 export async function getPublicActivityBySlug(slug: string): Promise<PublicActivity | null> {
   const supabase = createPublicClient();
   const { data, error } = await supabase
@@ -75,7 +87,9 @@ export async function getPublicActivityBySlug(slug: string): Promise<PublicActiv
     throw new Error(`Kon publieke activiteit niet ophalen: ${error.message}`);
   }
 
-  return data;
+  if (!data) return null;
+  const [withThumb] = await withPublicThumbnails([data]);
+  return withThumb;
 }
 
 /**
@@ -98,7 +112,7 @@ export async function getAllPublicActivities(): Promise<PublicActivity[]> {
     throw new Error(`Kon publieke activiteiten niet ophalen: ${error.message}`);
   }
 
-  return data ?? [];
+  return withPublicThumbnails(data ?? []);
 }
 
 export async function getPublicActivitiesByLeerlijn(leerlijnSlug: string): Promise<PublicActivity[]> {
