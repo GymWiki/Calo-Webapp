@@ -14,6 +14,8 @@ export const floorplan3dItemSchema = z.object({
   y: z.number(),
   z: z.number(),
   rot_y_deg: z.number(),
+  /** Vergrendeld: niet te verplaatsen, draaien of verwijderen (mobiele contextbalk). Optioneel: oudere plattegronden hebben het niet. */
+  locked: z.boolean().optional(),
 });
 export type Floorplan3dItem = z.infer<typeof floorplan3dItemSchema>;
 

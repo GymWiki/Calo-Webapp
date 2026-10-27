@@ -34,6 +34,8 @@ export function FloorplanContent({
   onFieldPointerDown,
   onFieldHandlePointerDown,
   onItemHover,
+  touchUi = false,
+  onRotateHandleDown,
 }: {
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
@@ -52,6 +54,9 @@ export function FloorplanContent({
   onFieldHandlePointerDown?: (id: string, cornerIndex: number, event: ThreeEvent<PointerEvent>) => void;
   /** Alleen-lezen hover/tik op een item: naam voor een tooltip (null = weg). */
   onItemHover?: (item: Floorplan3dItem | null) => void;
+  /** Touch-bediening: het geselecteerde item krijgt een rotatiehandvat. */
+  touchUi?: boolean;
+  onRotateHandleDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
 }) {
   return (
     <>
@@ -76,6 +81,8 @@ export function FloorplanContent({
           onPointerDownItem={onItemPointerDown}
           onSelect={onSelect}
           onHover={onItemHover}
+          touchUi={touchUi}
+          onRotateHandleDown={onRotateHandleDown}
         />
       ))}
       {fields.map((field) => (
