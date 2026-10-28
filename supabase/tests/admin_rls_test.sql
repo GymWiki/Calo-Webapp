@@ -195,6 +195,18 @@ begin
 
   perform t.ok((select changes -> 'data' -> 'new' ->> 'items' from public.audit_log where entity_type = 'plattegrond' and entity_id = fp_c::text and changes ? 'data' order by id asc limit 1) = '1', 'auditlog plattegrond bevat een samenvatting (geen volledige scene)');
 
+  -- ===== Plattegrond van een beheerder bij een bibliotheekactiviteit =====
+  perform t.as_super();
+  insert into public.floorplans_3d (user_id, naam, activiteit_id, data) values (b, 'Beheerplattegrond', 'pub', '{"version":1,"items":[],"coneFields":[]}');
+  insert into public.floorplans_3d (user_id, naam, activiteit_id, data) values (d, 'Plattegrond van D bij openbare activiteit', 'pub', '{"version":1,"items":[],"coneFields":[]}');
+  perform t.as_user(c);
+  perform t.ok(t.rows($q$select 1 from public.floorplans_3d where naam = 'Beheerplattegrond'$q$) = 1, 'bekijker ziet de plattegrond die een beheerder bij een openbare activiteit maakte');
+  perform t.ok(t.rows($q$select 1 from public.floorplans_3d where naam like 'Plattegrond van D%'$q$) = 0, 'bekijker ziet een plattegrond van een willekeurige gebruiker bij andermans activiteit niet');
+  perform t.ok((select array_agg(x order by x) from public.curator_ids() x) = array[a, b], 'curator_ids() geeft alleen eigenaar en admin');
+  perform t.ok(public.is_curator(b) and not public.is_curator(c), 'is_curator() volgt de rol');
+  perform t.as_anon();
+  perform t.ok(t.rows('select 1 from public.floorplans_3d') = 0, 'anoniem ziet ook de beheerplattegrond niet via RLS');
+
   -- ===== Storage =====
   perform t.as_user(b);
   perform t.ok(t.affected(format($q$insert into storage.objects (bucket_id, name) values ('floorplan-previews', %L)$q$, d::text || '/x.jpg')) = 1, 'admin kan een preview in andermans map schrijven');

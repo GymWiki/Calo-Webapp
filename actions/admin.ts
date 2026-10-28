@@ -121,8 +121,15 @@ export async function adminLinkFloorplan(floorplanId: string, activityId: string
   const ctx = await getAdminContext({ write: true });
   if ("error" in ctx) return ctx;
   if (activityId) {
-    const { data: exists } = await ctx.supabase.from("activiteiten").select("id").eq("id", activityId).maybeSingle();
-    if (!exists) return fail("Activiteit niet gevonden.");
+    const { data: activity } = await ctx.supabase.from("activiteiten").select("id, author_id").eq("id", activityId).maybeSingle();
+    if (!activity) return fail("Activiteit niet gevonden.");
+    // Alleen een plattegrond van de auteur of van een beheerder wordt bij de activiteit getoond (zie floorplans_curated_by_admin.sql).
+    const { data: floorplan } = await ctx.supabase.from("floorplans_3d").select("user_id").eq("id", floorplanId).maybeSingle();
+    if (!floorplan) return fail("Plattegrond niet gevonden.");
+    const { data: curator } = await ctx.supabase.rpc("is_curator", { p_user_id: floorplan.user_id });
+    if (floorplan.user_id !== activity.author_id && curator !== true) {
+      return fail("Alleen een plattegrond van de auteur of van een beheerder kan hieraan worden gekoppeld. Maak anders een nieuwe plattegrond.");
+    }
   }
   const { error, data } = await ctx.supabase.from("floorplans_3d").update({ activiteit_id: activityId }).eq("id", floorplanId).select("id");
   if (error || !data?.length) return fail(GENERIC);

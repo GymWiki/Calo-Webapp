@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, ImageOff, Lock, MapPinned, ThumbsUp, Users, Users2 } from "lucide-react";
+import { BookOpen, ImageOff, Lock, MapPinned, Pencil, ThumbsUp, Users, Users2 } from "lucide-react";
 
 import { getActivitySource, type ActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
@@ -177,8 +177,11 @@ function ActivityTile({
 export function LibraryItemCard({
   item,
   locked = false,
+  adminEditHref,
 }: {
   item: LibraryListItem;
+  /** Alleen voor beheerders: toont een "Bewerken"-knop op de kaart die naar het beheerscherm gaat (de rechten liggen in de database). */
+  adminEditHref?: string;
   /**
    * Preview-slot voor free_blocked-gebruikers (zie de brief): vervaagt
    * titel/thumbnail (CSS blur) en toont een slotje i.p.v. de kaart simpelweg
@@ -190,5 +193,20 @@ export function LibraryItemCard({
    */
   locked?: boolean;
 }) {
-  return <ActivityTile activity={item.activity} locked={locked} />;
+  if (!adminEditHref) return <ActivityTile activity={item.activity} locked={locked} />;
+  // De knop is een broertje van de kaartlink (geen geneste link, geen stretched-link-truc): klikken op de kaart blijft gewoon werken.
+  return (
+    <div className="relative">
+      <ActivityTile activity={item.activity} locked={locked} />
+      <Link
+        href={adminEditHref}
+        aria-label={`Bewerken: ${item.activity.titel}`}
+        title="Bewerken (beheer)"
+        data-testid="kaart-bewerken"
+        className="absolute top-1.5 left-1.5 z-10 inline-flex min-h-8 items-center gap-1 rounded-md border bg-card/95 px-2 text-[11px] font-semibold shadow-sm hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        <Pencil className="size-3" aria-hidden="true" /> Bewerken
+      </Link>
+    </div>
+  );
 }

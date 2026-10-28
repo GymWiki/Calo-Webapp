@@ -1,3 +1,4 @@
+import { isAdmin } from "@/lib/auth/roles";
 import type { SubscriptionStatus, UserProfile } from "@/lib/types";
 
 // Vlak fair-use-quotum voor AI-functies zonder eigen dedicated limiet — geen
@@ -44,13 +45,14 @@ export interface UserPermissions {
  * `subscription_status`, of null/undefined voor een uitgelogde bezoeker).
  */
 export function getUserPermissions(
-  profile: Pick<UserProfile, "subscription_status"> | null | undefined,
+  profile: (Pick<UserProfile, "subscription_status"> & { role?: UserProfile["role"] }) | null | undefined,
 ): UserPermissions {
   const subscriptionStatus = profile?.subscription_status || "free_contributor";
 
   return {
     subscriptionStatus,
-    hasFullLibraryAccess: subscriptionStatus !== "free_blocked",
+    // Beheerders (admin/owner) zien altijd de hele bibliotheek.
+    hasFullLibraryAccess: subscriptionStatus !== "free_blocked" || isAdmin(profile),
     monthlyAiLimit: MONTHLY_AI_LIMIT,
   };
 }

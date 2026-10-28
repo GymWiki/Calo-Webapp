@@ -153,7 +153,7 @@ export async function getActivityAudit(supabase: SupabaseClient, activityId: str
 
 export type LinkedFloorplan = { id: string; naam: string; ownerName: string; updated_at: string };
 
-export async function getFloorplansForAdmin(supabase: SupabaseClient, activityId: string) {
+export async function getFloorplansForAdmin(supabase: SupabaseClient, activityId: string, authorId: string | null) {
   const { data } = await supabase.from("floorplans_3d").select("id, naam, user_id, activiteit_id, updated_at").order("updated_at", { ascending: false }).limit(300);
   const rows = data ?? [];
   const ids = [...new Set(rows.map((r) => r.user_id as string))];
@@ -163,8 +163,12 @@ export async function getFloorplansForAdmin(supabase: SupabaseClient, activityId
     for (const u of users ?? []) names.set(u.id, `${u.first_name} ${u.last_name}`.trim() || "Onbekend");
   }
   const toRow = (r: (typeof rows)[number]): LinkedFloorplan => ({ id: r.id, naam: r.naam, ownerName: names.get(r.user_id) ?? "Onbekend", updated_at: r.updated_at });
+  const { data: curatorData } = await supabase.rpc("curator_ids");
+  const curators = new Set<string>(Array.isArray(curatorData) ? (curatorData as string[]) : []);
+  // Koppelen kan alleen met een plattegrond van de auteur of van een beheerder (anders ziet niemand hem bij de activiteit).
+  const linkable = (r: (typeof rows)[number]) => r.user_id === authorId || curators.has(r.user_id);
   return {
     linked: rows.filter((r) => r.activiteit_id === activityId).map(toRow),
-    available: rows.filter((r) => r.activiteit_id !== activityId).map((r) => ({ ...toRow(r), linkedTo: r.activiteit_id as string | null })),
+    available: rows.filter((r) => r.activiteit_id !== activityId && linkable(r)).map((r) => ({ ...toRow(r), linkedTo: r.activiteit_id as string | null })),
   };
 }

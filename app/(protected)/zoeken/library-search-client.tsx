@@ -482,6 +482,7 @@ export function LibrarySearchClient({
   publicActivities,
   previewActivityIds = null,
   currentUserId = null,
+  canEdit = false,
 }: {
   activities: Activity[];
   publicActivities: Activity[];
@@ -497,6 +498,8 @@ export function LibrarySearchClient({
   previewActivityIds?: string[] | null;
   /** Voor de "eigen bijdrage blijft altijd vrij"-uitzondering, zie isItemUnlocked. */
   currentUserId?: string | null;
+  /** Beheerders: elke kaart krijgt een "Bewerken"-knop naar het beheerscherm. */
+  canEdit?: boolean;
 }) {
   // Onthoud de laatst gekozen bron-tab per gebruiker (localStorage via de
   // module-level store hierboven) — geen server-round-trip nodig voor een
@@ -876,7 +879,11 @@ export function LibrarySearchClient({
                   className="animate-fade-up"
                   style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
                 >
-                  <LibraryItemCard item={item} locked={!isItemUnlocked(item, previewIdSet, currentUserId)} />
+                  <LibraryItemCard
+                    item={item}
+                    locked={!isItemUnlocked(item, previewIdSet, currentUserId)}
+                    adminEditHref={canEdit ? `/beheer/activiteiten/${item.id}` : undefined}
+                  />
                 </div>
               ))}
             </div>
