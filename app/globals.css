@@ -280,7 +280,61 @@
   }
 }
 
+/* Landingspagina: isometrische hero-animatie (components/landing/*). Alleen transform/opacity, geen JS-frameloop. */
+@keyframes iso-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-22px);
+  }
+  7% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  86% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+.iso-anim {
+  animation: iso-drop 11s var(--ease-brand) infinite both;
+  transform-box: fill-box;
+}
+
+/* Buiten beeld (IntersectionObserver zet data-paused) staat de animatie stil. */
+[data-paused="true"] .iso-anim {
+  animation-play-state: paused;
+}
+
+@keyframes iso-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.iso-float {
+  animation: iso-float 5s ease-in-out infinite;
+}
+
+[data-paused="true"] .iso-float {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .iso-anim,
+  .iso-float {
+    animation: none;
+    opacity: 1;
+  }
   .animate-landing-rise,
   .animate-fade-up,
   .animate-sheet-up,

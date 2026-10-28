@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { getFloorplan3d, listFloorplans3d } from "@/actions/floorplans3d";
 import { Floorplan3dEditorLoader } from "@/components/canvas-3d/Floorplan3dEditorLoader";
 import { DEV_PLACEHOLDER_MODELS } from "@/components/canvas-3d/devPlaceholderModels";
+import { GUEST_TOOL_PATH } from "@/lib/guest/constants";
 import { getActiveMaterialModels } from "@/lib/services/materialModels";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
@@ -29,11 +30,11 @@ export default async function Plattegrond3dPage({
   searchParams: Promise<{ open?: string; activiteit?: string; debug?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
-  if (!profile) {
-    redirect("/login");
-  }
-
   const { open, activiteit, debug } = await searchParams;
+  if (!profile) {
+    // Zonder account: de gratis tool is de juiste plek. Een link naar een opgeslagen plattegrond of activiteit vraagt wél om in te loggen.
+    redirect(open || activiteit ? "/login" : `${GUEST_TOOL_PATH}#start`);
+  }
 
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);

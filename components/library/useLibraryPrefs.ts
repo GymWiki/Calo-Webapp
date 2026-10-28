@@ -33,7 +33,8 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
-export function useLibraryPrefs() {
+/** `syncServer: false` (gastmodus, geen account): favorieten blijven lokaal, er gaan geen serveracties af. */
+export function useLibraryPrefs({ syncServer = true }: { syncServer?: boolean } = {}) {
   // De bibliotheek leeft in de ssr:false-editor, dus localStorage is bij de
   // eerste render al beschikbaar (readJson valt anders veilig terug).
   const [favorites, setFavorites] = useState<string[]>(() => readJson<string[]>(FAVORITES_KEY, []));
@@ -43,6 +44,7 @@ export function useLibraryPrefs() {
   const [view, setViewState] = useState<LibraryView>(() => (readJson<LibraryView>(VIEW_KEY, "grid") === "list" ? "list" : "grid"));
 
   useEffect(() => {
+    if (!syncServer) return;
     // Aanvullen vanuit Supabase (best effort): favorieten van andere apparaten.
     let cancelled = false;
     void listModelFavorites()
@@ -62,7 +64,7 @@ export function useLibraryPrefs() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [syncServer]);
 
   const toggleFavorite = useCallback((slug: string) => {
     const current = favoritesRef.current;
@@ -71,8 +73,8 @@ export function useLibraryPrefs() {
     favoritesRef.current = next;
     setFavorites(next);
     writeJson(FAVORITES_KEY, next);
-    void setModelFavorite(slug, on).catch(() => {});
-  }, []);
+    if (syncServer) void setModelFavorite(slug, on).catch(() => {});
+  }, [syncServer]);
 
   const pushRecent = useCallback((slug: string) => {
     setRecent((current) => {

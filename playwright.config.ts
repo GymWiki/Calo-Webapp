@@ -38,6 +38,7 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 180_000,
     env: {
+      E2E_HARNESS: "1",
       NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "dummy-key",
     },

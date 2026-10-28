@@ -13,10 +13,12 @@ export function MaterialModelPicker3D({
   models,
   onSelect,
   surfaceClassName,
+  syncFavorites,
 }: {
   models: MaterialModel[];
   onSelect: (model: MaterialModel) => void;
   surfaceClassName?: string;
+  syncFavorites?: boolean;
 }) {
-  return <ModelLibrary models={models} onSelect={onSelect} surfaceClassName={surfaceClassName} />;
+  return <ModelLibrary models={models} onSelect={onSelect} surfaceClassName={surfaceClassName} syncFavorites={syncFavorites} />;
 }

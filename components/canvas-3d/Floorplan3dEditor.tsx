@@ -6,6 +6,8 @@ import type { ThreeEvent } from "@react-three/fiber";
 import {
   AlertTriangle,
   Check,
+  FilePlus2,
+  X,
   Cone,
   Copy,
   Loader2,
@@ -20,6 +22,14 @@ import { toast } from "@/components/canvas-3d/mobile/editor-toast";
 
 import { deleteFloorplan3d, renameFloorplan3d, saveFloorplan3d, saveFloorplanPreview } from "@/actions/floorplans3d";
 import { BackButton } from "@/components/BackButton";
+import { GuestExportMenu, type GuestExportAction } from "@/components/guest/GuestExportMenu";
+import { GuestUpsellBanner } from "@/components/guest/GuestUpsellBanner";
+import { trackEvent } from "@/lib/analytics/track";
+import { GUEST_TOOL_PATH } from "@/lib/guest/constants";
+import { downloadBlob, withWatermark } from "@/lib/guest/export-image";
+import { buildShareLink, encodeFloorplan } from "@/lib/guest/share-codec";
+import { DEFAULT_VIEW, type ViewState } from "@/components/plattegrond/viewer-camera";
+import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -144,6 +154,9 @@ export function Floorplan3dEditor({
   debug = false,
   debugCollision = false,
   debugLegacy = false,
+  guest = false,
+  guestPlan = null,
+  onGuestClose,
 }: {
   models: MaterialModel[];
   initialFloorplans: Floorplan3dSummary[];
@@ -157,6 +170,15 @@ export function Floorplan3dEditor({
   debugCollision?: boolean;
   /** `?debug=collision-legacy`: de oude gecentreerde box (voor/na-vergelijking). */
   debugLegacy?: boolean;
+  /**
+   * Gastmodus (gratis tool, zonder account): GEEN server-acties. Opslaan = lokale kladversie (localStorage), delen/exporteren
+   * gebeurt volledig in de browser, en "Mijn plattegronden" bestaat niet.
+   */
+  guest?: boolean;
+  /** Gastmodus: een plattegrond uit een gedeelde link of voorbeeld (opent als nieuwe, lokale plattegrond). */
+  guestPlan?: { naam?: string; data: Floorplan3dData } | null;
+  /** Gastmodus: sluit de editor (terug naar de tekstpagina eromheen). */
+  onGuestClose?: () => void;
 }) {
   const router = useRouter();
   const lookup = useMemo(() => dimsLookupFromModels(models, debugLegacy), [models, debugLegacy]);
@@ -172,20 +194,42 @@ export function Floorplan3dEditor({
     return orientationFor({ slug, categorie: model?.categorie, subgroep: model?.subgroep }, dims ? isElevated(shapeOfDims(dims)) : false);
   }
 
-  const [room, setRoom] = useState<Floorplan3dRoom>(initialFloorplan?.data.room ?? NEW_ROOM);
+  // Beginstand: een geopende plattegrond (ingelogd), of in gastmodus een gedeelde link/voorbeeld, of anders de lokale kladversie
+  // van de vorige keer (stil hersteld: gasten hebben geen "Mijn plattegronden").
+  const [seed] = useState<{ id: string | null; naam: string; data: Floorplan3dData } | null>(() => {
+    if (initialFloorplan) return initialFloorplan;
+    if (!guest) return null;
+    if (guestPlan) return { id: null, naam: guestPlan.naam ?? "Gedeelde plattegrond", data: guestPlan.data };
+    try {
+      const raw = window.localStorage.getItem(draftStorageKey(null));
+      const stored = raw ? (JSON.parse(raw) as DraftPlan) : null;
+      if (stored && (stored.items.length > 0 || stored.coneFields.length > 0)) {
+        return {
+          id: null,
+          naam: stored.naam || "Nieuwe plattegrond",
+          data: { version: 1, room: stored.room as Floorplan3dRoom, items: stored.items as Floorplan3dItem[], coneFields: stored.coneFields as ConeField[] },
+        };
+      }
+    } catch {
+      // geen localStorage of kapotte kladversie: begin leeg
+    }
+    return null;
+  });
+
+  const [room, setRoom] = useState<Floorplan3dRoom>(seed?.data.room ?? NEW_ROOM);
   const [items, setItems] = useState<Floorplan3dItem[]>(() =>
-    initialFloorplan
+    seed
       ? recomputeStackedYs(
           // Kantelhoeken binnen de limieten van het asset (oude plattegronden hebben er geen: ongewijzigd).
-          initialFloorplan.data.items.map((item) => normalizeItemRotation(item, orientationOfSlug(item.slug))),
+          seed.data.items.map((item) => normalizeItemRotation(item, orientationOfSlug(item.slug))),
           lookup,
         )
       : [],
   );
   // Oudere plattegronden hebben geen `coneFields` (de server geeft de jsonb ongeparsed terug).
-  const [coneFields, setConeFields] = useState<ConeField[]>(initialFloorplan?.data.coneFields ?? []);
-  const [floorplanId, setFloorplanId] = useState<string | null>(initialFloorplan?.id ?? null);
-  const [floorplanName, setFloorplanName] = useState(initialFloorplan?.naam ?? "Nieuwe plattegrond");
+  const [coneFields, setConeFields] = useState<ConeField[]>(seed?.data.coneFields ?? []);
+  const [floorplanId, setFloorplanId] = useState<string | null>(seed?.id ?? null);
+  const [floorplanName, setFloorplanName] = useState(seed?.naam ?? "Nieuwe plattegrond");
   const [floorplans, setFloorplans] = useState<Floorplan3dSummary[]>(initialFloorplans);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -306,6 +350,11 @@ export function Floorplan3dEditor({
 
   const performSaveRef = useRef<() => Promise<void>>(async () => {});
   const performSave = useCallback(async () => {
+    // Gastmodus: niets naar de server. De lokale kladversie (zie het draft-effect hieronder) is de opslag.
+    if (guest) {
+      setSaveStatus("saved");
+      return;
+    }
     setSaveStatus("saving");
     const { room: currentRoom, items: currentItems, coneFields: currentFields, naam } = latestStateRef.current;
     let result: Awaited<ReturnType<typeof saveFloorplan3d>>;
@@ -345,7 +394,7 @@ export function Floorplan3dEditor({
     }
     setSaveStatus("saved");
     scheduleThumbnail();
-  }, [activiteitId, scheduleThumbnail]);
+  }, [activiteitId, scheduleThumbnail, guest]);
 
   useEffect(() => {
     performSaveRef.current = performSave;
@@ -419,6 +468,7 @@ export function Floorplan3dEditor({
 
   // Bij openen: staat er een nieuwere, niet-opgeslagen kladversie, bied herstel aan.
   useEffect(() => {
+    if (guest) return; // gastmodus herstelt stil via `seed`
     let draft: DraftPlan | null = null;
     const key = draftStorageKey(initialFloorplan?.id ?? null);
     try {
@@ -437,7 +487,7 @@ export function Floorplan3dEditor({
     const found = draft;
     toast("Niet-opgeslagen wijzigingen gevonden", {
       id: "draft-restore",
-      description: "Van een eerdere sessie. Wil je die herstellen?",
+      description: "Van een eerdere sessie of uit de gratis tool. Herstel hem om hem in je account te bewaren.",
       duration: Infinity,
       action: {
         label: "Herstellen",
@@ -468,12 +518,12 @@ export function Floorplan3dEditor({
   // Waarschuwing bij verlaten met onopgeslagen wijzigingen; opnieuw proberen zodra de verbinding terug is.
   useEffect(() => {
     function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (!dirtyRef.current) return;
+      if (guest || !dirtyRef.current) return; // gasten bewaren lokaal: geen waarschuwing nodig
       event.preventDefault();
       event.returnValue = "";
     }
     function onOnline() {
-      if (dirtyRef.current) void performSaveRef.current();
+      if (!guest && dirtyRef.current) void performSaveRef.current();
     }
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("online", onOnline);
@@ -481,6 +531,7 @@ export function Floorplan3dEditor({
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("online", onOnline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSaveNow() {
@@ -1169,6 +1220,15 @@ export function Floorplan3dEditor({
     setFloorplanName("Nieuwe plattegrond");
     setSelectedId(null);
     setMobilePanel(null);
+    if (guest) {
+      // "Nieuwe plattegrond" wist ook de lokale kladversie, anders komt de oude bij het volgende bezoek terug.
+      dirtyRef.current = false;
+      try {
+        window.localStorage.removeItem(draftStorageKey(null));
+      } catch {
+        // niets te wissen
+      }
+    }
   }
 
   async function handleRename(id: string, naam: string) {
@@ -1195,6 +1255,113 @@ export function Floorplan3dEditor({
     setMobilePanel(null);
     router.push(`/plattegrond-3d?open=${id}`);
   }
+
+  // ---------------------------------------------------------------------
+  // Gastmodus: delen en exporteren (alles in de browser), analytics-events en de zachte upsell.
+  // ---------------------------------------------------------------------
+  const [guestBusy, setGuestBusy] = useState<GuestExportAction | null>(null);
+  const [upsellVisible, setUpsellVisible] = useState(false);
+  const [captureView, setCaptureView] = useState<ViewState | null>(null);
+  // Elke opname krijgt een eigen sleutel: twee opnames kort na elkaar (PDF: 3D + bovenaanzicht) mounten zo twee keer opnieuw.
+  const [captureSeq, setCaptureSeq] = useState(0);
+  const captureResolveRef = useRef<((dataUrl: string) => void) | null>(null);
+  const handleCaptured = useCallback((dataUrl: string) => {
+    const resolve = captureResolveRef.current;
+    captureResolveRef.current = null;
+    setCaptureView(null);
+    // Een frame wachten zodat de oude opname-component écht unmount vóór een volgende opname start.
+    window.requestAnimationFrame(() => resolve?.(dataUrl));
+  }, []);
+  const [captureFormat, setCaptureFormat] = useState<{ mime: "image/png" | "image/jpeg"; width: number; height: number }>({ mime: "image/png", width: 1600, height: 900 });
+  function captureImage(preset: "3d" | "top", format: { mime: "image/png" | "image/jpeg"; width: number; height: number } = { mime: "image/png", width: 1600, height: 900 }): Promise<string> {
+    return new Promise((resolve) => {
+      setCaptureFormat(format);
+      captureResolveRef.current = resolve;
+      setCaptureSeq((value) => value + 1);
+      setCaptureView({ ...DEFAULT_VIEW, preset });
+    });
+  }
+
+  useEffect(() => {
+    if (guest) trackEvent("editor_gestart", { met_plattegrond: Boolean(seed) });
+    // alleen bij het openen
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const firstItemTrackedRef = useRef(false);
+  useEffect(() => {
+    if (!guest || firstItemTrackedRef.current || items.length === 0) return;
+    firstItemTrackedRef.current = true;
+    trackEvent("eerste_item_geplaatst");
+  }, [guest, items.length]);
+
+  async function runGuestExport(action: GuestExportAction) {
+    if (guestBusy) return;
+    if (items.length === 0 && coneFields.length === 0) {
+      toast.info("Zet eerst iets neer op de plattegrond; dan kun je delen of exporteren.");
+      return;
+    }
+    setGuestBusy(action);
+    try {
+      const data: Floorplan3dData = { version: 1, room, items, coneFields };
+      const baseName = (floorplanName || "plattegrond").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "plattegrond";
+      if (action === "link") {
+        const link = buildShareLink(`${window.location.origin}${GUEST_TOOL_PATH}`, await encodeFloorplan(data));
+        if (link.tooLong) {
+          toast.error("Deze plattegrond is te groot voor een link. Download de afbeelding of PDF om hem te delen.");
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(link.url);
+          toast.success("Link gekopieerd. Wie hem opent, ziet dezelfde plattegrond, zonder account.");
+        } catch {
+          window.prompt("Kopieer deze link", link.url);
+        }
+        trackEvent("deelbare_link", { lengte: link.length });
+      } else if (action === "png-3d" || action === "png-top") {
+        const blob = await withWatermark(await captureImage(action === "png-3d" ? "3d" : "top"));
+        downloadBlob(blob, `gymwiki-${baseName}-${action === "png-3d" ? "3d" : "bovenaanzicht"}.png`);
+        trackEvent("export_png", { weergave: action === "png-3d" ? "3d" : "bovenaanzicht" });
+      } else {
+        // JPEG op 1200 × 675: de PDF-engine decodeert PNG's van 1600 × 900 in de browser traag.
+        const pdfFormat = { mime: "image/jpeg", width: 1200, height: 675 } as const;
+        const image3d = await captureImage("3d", pdfFormat);
+        const imageTop = await captureImage("top", pdfFormat);
+        const nameBySlug = new Map(models.map((model) => [model.slug, model.naam]));
+        const categoryBySlug = new Map(models.map((model) => [model.slug, model.categorie]));
+        const summary = summarizeFloorplan(items, coneFields, (slug) => nameBySlug.get(slug), (slug) => categoryBySlug.get(slug));
+        // @react-pdf/renderer (2,8 MB) pas laden op het moment van exporteren, nooit in de statische bundel.
+        const [{ pdf }, { FloorplanPdfDocument }, { createElement }] = await Promise.all([
+          import("@react-pdf/renderer"),
+          import("@/components/guest/FloorplanPdfDocument"),
+          import("react"),
+        ]);
+        const blob = await pdf(createElement(FloorplanPdfDocument, { title: floorplanName || "Plattegrond", summary, image3d, imageTop })).toBlob();
+        downloadBlob(blob, `gymwiki-${baseName}.pdf`);
+        trackEvent("export_pdf", { items: summary.itemTotal });
+      }
+      setUpsellVisible(true);
+    } catch (error) {
+      console.error("Gast-export mislukt:", error);
+      toast.error("Exporteren is niet gelukt. Probeer het opnieuw.");
+    } finally {
+      setGuestBusy(null);
+    }
+  }
+
+  const captureMount = captureView && (
+    <FloorplanThumbnailCapture
+      key={captureSeq}
+      room={room}
+      items={items}
+      fields={coneFields}
+      models={models}
+      view={captureView}
+      width={captureFormat.width}
+      height={captureFormat.height}
+      mime={captureFormat.mime}
+      onCapture={handleCaptured}
+    />
+  );
 
   const saveStatusLabel: Record<typeof saveStatus, string> = {
     idle: "",
@@ -1473,7 +1640,7 @@ export function Floorplan3dEditor({
 
   function panelContent(panel: Exclude<MobilePanel, null>) {
     if (panel === "materiaal") {
-      return <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName={layout === "phone" ? "bg-background" : "bg-card"} />;
+      return <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} surfaceClassName={layout === "phone" ? "bg-background" : "bg-card"} />;
     }
     // Op touch: knoppen en velden in de panelen minimaal 44 px hoog (de panelen zelf zijn voor muis ontworpen).
     const touchSizing = "[&_button:not([role=switch])]:pointer-coarse:min-h-11 [&_input]:pointer-coarse:min-h-11";
@@ -1505,7 +1672,18 @@ export function Floorplan3dEditor({
     return (
       <div className="flex h-[100dvh] flex-col overscroll-none">
         <header className="flex shrink-0 items-center gap-1 border-b bg-card px-2 pt-[env(safe-area-inset-top)]">
-          <BackButton fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"} fallbackLabel="Terug" className="-ml-1 h-11" />
+          {guest ? (
+            <button
+              type="button"
+              aria-label="Editor sluiten"
+              onClick={onGuestClose}
+              className="-ml-1 flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <X className="size-5" aria-hidden="true" />
+            </button>
+          ) : (
+            <BackButton fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"} fallbackLabel="Terug" className="-ml-1 h-11" />
+          )}
           <input
             value={floorplanName}
             onChange={(event) => {
@@ -1518,25 +1696,31 @@ export function Floorplan3dEditor({
           <span role="status" aria-label={saveStatusLabel[saveStatus]} className="flex size-6 shrink-0 items-center justify-center">
             {saveIcon}
           </span>
-          <button
-            type="button"
-            aria-label="Opslaan"
-            onClick={() => void handleSaveNow()}
-            disabled={saveStatus === "saving"}
-            className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 disabled:opacity-60"
-          >
-            <Save className="size-5" aria-hidden="true" />
-          </button>
+          {guest ? (
+            <GuestExportMenu compact onAction={(action) => void runGuestExport(action)} busy={guestBusy} />
+          ) : (
+            <button
+              type="button"
+              aria-label="Opslaan"
+              onClick={() => void handleSaveNow()}
+              disabled={saveStatus === "saving"}
+              className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 disabled:opacity-60"
+            >
+              <Save className="size-5" aria-hidden="true" />
+            </button>
+          )}
           <OverflowMenu
             settings={settings}
             onSettings={updateSettings}
-            onOpenList={() => setMobilePanel("lijst")}
+            onOpenList={guest ? undefined : () => setMobilePanel("lijst")}
+            onNewPlan={guest ? startNewFloorplan : undefined}
             onShowHelp={() => setOnboarding(true)}
           />
         </header>
 
         <div className="relative min-h-0 flex-1 overflow-hidden" data-testid="editor-canvas-area">
           {scene}
+          {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
           {drawChip}
           {fieldHud}
           {cameraMenuOpen && (
@@ -1604,6 +1788,7 @@ export function Floorplan3dEditor({
             onCapture={handleThumbnailCaptured}
           />
         )}
+        {captureMount}
       </div>
     );
   }
@@ -1611,7 +1796,13 @@ export function Floorplan3dEditor({
   return (
     <div className="flex h-[100dvh] flex-col overscroll-none">
       <div className="flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2">
-        <BackButton fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"} fallbackLabel="Terug" className="-ml-2" />
+        {guest ? (
+          <Button type="button" variant="ghost" size="sm" className="-ml-2" onClick={onGuestClose}>
+            <X className="size-4" aria-hidden="true" /> Sluiten
+          </Button>
+        ) : (
+          <BackButton fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"} fallbackLabel="Terug" className="-ml-2" />
+        )}
         <Input
           value={floorplanName}
           onChange={(event) => {
@@ -1621,7 +1812,7 @@ export function Floorplan3dEditor({
           className="h-9 max-w-56 border-none bg-transparent text-sm font-semibold shadow-none focus-visible:ring-1"
         />
         <span className="hidden text-xs text-muted-foreground sm:inline" aria-live="polite">
-          {saveStatusLabel[saveStatus]}
+          {guest ? "Automatisch bewaard op dit apparaat" : saveStatusLabel[saveStatus]}
         </span>
         <div className="ml-auto flex items-center gap-1.5">
           <Button
@@ -1641,13 +1832,25 @@ export function Floorplan3dEditor({
           <Button type="button" variant="ghost" size="icon" disabled={!history.canRedo} onClick={handleRedo} title="Opnieuw (Ctrl+Shift+Z)">
             <Redo2 className="size-4" />
           </Button>
-          <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setMobilePanel("lijst")}>
-            Mijn plattegronden
-          </Button>
-          <Button type="button" size="sm" onClick={() => void handleSaveNow()} disabled={saveStatus === "saving"}>
-            {saveStatus === "saving" ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            Opslaan
-          </Button>
+          {guest ? (
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={startNewFloorplan} title="Begin opnieuw met een lege plattegrond">
+                <FilePlus2 className="size-4" aria-hidden="true" />
+                <span className="hidden md:inline">Nieuwe plattegrond</span>
+              </Button>
+              <GuestExportMenu onAction={(action) => void runGuestExport(action)} busy={guestBusy} />
+            </>
+          ) : (
+            <>
+              <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setMobilePanel("lijst")}>
+                Mijn plattegronden
+              </Button>
+              <Button type="button" size="sm" onClick={() => void handleSaveNow()} disabled={saveStatus === "saving"}>
+                {saveStatus === "saving" ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                Opslaan
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1662,11 +1865,12 @@ export function Floorplan3dEditor({
           >
             <Cone className="size-4" /> Veld afzetten
           </Button>
-          <MaterialModelPicker3D models={models} onSelect={handleAddModel} />
+          <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>
 
         <div className="relative min-w-0 flex-1">
           {scene}
+          {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
 
           {drawChip}
 
@@ -1697,6 +1901,7 @@ export function Floorplan3dEditor({
           onCapture={handleThumbnailCaptured}
         />
       )}
+      {captureMount}
 
       <Sheet open={activePanel !== null} onOpenChange={(open) => !open && setMobilePanel(null)}>
         <SheetContent side="bottom" className="h-[70vh] overflow-y-auto">
@@ -1710,7 +1915,7 @@ export function Floorplan3dEditor({
             </SheetTitle>
           </SheetHeader>
           <div className={cn("px-4 pb-6")}>
-            {activePanel === "materiaal" && <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName="bg-background" />}
+            {activePanel === "materiaal" && <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} surfaceClassName="bg-background" />}
             {activePanel === "item" && itemPanel}
             {activePanel === "rotatie" && rotationPanel}
             {activePanel === "kamer" && roomPanel}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { HelpCircle, MoreVertical, FolderOpen } from "lucide-react";
+import { FilePlus2, HelpCircle, MoreVertical, FolderOpen } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { QUALITY_SETTINGS, type QualitySetting } from "@/components/canvas-3d/mobile/mobile-logic";
@@ -17,11 +17,15 @@ export function OverflowMenu({
   settings,
   onSettings,
   onOpenList,
+  onNewPlan,
   onShowHelp,
 }: {
   settings: EditorSettings;
   onSettings: (patch: Partial<EditorSettings>) => void;
-  onOpenList: () => void;
+  /** Zonder (gastmodus: geen opgeslagen plattegronden) verdwijnt "Mijn plattegronden" uit het menu. */
+  onOpenList?: () => void;
+  /** Alleen gastmodus: "Nieuwe plattegrond" (wist de lokale kladversie). */
+  onNewPlan?: () => void;
   onShowHelp: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -57,6 +61,7 @@ export function OverflowMenu({
       </button>
       {open && (
         <div role="menu" aria-label="Meer acties" className="absolute top-full right-0 z-50 mt-1 w-72 rounded-xl border bg-popover p-2 text-popover-foreground shadow-xl">
+          {onOpenList && (
           <button
             type="button"
             role="menuitem"
@@ -68,6 +73,20 @@ export function OverflowMenu({
           >
             <FolderOpen className="size-4" aria-hidden="true" /> Mijn plattegronden
           </button>
+          )}
+          {onNewPlan && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onNewPlan();
+              }}
+              className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-medium hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <FilePlus2 className="size-4" aria-hidden="true" /> Nieuwe plattegrond
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"

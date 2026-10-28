@@ -1,5 +1,8 @@
 import type { MetadataRoute } from "next";
 
+import { GUEST_TOOL_PATH } from "@/lib/guest/constants";
+import { LONGTAIL_PAGES } from "@/lib/guest/longtail-pages";
+
 // Disallow-lijst spiegelt proxy.ts's PROTECTED_PREFIXES (+ /beheer, altijd
 // admin-only, en /api): die pagina's redirecten anonieme bezoekers/crawlers
 // toch naar /login, dus laten crawlen heeft geen nut en kan zoekmachines
@@ -26,6 +29,8 @@ const PUBLIC_ALLOW = [
   "/leerlijn",
   "/groep",
   "/over-gymwiki",
+  GUEST_TOOL_PATH,
+  ...LONGTAIL_PAGES.map((page) => `/${page.slug}`),
 ];
 
 const PROTECTED_DISALLOW = [

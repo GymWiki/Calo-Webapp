@@ -1,3 +1,4 @@
+import { GuestPlanReminder } from "@/components/guest/GuestPlanReminder";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -37,6 +38,8 @@ export default async function DashboardPage() {
         title={`Welkom terug, ${profile.first_name}`}
         description="Hier vind je je snelle acties, je activiteiten en wat er speelt in de community."
       />
+
+      <GuestPlanReminder />
 
       {/* Eigen Suspense-boundary i.p.v. hier zelf awaiten: getContributionStatus
           hoort geen streaming van de rest van de pagina (met name de
