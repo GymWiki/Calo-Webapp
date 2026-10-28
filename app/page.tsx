@@ -14,6 +14,11 @@ import { GymWikiLogo } from "@/components/GymWikiLogo";
 import { LibraryItemCard } from "@/components/library-item-card";
 import { PlanCard } from "@/components/subscription/PlanCard";
 import { ScrollReveal } from "@/components/ScrollReveal";
+import { CountUp } from "@/components/landing/CountUp";
+import { EditorMockup } from "@/components/landing/EditorMockup";
+import { ACCOUNT_BENEFITS, FeatureGrid } from "@/components/landing/FeatureGrid";
+import { InteractiveTeaser } from "@/components/landing/InteractiveTeaser";
+import { GUEST_TOOL_PATH } from "@/lib/guest/constants";
 import {
   FREE_PLAN_INFO,
   MONTHLY_CONTRIBUTION_REQUIRED_COUNT,
@@ -24,7 +29,6 @@ import {
   TEAM_PLANS,
 } from "@/lib/constants/subscriptionPlans";
 import { getLandingSnapshot } from "@/lib/services/landing";
-import { cn } from "@/lib/utils";
 
 // Publieke marketingpagina zonder gebruikerssessie — leest geen cookies, dus
 // Next.js kan 'm statisch genereren en periodiek verversen i.p.v. bij elke
@@ -34,9 +38,9 @@ import { cn } from "@/lib/utils";
 // bibliotheek groeit.
 export const revalidate = 3600;
 
-const TITLE = "GymWiki — Activiteiten en lesideeën voor bewegingsonderwijs";
+const TITLE = "GymWiki — Gratis 3D-gymzaal plattegrond en lesideeën LO";
 const DESCRIPTION =
-  "Gratis activiteitenbibliotheek voor bewegingsonderwijs. Bereid je gymles voor met lesideeën gymnastiek, gedeeld en gecontroleerd door vakleerkrachten LO.";
+  "Maak gratis een 3D-plattegrond van je gymzaal, zonder account. Plus een activiteitenbibliotheek voor bewegingsonderwijs, gecontroleerd door vakleerkrachten LO.";
 const URL = "https://www.gymwiki.nl";
 
 // Server-gerenderd via Next.js' metadata-export (dus aanwezig in de ruwe
@@ -98,6 +102,11 @@ const PRICING_CARDS = [
 // als FAQPage-structured-data uitgestuurd, dus zichtbare inhoud en schema
 // kunnen nooit uit elkaar lopen.
 const FAQ_ITEMS = [
+  {
+    question: "Kan ik echt gratis een gymzaal plattegrond in 3D maken zonder account?",
+    answer:
+      "Ja. De 3D-plattegrondeditor van GymWiki is volledig gratis te gebruiken zonder account. Je bouwt je opstelling met toestellen, matten en pionnen, exporteert hem als PNG of PDF met materiaallijst en deelt hem met een link. Je werk wordt automatisch op je eigen apparaat bewaard; met een gratis account bewaar je het ook in de cloud.",
+  },
   {
     question: "Is GymWiki echt gratis?",
     answer: `Ja — GymWiki is volledig gratis zolang je minstens ${MONTHLY_CONTRIBUTION_REQUIRED_COUNT} activiteiten per maand deelt met de gezamenlijke bibliotheek. Elke bijdrage gaat eerst langs een AI-kwaliteitscontrole; zodra ${MONTHLY_CONTRIBUTION_REQUIRED_COUNT} activiteiten in een kalendermaand zijn goedgekeurd, houd je die maand onbeperkte, gratis toegang tot de volledige activiteitenbibliotheek.`,
@@ -217,17 +226,6 @@ function buildStructuredData() {
   };
 }
 
-function PrimaryCta({ className }: { className?: string }) {
-  return (
-    <Button asChild size="lg" className={cn("rounded-full px-7", className)}>
-      <Link href="/register">
-        Gratis aan de slag
-        <ArrowRight className="size-4" />
-      </Link>
-    </Button>
-  );
-}
-
 /**
  * Illustratieve, schematische "activiteitkaart"-doorsnede — geen echte
  * database-rij, maar wél exact dezelfde drie kop-secties (Doel,
@@ -282,50 +280,6 @@ function ActivityStructurePreview() {
   );
 }
 
-/**
- * Decoratieve, met SVG getekende "zaalvloer" — bewust geen stockfoto (zie de
- * brief) maar een belijnings-esthetiek zoals in de plattegrondeditor
- * (rechthoekige veldrand, middencirkel, boogvormige zone, spelers als
- * stippen), puur decoratief dus aria-hidden.
- */
-function HeroCourtIllustration() {
-  return (
-    <div className="relative aspect-4/3 w-full overflow-hidden rounded-3xl border border-ink/10 bg-charcoal shadow-brand-lg dark:border-paper/10">
-      <svg viewBox="0 0 400 300" className="size-full" aria-hidden="true">
-        <rect x="24" y="24" width="352" height="252" rx="16" fill="none" stroke="var(--line-blue)" strokeWidth="3" opacity="0.55" />
-        <line x1="200" y1="24" x2="200" y2="276" stroke="var(--line-blue)" strokeWidth="2" opacity="0.35" />
-        <circle cx="200" cy="150" r="42" fill="none" stroke="var(--court-yellow)" strokeWidth="3" strokeDasharray="7 7" opacity="0.8" />
-        <path
-          d="M 70 70 A 100 100 0 0 1 70 230"
-          fill="none"
-          stroke="var(--cone)"
-          strokeWidth="3.5"
-          opacity="0.85"
-        />
-        <path
-          d="M 330 70 A 100 100 0 0 0 330 230"
-          fill="none"
-          stroke="var(--cone)"
-          strokeWidth="3.5"
-          opacity="0.5"
-        />
-        <circle cx="128" cy="96" r="8" fill="var(--cone)" />
-        <circle cx="272" cy="204" r="8" fill="var(--line-blue)" />
-        <circle cx="310" cy="90" r="8" fill="var(--court-yellow)" />
-        <circle cx="96" cy="210" r="8" fill="var(--paper)" opacity="0.85" />
-      </svg>
-      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-charcoal/90 to-transparent p-5">
-        <p className="font-mono text-[0.65rem] font-medium tracking-[0.18em] text-paper/70 uppercase">
-          Zo bouw je &apos;m zelf
-        </p>
-        <p className="mt-1 text-sm font-semibold text-paper">
-          Plattegronden, sportvelden en materiaal — één 3D-plattegrond per activiteit.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export default async function LandingPage() {
   // Deze publieke pagina wordt statisch (her)gegenereerd (zie `revalidate`
   // hierboven) — als Supabase op dat moment onbereikbaar is of de
@@ -358,6 +312,12 @@ export default async function LandingPage() {
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6 sm:px-8">
         <GymWikiLogo size={32} wordmarkClassName="text-xl" />
         <nav className="flex items-center gap-5">
+          <Link
+            href={GUEST_TOOL_PATH}
+            className="hidden text-sm font-medium text-foreground/70 underline-offset-4 hover:text-foreground hover:underline sm:inline"
+          >
+            3D-editor
+          </Link>
           <a
             href="#hoe-het-werkt"
             className="hidden text-sm font-medium text-foreground/70 underline-offset-4 hover:text-foreground hover:underline sm:inline"
@@ -388,38 +348,113 @@ export default async function LandingPage() {
         </nav>
       </header>
 
-      {/* Hero */}
-      <section className="mx-auto w-full max-w-6xl px-6 pt-10 pb-16 sm:px-8 sm:pt-14 sm:pb-24">
-        <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+      {/* Hero: de gratis 3D-editor is het belangrijkste verkoopargument */}
+      <section className="mx-auto w-full max-w-6xl px-6 pt-8 pb-14 sm:px-8 sm:pt-12 sm:pb-20">
+        <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.05fr] lg:gap-14">
           <div className="animate-landing-rise" style={{ animationDelay: "0ms" }}>
             <p className="font-mono text-xs font-medium tracking-[0.2em] text-primary uppercase">
-              Door en voor vakleerkrachten LO
+              Gratis 3D-plattegrondeditor
             </p>
             <h1 className="font-display mt-4 text-4xl leading-[0.98] tracking-tight sm:text-5xl md:text-6xl">
-              Elk kind heeft recht op betekenisvol bewegingsonderwijs.
+              Maak je gymzaal-opstelling in 3D. Gratis, zonder account.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              GymWiki is de activiteitenbibliotheek voor bewegingsonderwijs die vakleerkrachten
-              zelf bouwen, controleren en in stand houden — gebaseerd op het Basisdocument
-              Bewegingsonderwijs, niet op losse, lukrake spelletjes.
+              Sleep toestellen, matten en pionnen in je zaal, bekijk het van alle kanten en deel het met een link of als PDF.
+              Direct in je browser, op telefoon, tablet en computer.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <PrimaryCta />
+              <Button asChild size="lg" className="rounded-full px-7 transition-transform hover:scale-[1.03] active:scale-95 motion-reduce:transition-none">
+                <Link href={`${GUEST_TOOL_PATH}#start`}>
+                  Start gratis
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
               <Button asChild size="lg" variant="outline" className="rounded-full px-7">
-                <a href="#bibliotheek">Bekijk de bibliotheek</a>
+                <a href="#voorbeeld">Bekijk voorbeeld</a>
               </Button>
             </div>
-            <a
-              href="#hoe-het-werkt"
-              className="mt-6 inline-block text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Hoe werkt het collectieve model? ↓
-            </a>
+            <p className="mt-5 text-sm text-muted-foreground">
+              Nieuw bij GymWiki? Ontdek ook de{" "}
+              <a href="#bibliotheek" className="font-medium text-foreground underline-offset-4 hover:underline">
+                activiteitenbibliotheek voor bewegingsonderwijs
+              </a>
+              .
+            </p>
           </div>
 
           <div className="animate-landing-rise" style={{ animationDelay: "120ms" }}>
-            <HeroCourtIllustration />
+            <EditorMockup />
           </div>
+        </div>
+      </section>
+
+      {/* Vertrouwen: concrete, controleerbare feiten (geen verzonnen aantallen gebruikers) */}
+      <section aria-label="Kort samengevat" className="border-y bg-muted/40 px-6 py-8 sm:px-8">
+        <dl className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-6 text-center lg:grid-cols-4">
+          {[
+            { waarde: <CountUp value={180} suffix="+" />, label: "3D-modellen gymmateriaal" },
+            { waarde: <CountUp value={4} />, label: "omgevingen: zaal, veld, baan, zwembad" },
+            { waarde: "PNG + PDF", label: "export met materiaallijst" },
+            { waarde: "0", label: "accounts nodig om te beginnen" },
+          ].map((stat) => (
+            <div key={stat.label}>
+              <dt className="sr-only">{stat.label}</dt>
+              <dd className="font-display text-3xl tracking-tight text-primary sm:text-4xl">{stat.waarde}</dd>
+              <p className="mt-1 text-xs text-muted-foreground sm:text-sm" aria-hidden="true">{stat.label}</p>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {/* Interactieve teaser */}
+      <section id="voorbeeld" className="scroll-mt-20 px-6 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto w-full max-w-6xl">
+          <ScrollReveal>
+            <p className="font-mono text-xs font-medium tracking-[0.2em] text-primary uppercase">Probeer het zelf</p>
+            <h2 className="font-display mt-3 max-w-2xl text-3xl leading-[1.05] tracking-tight sm:text-4xl">
+              Van lege zaal naar opstelling in een paar minuten.
+            </h2>
+          </ScrollReveal>
+          <div className="mt-10">
+            <InteractiveTeaser />
+          </div>
+        </div>
+      </section>
+
+      {/* Zes voordelen */}
+      <section className="border-t bg-muted/30 px-6 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto w-full max-w-6xl">
+          <ScrollReveal>
+            <p className="font-mono text-xs font-medium tracking-[0.2em] text-primary uppercase">Wat je ermee kunt</p>
+            <h2 className="font-display mt-3 max-w-2xl text-3xl leading-[1.05] tracking-tight sm:text-4xl">
+              Alles om je les visueel voor te bereiden.
+            </h2>
+          </ScrollReveal>
+          <FeatureGrid />
+          <ScrollReveal delayMs={120}>
+            <div className="mt-12 flex flex-col items-start gap-5 rounded-3xl bg-primary p-6 text-primary-foreground sm:p-10 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="font-display text-2xl tracking-tight sm:text-3xl">Meer nodig? Maak een gratis account.</h3>
+                <ul className="mt-4 space-y-2 text-sm text-primary-foreground/90">
+                  {ACCOUNT_BENEFITS.map((benefit) => (
+                    <li key={benefit.tekst} className="flex items-center gap-2">
+                      <benefit.icon className="size-4 shrink-0" aria-hidden="true" />
+                      {benefit.tekst}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-primary-foreground/80">Wat je nu al hebt gemaakt, nemen we mee zodra je inlogt.</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild size="lg" className="rounded-full bg-background px-7 text-foreground hover:bg-background/90">
+                  <Link href={`${GUEST_TOOL_PATH}#start`}>Start gratis</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="rounded-full border-primary-foreground/40 bg-transparent px-7 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
+                  <Link href="/register">Account maken</Link>
+                </Button>
+              </div>
+            </div>
+          </ScrollReveal>
         </div>
       </section>
 
@@ -716,7 +751,10 @@ export default async function LandingPage() {
       </section>
 
       <footer className="mx-auto flex w-full max-w-6xl flex-col items-center gap-1 px-6 py-8 text-center text-xs text-muted-foreground sm:flex-row sm:justify-between sm:text-left">
-        <span>GymWiki — gebouwd voor CALO-studenten en vakdocenten lichamelijke opvoeding.</span>
+        <span>
+          GymWiki — gebouwd voor CALO-studenten en vakdocenten lichamelijke opvoeding.{" "}
+          <Link href={GUEST_TOOL_PATH} className="underline-offset-4 hover:underline">Gratis 3D-plattegrond maken</Link>
+        </span>
         <span className="flex items-center gap-1.5">
           <ListChecks className="size-3.5" aria-hidden="true" />
           Elke bijdrage gaat langs een AI-kwaliteitscontrole.
