@@ -1,14 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getActiveMaterialModels } from "@/lib/services/materialModels";
-import { createServiceClient } from "@/utils/supabase/service";
 import { E2E_MODELS } from "@/components/canvas-3d/e2e-models";
+import { getActiveMaterialModels } from "@/lib/services/materialModels";
+import { createPublicClient } from "@/utils/supabase/public";
 import type { MaterialModel } from "@/types/materialModel";
 
 /**
  * Publieke, alleen-lezen catalogus voor de gratis 3D-tool (itemdefinities + thumbnail-/GLB-URL's uit de publieke bucket).
- * `material_models` heeft RLS "alleen ingelogd", daarom leest deze route met de service-client op de SERVER — de sleutel verlaat
- * de server nooit en er is geen RLS-wijziging (dus geen productiemigratie) nodig. Alleen deze ene, vaste query wordt uitgevoerd.
+ * Leest met de gewone anon-client; de RLS-policy `material_models_select_anon_active` (supabase/migrations/
+ * material_models_anon_select.sql) staat alleen select op actieve rijen toe. Er is dus geen service-role-sleutel nodig.
  *
  * Bescherming: CDN-cache (s-maxage) zodat de database nauwelijks geraakt wordt, een module-cache per instance en een
  * eenvoudige limiet per IP voor cache-missers.
@@ -41,8 +41,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Te veel verzoeken. Probeer het zo opnieuw." }, { status: 429, headers: { "Retry-After": "60" } });
     }
     try {
-      cache = { at: now, models: await getActiveMaterialModels(createServiceClient()) };
-    } catch {
+      const models = await getActiveMaterialModels(createPublicClient());
+      // Een lege lijst betekent vrijwel zeker een ontbrekende policy: niet cachen als "gelukt".
+      if (models.length === 0) throw new Error("lege catalogus");
+      cache = { at: now, models };
+    } catch (error) {
+      console.error("Gratis-tool-catalogus ophalen mislukt:", error);
       if (!cache) return NextResponse.json({ error: "Catalogus tijdelijk niet beschikbaar." }, { status: 503, headers: { "Cache-Control": "no-store" } });
     }
   }
