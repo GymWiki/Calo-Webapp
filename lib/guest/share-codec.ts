@@ -2,6 +2,7 @@
 // (#p=...). Een hash gaat nooit naar de server (geen logs, geen duplicate content voor Google, geen opslag nodig).
 // Formaat: "v1.<base64url>" (gecomprimeerd) of "u1.<base64url>" (ongecomprimeerd, voor browsers zonder CompressionStream).
 
+import { roundScene } from "@/lib/plattegrond/format";
 import { floorplan3dDataSchema, type Floorplan3dData } from "@/types/floorplan3d";
 
 export const SHARE_HASH_KEY = "p";
@@ -9,8 +10,6 @@ export const SHARE_HASH_KEY = "p";
 export const MAX_SHARE_URL_CHARS = 8000;
 /** Bovengrens voor het uitgepakte JSON (bescherming tegen opgeblazen/kwaadaardige links). */
 export const MAX_DECODED_BYTES = 400_000;
-
-const round = (value: number) => Math.round(value * 1000) / 1000;
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -28,23 +27,8 @@ function fromBase64Url(text: string): Uint8Array | null {
   }
 }
 
-/** Afgeronde, compacte kopie: ids en y blijven (de editor rekent y bij het laden opnieuw uit). */
-export function compactFloorplan(data: Floorplan3dData): Floorplan3dData {
-  return {
-    version: 1,
-    room: data.room,
-    items: data.items.map((item) => ({
-      ...item,
-      x: round(item.x),
-      y: round(item.y),
-      z: round(item.z),
-      rot_y_deg: round(item.rot_y_deg),
-      ...(item.rot_x_deg !== undefined ? { rot_x_deg: round(item.rot_x_deg) } : {}),
-      ...(item.rot_z_deg !== undefined ? { rot_z_deg: round(item.rot_z_deg) } : {}),
-    })),
-    coneFields: data.coneFields.map((field) => ({ ...field, x: round(field.x), z: round(field.z), rot_y_deg: round(field.rot_y_deg) })),
-  };
-}
+/** Afgeronde, compacte kopie (zelfde logica als het JSON-exportbestand: lib/plattegrond/format.ts). */
+export const compactFloorplan = roundScene;
 
 const hasCompression = () => typeof CompressionStream !== "undefined" && typeof DecompressionStream !== "undefined";
 
