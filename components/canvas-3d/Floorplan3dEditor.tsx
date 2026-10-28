@@ -99,6 +99,9 @@ import { BottomSheet } from "@/components/canvas-3d/mobile/BottomSheet";
 import { CameraMenu } from "@/components/canvas-3d/mobile/CameraMenu";
 import { GestureOnboarding, hasSeenOnboarding } from "@/components/canvas-3d/mobile/GestureOnboarding";
 import { MobileToolbar } from "@/components/canvas-3d/mobile/MobileToolbar";
+import { usePlattegrondJson } from "@/components/canvas-3d/usePlattegrondJson";
+import { PlattegrondJsonMenu } from "@/components/canvas-3d/PlattegrondJsonMenu";
+import type { ImportOk } from "@/lib/plattegrond/validate";
 import { OverflowMenu } from "@/components/canvas-3d/mobile/OverflowMenu";
 import { SelectionBar } from "@/components/canvas-3d/mobile/SelectionBar";
 import { SidePanel } from "@/components/canvas-3d/mobile/SidePanel";
@@ -1363,6 +1366,38 @@ export function Floorplan3dEditor({
     />
   );
 
+  // ---------------------------------------------------------------------
+  // Plattegrond als JSON: downloaden, kopiëren en openen (lib/plattegrond = dezelfde logica als deellink en CLI).
+  // ---------------------------------------------------------------------
+  const knownSlugs = useMemo(() => new Set(models.map((model) => model.slug)), [models]);
+  const plattegrondJson = usePlattegrondJson({
+    getScene: () => {
+      const { room: currentRoom, items: currentItems, coneFields: currentFields } = latestStateRef.current;
+      return { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields };
+    },
+    title: floorplanName,
+    knownSlugs,
+    hasWork: () => (latestStateRef.current.items.length > 0 || latestStateRef.current.coneFields.length > 0) && (guest || dirtyRef.current),
+    onApply: applyImportedScene,
+  });
+
+  function applyImportedScene(result: ImportOk) {
+    pushHistory(); // één undo-stap terug
+    const normalized = recomputeStackedYs(
+      result.scene.items.map((item) => normalizeItemRotation(item, orientationOfSlug(item.slug))),
+      lookup,
+    );
+    const { items: placed } = clampItemsToRoom(normalized, result.scene.room, lookup);
+    setRoom(result.scene.room);
+    setItems(placed);
+    setConeFields(result.scene.coneFields);
+    setFloorplanName(result.title);
+    setSelectedId(null);
+    setMobilePanel(null);
+    dirtyRef.current = true;
+    scheduleAutosave();
+  }
+
   const saveStatusLabel: Record<typeof saveStatus, string> = {
     idle: "",
     saving: "Bezig met opslaan...",
@@ -1670,7 +1705,8 @@ export function Floorplan3dEditor({
 
   if (!isDesktop) {
     return (
-      <div className="flex h-[100dvh] flex-col overscroll-none">
+      <div className="relative flex h-[100dvh] flex-col overscroll-none" {...plattegrondJson.dragProps}>
+        {plattegrondJson.elements}
         <header className="flex shrink-0 items-center gap-1 border-b bg-card px-2 pt-[env(safe-area-inset-top)]">
           {guest ? (
             <button
@@ -1714,6 +1750,7 @@ export function Floorplan3dEditor({
             onSettings={updateSettings}
             onOpenList={guest ? undefined : () => setMobilePanel("lijst")}
             onNewPlan={guest ? startNewFloorplan : undefined}
+            onJson={plattegrondJson.run}
             onShowHelp={() => setOnboarding(true)}
           />
         </header>
@@ -1794,7 +1831,8 @@ export function Floorplan3dEditor({
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col overscroll-none">
+    <div className="relative flex h-[100dvh] flex-col overscroll-none" {...plattegrondJson.dragProps}>
+      {plattegrondJson.elements}
       <div className="flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2">
         {guest ? (
           <Button type="button" variant="ghost" size="sm" className="-ml-2" onClick={onGuestClose}>
@@ -1832,6 +1870,7 @@ export function Floorplan3dEditor({
           <Button type="button" variant="ghost" size="icon" disabled={!history.canRedo} onClick={handleRedo} title="Opnieuw (Ctrl+Shift+Z)">
             <Redo2 className="size-4" />
           </Button>
+          <PlattegrondJsonMenu onAction={plattegrondJson.run} />
           {guest ? (
             <>
               <Button type="button" variant="outline" size="sm" onClick={startNewFloorplan} title="Begin opnieuw met een lege plattegrond">

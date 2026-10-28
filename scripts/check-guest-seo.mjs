@@ -4,6 +4,7 @@
 // H2's, Open Graph/Twitter, geldige JSON-LD (SoftwareApplication/FAQPage/BreadcrumbList), robots.txt en sitemap.xml.
 const base = (process.argv[2] ?? "http://localhost:3125").replace(/\/$/, "");
 const pages = [
+  { path: "/", h1: "Alle activiteiten voor je gymles op één plek", types: ["Organization", "WebSite", "SoftwareApplication", "FAQPage"], minFaq: 6 },
   { path: "/gratis-gymzaal-plattegrond-maken", h1: "Gratis gymzaal plattegrond maken in 3D", types: ["SoftwareApplication", "FAQPage", "BreadcrumbList"], minFaq: 8 },
   { path: "/gymzaal-indeling-maken", types: ["FAQPage", "BreadcrumbList"] },
   { path: "/opstelling-bewegingsonderwijs-tekenen", types: ["FAQPage", "BreadcrumbList"] },
@@ -27,7 +28,7 @@ for (const page of pages) {
   const description = meta(html, "name", "description") ?? "";
   check(description.length >= 110 && description.length <= 165, `meta description ${description.length} tekens`);
   const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/)?.[1];
-  check(canonical === `https://www.gymwiki.nl${page.path}`, `canonical ${canonical}`);
+  check(canonical === `https://www.gymwiki.nl${page.path === "/" ? "" : page.path}`, `canonical ${canonical}`);
   check(!/noindex/i.test(meta(html, "name", "robots") ?? ""), "geen noindex");
   const h1s = [...html.matchAll(/<h1[\s>]/g)].length;
   check(h1s === 1, `precies één H1 (${h1s})`);
@@ -54,7 +55,7 @@ console.log("robots.txt + sitemap.xml");
 const robots = await (await fetch(`${base}/robots.txt`)).text();
 for (const page of pages) check(robots.includes(`Allow: ${page.path}`), `robots staat ${page.path} toe`);
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
-for (const page of pages) check(sitemap.includes(`https://www.gymwiki.nl${page.path}</loc>`), `sitemap bevat ${page.path}`);
+for (const page of pages) check(sitemap.includes(`https://www.gymwiki.nl${page.path === "/" ? "" : page.path}</loc>`), `sitemap bevat ${page.path}`);
 
 console.log(failed === 0 ? "\nAlle SEO-controles geslaagd." : `\n${failed} controle(s) mislukt.`);
 process.exit(failed === 0 ? 0 : 1);

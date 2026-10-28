@@ -137,3 +137,16 @@ test("deellink opent dezelfde plattegrond in een nieuw venster", async ({ page, 
   expect(draftOfOther === null || draftOfOther.items.length === 1).toBe(true);
   await other.close();
 });
+
+test("JSON openen werkt ook in de gastmodus (dialoog boven de editor)", async ({ page }) => {
+  await prepare(page);
+  await page.goto(PATH);
+  await page.getByTestId("start-editor").click();
+  await expect(page.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("json-file-input").setInputFiles({ name: "kapot.json", mimeType: "application/json", buffer: Buffer.from("{ geen json") });
+  const dialog = page.getByTestId("json-import-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/geen geldige JSON/)).toBeVisible();
+  await dialog.getByRole("button", { name: "Sluiten" }).first().click();
+  await expect(dialog).toHaveCount(0);
+});

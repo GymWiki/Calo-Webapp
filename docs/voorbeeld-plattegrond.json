@@ -1,0 +1,64 @@
+{
+  "format": "gymwiki-plattegrond",
+  "version": 1,
+  "exportedAt": "2026-10-28T10:00:00.000Z",
+  "title": "Voorbeeld: turncircuit met pionnenveld",
+  "scene": {
+    "version": 1,
+    "room": {
+      "width_m": 24,
+      "length_m": 14,
+      "environment": {
+        "type": "gymzaal",
+        "layout": "standaard",
+        "hidden": [
+          "Muur_Voor",
+          "Muur_Rechts"
+        ]
+      }
+    },
+    "items": [
+      {
+        "id": "i1",
+        "slug": "turnbank_1_los",
+        "x": -4.5,
+        "y": 0,
+        "z": 2.25,
+        "rot_y_deg": 90
+      },
+      {
+        "id": "i2",
+        "slug": "mat",
+        "x": 2,
+        "y": 0,
+        "z": -3,
+        "rot_y_deg": 0
+      },
+      {
+        "id": "i3",
+        "slug": "klimtouwen_set_2_hangend",
+        "x": 8.5,
+        "y": 0,
+        "z": -6,
+        "rot_y_deg": 0,
+        "rot_z_deg": 15
+      }
+    ],
+    "coneFields": [
+      {
+        "id": "f1",
+        "type": "coneField",
+        "x": 0,
+        "z": 0,
+        "rot_y_deg": 0,
+        "width_m": 12,
+        "length_m": 9,
+        "interval_m": 3,
+        "distribution": "even",
+        "marker": "pion",
+        "color": "#f97316",
+        "corner_color": "#2563eb"
+      }
+    ]
+  }
+}

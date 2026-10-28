@@ -10,7 +10,12 @@ export type GymwikiEvent =
   | "export_pdf"
   | "deelbare_link"
   | "upsell_getoond"
-  | "account_aangemaakt_vanuit_editor";
+  | "account_aangemaakt_vanuit_editor"
+  // Landingspagina (/): welke boodschap werkt?
+  | "landing_cta_primair"
+  | "landing_cta_bibliotheek"
+  | "landing_cta_editor"
+  | "landing_scrolldiepte";
 
 export function trackEvent(name: GymwikiEvent, props: Record<string, string | number | boolean> = {}): void {
   if (typeof window === "undefined") return;
