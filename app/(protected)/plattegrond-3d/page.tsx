@@ -5,6 +5,8 @@ import { getFloorplan3d, listFloorplans3d } from "@/actions/floorplans3d";
 import { Floorplan3dEditorLoader } from "@/components/canvas-3d/Floorplan3dEditorLoader";
 import { DEV_PLACEHOLDER_MODELS } from "@/components/canvas-3d/devPlaceholderModels";
 import { GUEST_TOOL_PATH } from "@/lib/guest/constants";
+import { isAdmin } from "@/lib/auth/roles";
+import { getFloorplanAdminInfo } from "@/lib/services/adminFloorplans";
 import { getActiveMaterialModels } from "@/lib/services/materialModels";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
 import { createClient } from "@/utils/supabase/server";
@@ -60,11 +62,15 @@ export default async function Plattegrond3dPage({
     }
   }
 
+  // Beheerders zien in de editor wiens plattegrond ze openen (de rechten zelf liggen in RLS, niet hier).
+  const adminInfo = initialFloorplan && isAdmin(profile) ? await getFloorplanAdminInfo(supabase, initialFloorplan.id, profile.id) : null;
+
   return (
     <Floorplan3dEditorLoader
       models={effectiveModels}
       initialFloorplans={initialFloorplans}
       initialFloorplan={initialFloorplan}
+      adminInfo={adminInfo}
       activiteitId={activiteit}
       debug={debug === "1"}
       debugCollision={debug === "collision" || debug === "collision-legacy"}
