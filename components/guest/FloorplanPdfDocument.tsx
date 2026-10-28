@@ -11,8 +11,8 @@ const styles = StyleSheet.create({
   brandText: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#002f4f" },
   title: { fontSize: 18, fontFamily: "Helvetica-Bold", marginBottom: 2 },
   subtitle: { fontSize: 9, color: "#666666", marginBottom: 10 },
-  images: { flexDirection: "row", gap: 10, marginBottom: 12 },
-  imageBox: { flex: 1, borderWidth: 1, borderColor: "#dddddd", borderRadius: 4, padding: 4 },
+  images: { flexDirection: "row", marginBottom: 12 },
+  imageBox: { flex: 1, marginRight: 10, borderWidth: 1, borderColor: "#dddddd", borderRadius: 4, padding: 4 },
   image: { width: "100%", height: 220, objectFit: "contain" },
   caption: { fontSize: 8, color: "#666666", marginTop: 3 },
   h2: { fontSize: 12, fontFamily: "Helvetica-Bold", marginBottom: 4, marginTop: 4 },
@@ -54,7 +54,7 @@ export function FloorplanPdfDocument({
             <Text style={styles.caption}>Bovenaanzicht</Text>
           </View>
         </View>
-        <View wrap={false}>
+        <View>
           <Text style={styles.h2}>Materiaal</Text>
           {summary.coneTotal > 0 && (
             <View style={styles.row}>

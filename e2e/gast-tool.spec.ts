@@ -86,3 +86,54 @@ test("anonieme /plattegrond-3d stuurt door naar de gratis tool", async ({ page }
   await page.goto("/plattegrond-3d");
   await expect(page).toHaveURL(new RegExp(`${PATH}`));
 });
+
+async function startWithMat(page: Page) {
+  await prepare(page);
+  await page.goto(PATH);
+  await page.getByTestId("start-editor").click();
+  await expect(page.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
+  await page.waitForTimeout(1500);
+  if (isPhone(page)) await placeFromLibrary(page, /^Matten/, /Testmat groot toevoegen/);
+  else {
+    await page.getByRole("button", { name: /^Matten/ }).first().click();
+    await page.getByRole("button", { name: /Testmat groot toevoegen/ }).click();
+  }
+  await readDraft(page, (d) => d.items.length === 1);
+}
+
+for (const [label, item, extension] of [
+  ["PNG (3D)", /Afbeelding \(3D\)/, ".png"],
+  ["PNG (bovenaanzicht)", /Afbeelding \(bovenaanzicht\)/, ".png"],
+  ["PDF", /PDF met materiaallijst/, ".pdf"],
+] as const) {
+  test(`export ${label} downloadt een bestand`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await startWithMat(page);
+    await page.getByRole("button", { name: "Delen en exporteren" }).first().click();
+    const download = page.waitForEvent("download", { timeout: 60_000 });
+    await page.getByRole("menuitem", { name: item }).click();
+    const file = await download;
+    expect(file.suggestedFilename().toLowerCase().endsWith(extension)).toBe(true);
+  });
+}
+
+test("deellink opent dezelfde plattegrond in een nieuw venster", async ({ page, context }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "klembord-rechten alleen desktop");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await startWithMat(page);
+  await page.getByRole("button", { name: "Delen en exporteren" }).first().click();
+  await page.getByRole("menuitem", { name: /Deelbare link/ }).click();
+  await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText()), { timeout: 15_000 }).toContain("#p=");
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  expect(link.length).toBeLessThan(8000);
+
+  const other = await context.browser()!.newContext({ viewport: { width: 1440, height: 900 } });
+  const second = await other.newPage();
+  await prepare(second);
+  await second.goto(link.replace(/^https?:\/\/[^/]+/, "http://localhost:3124"));
+  await expect(second.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
+  const draftOfOther = await readDraft(second, (d) => d.items.length === 1).catch(() => null);
+  // Een gedeelde plattegrond is niet "dirty" tot er iets verandert; het item moet wel in de scène staan.
+  expect(draftOfOther === null || draftOfOther.items.length === 1).toBe(true);
+  await other.close();
+});

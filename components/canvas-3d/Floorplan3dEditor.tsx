@@ -1262,16 +1262,22 @@ export function Floorplan3dEditor({
   const [guestBusy, setGuestBusy] = useState<GuestExportAction | null>(null);
   const [upsellVisible, setUpsellVisible] = useState(false);
   const [captureView, setCaptureView] = useState<ViewState | null>(null);
+  // Elke opname krijgt een eigen sleutel: twee opnames kort na elkaar (PDF: 3D + bovenaanzicht) mounten zo twee keer opnieuw.
+  const captureSeqRef = useRef(0);
   const captureResolveRef = useRef<((dataUrl: string) => void) | null>(null);
   const handleCaptured = useCallback((dataUrl: string) => {
     const resolve = captureResolveRef.current;
     captureResolveRef.current = null;
     setCaptureView(null);
-    resolve?.(dataUrl);
+    // Een frame wachten zodat de oude opname-component écht unmount vóór een volgende opname start.
+    window.requestAnimationFrame(() => resolve?.(dataUrl));
   }, []);
-  function captureImage(preset: "3d" | "top"): Promise<string> {
+  const [captureFormat, setCaptureFormat] = useState<{ mime: "image/png" | "image/jpeg"; width: number; height: number }>({ mime: "image/png", width: 1600, height: 900 });
+  function captureImage(preset: "3d" | "top", format: { mime: "image/png" | "image/jpeg"; width: number; height: number } = { mime: "image/png", width: 1600, height: 900 }): Promise<string> {
     return new Promise((resolve) => {
+      setCaptureFormat(format);
       captureResolveRef.current = resolve;
+      captureSeqRef.current += 1;
       setCaptureView({ ...DEFAULT_VIEW, preset });
     });
   }
@@ -1316,8 +1322,10 @@ export function Floorplan3dEditor({
         downloadBlob(blob, `gymwiki-${baseName}-${action === "png-3d" ? "3d" : "bovenaanzicht"}.png`);
         trackEvent("export_png", { weergave: action === "png-3d" ? "3d" : "bovenaanzicht" });
       } else {
-        const image3d = await captureImage("3d");
-        const imageTop = await captureImage("top");
+        // JPEG op 1200 × 675: de PDF-engine decodeert PNG's van 1600 × 900 in de browser traag.
+        const pdfFormat = { mime: "image/jpeg", width: 1200, height: 675 } as const;
+        const image3d = await captureImage("3d", pdfFormat);
+        const imageTop = await captureImage("top", pdfFormat);
         const nameBySlug = new Map(models.map((model) => [model.slug, model.naam]));
         const categoryBySlug = new Map(models.map((model) => [model.slug, model.categorie]));
         const summary = summarizeFloorplan(items, coneFields, (slug) => nameBySlug.get(slug), (slug) => categoryBySlug.get(slug));
@@ -1342,14 +1350,15 @@ export function Floorplan3dEditor({
 
   const captureMount = captureView && (
     <FloorplanThumbnailCapture
+      key={captureSeqRef.current}
       room={room}
       items={items}
       fields={coneFields}
       models={models}
       view={captureView}
-      width={1600}
-      height={900}
-      mime="image/png"
+      width={captureFormat.width}
+      height={captureFormat.height}
+      mime={captureFormat.mime}
       onCapture={handleCaptured}
     />
   );

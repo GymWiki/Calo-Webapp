@@ -142,6 +142,10 @@ const nextConfig: NextConfig = {
       // fetch() op een blob:-URL. Zonder dit weigert de browser dat en blijven
       // modellen met een kleurentextuur (o.a. de ballen) wit/grijs.
       "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co",
+      // `worker-src blob:`: @react-pdf/renderer decodeert afbeeldingen in een Web Worker die uit een blob: wordt gestart.
+      // Zonder dit blijft elke PDF met een afbeelding hangen (de worker start nooit en er komt geen foutmelding).
+      // Alleen same-origin en blob:, geen externe scripthosts.
+      "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
