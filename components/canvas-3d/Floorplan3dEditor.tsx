@@ -487,7 +487,7 @@ export function Floorplan3dEditor({
     const found = draft;
     toast("Niet-opgeslagen wijzigingen gevonden", {
       id: "draft-restore",
-      description: "Van een eerdere sessie. Wil je die herstellen?",
+      description: "Van een eerdere sessie of uit de gratis tool. Herstel hem om hem in je account te bewaren.",
       duration: Infinity,
       action: {
         label: "Herstellen",

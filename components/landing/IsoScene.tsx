@@ -25,14 +25,15 @@ function shade(hex: string, factor: number): string {
   return `rgb(${c((n >> 16) & 255)} ${c((n >> 8) & 255)} ${c(n & 255)})`;
 }
 
-function Block({ block, animated }: { block: IsoBlock; animated: boolean }) {
+// Gewone functie (geen component): de OG-afbeelding (Satori) accepteert binnen <svg> alleen intrinsieke elementen.
+function renderBlock(block: IsoBlock, animated: boolean, key: number) {
   const { x, y, w, d, h, color } = block;
   const top = pts([project(x, y, h), project(x + w, y, h), project(x + w, y + d, h), project(x, y + d, h)]);
   const left = pts([project(x, y + d, h), project(x + w, y + d, h), project(x + w, y + d, 0), project(x, y + d, 0)]);
   const right = pts([project(x + w, y, h), project(x + w, y + d, h), project(x + w, y + d, 0), project(x + w, y, 0)]);
   const style: CSSProperties | undefined = animated ? { animationDelay: `${block.delay ?? 0}s` } : undefined;
   return (
-    <g className={animated ? "iso-anim" : undefined} style={style}>
+    <g key={key} className={animated ? "iso-anim" : undefined} style={style}>
       <polygon points={left} fill={shade(color, 0.78)} />
       <polygon points={right} fill={shade(color, 0.6)} />
       <polygon points={top} fill={color} />
@@ -51,6 +52,8 @@ export function IsoScene({
   cones = [],
   animated = false,
   className,
+  svgWidth,
+  svgHeight,
 }: {
   width?: number;
   depth?: number;
@@ -58,6 +61,9 @@ export function IsoScene({
   cones?: IsoCone[];
   animated?: boolean;
   className?: string;
+  /** Vaste afmetingen (alleen nodig voor de OG-afbeelding, waar geen CSS beschikbaar is). */
+  svgWidth?: number;
+  svgHeight?: number;
 }) {
   const corners = [project(0, 0), project(width, 0), project(width, depth), project(0, depth)];
   const xs = corners.map((c) => c[0]);
@@ -68,7 +74,7 @@ export function IsoScene({
   // Achterste blokken eerst tekenen (x + y oplopend).
   const ordered = [...blocks].sort((a, b) => a.x + a.y - (b.x + b.y));
   return (
-    <svg viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`} className={className} aria-hidden="true" focusable="false">
+    <svg viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`} className={className} width={svgWidth} height={svgHeight} aria-hidden="true" focusable="false">
       <polygon points={pts(corners)} fill="#e6c48f" stroke="#b98a4d" strokeWidth="2" />
       <polygon points={pts([project(0.5, 0.5), project(width - 0.5, 0.5), project(width - 0.5, depth - 0.5), project(0.5, depth - 0.5)])} fill="none" stroke="#ffffff" strokeOpacity="0.8" strokeWidth="1.5" />
       <polyline points={pts([project(width / 2, 0.5), project(width / 2, depth - 0.5)])} fill="none" stroke="#ffffff" strokeOpacity="0.7" strokeWidth="1.5" />
@@ -83,9 +89,7 @@ export function IsoScene({
           </g>
         );
       })}
-      {ordered.map((block, index) => (
-        <Block key={index} block={block} animated={animated} />
-      ))}
+      {ordered.map((block, index) => renderBlock(block, animated, index))}
     </svg>
   );
 }
