@@ -8,37 +8,37 @@ Tolerantie: afwijking > 2 cm of > 5% volume = FAIL. Bron database-maten: lokale 
 
 | | Voor (oude box uit de database) | Na (vorm uit geometrie + overrides) |
 |---|---|---|
-| PASS | 94 | 184 |
-| FAIL | 90 | 0 |
-| Totaal | 184 | 184 |
+| PASS | 100 | 205 |
+| FAIL | 105 | 0 |
+| Totaal | 205 | 205 |
 
 ### Oorzaken (voor), aantal assets
 
-- pivot niet gecentreerd: 51
-- pivot licht verschoven : mesh steekt buiten de gecentreerde box: 26
-- onderkant onder de vloer: 10
-- hangend/verhoogd: 9
-- model schuin gemodelleerd: 9
+- pivot niet gecentreerd: 59
+- pivot licht verschoven : mesh steekt buiten de gecentreerde box: 28
+- onderkant onder de vloer: 14
+- model schuin gemodelleerd: 12
+- hangend/verhoogd: 11
+- niet-uniforme schaal in het GLB: 2
 - database-maat kleiner dan de mesh: 1
-- niet-uniforme schaal in het GLB: 1
 
 Assets met overrides: `dikke_mat_300x200x30`.
 
-Schaaltest (uniform 2× en 1,5/1/0,7): alle assets OK.
+Schaaltest (uniform 2× en 1,5/1/0,7): afwijkend: leerling_wandelen.
 
-Rotatietest (0°, 30°, 45°, 90°): de oriented box omvat de mesh bij alle rotaties voor 184 van 184 assets.
+Rotatietest (0°, 30°, 45°, 90°): de oriented box omvat de mesh bij alle rotaties voor 205 van 205 assets.
 
-Een world-AABB (oude aanpak) is bij 45° rotatie gemiddeld 8.24× zo groot als de oriented box; 183 assets > 10% groter.
+Een world-AABB (oude aanpak) is bij 45° rotatie gemiddeld 16.50× zo groot als de oriented box; 203 assets > 10% groter.
 
 ## Assets die een Blender-aanpassing nodig hebben
 
 De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing komen uit de geometrie), dus er is niets kapot. Wie het model zelf wil opschonen, kan dit in Blender doen; regels staan in `docs/blender-naming.md`.
 
-- **Rotatie toepassen (Ctrl+A → Rotation)** — model is schuin gemodelleerd (yaw ≥ 0,5°): `ballenpomp_en_drukmeter_set`, `dopjes_kleurenset_4stuks`, `dumbbell_hex_los`, `floorballstick_unihockey`, `pion_opbergstapel`, `pion_oranje_wit_gestreept`, `reactiebal_noppen`, `start_finish_vlag_en_klepper`, `yogamat_opgerold_set`
-- **Schaal toepassen (Ctrl+A → Scale)** — niet-uniforme schaal op een node: `minitrampoline`
-- **Origin naar onderkant-midden (Object → Set Origin) — pivot meer dan 5 cm van het midden** : `ab_roller_en_pushup_steunen`, `basketbal_muur_vast`, `basketbal_muur_wegdraaibaar`, `basketbaltoren_mobiel_jeugd`, `basketbaltoren_mobiel_senior`, `dopjes_kleurenset_4stuks`, `floorballstick_unihockey`, `fluitje_met_koord_en_kaarten`, `grensrechter_vlaggen_paar`, `klimnet_schuin_gymzaalframe`, `korfbalmand_kunststof_geel_los`, `korfbalpaal_compleet_250`, `korfbalpaal_compleet_350`, `mattenkar_compleet`, `rekstok_wand_uitklapbaar`, `springtouw_speedrope`, `start_finish_vlag_en_klepper`, `stopwatch_digitaal`, `turnkast_140x83x114`, `turnkast_5_delig`, `turnkast_6_delig_1_recht`, `turnkast_7_delig_2_recht`, `veldhockeydoel_180x120_jeugd`, `veldhockeydoel_366x214_verplaatsbaar`, `veldhockeystick`, `veldvoetbaldoel_500x200_verplaatsbaar`, `veldvoetbaldoel_732x244_verplaatsbaar`, `volleybal_veldopstelling_compleet_dames`, `volleybalpalen_mobiel_set`, `wandrek_uitklapbaar_zwenk`, `zaalhockeybalk_los_2m`, `zaalhockeybalk_los_4m`, `zaalhockeybalken_gekoppeld_rij`, `zaalhockeydoel_300x200_wit`, `zaaltimer_intervalklok_digitaal`, `zaalvoetbal_handbaldoel_3x2`
-- **Controleren of dit zo bedoeld is — onderkant meer dan 2 cm boven de vloer (hangend/wandmodel)**: `badmintonnet_los_610`, `basketbal_muur_vast`, `basketbal_muur_wegdraaibaar`, `klimtouwen_set_2_hangend`, `klimtouwen_set_4_hangend`, `touwladder_hangend_5m`, `veldhockeystick`, `volleybalnet_compleet_antennes_los`, `zwaairingen_gymzaal_laag`
-- **Controleren — onderkant meer dan 2 cm onder de vloer**: `battle_rope_met_anker`, `bosu_balanstrainer_en_foamroller`, `grote_trampoline_vrijstaand_uitgeklapt`, `megafoon_en_luchthoorn`, `padelracket_carbon`, `plankoline_modern_staalframe`, `springbok_laag_jeugd_80cm`, `springbok_standaard_105cm`, `springpaard_klassiek_160`, `start_finish_vlag_en_klepper`
+- **Rotatie toepassen (Ctrl+A → Rotation)** — model is schuin gemodelleerd (yaw ≥ 0,5°): `ballenpomp_en_drukmeter_set`, `dopjes_kleurenset_4stuks`, `dumbbell_hex_los`, `floorballstick_unihockey`, `honkbal_softbal_honkenset_compleet`, `honkbal_veldhonk_kussen`, `leerling_staand_rust`, `pion_opbergstapel`, `pion_oranje_wit_gestreept`, `reactiebal_noppen`, `start_finish_vlag_en_klepper`, `yogamat_opgerold_set`
+- **Schaal toepassen (Ctrl+A → Scale)** — niet-uniforme schaal op een node: `honkbal_zaalhonken_rubber_set`, `minitrampoline`
+- **Origin naar onderkant-midden (Object → Set Origin) — pivot meer dan 5 cm van het midden** : `ab_roller_en_pushup_steunen`, `basketbal_muur_vast`, `basketbal_muur_wegdraaibaar`, `basketbaltoren_mobiel_jeugd`, `basketbaltoren_mobiel_senior`, `dopjes_kleurenset_4stuks`, `floorballstick_unihockey`, `fluitje_met_koord_en_kaarten`, `grensrechter_vlaggen_paar`, `honkbal_softbal_honkenset_compleet`, `klimnet_schuin_gymzaalframe`, `korfbalmand_kunststof_geel_los`, `korfbalpaal_compleet_250`, `korfbalpaal_compleet_350`, `leerling_zittend_turnbank`, `mattenkar_compleet`, `rekstok_wand_uitklapbaar`, `springtouw_speedrope`, `start_finish_vlag_en_klepper`, `stopwatch_digitaal`, `turnkast_140x83x114`, `turnkast_5_delig`, `turnkast_6_delig_1_recht`, `turnkast_7_delig_2_recht`, `veldhockeydoel_180x120_jeugd`, `veldhockeydoel_366x214_verplaatsbaar`, `veldhockeystick`, `veldvoetbaldoel_500x200_verplaatsbaar`, `veldvoetbaldoel_732x244_verplaatsbaar`, `volleybal_veldopstelling_bodemnet_grond_100cm`, `volleybal_veldopstelling_compleet_dames`, `volleybal_veldopstelling_compleet_heren`, `volleybal_veldopstelling_middelhoog_180cm`, `volleybalpalen_mobiel_set`, `volleybalpalen_vloerbus_set`, `wandrek_uitklapbaar_zwenk`, `zaalhockeybalk_los_2m`, `zaalhockeybalk_los_4m`, `zaalhockeybalken_gekoppeld_rij`, `zaalhockeydoel_300x200_wit`, `zaaltimer_intervalklok_digitaal`, `zaalvoetbal_handbaldoel_3x2`
+- **Controleren of dit zo bedoeld is — onderkant meer dan 2 cm boven de vloer (hangend/wandmodel)**: `badmintonnet_hoog_180cm_los`, `badmintonnet_los_610`, `basketbal_muur_vast`, `basketbal_muur_wegdraaibaar`, `klimtouwen_set_2_hangend`, `klimtouwen_set_4_hangend`, `touwladder_hangend_5m`, `veldhockeystick`, `volleybalnet_compleet_antennes_los`, `volleybalnet_middelhoog_180cm_los`, `zwaairingen_gymzaal_laag`
+- **Controleren — onderkant meer dan 2 cm onder de vloer**: `battle_rope_met_anker`, `bosu_balanstrainer_en_foamroller`, `grote_trampoline_vrijstaand_uitgeklapt`, `honkbal_softbal_honkenset_compleet`, `honkbal_veldhonk_kussen`, `honkbal_werpersplaat_pitchers_plate`, `megafoon_en_luchthoorn`, `padelracket_carbon`, `plankoline_modern_staalframe`, `softbal_veiligheidshonk_dubbelhonk`, `springbok_laag_jeugd_80cm`, `springbok_standaard_105cm`, `springpaard_klassiek_160`, `start_finish_vlag_en_klepper`
 - Skinned of instanced meshes: geen
 - Lege nodes zonder mesh (helpers): geen
 
@@ -50,7 +50,9 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `airblock_200x140_20cm` | FAIL (mesh steekt buiten de vorm (17 punten)) | PASS | pivot licht verschoven (-1.0/0.0 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `airtrack_p2_12m` | FAIL (mesh steekt buiten de vorm (17 punten)) | PASS | pivot licht verschoven (-1.0/0.0 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `airtrack_p2_6m` | FAIL (mesh steekt buiten de vorm (17 punten)) | PASS | pivot licht verschoven (-1.0/0.0 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `badmintonnet_hoog_180cm_los` | FAIL (onderkant -104.0 cm te laag/hoog) | PASS | hangend/verhoogd (onderkant 1.04 m) | base_m uit geometrie (automatisch) |
 | `badmintonnet_los_610` | FAIL (onderkant -79.0 cm te laag/hoog) | PASS | hangend/verhoogd (onderkant 0.79 m) | base_m uit geometrie (automatisch) |
+| `badmintonpalen_vloerbus_set` | FAIL (middelpunt 2.4 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (-2/0 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `ballenkar_metaal_open_gevuld` | FAIL (middelpunt 3.9 cm verschoven, mesh steekt buiten de vorm (4 punten)) | PASS | pivot niet gecentreerd (4/0 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `ballenpomp_en_drukmeter_set` | FAIL (breedte +2.8 cm, volume +14%, mesh steekt buiten de vorm (12 punten)) | PASS | pivot licht verschoven (-1.5/-0.9 cm): mesh steekt buiten de gecentreerde box; model schuin gemodelleerd (8.5°) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden; oriented box (yaw 8.5°); Blender: rotatie toepassen (Ctrl+A) |
 | `basketbal_muur_vast` | FAIL (middelpunt 32.1 cm verschoven, onderkant -263.0 cm te laag/hoog, mesh steekt buiten de vorm (8 punten)) | PASS | hangend/verhoogd (onderkant 2.63 m); pivot niet gecentreerd (0/-32 cm) | base_m uit geometrie (automatisch); offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
@@ -74,6 +76,10 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `grote_trampoline_vrijstaand_uitgeklapt` | FAIL (onderkant 34.7 cm te laag/hoog) | PASS | onderkant onder de vloer (-0.35 m) | base_m uit geometrie (automatisch) |
 | `handfluit_knijpfluit_hygienisch` | FAIL (mesh steekt buiten de vorm (26 punten)) | PASS | pivot licht verschoven (-0.1/-1.2 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `hoekvlag_cornervlag_met_voet` | FAIL (middelpunt 4.2 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (4/0 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `honkbal_softbal_honkenset_compleet` | FAIL (middelpunt 31.1 cm verschoven, onderkant 5.5 cm te laag/hoog, lengte +60.0 cm, breedte +29.3 cm, volume +33%) | PASS | onderkant onder de vloer (-0.06 m); pivot niet gecentreerd (14/28 cm); model schuin gemodelleerd (-22.5°) | base_m uit geometrie (automatisch); offset uit geometrie (automatisch); Blender: origin naar onderkant-midden; oriented box (yaw -22.5°); Blender: rotatie toepassen (Ctrl+A) |
+| `honkbal_veldhonk_kussen` | FAIL (onderkant 5.5 cm te laag/hoog, lengte +15.3 cm, breedte +15.3 cm, volume +97%) | PASS | onderkant onder de vloer (-0.06 m); model schuin gemodelleerd (-45.0°) | base_m uit geometrie (automatisch); oriented box (yaw -45.0°); Blender: rotatie toepassen (Ctrl+A) |
+| `honkbal_werpersplaat_pitchers_plate` | FAIL (onderkant 4.5 cm te laag/hoog) | PASS | onderkant onder de vloer (-0.04 m) | base_m uit geometrie (automatisch) |
+| `honkbal_zaalhonken_rubber_set` | FAIL (mesh steekt buiten de vorm (8 punten)) | PASS | pivot licht verschoven (-0.1/-1.8 cm): mesh steekt buiten de gecentreerde box; niet-uniforme schaal in het GLB | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden; Blender: Apply Scale (Ctrl+A) |
 | `klembord_en_kijkwijzer_kaarten_set` | FAIL (mesh steekt buiten de vorm (5 punten)) | PASS | pivot licht verschoven (-0.8/1.8 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `klimnet_schuin_gymzaalframe` | FAIL (middelpunt 45.0 cm verschoven, mesh steekt buiten de vorm (18 punten)) | PASS | pivot niet gecentreerd (0/-45 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `klimtouwen_set_2_hangend` | FAIL (onderkant -35.0 cm te laag/hoog) | PASS | hangend/verhoogd (onderkant 0.35 m) | base_m uit geometrie (automatisch) |
@@ -88,6 +94,9 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `leerling_oranje` | FAIL (mesh steekt buiten de vorm (4 punten)) | PASS | pivot licht verschoven (0.0/1.9 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `leerling_paars` | FAIL (mesh steekt buiten de vorm (4 punten)) | PASS | pivot licht verschoven (0.0/1.9 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `leerling_rood` | FAIL (mesh steekt buiten de vorm (4 punten)) | PASS | pivot licht verschoven (0.0/1.9 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `leerling_staand_rust` | FAIL (middelpunt 3.9 cm verschoven, breedte +3.6 cm, volume +14%, mesh steekt buiten de vorm (4 punten)) | PASS | pivot niet gecentreerd (-0/4 cm); model schuin gemodelleerd (-7.1°) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden; oriented box (yaw -7.1°); Blender: rotatie toepassen (Ctrl+A) |
+| `leerling_wandelen` | FAIL (mesh steekt buiten de vorm (1 punten)) | PASS | pivot licht verschoven (0.4/0.5 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `leerling_zittend_turnbank` | FAIL (middelpunt 10.7 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (0/11 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `mattenkar_compleet` | FAIL (middelpunt 17.8 cm verschoven, mesh steekt buiten de vorm (28 punten)) | PASS | pivot niet gecentreerd (-10/15 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `medicijnbal_slambal_wallball_set` | FAIL (middelpunt 4.7 cm verschoven, mesh steekt buiten de vorm (12 punten)) | PASS | pivot niet gecentreerd (4/-2 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `megafoon_en_luchthoorn` | FAIL (middelpunt 4.7 cm verschoven, onderkant 2.7 cm te laag/hoog, mesh steekt buiten de vorm (20 punten)) | PASS | onderkant onder de vloer (-0.03 m); pivot niet gecentreerd (-4/2 cm) | base_m uit geometrie (automatisch); offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
@@ -101,6 +110,7 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `powerbag_sandbag` | FAIL (mesh steekt buiten de vorm (2 punten)) | PASS | pivot licht verschoven (0.0/1.4 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `reactiebal_noppen` | FAIL (volume +49%) | PASS | model schuin gemodelleerd (-45.0°) | oriented box (yaw -45.0°); Blender: rotatie toepassen (Ctrl+A) |
 | `rekstok_wand_uitklapbaar` | FAIL (middelpunt 18.7 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (0/-19 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `softbal_veiligheidshonk_dubbelhonk` | FAIL (onderkant 5.5 cm te laag/hoog) | PASS | onderkant onder de vloer (-0.06 m) | base_m uit geometrie (automatisch) |
 | `spanbrug_ongelijke_leggers_school_training` | FAIL (mesh steekt buiten de vorm (10 punten)) | PASS | pivot licht verschoven (0.0/1.3 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `springbok_laag_jeugd_80cm` | FAIL (middelpunt 2.3 cm verschoven, onderkant 4.0 cm te laag/hoog, mesh steekt buiten de vorm (2 punten)) | PASS | onderkant onder de vloer (-0.04 m); pivot niet gecentreerd (2/0 cm) | base_m uit geometrie (automatisch); offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `springbok_standaard_105cm` | FAIL (middelpunt 2.3 cm verschoven, onderkant 4.0 cm te laag/hoog, mesh steekt buiten de vorm (2 punten)) | PASS | onderkant onder de vloer (-0.04 m); pivot niet gecentreerd (2/0 cm) | base_m uit geometrie (automatisch); offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
@@ -122,9 +132,14 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `veldvoetbaldoel_500x200_verplaatsbaar` | FAIL (middelpunt 73.7 cm verschoven, mesh steekt buiten de vorm (40 punten)) | PASS | pivot niet gecentreerd (0/-74 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `veldvoetbaldoel_732x244_verplaatsbaar` | FAIL (middelpunt 98.7 cm verschoven, mesh steekt buiten de vorm (40 punten)) | PASS | pivot niet gecentreerd (0/-99 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `vloermarkering_rubber_set` | FAIL (mesh steekt buiten de vorm (8 punten)) | PASS | pivot licht verschoven (0.0/-2.0 cm): mesh steekt buiten de gecentreerde box | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `volleybal_veldopstelling_bodemnet_grond_100cm` | FAIL (middelpunt 9.0 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (-9/0 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `volleybal_veldopstelling_compleet_dames` | FAIL (middelpunt 9.0 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (-9/0 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `volleybal_veldopstelling_compleet_heren` | FAIL (middelpunt 9.0 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (-9/0 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `volleybal_veldopstelling_middelhoog_180cm` | FAIL (middelpunt 9.0 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (-9/0 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `volleybalnet_compleet_antennes_los` | FAIL (onderkant -143.0 cm te laag/hoog) | PASS | hangend/verhoogd (onderkant 1.43 m) | base_m uit geometrie (automatisch) |
+| `volleybalnet_middelhoog_180cm_los` | FAIL (onderkant -80.0 cm te laag/hoog) | PASS | hangend/verhoogd (onderkant 0.80 m) | base_m uit geometrie (automatisch) |
 | `volleybalpalen_mobiel_set` | FAIL (middelpunt 25.0 cm verschoven, mesh steekt buiten de vorm (6 punten)) | PASS | pivot niet gecentreerd (0/-25 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
+| `volleybalpalen_vloerbus_set` | FAIL (middelpunt 9.0 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (-9/0 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `wandrek_dubbel_veld` | FAIL (middelpunt 2.2 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (0/2 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `wandrek_enkel_veld` | FAIL (middelpunt 2.2 cm verschoven, mesh steekt buiten de vorm (2 punten)) | PASS | pivot niet gecentreerd (0/2 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
 | `wandrek_uitklapbaar_zwenk` | FAIL (middelpunt 56.0 cm verschoven, mesh steekt buiten de vorm (6 punten)) | PASS | pivot niet gecentreerd (-2/56 cm) | offset uit geometrie (automatisch); Blender: origin naar onderkant-midden |
@@ -147,10 +162,15 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `airtrack_p2_12m` | FAIL | PASS | 1202.6×205.4×20.3 | -1.0, 0.0 | 0.0 | 0.0° |
 | `airtrack_p2_6m` | FAIL | PASS | 602.6×205.4×20.2 | -1.0, 0.0 | 0.0 | 0.0° |
 | `american_football` | PASS | PASS | 28.6×17.2×17.7 | 0.0, 0.0 | 0.0 | 0.0° |
-| `badminton_veldopstelling_compleet_mobiel` | PASS | PASS | 724.9×48.0×156.5 | 0.0, 0.0 | 0.0 | 0.0° |
+| `badminton_veldopstelling_bodemnet_grond_76cm` | PASS | PASS | 724.9×48.0×156.5 | 0.0, 0.0 | 0.0 | 0.0° |
+| `badminton_veldopstelling_compleet_mobiel` | PASS | PASS | 724.9×48.0×161.5 | 0.0, 0.0 | 0.0 | 0.0° |
 | `badminton_veldopstelling_compleet_vloerbus` | PASS | PASS | 660.0×6.4×156.5 | 0.0, 0.0 | 0.0 | 0.0° |
+| `badminton_veldopstelling_hoog_180cm` | PASS | PASS | 724.9×48.0×186.5 | 0.0, 0.0 | 0.0 | 0.0° |
+| `badmintonnet_bodemnet_grond_76cm_los` | PASS | PASS | 660.0×0.8×76.0 | 0.0, 0.0 | 0.0 | 0.0° |
+| `badmintonnet_hoog_180cm_los` | FAIL | PASS | 660.0×0.8×76.0 | 0.0, 0.0 | 104.0 | 0.0° |
 | `badmintonnet_los_610` | FAIL | PASS | 660.0×0.8×76.0 | 0.0, 0.0 | 79.0 | 0.0° |
-| `badmintonpalen_mobiel_set` | PASS | PASS | 234.9×48.0×156.5 | 0.0, 0.0 | 0.0 | 0.0° |
+| `badmintonpalen_mobiel_set` | PASS | PASS | 234.9×48.0×161.5 | 0.0, 0.0 | 0.0 | 0.0° |
+| `badmintonpalen_vloerbus_set` | FAIL | PASS | 133.3×6.4×156.5 | -2.4, 0.0 | 0.0 | 0.0° |
 | `badmintonracket_senior` | PASS | PASS | 20.6×3.0×67.0 | 0.0, 0.0 | 0.0 | 0.0° |
 | `ballenkar_metaal_open_gevuld` | FAIL | PASS | 102.8×69.0×130.6 | 3.9, 0.0 | 0.0 | 0.0° |
 | `ballenpomp_en_drukmeter_set` | FAIL | PASS | 50.6×18.3×64.6 | -1.5, -0.9 | 0.0 | 8.5° |
@@ -211,6 +231,11 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `hoekvlag_cornervlag_met_voet` | FAIL | PASS | 74.4×27.6×151.7 | 4.2, 0.0 | 0.0 | 0.0° |
 | `hoepel_en_springtouw_opbergrek` | PASS | PASS | 78.0×66.2×133.5 | 0.0, 0.0 | 0.0 | 0.0° |
 | `honkbal_harde_kern` | PASS | PASS | 7.3×7.3×7.3 | 0.0, 0.0 | 0.0 | 0.0° |
+| `honkbal_softbal_honkenset_compleet` | FAIL | PASS | 283.6×295.7×13.6 | 14.0, 27.8 | -5.5 | -22.5° |
+| `honkbal_thuishonk_home_plate` | PASS | PASS | 43.2×43.1×2.1 | 0.0, 0.1 | 0.0 | 0.0° |
+| `honkbal_veldhonk_kussen` | FAIL | PASS | 38.0×38.0×13.6 | 0.0, 0.0 | -5.5 | -45.0° |
+| `honkbal_werpersplaat_pitchers_plate` | FAIL | PASS | 61.0×15.2×6.3 | 0.0, 0.0 | -4.5 | 0.0° |
+| `honkbal_zaalhonken_rubber_set` | FAIL | PASS | 128.6×86.4×2.5 | -0.1, -1.8 | -1.6 | 0.0° |
 | `honkbalknuppel_aluminium` | PASS | PASS | 6.6×6.6×83.8 | 0.0, 0.0 | 0.0 | 0.0° |
 | `honkbalknuppel_hout` | PASS | PASS | 6.6×6.6×83.8 | 0.0, 0.0 | 0.0 | 0.0° |
 | `honkbalknuppel_veiligheidsschuim` | PASS | PASS | 7.5×7.5×68.0 | 0.0, 0.0 | 0.0 | 0.0° |
@@ -232,7 +257,11 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `leerling_groen` | FAIL | PASS | 60.5×31.8×154.4 | 0.0, 1.9 | 0.0 | 0.0° |
 | `leerling_oranje` | FAIL | PASS | 60.5×31.8×154.4 | 0.0, 1.9 | 0.0 | 0.0° |
 | `leerling_paars` | FAIL | PASS | 60.5×31.8×154.4 | 0.0, 1.9 | 0.0 | 0.0° |
+| `leerling_rennen` | PASS | PASS | 47.2×114.5×141.9 | 0.0, 0.0 | 0.0 | 0.0° |
 | `leerling_rood` | FAIL | PASS | 60.5×31.8×154.4 | 0.0, 1.9 | 0.0 | 0.0° |
+| `leerling_staand_rust` | FAIL | PASS | 53.9×26.4×165.0 | -0.4, 3.9 | 0.0 | -7.1° |
+| `leerling_wandelen` | FAIL | PASS | 56.0×87.4×164.1 | 0.4, 0.5 | 0.0 | 0.0° |
+| `leerling_zittend_turnbank` | FAIL | PASS | 364.6×80.4×126.5 | 0.0, 10.7 | 0.0 | 0.0° |
 | `materialenkar_gymzaal_multifunctioneel` | PASS | PASS | 111.1×62.2×113.6 | 0.0, 0.0 | 0.0 | 0.0° |
 | `mattenkar_compleet` | FAIL | PASS | 335.0×94.0×220.4 | -9.5, 15.0 | 0.0 | 0.0° |
 | `medicijnbal_slambal_wallball_set` | FAIL | PASS | 102.3×37.9×35.3 | 4.4, -1.6 | -0.3 | 0.0° |
@@ -265,6 +294,7 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `slalompalen_set_met_voet` | PASS | PASS | 119.0×33.0×156.5 | 0.0, 0.0 | 0.0 | 0.0° |
 | `slow_motion_bal` | PASS | PASS | 35.0×35.0×35.0 | 0.0, 0.0 | 0.0 | 0.0° |
 | `softbal_12_inch` | PASS | PASS | 9.7×9.7×9.7 | 0.0, 0.0 | 0.0 | 0.0° |
+| `softbal_veiligheidshonk_dubbelhonk` | FAIL | PASS | 80.2×38.0×13.6 | 0.0, 0.0 | -5.5 | 0.0° |
 | `spanbrug_ongelijke_leggers_school_training` | FAIL | PASS | 429.0×391.7×232.0 | 0.0, 1.3 | 0.0 | 0.0° |
 | `speedbadminton_crossminton_racket` | PASS | PASS | 22.8×3.5×59.1 | 0.0, 0.0 | 0.0 | 0.0° |
 | `springbok_laag_jeugd_80cm` | FAIL | PASS | 72.7×60.3×84.0 | 2.3, 0.0 | -4.0 | 0.0° |
@@ -305,10 +335,16 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `vloermarkering_rubber_set` | FAIL | PASS | 92.0×52.0×0.4 | 0.0, -2.0 | 0.0 | 0.0° |
 | `voetbal_veld_maat_5` | PASS | PASS | 22.0×22.0×22.0 | 0.0, 0.0 | 0.0 | 0.0° |
 | `volleybal_beach_softtouch` | PASS | PASS | 21.6×21.6×21.6 | 0.0, 0.0 | 0.0 | 0.0° |
+| `volleybal_veldopstelling_bodemnet_grond_100cm` | FAIL | PASS | 1085.0×16.0×257.0 | -9.0, 0.0 | 0.0 | 0.0° |
 | `volleybal_veldopstelling_compleet_dames` | FAIL | PASS | 1085.0×16.0×304.0 | -9.0, 0.0 | 0.0 | 0.0° |
+| `volleybal_veldopstelling_compleet_heren` | FAIL | PASS | 1085.0×16.0×323.0 | -9.0, 0.0 | 0.0 | 0.0° |
+| `volleybal_veldopstelling_middelhoog_180cm` | FAIL | PASS | 1085.0×16.0×260.0 | -9.0, 0.0 | 0.0 | 0.0° |
 | `volleybal_zaal` | PASS | PASS | 21.0×21.0×21.0 | 0.0, 0.0 | 0.0 | 0.0° |
+| `volleybalnet_bodemnet_grond_100cm_los` | PASS | PASS | 1050.0×1.2×180.0 | 0.0, 0.0 | 0.0 | 0.0° |
 | `volleybalnet_compleet_antennes_los` | FAIL | PASS | 1050.0×1.2×180.0 | 0.0, 0.0 | 143.0 | 0.0° |
+| `volleybalnet_middelhoog_180cm_los` | FAIL | PASS | 1050.0×1.2×180.0 | 0.0, 0.0 | 80.0 | 0.0° |
 | `volleybalpalen_mobiel_set` | FAIL | PASS | 281.0×90.0×255.0 | 0.0, -25.0 | 0.0 | 0.0° |
+| `volleybalpalen_vloerbus_set` | FAIL | PASS | 195.0×16.0×257.0 | -9.0, 0.0 | 0.0 | 0.0° |
 | `wandrek_dubbel_veld` | FAIL | PASS | 209.0×26.5×260.0 | 0.0, 2.2 | 0.0 | 0.0° |
 | `wandrek_enkel_veld` | FAIL | PASS | 104.0×26.5×260.0 | 0.0, 2.2 | 0.0 | 0.0° |
 | `wandrek_uitklapbaar_zwenk` | FAIL | PASS | 14.7×129.0×260.0 | -2.0, 56.0 | 0.0 | 0.0° |

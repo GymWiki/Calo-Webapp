@@ -143,11 +143,12 @@ export const SPORT_IDS: readonly string[] = LIBRARY_SPORTS.map((sport) => sport.
 export const PERSONS_ID = PERSONS_CATEGORY.id;
 
 /**
- * Toont de sectie "Personen" (leerlingen) in de bibliotheek. Tijdelijk uit: de nieuwe leerling-modellen
- * (staand/zittend/rennen) hebben nog niet de juiste pose in de GLB (zie docs/glb-optimization.md). De modellen blijven in
- * de database, zodat bestaande plattegronden ze blijven tonen; alleen toevoegen kan niet meer. Zet op true om terug te halen.
+ * Toont de sectie "Personen" (leerlingen) in de bibliotheek. Was tijdelijk uit omdat de geskinde leerling-GLB's in een A-pose
+ * stonden; de poses (staand, wandelend, rennend, zittend op turnbank) zijn nu in de GLB gebakken met
+ * scripts/blender/bake-pose.py (zie docs/glb-optimization.md). Zet op false om de sectie weer te verbergen: de modellen blijven
+ * in de database, zodat bestaande plattegronden ze blijven tonen.
  */
-export const SHOW_PERSONS_IN_LIBRARY = false;
+export const SHOW_PERSONS_IN_LIBRARY = true;
 
 const CATEGORY_BY_ID = new Map<string, LibraryCategory>(
   [...LIBRARY_CATEGORIES, PERSONS_CATEGORY].map((category) => [category.id, category]),
