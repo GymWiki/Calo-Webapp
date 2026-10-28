@@ -1,0 +1,28 @@
+# Eigenaar-/adminmodus: onderzoek en plan
+
+## Hoe auth en rechten nu werken
+- **Auth**: Supabase Auth; profiel in `public.users` (kolommen o.a. `first_name`, `subscription_status`; geen e-mail). `getCurrentUserProfile()` voegt `email` uit de sessie toe.
+- **Geen rollensysteem**: `users.role` en `is_admin()` zijn verwijderd (`remove_user_roles.sql`). De enige "adminrol" is een **vaste e-mail-allowlist**: `public.is_library_admin()` (JWT-e-mail, in de database) en `lib/adminAccess.ts` (`isLibraryAdmin`, e-mail hardcoded in de app). Gebruikt voor `/beheer/ai-import`, `/beheer/taalcheck`, `/kennisbank/beheer` en de RLS van kennisbank-pakketten en taalcheck-voorstellen.
+- **Route-bescherming**: `proxy.ts` stuurt anonieme bezoekers van `PROTECTED_PREFIXES` naar `/login`. `/beheer` staat daar **niet** in; de beheerpagina's controleren zelf `isLibraryAdmin` en sturen anderen naar `/dashboard`.
+- **RLS `activiteiten`**: lezen = `visibility = 'public'`, eigen (`author_id`) of eigen team (`is_active_team_member`); schrijven = alleen eigenaar of teamlid; anoniem leest alleen openbare. Triggers: `guard_activiteiten_visibility` (team-zichtbaarheid mag niet zomaar wisselen), bijdrage-telling, `public_since`. `activity_versions` bestaat al, maar alleen voor teamactiviteiten.
+- **RLS `floorplans_3d`**: eigenaar (`user_id`) leest/schrijft/verwijdert; plus select via gekoppelde publieke activiteit. Storage-buckets `floorplan-previews` en `activiteit-afbeeldingen`: alleen in de eigen map (`<user-id>/…`) schrijven.
+- **`public.users`**: de policy `users_update_own` laat een gebruiker **elke** kolom van de eigen rij wijzigen. Een nieuwe `role`-kolom moet dus actief beschermd worden (trigger), niet alleen met een policy.
+
+## Hoe activiteiten nu worden gemaakt en bewerkt
+- Tabel `public.activiteiten` (o.a. `titel`, `doel`, `beginsituatie`, `beschrijving`, `categorie`, `leerlijn`, `beweegthema`, `niveau`, `doelgroep int[]`, `materiaal`/`base_materials`/`rule_materials text[]`, `regels`, `loopt/lukt/leeft`, `afbeelding`, `arrangement`, `aandachtspunten`, `status` (`draft|pending|approved|rejected`), `visibility` (`private|team|public`), `author_id`, `team_id`, `deleted_at`, `is_ai_generated`, `like_count`). Er zijn **geen** aparte kolommen voor sporten, tags, duur of groepsgrootte (alleen `min_participants`, `participants_bench`).
+- Bewerken kan alleen via de wizard `/les-maken?vanuit=<id>` voor **eigen** (of teamactiviteiten), met server-acties `createLesson`/`saveLessonDraft` die op `author_id` vertrouwen. De 205 bibliotheekactiviteiten hebben `author_id = null` en het oude veldformaat; de wizard kan die alleen lossy openen.
+- Zacht verwijderen (`deleted_at`) bestaat al voor teamactiviteiten; de lijsten filteren erop.
+
+## Plan en beslissingen
+1. **Rol**: kolom `public.users.role` (`user|admin|owner`, default `user`). Alleen de owner (of een sessieloze beheerverbinding zoals de SQL-editor) mag rollen wijzigen, afgedwongen met een trigger op `users` (insert + update). Helpers `is_admin()`/`is_owner()` (security definer). `is_library_admin()` wordt `is_admin()`, zodat de bestaande kennisbank-/taalcheck-RLS meebeweegt en het e-mailadres uit de app verdwijnt. Eigenaar: alleen in de migratie, via `auth.users` met geverifieerd e-mailadres.
+2. **RLS voor beheerders**: admin leest/wijzigt/verwijdert alle `activiteiten` en `floorplans_3d`, leest `users`, en schrijft in de twee storage-buckets. Geen service-role-sleutel (die staat niet in productie); alles via de gewone sessie plus RLS.
+3. **Auditlog en versies in de database** (triggers, dus ook wijzigingen via de wizard of editor worden vastgelegd): `audit_log` (wie, wanneer, veld, oud, nieuw) voor activiteiten en plattegronden; `floorplan_versions` (laatste 10, ruimtelijk gedund) met een admin-only terugzet-functie.
+4. **Beheer-UI** `/beheer`: layout met server-side rolcontrole (404 voor niet-admins, `/beheer` ook in `PROTECTED_PREFIXES`), activiteitenlijst met zoeken/filters/sorteren/paginering/tellingen, bewerkformulier op de echte kolommen (zod), statusacties, zacht verwijderen met herstel en harde verwijdering met titelbevestiging, bulkacties met voorbeeld, auditlog per activiteit met terugzetten.
+5. **Editor**: admin kan elke plattegrond openen/opslaan (opslaan-actie zonder `user_id`-filter, preview in de map van de eigenaar), badge "Beheer" met activiteit en eigenaar, versielijst met terugzetten, koppelen/losmaken van een activiteit; JSON-export/-import bestaat al en is dus ook beschikbaar.
+6. **Beveiliging**: elke admin-actie controleert de rol server-side (RLS is de echte grens), zod-validatie en een eenvoudige rate limit op schrijfacties.
+
+### Afwijkingen van de opdracht (met reden)
+- **Bewerkformulier**: een tweede, kleiner formulier op de echte kolommen in plaats van de wizard te hergebruiken: de wizard is een auteursflow (AI-stappen, eigen concepten, `author_id`-gebonden acties) en opent de bibliotheekactiviteiten lossy.
+- **Velden "sporten, tags, duur, groepsgrootte"** bestaan niet in het schema en worden dus niet verzonnen; wel `categorie`, `leerlijn`, `niveau`, `doelgroep`, materialen, `min_participants`/`participants_bench`.
+- **"Gearchiveerd"** is geen aparte kolom; het is afgeleid: `status = 'approved'` met `visibility = 'private'`. Teamactiviteiten kunnen niet van status wisselen (bestaande guard).
+- **Playwright als owner**: er is lokaal geen Supabase-stack (geen Docker). Rechten zijn getest met een echte lokale Postgres (RLS-tests per rol); de browsertests dekken de toegangsregels voor anonieme bezoekers en de admin-onderdelen van de editor via de testroute.

@@ -1,14 +1,5 @@
-// Dit project heeft geen rollensysteem (zie remove_user_roles.sql) — beheer
-// van de Standaardbibliotheek (supabase/migrations/knowledge_packages.sql)
-// is daarom gegated op een vaste e-mail-allowlist, hier én in de database
-// (public.is_library_admin(), dezelfde lijst). RLS op de knowledge_package_*
-// -tabellen is de echte handhaving; deze check is de UI/actie-laag ervoor
-// (nette redirect/foutmelding i.p.v. een RLS-fout die de gebruiker nooit
-// zou moeten zien) — nieuwe beheerders toevoegen vereist dus een wijziging
-// op TWEE plekken: hier én in de SQL-functie (nieuwe migratie).
-const LIBRARY_ADMIN_EMAILS = ["pieter.kluvers06@gmail.com"];
+// Beheerrechten volgen de rol in de database (lib/auth/roles.ts, public.users.role); public.is_library_admin() in de database
+// is gelijk aan public.is_admin(). Dit bestand blijft als dunne alias voor de bestaande kennisbank-/taalcheck-pagina's.
+import { isAdmin } from "@/lib/auth/roles";
 
-export function isLibraryAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return LIBRARY_ADMIN_EMAILS.includes(email.toLowerCase());
-}
+export const isLibraryAdmin = isAdmin;

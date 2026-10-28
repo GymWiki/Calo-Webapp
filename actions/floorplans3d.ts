@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { fetchIsAdmin } from "@/lib/auth/roles";
 import { isFloorplanPreviewUrl } from "@/lib/floorplanPreview";
 import { getMaterialModelsBySlugs } from "@/lib/services/materialModels";
 import type { MaterialModel } from "@/types/materialModel";
@@ -97,25 +98,29 @@ export async function saveFloorplan3d(
   // select-policy op floorplans_3d eist hetzelfde: plattegrond-eigenaar =
   // auteur van de activiteit). Geen activiteitId meegegeven bij een update =
   // koppeling ongemoeid laten (voorheen werd die hier stilletjes gewist).
+  // Beheerders (public.is_admin(), afgedwongen door RLS) mogen elke plattegrond opslaan en aan elke activiteit koppelen.
+  const isAdmin = id || activiteitId ? await fetchIsAdmin(supabase) : false;
+
   if (activiteitId) {
     const { data: activity } = await supabase
       .from("activiteiten")
       .select("author_id")
       .eq("id", activiteitId)
       .maybeSingle();
-    if (!activity || activity.author_id !== user.id) {
+    if (!activity || (activity.author_id !== user.id && !isAdmin)) {
       return { error: "Je kunt een plattegrond alleen aan je eigen activiteit koppelen." };
     }
   }
 
   if (id) {
-    const { error } = await supabase
+    let update = supabase
       .from("floorplans_3d")
       .update({ naam, data, ...(activiteitId ? { activiteit_id: activiteitId } : {}) })
-      .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("id", id);
+    if (!isAdmin) update = update.eq("user_id", user.id);
+    const { data: updated, error } = await update.select("id");
 
-    if (error) {
+    if (error || !updated?.length) {
       logFloorplan3dError("update", error);
       return { error: GENERIC_ERROR };
     }
@@ -200,40 +205,35 @@ export async function saveFloorplanPreview(
   const { supabase, user } = await getAuthedSupabase();
   if (!user) return { error: NOT_LOGGED_IN_ERROR };
 
-  const { data: owned } = await supabase
-    .from("floorplans_3d")
-    .select("id, activiteit_id")
-    .eq("id", floorplanId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  // Eigenaar van de plattegrond: de preview staat in diens map. Een beheerder mag ook andermans plattegrond bijwerken
+  // (RLS: floorplans_3d_admin_select + floorplan_previews_admin_rw).
+  const admin = await fetchIsAdmin(supabase);
+  let ownedQuery = supabase.from("floorplans_3d").select("id, activiteit_id, user_id").eq("id", floorplanId);
+  if (!admin) ownedQuery = ownedQuery.eq("user_id", user.id);
+  const { data: owned } = await ownedQuery.maybeSingle();
   if (!owned) return { error: "Plattegrond niet gevonden." };
+  const ownerId = owned.user_id as string;
 
   const { error } = await supabase.storage
     .from(PREVIEW_BUCKET)
-    .upload(`${user.id}/${floorplanId}.jpg`, bytes, { contentType: "image/jpeg", upsert: true });
+    .upload(`${ownerId}/${floorplanId}.jpg`, bytes, { contentType: "image/jpeg", upsert: true });
   if (error) {
     logFloorplan3dError("preview", error);
     return { error: GENERIC_ERROR };
   }
 
-  // Heeft de gekoppelde (eigen) activiteit nog geen afbeelding, dan wordt de
-  // thumbnail ook de kaartafbeelding / OG-afbeelding van de activiteit
-  // (activiteiten.afbeelding). Een eigen afbeelding wordt NOOIT
-  // overschreven; alleen een eerdere thumbnail wordt ververst.
+  // Heeft de gekoppelde activiteit nog geen afbeelding, dan wordt de thumbnail ook de kaartafbeelding / OG-afbeelding van de
+  // activiteit (activiteiten.afbeelding). Een eigen afbeelding wordt NOOIT overschreven; alleen een eerdere thumbnail wordt
+  // ververst. (Voor een beheerder geldt dit voor elke activiteit, voor anderen alleen voor de eigen.)
   if (owned.activiteit_id) {
-    const { data: activity } = await supabase
-      .from("activiteiten")
-      .select("afbeelding")
-      .eq("id", owned.activiteit_id)
-      .eq("author_id", user.id)
-      .maybeSingle();
+    let activityQuery = supabase.from("activiteiten").select("afbeelding").eq("id", owned.activiteit_id);
+    if (!admin) activityQuery = activityQuery.eq("author_id", user.id);
+    const { data: activity } = await activityQuery.maybeSingle();
     if (activity && (!activity.afbeelding || isFloorplanPreviewUrl(activity.afbeelding))) {
-      const { publicUrl } = supabase.storage.from(PREVIEW_BUCKET).getPublicUrl(`${user.id}/${floorplanId}.jpg`).data;
-      await supabase
-        .from("activiteiten")
-        .update({ afbeelding: `${publicUrl}?v=${Date.now()}` })
-        .eq("id", owned.activiteit_id)
-        .eq("author_id", user.id);
+      const { publicUrl } = supabase.storage.from(PREVIEW_BUCKET).getPublicUrl(`${ownerId}/${floorplanId}.jpg`).data;
+      let write = supabase.from("activiteiten").update({ afbeelding: `${publicUrl}?v=${Date.now()}` }).eq("id", owned.activiteit_id);
+      if (!admin) write = write.eq("author_id", user.id);
+      await write;
     }
   }
   return { success: true };

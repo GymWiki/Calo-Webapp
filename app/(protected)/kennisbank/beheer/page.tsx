@@ -21,7 +21,7 @@ export default async function KennisbankBeheerPage() {
     redirect("/login");
   }
 
-  if (!isLibraryAdmin(profile.email)) {
+  if (!isLibraryAdmin(profile)) {
     redirect("/kennisbank");
   }
 

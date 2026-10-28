@@ -21,7 +21,7 @@ export default async function TaalcheckBeheerPage() {
     redirect("/login");
   }
 
-  if (!isLibraryAdmin(profile.email)) {
+  if (!isLibraryAdmin(profile)) {
     redirect("/dashboard");
   }
 

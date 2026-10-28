@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import type { Floorplan3dData, Floorplan3dSummary } from "@/types/floorplan3d";
+import type { FloorplanAdminInfo } from "@/lib/services/adminFloorplans";
 import type { MaterialModel } from "@/types/materialModel";
 
 // three/@react-three/fiber raken `window`/WebGL aan bij het laden — moet
@@ -33,6 +34,8 @@ export function Floorplan3dEditorLoader(props: {
   debugCollision?: boolean;
   /** `?debug=collision-legacy`: de oude gecentreerde box (voor/na-vergelijking). */
   debugLegacy?: boolean;
+  /** Beheermodus (alleen voor beheerders): eigenaar, activiteit en versies van de geopende plattegrond. */
+  adminInfo?: FloorplanAdminInfo | null;
 }) {
   return <Floorplan3dEditor {...props} />;
 }

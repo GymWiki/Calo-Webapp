@@ -34,7 +34,7 @@ export default async function KennisbankPage() {
           title="Kennisbank"
           description="Vakliteratuur voor de AI Activiteitenchecker en AI Lescoach — je eigen uploads en de door GymWiki beheerde Standaardbibliotheek."
         />
-        {isLibraryAdmin(profile.email) && (
+        {isLibraryAdmin(profile) && (
           <Link
             href="/kennisbank/beheer"
             className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

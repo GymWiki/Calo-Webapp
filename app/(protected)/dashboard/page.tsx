@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { isAdmin } from "@/lib/auth/roles";
 import { GuestPlanReminder } from "@/components/guest/GuestPlanReminder";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
@@ -38,6 +40,16 @@ export default async function DashboardPage() {
         title={`Welkom terug, ${profile.first_name}`}
         description="Hier vind je je snelle acties, je activiteiten en wat er speelt in de community."
       />
+
+      {isAdmin(profile) && (
+        <Link
+          href="/beheer"
+          className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium text-primary hover:bg-primary/10"
+          data-testid="dashboard-beheer"
+        >
+          Beheer: activiteiten en plattegronden beheren
+        </Link>
+      )}
 
       <GuestPlanReminder />
 

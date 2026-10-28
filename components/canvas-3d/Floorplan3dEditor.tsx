@@ -99,6 +99,8 @@ import { BottomSheet } from "@/components/canvas-3d/mobile/BottomSheet";
 import { CameraMenu } from "@/components/canvas-3d/mobile/CameraMenu";
 import { GestureOnboarding, hasSeenOnboarding } from "@/components/canvas-3d/mobile/GestureOnboarding";
 import { MobileToolbar } from "@/components/canvas-3d/mobile/MobileToolbar";
+import { AdminBadge } from "@/components/canvas-3d/AdminBadge";
+import type { FloorplanAdminInfo } from "@/lib/services/adminFloorplans";
 import { usePlattegrondJson } from "@/components/canvas-3d/usePlattegrondJson";
 import { PlattegrondJsonMenu } from "@/components/canvas-3d/PlattegrondJsonMenu";
 import type { ImportOk } from "@/lib/plattegrond/validate";
@@ -160,6 +162,7 @@ export function Floorplan3dEditor({
   guest = false,
   guestPlan = null,
   onGuestClose,
+  adminInfo = null,
 }: {
   models: MaterialModel[];
   initialFloorplans: Floorplan3dSummary[];
@@ -182,6 +185,8 @@ export function Floorplan3dEditor({
   guestPlan?: { naam?: string; data: Floorplan3dData } | null;
   /** Gastmodus: sluit de editor (terug naar de tekstpagina eromheen). */
   onGuestClose?: () => void;
+  /** Beheermodus: alleen gezet voor beheerders die een plattegrond openen (eigenaar, activiteit, versies). */
+  adminInfo?: FloorplanAdminInfo | null;
 }) {
   const router = useRouter();
   const lookup = useMemo(() => dimsLookupFromModels(models, debugLegacy), [models, debugLegacy]);
@@ -1732,6 +1737,7 @@ export function Floorplan3dEditor({
           <span role="status" aria-label={saveStatusLabel[saveStatus]} className="flex size-6 shrink-0 items-center justify-center">
             {saveIcon}
           </span>
+          {adminInfo && <AdminBadge info={adminInfo} onRestored={() => window.location.reload()} />}
           {guest ? (
             <GuestExportMenu compact onAction={(action) => void runGuestExport(action)} busy={guestBusy} />
           ) : (
@@ -1852,6 +1858,7 @@ export function Floorplan3dEditor({
         <span className="hidden text-xs text-muted-foreground sm:inline" aria-live="polite">
           {guest ? "Automatisch bewaard op dit apparaat" : saveStatusLabel[saveStatus]}
         </span>
+        {adminInfo && <AdminBadge info={adminInfo} onRestored={() => window.location.reload()} />}
         <div className="ml-auto flex items-center gap-1.5">
           <Button
             type="button"
