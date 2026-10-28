@@ -1,61 +1,48 @@
-import { createServiceClient } from "@/utils/supabase/service";
-import { ACTIVITY_LIST_SELECT } from "@/lib/services/activities";
-import type { LibraryListItem } from "@/components/library-item-card";
-import type { Activity } from "@/types/activity";
-import { attachFloorplanThumbnails } from "@/lib/services/floorplans3d";
+import { SHOW_PERSONS_IN_LIBRARY, PERSONS_ID } from "@/lib/constants/libraryTaxonomy";
+import { getAllPublicActivities, type PublicActivity } from "@/lib/services/publicActivities";
+import { createPublicClient } from "@/utils/supabase/public";
 
 const PREVIEW_COUNT = 6;
 
 export type LandingSnapshot = {
-  /** Totaal aantal goedgekeurde, publiek gedeelde activiteiten — het "X activiteiten en groeiend"-cijfer op de landingspagina. */
-  activityCount: number;
-  /** Een handvol representatieve kaarten voor de bibliotheek-preview. */
-  previewItems: LibraryListItem[];
+  /** Publieke, indexeerbare activiteiten (public.activiteiten_publiek), of null als ze niet geladen konden worden. */
+  activityCount: number | null;
+  /** Aantal verschillende leerlijnen in die activiteiten. */
+  leerlijnCount: number | null;
+  /** Actieve 3D-materialen die in de bibliotheek van de editor staan (zonder de verborgen "personen"). */
+  materialCount: number | null;
+  /** Kaarten voor de hero en de bibliotheekpreview: activiteiten met 3D-plattegrond eerst, daarna de meest gewaardeerde. */
+  preview: PublicActivity[];
 };
 
+/** Een activiteit met een 3D-plattegrond heeft de 3D-preview als `afbeelding` (zie lib/activities/visual.ts). */
+export const hasFloorplanThumbnail = (activity: Pick<PublicActivity, "afbeelding">) => Boolean(activity.afbeelding?.includes("floorplan-previews"));
+
+export function pickPreview(activities: PublicActivity[], count = PREVIEW_COUNT): PublicActivity[] {
+  return activities
+    .filter((activity) => Boolean(activity.afbeelding))
+    .sort((a, b) => Number(hasFloorplanThumbnail(b)) - Number(hasFloorplanThumbnail(a)) || b.like_count - a.like_count || a.titel.localeCompare(b.titel, "nl"))
+    .slice(0, count);
+}
+
+async function countMaterials(): Promise<number | null> {
+  let query = createPublicClient().from("material_models").select("id", { count: "exact", head: true }).eq("active", true);
+  if (!SHOW_PERSONS_IN_LIBRARY) query = query.neq("categorie", PERSONS_ID);
+  const { count, error } = await query;
+  return error ? null : count;
+}
+
 /**
- * Voedt de publieke (niet-ingelogde) landingspagina — daarom de
- * service-role client i.p.v. de gewone cookie-gebonden server-client: de
- * "Activiteiten: goedgekeurd of eigen"-RLS-policy geldt alleen `to
- * authenticated`, dus een anonieme bezoeker zonder sessie zou met de
- * normale client altijd 0 rijen terugkrijgen. Haalt bewust alleen de
- * velden op die LibraryItemCard al toont (via ACTIVITY_LIST_SELECT) — geen
- * volledige activiteit-inhoud wordt hier publiek blootgesteld, alleen
- * dezelfde kaart-samenvatting die de preview-slot-feature ook al aan
- * free_blocked-gebruikers toont (zie /zoeken).
+ * Voedt de publieke landingspagina. Alles komt uit de publieke view en publieke policies (anon-client, geen service-role),
+ * en elk onderdeel faalt los: een cijfer dat niet geladen kan worden is `null` en de pagina laat het dan weg.
  */
 export async function getLandingSnapshot(): Promise<LandingSnapshot> {
-  const supabase = createServiceClient();
-
-  const [{ count }, { data: previewRows, error: previewError }] = await Promise.all([
-    supabase
-      .from("activiteiten")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "approved")
-      .eq("visibility", "public"),
-    supabase
-      .from("activiteiten")
-      .select(ACTIVITY_LIST_SELECT)
-      .eq("status", "approved")
-      .eq("visibility", "public")
-      .or("afbeelding.not.is.null,diagram_image_url.not.is.null")
-      .order("created_at", { ascending: false })
-      .limit(PREVIEW_COUNT)
-      .returns<Activity[]>(),
-  ]);
-
-  if (previewError) {
-    throw new Error(`Kon landingspagina-preview niet ophalen: ${previewError.message}`);
-  }
-
-  const previewItems: LibraryListItem[] = (await attachFloorplanThumbnails(supabase, previewRows ?? [])).map((activity) => ({
-    id: activity.id,
-    source: activity.author_id ? "public" : "gymwiki",
-    activity,
-  }));
-
+  const [activities, materialCount] = await Promise.allSettled([getAllPublicActivities(), countMaterials()]);
+  const list = activities.status === "fulfilled" ? activities.value : null;
   return {
-    activityCount: count ?? 0,
-    previewItems,
+    activityCount: list ? list.length : null,
+    leerlijnCount: list ? new Set(list.map((a) => a.leerlijn).filter(Boolean)).size : null,
+    materialCount: materialCount.status === "fulfilled" ? materialCount.value : null,
+    preview: list ? pickPreview(list) : [],
   };
 }

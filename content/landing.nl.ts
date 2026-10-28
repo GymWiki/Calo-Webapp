@@ -178,6 +178,7 @@ export const pricing = {
     { info: SUBSCRIPTION_PLANS.yearly, href: `${links.register}?plan=yearly`, cta: "Kies jaarlijks" },
     { info: SUBSCRIPTION_PLANS.lifetime, href: `${links.register}?plan=lifetime`, cta: "Kies lifetime" },
   ],
+  teamCta: { label: "Team aanmaken", href: `${links.register}?redirectTo=/profiel/team` },
   team: `Voor scholen en teams zijn er jaarpakketten op factuur: ${TEAM_PLAN_ORDER.map((id) => `${TEAM_PLANS[id].label} ${TEAM_PLANS[id].priceLabel} (tot ${TEAM_PLANS[id].seatLimit} leden)`).join(", ")}.`,
 };
 
