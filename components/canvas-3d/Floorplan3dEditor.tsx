@@ -1263,7 +1263,7 @@ export function Floorplan3dEditor({
   const [upsellVisible, setUpsellVisible] = useState(false);
   const [captureView, setCaptureView] = useState<ViewState | null>(null);
   // Elke opname krijgt een eigen sleutel: twee opnames kort na elkaar (PDF: 3D + bovenaanzicht) mounten zo twee keer opnieuw.
-  const captureSeqRef = useRef(0);
+  const [captureSeq, setCaptureSeq] = useState(0);
   const captureResolveRef = useRef<((dataUrl: string) => void) | null>(null);
   const handleCaptured = useCallback((dataUrl: string) => {
     const resolve = captureResolveRef.current;
@@ -1277,7 +1277,7 @@ export function Floorplan3dEditor({
     return new Promise((resolve) => {
       setCaptureFormat(format);
       captureResolveRef.current = resolve;
-      captureSeqRef.current += 1;
+      setCaptureSeq((value) => value + 1);
       setCaptureView({ ...DEFAULT_VIEW, preset });
     });
   }
@@ -1350,7 +1350,7 @@ export function Floorplan3dEditor({
 
   const captureMount = captureView && (
     <FloorplanThumbnailCapture
-      key={captureSeqRef.current}
+      key={captureSeq}
       room={room}
       items={items}
       fields={coneFields}
