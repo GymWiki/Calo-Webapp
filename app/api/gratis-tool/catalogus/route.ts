@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getActiveMaterialModels } from "@/lib/services/materialModels";
 import { createServiceClient } from "@/utils/supabase/service";
+import { E2E_MODELS } from "@/components/canvas-3d/e2e-models";
 import type { MaterialModel } from "@/types/materialModel";
 
 /**
@@ -31,6 +32,8 @@ function rateLimited(ip: string, now: number): boolean {
 }
 
 export async function GET(request: NextRequest) {
+  // Alleen voor de Playwright-tests (zonder Supabase): placeholder-modellen, nooit in productie tenzij E2E_HARNESS=1 expliciet staat.
+  if (process.env.E2E_HARNESS === "1") return NextResponse.json({ models: E2E_MODELS });
   const now = Date.now();
   if (!cache || now - cache.at > CACHE_TTL_MS) {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "onbekend";

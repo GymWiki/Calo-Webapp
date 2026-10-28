@@ -1631,7 +1631,7 @@ export function Floorplan3dEditor({
 
   function panelContent(panel: Exclude<MobilePanel, null>) {
     if (panel === "materiaal") {
-      return <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName={layout === "phone" ? "bg-background" : "bg-card"} />;
+      return <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} surfaceClassName={layout === "phone" ? "bg-background" : "bg-card"} />;
     }
     // Op touch: knoppen en velden in de panelen minimaal 44 px hoog (de panelen zelf zijn voor muis ontworpen).
     const touchSizing = "[&_button:not([role=switch])]:pointer-coarse:min-h-11 [&_input]:pointer-coarse:min-h-11";
@@ -1856,7 +1856,7 @@ export function Floorplan3dEditor({
           >
             <Cone className="size-4" /> Veld afzetten
           </Button>
-          <MaterialModelPicker3D models={models} onSelect={handleAddModel} />
+          <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>
 
         <div className="relative min-w-0 flex-1">
@@ -1906,7 +1906,7 @@ export function Floorplan3dEditor({
             </SheetTitle>
           </SheetHeader>
           <div className={cn("px-4 pb-6")}>
-            {activePanel === "materiaal" && <MaterialModelPicker3D models={models} onSelect={handleAddModel} surfaceClassName="bg-background" />}
+            {activePanel === "materiaal" && <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} surfaceClassName="bg-background" />}
             {activePanel === "item" && itemPanel}
             {activePanel === "rotatie" && rotationPanel}
             {activePanel === "kamer" && roomPanel}

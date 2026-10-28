@@ -153,13 +153,16 @@ export function ModelLibrary({
   models,
   onSelect,
   surfaceClassName = "bg-card",
+  syncFavorites = true,
 }: {
   models: MaterialModel[];
   onSelect: OnSelect;
   /** Achtergrond voor de sticky delen (moet gelijk zijn aan de ondergrond). */
   surfaceClassName?: string;
+  /** Gastmodus: false = favorieten alleen lokaal (geen serveracties). */
+  syncFavorites?: boolean;
 }) {
-  const prefs = useLibraryPrefs();
+  const prefs = useLibraryPrefs({ syncServer: syncFavorites });
   // Telefoon in landscape: weinig hoogte. Zoekbalk en chips scrollen dan mee (alleen de categoriekop
   // blijft plakken), anders blijft er nauwelijks ruimte voor de items zelf.
   const shortViewport = useShortViewport();
