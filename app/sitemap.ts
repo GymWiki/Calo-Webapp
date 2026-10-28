@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { GUEST_TOOL_PATH } from "@/lib/guest/constants";
+import { LONGTAIL_PAGES } from "@/lib/guest/longtail-pages";
 import { getAllPublicActivities, getGroepSlug, getLeerlijnSlug } from "@/lib/services/publicActivities";
 
 // Dynamisch: alle indexeerbare activiteiten + categoriepagina's, plus de
@@ -112,6 +114,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 0.9,
     },
+    {
+      url: `${BASE_URL}${GUEST_TOOL_PATH}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    ...LONGTAIL_PAGES.map((page) => ({
+      url: `${BASE_URL}/${page.slug}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
     {
       url: `${BASE_URL}/over-gymwiki`,
       lastModified: new Date(),
