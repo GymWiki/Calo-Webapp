@@ -53,7 +53,16 @@ Puur SVG + CSS-keyframes (`iso-drop`, alleen `transform`/`opacity`, ~3 kB, geen 
 
 ## Productiecommando's
 
-**Geen databasewijzigingen.** De catalogus wordt server-side met de bestaande service-role-sleutel gelezen (`SUPABASE_SERVICE_ROLE_KEY` staat al in productie voor de Stripe-webhook) en alleen als vaste, publieke projectie (itemdefinities + publieke bucket-URL's) teruggegeven. Er is geen migratie of policy nodig, dus er hoeft niets op productie gedraaid of geback-upt te worden. Normale deploy van `main` volstaat.
+Eén, alleen-lezen policy (geen back-up nodig): `supabase/migrations/material_models_anon_select.sql`. Draai hem in de Supabase SQL-editor vóór of direct na de deploy:
+
+```sql
+grant select on public.material_models to anon;
+drop policy if exists "material_models_select_anon_active" on public.material_models;
+create policy "material_models_select_anon_active"
+  on public.material_models for select to anon using (active = true);
+```
+
+Terugdraaien: `drop policy "material_models_select_anon_active" on public.material_models;`. Er is geen service-role-sleutel nodig (die staat ook niet in de Vercel-productieomgeving); de catalogus-route gebruikt de anon-client.
 
 ## Analytics
 
