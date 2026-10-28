@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "room": {
+    "width_m": 15,
+    "length_m": 27
+  },
+  "items": [
+    {
+      "id": "bank-achter-1",
+      "slug": "__dev_bank",
+      "x": -5.3,
+      "y": 0,
+      "z": -13.365,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "bank-achter-2",
+      "slug": "__dev_bank",
+      "x": -0.7,
+      "y": 0,
+      "z": -13.365,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "bank-zij-1",
+      "slug": "__dev_bank",
+      "x": 7.365,
+      "y": 0,
+      "z": -0.1,
+      "rot_y_deg": 90
+    },
+    {
+      "id": "bank-zij-2",
+      "slug": "__dev_bank",
+      "x": 7.365,
+      "y": 0,
+      "z": 4,
+      "rot_y_deg": 90
+    },
+    {
+      "id": "bank-zij-3",
+      "slug": "__dev_bank",
+      "x": 7.365,
+      "y": 0,
+      "z": 8.1,
+      "rot_y_deg": 90
+    },
+    {
+      "id": "kast-raster-1",
+      "slug": "__dev_kast",
+      "x": -5,
+      "y": 0,
+      "z": -8,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "kast-raster-2",
+      "slug": "__dev_kast",
+      "x": -2.5,
+      "y": 0,
+      "z": -8,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "kast-raster-3",
+      "slug": "__dev_kast",
+      "x": 0,
+      "y": 0,
+      "z": -8,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "kast-raster-4",
+      "slug": "__dev_kast",
+      "x": -5,
+      "y": 0,
+      "z": -6,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "kast-raster-5",
+      "slug": "__dev_kast",
+      "x": -2.5,
+      "y": 0,
+      "z": -6,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "kast-raster-6",
+      "slug": "__dev_kast",
+      "x": 0,
+      "y": 0,
+      "z": -6,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "kast-cirkel-1",
+      "slug": "__dev_kast",
+      "x": 5,
+      "y": 0,
+      "z": 6,
+      "rot_y_deg": 270
+    },
+    {
+      "id": "kast-cirkel-2",
+      "slug": "__dev_kast",
+      "x": 3.5,
+      "y": 0,
+      "z": 8.598,
+      "rot_y_deg": 210
+    },
+    {
+      "id": "kast-cirkel-3",
+      "slug": "__dev_kast",
+      "x": 0.5,
+      "y": 0,
+      "z": 8.598,
+      "rot_y_deg": 150
+    },
+    {
+      "id": "kast-cirkel-4",
+      "slug": "__dev_kast",
+      "x": -1,
+      "y": 0,
+      "z": 6,
+      "rot_y_deg": 90
+    },
+    {
+      "id": "kast-cirkel-5",
+      "slug": "__dev_kast",
+      "x": 0.5,
+      "y": 0,
+      "z": 3.402,
+      "rot_y_deg": 30
+    },
+    {
+      "id": "kast-cirkel-6",
+      "slug": "__dev_kast",
+      "x": 3.5,
+      "y": 0,
+      "z": 3.402,
+      "rot_y_deg": 330
+    },
+    {
+      "id": "mat-schuin",
+      "slug": "__dev_mat",
+      "x": -4,
+      "y": 0,
+      "z": 8,
+      "rot_y_deg": 45
+    },
+    {
+      "id": "bank-naast-mat",
+      "slug": "__dev_bank",
+      "x": -4,
+      "y": 0,
+      "z": 10.403,
+      "rot_y_deg": 0
+    }
+  ]
+}

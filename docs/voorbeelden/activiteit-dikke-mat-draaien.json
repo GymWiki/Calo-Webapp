@@ -1,0 +1,14 @@
+{
+  "aannames": [
+    "Zaal = standaard 15×27 m (veld: 'Gehele gymzaal').",
+    "'Dikke mat' = catalogus-item __dev_mat (3×2×0,3 m); echte afmeting van een dikke mat is ONBEKEND.",
+    "De groep (6–12 leerlingen) en de klimmer zijn geen items; de mat staat bij de start aan de korte wand en wordt in de activiteit over de lengte van de zaal gedraaid."
+  ],
+  "plattegrond": {
+    "version": 1,
+    "room": { "width_m": 15, "length_m": 27 },
+    "items": [
+      { "id": "mat-start", "slug": "__dev_mat", "x": 0, "y": 0, "z": -11.5, "rot_y_deg": 90 }
+    ]
+  }
+}

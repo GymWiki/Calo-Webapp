@@ -1,0 +1,7 @@
+{
+  "room": { "width_m": 15, "length_m": 27 },
+  "onderdelen": [
+    { "type": "item", "id": "mat-midden", "slug": "__dev_mat", "x": 0, "z": 0 },
+    { "type": "tegenWand", "slug": "__dev_bank", "wand": "minZ", "aantal": 2, "tussenruimte": 1, "idPrefix": "bank-achterwand" }
+  ]
+}

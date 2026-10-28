@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "eenheid": "meter",
+    "afmetingen": "length_m = uitgestrekt langs X bij rot_y_deg 0; width_m = langs Z bij rot_y_deg 0; height_m = langs Y (omhoog). Dit zijn de kolomnamen uit material_models.",
+    "pivot": "onderkant-midden: item.x/item.z = midden van de voetafdruk, item.y = onderkant (bron: components/canvas-3d/ItemMesh.tsx, scripts/import-materials.mts)",
+    "allowTilt": "false voor alle items: het opslagformaat kent alleen rot_y_deg (draaien om de verticale as).",
+    "nietInBron": "subgroep, sporten, tags, varianten/kleuren, front-richting en defaultRotatie bestaan niet in material_models; ONBEKEND/afwezig.",
+    "bron": "DEV-PLACEHOLDERS — public.material_models was niet uitleesbaar bij het genereren van dit bestand",
+    "waarschuwing": "Dit zijn NIET de productie-items. Draai `npm run export:item-catalog` met service-role-toegang om de echte catalogus te genereren."
+  },
+  "items": [
+    {
+      "id": "__dev_kast",
+      "naam": "(Dev) Kast",
+      "categorie": "dev-placeholders",
+      "afmetingen": {
+        "length_m": 1.42,
+        "width_m": 0.83,
+        "height_m": 1.35
+      },
+      "pivot": "onderkant-midden",
+      "front": "ONBEKEND",
+      "allowTilt": false,
+      "defaultRotatie": {
+        "rot_y_deg": 0
+      },
+      "collision": "voetafdruk-rechthoek-xz",
+      "stapelbaar": true,
+      "bron": "components/canvas-3d/devPlaceholderModels.ts (dev-placeholder, geen echt GLB-model)"
+    },
+    {
+      "id": "__dev_mat",
+      "naam": "(Dev) Mat",
+      "categorie": "dev-placeholders",
+      "afmetingen": {
+        "length_m": 3,
+        "width_m": 2,
+        "height_m": 0.3
+      },
+      "pivot": "onderkant-midden",
+      "front": "ONBEKEND",
+      "allowTilt": false,
+      "defaultRotatie": {
+        "rot_y_deg": 0
+      },
+      "collision": "voetafdruk-rechthoek-xz",
+      "stapelbaar": true,
+      "bron": "components/canvas-3d/devPlaceholderModels.ts (dev-placeholder, geen echt GLB-model)"
+    },
+    {
+      "id": "__dev_bank",
+      "naam": "(Dev) Bank",
+      "categorie": "dev-placeholders",
+      "afmetingen": {
+        "length_m": 3.6,
+        "width_m": 0.27,
+        "height_m": 0.32
+      },
+      "pivot": "onderkant-midden",
+      "front": "ONBEKEND",
+      "allowTilt": false,
+      "defaultRotatie": {
+        "rot_y_deg": 0
+      },
+      "collision": "voetafdruk-rechthoek-xz",
+      "stapelbaar": true,
+      "bron": "components/canvas-3d/devPlaceholderModels.ts (dev-placeholder, geen echt GLB-model)"
+    }
+  ]
+}

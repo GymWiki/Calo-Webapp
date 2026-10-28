@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "room": {
+    "width_m": 15,
+    "length_m": 27
+  },
+  "items": [
+    {
+      "id": "mat-midden",
+      "slug": "__dev_mat",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "bank-achterwand-1",
+      "slug": "__dev_bank",
+      "x": -2.3,
+      "y": 0,
+      "z": -13.365,
+      "rot_y_deg": 0
+    },
+    {
+      "id": "bank-achterwand-2",
+      "slug": "__dev_bank",
+      "x": 2.3,
+      "y": 0,
+      "z": -13.365,
+      "rot_y_deg": 0
+    }
+  ]
+}

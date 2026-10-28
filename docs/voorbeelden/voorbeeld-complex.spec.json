@@ -1,0 +1,11 @@
+{
+  "room": { "width_m": 15, "length_m": 27 },
+  "onderdelen": [
+    { "type": "tegenWand", "slug": "__dev_bank", "wand": "minZ", "aantal": 2, "tussenruimte": 1, "langs": -3, "idPrefix": "bank-achter" },
+    { "type": "tegenWand", "slug": "__dev_bank", "wand": "maxX", "aantal": 3, "tussenruimte": 0.5, "langs": 4, "idPrefix": "bank-zij" },
+    { "type": "raster", "slug": "__dev_kast", "rijen": 2, "kolommen": 3, "van": { "x": -5, "z": -8 }, "stapX": 2.5, "stapZ": 2, "idPrefix": "kast-raster" },
+    { "type": "cirkel", "slug": "__dev_kast", "aantal": 6, "midden": { "x": 2, "z": 6 }, "straal": 3, "oriëntatie": "tangent", "idPrefix": "kast-cirkel" },
+    { "type": "item", "id": "mat-schuin", "slug": "__dev_mat", "x": -4, "z": 8, "rot_y_deg": 45 },
+    { "type": "naastElkaar", "id": "bank-naast-mat", "basisId": "mat-schuin", "slug": "__dev_bank", "kant": "+z", "tussenruimte": 0.5, "rot_y_deg": 0 }
+  ]
+}

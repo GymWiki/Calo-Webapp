@@ -1,0 +1,16 @@
+{
+  "aannames": [
+    "Zaal = standaard 15×27 m; het veld is 3×10 m en ligt in de lengterichting (z) in het midden.",
+    "Minitrampoline en 6 turnmatjes bestaan niet in de catalogus → NIET geplaatst. Voor de trampoline is 1,2 m tussen kast en mat vrijgehouden (afmeting ONBEKEND); de turnmatjes zouden bovenop de dikke mat komen (stapelen vermijden, daarom weggelaten).",
+    "'Dikke mat' = __dev_mat (3×2×0,3 m).",
+    "Springer, vangers en wachters zijn geen items."
+  ],
+  "plattegrond": {
+    "version": 1,
+    "room": { "width_m": 15, "length_m": 27 },
+    "items": [
+      { "id": "kast-start", "slug": "__dev_kast", "x": 0, "y": 0, "z": -3, "rot_y_deg": 90 },
+      { "id": "mat-landing", "slug": "__dev_mat", "x": 0, "y": 0, "z": 0, "rot_y_deg": 90 }
+    ]
+  }
+}

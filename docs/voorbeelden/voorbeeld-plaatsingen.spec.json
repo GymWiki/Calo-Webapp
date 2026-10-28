@@ -1,0 +1,8 @@
+{
+  "room": { "width_m": 15, "length_m": 27 },
+  "onderdelen": [
+    { "type": "tegenWand", "slug": "__dev_bank", "wand": "minZ", "langs": -5.7, "idPrefix": "hoek-minX-minZ", "afstandTotWand": 0 },
+    { "type": "item", "id": "midden", "slug": "__dev_bank", "x": 0, "z": 0 },
+    { "type": "tegenWand", "slug": "__dev_bank", "wand": "maxZ", "langs": 5.7, "idPrefix": "hoek-maxX-maxZ" }
+  ]
+}

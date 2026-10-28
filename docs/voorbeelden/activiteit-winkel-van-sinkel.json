@@ -1,0 +1,18 @@
+{
+  "aannames": [
+    "Zaal = standaard 15×27 m ('Gehele gymzaal'); midden (z = 0) is de scheidslijn tussen de twee teams.",
+    "Scorebord (1) en lintjes staan niet in de catalogus → niet geplaatst.",
+    "6 matjes ('turnmatjes') ontbreken in de catalogus → niet geplaatst; 'dikke matten' = __dev_mat.",
+    "De winkel (kasten + matten waar punten voor besteed worden) ligt aan de zijkanten, buiten het speelveld; waar precies is een keuze, niet uit de beschrijving af te leiden."
+  ],
+  "plattegrond": {
+    "version": 1,
+    "room": { "width_m": 15, "length_m": 27 },
+    "items": [
+      { "id": "kast-winkel-1", "slug": "__dev_kast", "x": 7.085, "y": 0, "z": -1, "rot_y_deg": 90 },
+      { "id": "kast-winkel-2", "slug": "__dev_kast", "x": 7.085, "y": 0, "z": 1, "rot_y_deg": 90 },
+      { "id": "mat-winkel-1", "slug": "__dev_mat", "x": -6.5, "y": 0, "z": -2.5, "rot_y_deg": 90 },
+      { "id": "mat-winkel-2", "slug": "__dev_mat", "x": -6.5, "y": 0, "z": 2.5, "rot_y_deg": 90 }
+    ]
+  }
+}

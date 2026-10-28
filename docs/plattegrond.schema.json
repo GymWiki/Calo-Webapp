@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plattegrond.schema.json",
+  "title": "Floorplan3dData",
+  "description": "Opslagformaat van public.floorplans_3d.data (bron: types/floorplan3d.ts, floorplan3dDataSchema). Meters, Y omhoog, zaalmidden = oorsprong. Dit schema controleert alleen de vorm; zaalgrenzen, catalogus-id's, overlap en stapelen worden gecontroleerd door `npm run validate:plattegrond`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "room", "items"],
+  "properties": {
+    "version": { "const": 1, "description": "Versie van het formaat; momenteel altijd 1." },
+    "room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width_m", "length_m"],
+      "properties": {
+        "width_m": { "type": "number", "exclusiveMinimum": 0, "description": "Zaalbreedte in meter, langs de X-as. Geldig bereik voor item-middelpunten: -width_m/2 … +width_m/2." },
+        "length_m": { "type": "number", "exclusiveMinimum": 0, "description": "Zaallengte in meter, langs de Z-as. Geldig bereik: -length_m/2 … +length_m/2." }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "slug", "x", "y", "z", "rot_y_deg"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "description": "Unieke id van deze plaatsing (de editor gebruikt een UUID)." },
+          "slug": { "type": "string", "minLength": 1, "description": "Item-id uit de catalogus (material_models.slug)." },
+          "x": { "type": "number", "description": "Midden van de voetafdruk, meter, langs breedte-as." },
+          "y": { "type": "number", "description": "Onderkant van het item in meter boven de vloer; 0 tenzij gestapeld." },
+          "z": { "type": "number", "description": "Midden van de voetafdruk, meter, langs lengte-as." },
+          "rot_y_deg": { "type": "number", "description": "Draaiing om de verticale as in graden; editor-stap 15, genormaliseerd naar 0 ≤ r < 360. Enige rotatie in het formaat." }
+        }
+      }
+    }
+  }
+}
