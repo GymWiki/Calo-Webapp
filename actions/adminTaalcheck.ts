@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import { isLibraryAdmin } from "@/lib/adminAccess";
+import { fetchIsAdmin } from "@/lib/auth/roles";
 import { textToArrayField } from "@/lib/ai/languageCheckPrompt";
 import { LANGUAGE_CHECK_FIELDS } from "@/lib/ai/languageCheck";
 
@@ -34,7 +34,7 @@ async function requireLibraryAdmin(): Promise<AdminAuthResult> {
     return { error: NOT_LOGGED_IN_ERROR };
   }
 
-  if (!isLibraryAdmin(user.email)) {
+  if (!(await fetchIsAdmin(supabase))) {
     return { error: NOT_ADMIN_ERROR };
   }
 

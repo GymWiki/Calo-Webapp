@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { parseRole } from "@/lib/auth/roles";
 import { getEffectiveAccess } from "@/lib/services/teams";
 import type { SubscriptionStatus, UserProfile } from "@/lib/types";
 
@@ -25,7 +26,7 @@ export const getCurrentUserProfile = cache(
     // lib/permissions.ts, getContributionStatus) een teamlid automatisch
     // als paid_subscriber behandelt, zonder zelf iets van teams te hoeven
     // weten. Beide mogen gerust parallel: geen afhankelijkheid tussen ze.
-    const [{ data: profile }, access] = await Promise.all([
+    const [{ data: profile }, access, roleResult] = await Promise.all([
       supabase
         .from("users")
         .select(
@@ -34,6 +35,9 @@ export const getCurrentUserProfile = cache(
         .eq("id", user.id)
         .single(),
       getEffectiveAccess(supabase),
+      // Aparte query: vóór de rol-migratie (supabase/migrations/admin_roles_audit.sql) bestaat de kolom nog niet; een fout
+      // betekent dan gewoon "user" en breekt het inloggen niet.
+      supabase.from("users").select("role").eq("id", user.id).maybeSingle(),
     ]);
 
     if (!profile) {
@@ -43,6 +47,7 @@ export const getCurrentUserProfile = cache(
     return {
       ...profile,
       email: user.email ?? null,
+      role: parseRole(roleResult.data?.role),
       subscription_status: (access?.effective_status as SubscriptionStatus) ?? profile.subscription_status,
       team_id: access?.team_id ?? null,
       team_role: (access?.team_role as "owner" | "member" | null) ?? null,

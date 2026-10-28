@@ -23,7 +23,7 @@ export default async function AiImportBeheerPage() {
     redirect("/login");
   }
 
-  if (!isLibraryAdmin(profile.email)) {
+  if (!isLibraryAdmin(profile)) {
     redirect("/dashboard");
   }
 

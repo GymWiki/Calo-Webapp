@@ -28,6 +28,8 @@ export type UserProfile = {
   subscription_status: SubscriptionStatus;
   subscription_type: SubscriptionType;
   email: string | null;
+  /** Rol uit public.users.role: 'user' (standaard), 'admin' of 'owner' (zie lib/auth/roles.ts). */
+  role: "user" | "admin" | "owner";
   /**
    * Regio (noord/midden/zuid) voor de schoolvakantie-weergave in de
    * Planning-kalender — null zolang de gebruiker dit niet heeft ingesteld
