@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Check, MapPin, Users } from "lucide-react";
 
@@ -6,6 +7,7 @@ import { ActivityDetailActions } from "@/components/activity-detail-actions";
 import { ActivityInfoStrip, type InfoStripItem } from "@/components/activity-info-strip";
 import { ActivityWizardPage } from "@/components/activity-wizard-page";
 import { BackButton } from "@/components/BackButton";
+import { Button } from "@/components/ui/button";
 import { LibraryAccessBlocked } from "@/components/library-access-blocked";
 import { SourceBadge } from "@/components/library-item-card";
 import { MaterialChecklist } from "@/components/material-checklist";
@@ -39,6 +41,7 @@ import { TeamLibraryActionButton } from "@/components/team/TeamLibraryActionButt
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
+import { isAdmin } from "@/lib/auth/roles";
 import { DOELGROEP_LABELS, type Activity } from "@/types/activity";
 import type { DidacticItem } from "@/types/lesson";
 
@@ -493,6 +496,21 @@ export default async function ActiviteitDetailPage({
               </div>
               <SourceBadge source={getActivitySource(activity)} className="mt-1 shrink-0" />
             </div>
+
+            {/* Alleen voor beheerders (rol uit de database; de rechten zelf liggen in RLS). */}
+            {isAdmin(profile) && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2" data-testid="beheer-balk">
+                <span className="text-xs font-semibold tracking-wide text-primary uppercase">Beheer</span>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/beheer/activiteiten/${activity.id}`}>Bewerken</Link>
+                </Button>
+                {floorplan && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/plattegrond-3d?open=${floorplan.id}`}>Plattegrond bewerken</Link>
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/* Compacte iconenrij op mobiel/tablet — gewoon onderdeel van de
                 paginascroll (niet sticky), dus geen concurrentie met de vaste
