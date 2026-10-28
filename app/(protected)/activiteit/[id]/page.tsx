@@ -504,9 +504,13 @@ export default async function ActiviteitDetailPage({
                 <Button asChild size="sm" variant="outline">
                   <Link href={`/beheer/activiteiten/${activity.id}`}>Bewerken</Link>
                 </Button>
-                {floorplan && (
+                {floorplan ? (
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/plattegrond-3d?open=${floorplan.id}`}>Plattegrond bewerken</Link>
+                  </Button>
+                ) : (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/plattegrond-3d?activiteit=${activity.id}`}>3D-plattegrond maken</Link>
                   </Button>
                 )}
               </div>

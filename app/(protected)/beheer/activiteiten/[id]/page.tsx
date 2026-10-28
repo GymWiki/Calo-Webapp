@@ -20,7 +20,7 @@ export default async function BeheerActivityPage({ params }: { params: Promise<{
 
   const [audit, floorplans, author] = await Promise.all([
     getActivityAudit(supabase, id),
-    getFloorplansForAdmin(supabase, id),
+    getFloorplansForAdmin(supabase, id, activity.author_id),
     activity.author_id ? supabase.from("users").select("first_name, last_name").eq("id", activity.author_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const authorName = author.data ? `${author.data.first_name} ${author.data.last_name}`.trim() : null;

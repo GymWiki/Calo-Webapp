@@ -76,6 +76,10 @@ create policy floorplans_3d_owner_insert on public.floorplans_3d for insert to a
 create policy floorplans_3d_owner_update on public.floorplans_3d for update to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 create policy floorplans_3d_owner_delete on public.floorplans_3d for delete to authenticated using (user_id = (select auth.uid()));
 
+-- Zoals in productie (floorplans_3d_activity_view.sql): bekijkers lezen de plattegrond van de AUTEUR van een zichtbare activiteit.
+create policy "floorplans_3d_activity_select" on public.floorplans_3d for select to authenticated
+  using (activiteit_id is not null and exists (select 1 from public.activiteiten a where a.id = floorplans_3d.activiteit_id and a.author_id = floorplans_3d.user_id));
+
 -- Oude, e-mailgebaseerde variant (zoals in productie vóór de migratie).
 create function public.is_library_admin() returns boolean language sql stable security invoker set search_path = ''
   as $$ select lower(coalesce((select auth.jwt() ->> 'email'), '')) in ('pieter.kluvers06@gmail.com') $$;

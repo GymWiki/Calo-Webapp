@@ -48,3 +48,17 @@ test("editor in beheermodus: badge met eigenaar en activiteit, versiedialoog zon
   await expect(dialog).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("bibliotheekkaart: Bewerken-knop alleen voor beheerders, kaartlink blijft werken", async ({ page }) => {
+  await page.goto("/e2e/activiteit-plattegrond");
+  await expect(page.getByTestId("bibliotheekkaart").getByTestId("kaart-bewerken")).toHaveCount(0);
+
+  await page.goto("/e2e/activiteit-plattegrond?beheer=1");
+  const card = page.getByTestId("bibliotheekkaart");
+  const edit = card.getByTestId("kaart-bewerken");
+  await expect(edit).toBeVisible();
+  await expect(edit).toHaveAttribute("href", /^\/beheer\/activiteiten\/.+/);
+  await expect(card.getByRole("link", { name: /Testactiviteit/ }).first()).toHaveAttribute("href", /^\/activiteit\//);
+  const box = await edit.boundingBox();
+  expect(box && box.height >= 28).toBe(true);
+});

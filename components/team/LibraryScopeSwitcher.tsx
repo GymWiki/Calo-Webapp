@@ -19,6 +19,7 @@ export function LibraryScopeSwitcher({
   publicActivities,
   previewActivityIds,
   currentUserId,
+  canEdit = false,
   teamName,
   teamEntries,
   allTeamTags,
@@ -28,6 +29,7 @@ export function LibraryScopeSwitcher({
   publicActivities: Activity[];
   previewActivityIds: string[] | null;
   currentUserId: string;
+  canEdit?: boolean;
   teamName: string;
   teamEntries: { activity: Activity; item: TeamLibraryItem }[];
   allTeamTags: TeamTag[];
@@ -81,6 +83,7 @@ export function LibraryScopeSwitcher({
           publicActivities={publicActivities}
           previewActivityIds={previewActivityIds}
           currentUserId={currentUserId}
+          canEdit={canEdit}
         />
       )}
     </div>

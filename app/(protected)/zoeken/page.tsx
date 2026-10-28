@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LibraryScopeSwitcher } from "@/components/team/LibraryScopeSwitcher";
+import { isAdmin } from "@/lib/auth/roles";
 import { getUserPermissions, LIBRARY_PREVIEW_LIMIT } from "@/lib/permissions";
 import { getAllActivities, getPublicActivities, getTeamActivities } from "@/lib/services/activities";
 import { getOrCreateLibraryPreviewActivityIds } from "@/lib/services/libraryPreview";
@@ -84,6 +85,9 @@ async function ZoekenContent({
   // hieronder (zie getPublicActivities's eigen author_id-not-null-filter).
   const activities = allActivities.filter((activity) => activity.author_id === null);
 
+  // Beheerders krijgen op elke kaart een "Bewerken"-knop (de rechten zelf liggen in RLS).
+  const admin = isAdmin(profile);
+
   // Vaste preview-set (zie lib/services/libraryPreview.ts): eenmalig
   // berekend en op het profiel opgeslagen bij het eerste bezoek van een
   // free_blocked-gebruiker, zodat filteren niet steeds een NIEUWE N
@@ -124,6 +128,7 @@ async function ZoekenContent({
           publicActivities={publicActivities}
           previewActivityIds={previewActivityIds}
           currentUserId={profile.id}
+          canEdit={admin}
         />
       </>
     );
@@ -151,6 +156,7 @@ async function ZoekenContent({
         publicActivities={publicActivities}
         previewActivityIds={previewActivityIds}
         currentUserId={profile.id}
+          canEdit={admin}
         teamName={profile.team_name ?? "Team"}
         teamEntries={teamEntries}
         allTeamTags={allTeamTags}
@@ -168,6 +174,7 @@ async function ZoekenContent({
       publicActivities={publicActivities}
       previewActivityIds={previewActivityIds}
       currentUserId={profile.id}
+          canEdit={admin}
     />
   );
 }

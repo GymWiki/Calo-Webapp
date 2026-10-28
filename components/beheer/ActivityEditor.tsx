@@ -304,6 +304,12 @@ export function ActivityEditor({
               </li>
             ))}
           </ul>
+          <Button asChild size="sm" data-testid="nieuwe-plattegrond">
+            <Link href={`/plattegrond-3d?activiteit=${activity.id}`}>
+              <Box className="size-4" aria-hidden="true" /> Nieuwe 3D-plattegrond maken
+            </Link>
+          </Button>
+          <p className="text-xs text-muted-foreground">Opent de editor; wat je opslaat is meteen aan deze activiteit gekoppeld en wint van de afbeelding.</p>
           {floorplans.available.length > 0 && (
             <div className="flex gap-2">
               <select value={linkId} onChange={(e) => setLinkId(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border bg-background px-2 text-sm" aria-label="Plattegrond om te koppelen">

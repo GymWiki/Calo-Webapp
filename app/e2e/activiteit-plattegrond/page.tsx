@@ -36,7 +36,7 @@ function activityFor(kind: string | undefined) {
   return { afbeelding: hasImage ? IMAGE : null, diagram_image_url: null as string | null };
 }
 
-type Search = { case?: string; rol?: string };
+type Search = { case?: string; rol?: string; beheer?: string };
 
 function resolve(search: Search) {
   const activity = activityFor(search.case);
@@ -94,7 +94,7 @@ export default async function PlattegrondWeergaveHarness({ searchParams }: { sea
         <ActivityPlattegrondBlock activityId={ACTIVITY_ID} visual={visual} canEdit={canEdit} models={E2E_MODELS} />
       </section>
       <section aria-label="Bibliotheekkaart" data-testid="bibliotheekkaart" className="max-w-xs">
-        <LibraryItemCard item={{ source: "public", id: ACTIVITY_ID, activity: card }} />
+        <LibraryItemCard item={{ source: "public", id: ACTIVITY_ID, activity: card }} adminEditHref={search.beheer ? `/beheer/activiteiten/${ACTIVITY_ID}` : undefined} />
       </section>
       <section aria-label="Publieke kaart" data-testid="publieke-kaart" className="max-w-xs">
         <PublicActivityCard activity={publicCard} />

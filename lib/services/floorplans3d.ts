@@ -25,23 +25,33 @@ export function floorplanPreviewUrl(supabase: SupabaseClient, ownerId: string, f
  * uitkomst (geen koppeling, geen leesrecht, nog geen migratie) is gewoon
  * `null`: de activiteitpagina toont dan niets.
  */
+/**
+ * Id's van beheerders (admin/owner): hun plattegronden gelden naast die van de AUTEUR als "de" plattegrond van een activiteit
+ * (ook bij bibliotheekactiviteiten zonder auteur). Zie supabase/migrations/floorplans_curated_by_admin.sql; zonder die migratie
+ * is de uitkomst leeg en geldt alleen de auteursregel van vroeger.
+ */
+export async function getCuratorIds(supabase: SupabaseClient): Promise<Set<string>> {
+  const { data, error } = await supabase.rpc("curator_ids");
+  return error || !Array.isArray(data) ? new Set() : new Set(data as string[]);
+}
+
 export async function getFloorplanForActivity(
   supabase: SupabaseClient,
   activityId: string,
   authorId: string | null,
 ): Promise<ActivityFloorplan | null> {
-  if (!authorId) return null;
-
-  const { data, error } = await supabase
+  const { data: rows, error } = await supabase
     .from("floorplans_3d")
     .select("id, naam, user_id, data, updated_at")
     .eq("activiteit_id", activityId)
-    .eq("user_id", authorId)
     .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
-  if (error || !data) return null;
+  if (error || !rows?.length) return null;
+  // Nieuwste plattegrond van de auteur of van een beheerder (RLS laat bekijkers sowieso alleen die zien).
+  const curators = await getCuratorIds(supabase);
+  const data = rows.find((row) => row.user_id === authorId || curators.has(row.user_id));
+  if (!data) return null;
 
   // Zelfde tolerante parse als de editor: oudere plattegronden hebben geen `coneFields`.
   const parsed = floorplan3dDataSchema.safeParse(data.data);
@@ -86,7 +96,7 @@ type ActivityRef = { id: string; author_id: string | null };
 
 /**
  * Thumbnails van de 3D-plattegronden bij een lijst activiteiten (kaarten, OG, PDF) in één batch-query: per activiteit de
- * meest recent bijgewerkte plattegrond van de AUTEUR die inhoud heeft (minstens één item of afgezet veld; alleen het
+ * meest recent bijgewerkte plattegrond van de AUTEUR of een beheerder die inhoud heeft (minstens één item of afgezet veld; alleen het
  * eerste element wordt opgehaald, niet de hele JSON). Lege uitkomst bij een fout: de lijst valt dan terug op de afbeelding.
  */
 export async function getFloorplanThumbnails(
@@ -94,7 +104,7 @@ export async function getFloorplanThumbnails(
   activities: ActivityRef[],
 ): Promise<Map<string, string>> {
   const thumbs = new Map<string, string>();
-  const authors = new Map(activities.filter((a) => a.author_id).map((a) => [a.id, a.author_id as string]));
+  const authors = new Map(activities.map((a) => [a.id, a.author_id]));
   if (authors.size === 0) return thumbs;
 
   const { data, error } = await supabase
@@ -105,9 +115,10 @@ export async function getFloorplanThumbnails(
     .returns<ThumbnailRow[]>();
   if (error || !data) return thumbs;
 
+  const curators = data.length > 0 ? await getCuratorIds(supabase) : new Set<string>();
   for (const row of data) {
     if (thumbs.has(row.activiteit_id)) continue; // nieuwste eerst
-    if (authors.get(row.activiteit_id) !== row.user_id) continue; // alleen de plattegrond van de auteur
+    if (authors.get(row.activiteit_id) !== row.user_id && !curators.has(row.user_id)) continue; // auteur of beheerder
     if (row.first_item == null && row.first_field == null) continue; // leeg: niet tonen
     thumbs.set(row.activiteit_id, floorplanPreviewUrl(supabase, row.user_id, row.id, row.updated_at));
   }
