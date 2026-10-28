@@ -32,8 +32,19 @@ na optimalisatie binnen 1 cm gelijk aan het origineel (gecontroleerd over alle 1
 
 `import-materials.mts` en `audit-collision.mts` kunnen Meshopt-gecomprimeerde GLB's lezen (decoder geregistreerd).
 
-Uploadstatus: de 184 geoptimaliseerde modellen staan in Supabase (`materials-3d/models/<slug>.glb`).
-De nieuwe leerlingen `leerling_staand_rust`, `leerling_zittend_turnbank` en `leerling_rennen` zijn **niet** geüpload:
-hun GLB staat in een A-pose (armen schuin omlaag, staand), niet in de houding van de preview (rennend / zittend op
-de bank). De pose zit niet in de GLB-export; exporteer vanuit Blender met de pose toegepast (Armature-modifier
-toepassen of "Apply Pose" voor export) en lever opnieuw aan.
+Uploadstatus: alle modellen uit de Drive staan in Supabase (`materials-3d/models/<slug>.glb`).
+
+### Leerlingen: pose bakken vóór export
+
+De Blender-export van `leerling_*` bevat alleen de bind-pose (A-pose); de gewenste pose zit in de `.blend` als pose van de
+armature. Een geskind GLB toont die pose dus niet in three.js. Daarom wordt de pose gebakken: de armature-modifier wordt
+toegepast en het resultaat zonder skin geëxporteerd (`export_apply=True`, `export_skins=False`). Zo is het model statisch,
+Meshopt-comprimeerbaar en klopt de bounding box (collision).
+
+```
+pip install bpy   # Python 3.13, ±400 MB; eenmalig in een venv
+python scripts/blender/bake-pose.py leerling_rennen.blend leerling_rennen.glb
+```
+
+Daarna: laagste punt op y=0 zetten en (waar nodig) centreren, optimaliseren met `optimize-glbs.mts` en importeren met
+`import-materials.mts`. Lever nieuwe poses dus als `.blend` met de pose toegepast aan; de losse `.glb` uit Blender is niet nodig.
