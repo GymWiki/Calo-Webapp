@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FilePlus2, HelpCircle, MoreVertical, FolderOpen } from "lucide-react";
+import { ClipboardCopy, FileDown, FilePlus2, FileUp, HelpCircle, MoreVertical, FolderOpen } from "lucide-react";
+
+import type { JsonAction } from "@/components/canvas-3d/PlattegrondJsonMenu";
 
 import { cn } from "@/lib/utils";
 import { QUALITY_SETTINGS, type QualitySetting } from "@/components/canvas-3d/mobile/mobile-logic";
@@ -18,6 +20,7 @@ export function OverflowMenu({
   onSettings,
   onOpenList,
   onNewPlan,
+  onJson,
   onShowHelp,
 }: {
   settings: EditorSettings;
@@ -26,6 +29,8 @@ export function OverflowMenu({
   onOpenList?: () => void;
   /** Alleen gastmodus: "Nieuwe plattegrond" (wist de lokale kladversie). */
   onNewPlan?: () => void;
+  /** JSON downloaden, kopiëren of openen. */
+  onJson?: (action: JsonAction) => void;
   onShowHelp: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -86,6 +91,28 @@ export function OverflowMenu({
             >
               <FilePlus2 className="size-4" aria-hidden="true" /> Nieuwe plattegrond
             </button>
+          )}
+          {onJson && (
+            <div role="group" aria-label="Plattegrond als JSON" className="mt-1 border-t pt-1">
+              {([
+                ["download", "JSON downloaden", FileDown],
+                ["copy", "JSON kopiëren", ClipboardCopy],
+                ["open", "JSON openen…", FileUp],
+              ] as const).map(([action, label, Icon]) => (
+                <button
+                  key={action}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    onJson(action);
+                  }}
+                  className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-medium hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  <Icon className="size-4" aria-hidden="true" /> {label}
+                </button>
+              ))}
+            </div>
           )}
           <button
             type="button"
