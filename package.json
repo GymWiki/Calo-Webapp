@@ -15,7 +15,11 @@
     "mobile:icons": "node scripts/generate-app-icon.mjs",
     "mobile:sync": "cap sync",
     "mobile:ios": "cap open ios",
-    "mobile:android": "cap open android"
+    "mobile:android": "cap open android",
+    "validate:plattegrond": "node --experimental-strip-types --no-warnings --experimental-loader=./scripts/lib/path-alias-loader.mjs scripts/validate-plattegrond.mts",
+    "build:plattegrond": "node --experimental-strip-types --no-warnings --experimental-loader=./scripts/lib/path-alias-loader.mjs scripts/build-plattegrond.mts",
+    "export:item-catalog": "node --experimental-strip-types --no-warnings --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/export-item-catalog.mts",
+    "test:plattegrond": "node --experimental-strip-types --no-warnings --experimental-loader=./scripts/lib/path-alias-loader.mjs --test lib/plattegrond/*.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
