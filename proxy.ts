@@ -11,6 +11,7 @@ const PROTECTED_PREFIXES = [
   "/profiel",
   "/toernooi",
   "/pro",
+  "/beheer",
 ];
 
 // Publicly reachable even though they start with a protected prefix above
