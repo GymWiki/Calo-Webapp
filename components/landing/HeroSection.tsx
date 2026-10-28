@@ -1,11 +1,19 @@
+import Link from "next/link";
 import { ArrowRight, Search } from "lucide-react";
 
-import { IsoScene } from "@/components/landing/IsoScene";
+import { IsoScene, type IsoBlock } from "@/components/landing/IsoScene";
 import { LandingActivityCard } from "@/components/landing/LandingActivityCard";
 import { TrackedLink } from "@/components/landing/TrackedLink";
 import { Button } from "@/components/ui/button";
 import { hero, links } from "@/content/landing.nl";
 import type { PublicActivity } from "@/lib/services/publicActivities";
+
+const THREE_D_EXAMPLE: IsoBlock[] = [
+  { x: 1.5, y: 1.5, w: 3, d: 2, h: 0.35, color: "#7c5cff" },
+  { x: 6.5, y: 1.2, w: 3.2, d: 1.2, h: 0.5, color: "#16a34a" },
+  { x: 2, y: 5, w: 1.8, d: 1.8, h: 1.1, color: "#f59e0b" },
+  { x: 6, y: 4.6, w: 3, d: 1, h: 0.4, color: "#2454ff" },
+];
 
 /** Hero: het hoofdvoordeel in één kop, twee CTA's en het echte product eronder (activiteitkaarten uit de bibliotheek). */
 export function HeroSection({ showcase }: { showcase: PublicActivity[] }) {
@@ -48,9 +56,22 @@ export function HeroSection({ showcase }: { showcase: PublicActivity[] }) {
             <div className="bg-muted/30 p-3 sm:p-4" aria-label={hero.showcaseLabel}>
               {showcase.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  {showcase.slice(0, 4).map((activity, index) => (
+                  {showcase.slice(0, 3).map((activity, index) => (
                     <LandingActivityCard key={activity.id} activity={activity} compact priority={index < 2} />
                   ))}
+                  {/* Er is nog geen activiteit met een gekoppelde 3D-plattegrond; deze tegel is daarom een (zo benoemd) voorbeeld uit de editor. */}
+                  <Link
+                    href={links.editor}
+                    className="group block overflow-hidden rounded-2xl border bg-card shadow-brand-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-brand-md motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                  >
+                    <div className="flex aspect-[16/10] w-full items-center justify-center bg-gradient-to-b from-orange-50 to-amber-100 dark:from-zinc-900 dark:to-zinc-800">
+                      <IsoScene blocks={THREE_D_EXAMPLE} cones={[]} className="h-full w-auto p-2" />
+                    </div>
+                    <div className="space-y-1 p-3">
+                      <p className="text-[0.7rem] font-semibold tracking-wide text-muted-foreground uppercase">{hero.threeDBadge}</p>
+                      <p className="line-clamp-2 text-sm font-semibold">{hero.threeDExample}</p>
+                    </div>
+                  </Link>
                 </div>
               ) : (
                 <IsoScene blocks={[]} className="mx-auto block h-auto w-full max-w-[420px]" />

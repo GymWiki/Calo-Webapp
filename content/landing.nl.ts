@@ -49,6 +49,7 @@ export const hero = {
   note: `Gratis zolang je ${MONTHLY_CONTRIBUTION_REQUIRED_COUNT} activiteiten per maand deelt, of vanaf ${SUBSCRIPTION_PLANS.monthly.priceLabel} per maand.`,
   showcaseLabel: "Een greep uit de bibliotheek",
   threeDBadge: "3D-plattegrond",
+  threeDExample: "Voorbeeld uit de gratis editor",
 };
 
 export const problems = {
