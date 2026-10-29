@@ -1,4 +1,4 @@
-import { SHOW_PERSONS_IN_LIBRARY, PERSONS_ID } from "@/lib/constants/libraryTaxonomy";
+import { PERSONS_ID } from "@/lib/constants/libraryTaxonomy";
 import { getAllPublicActivities, type PublicActivity } from "@/lib/services/publicActivities";
 import { createPublicClient } from "@/utils/supabase/public";
 
@@ -9,7 +9,7 @@ export type LandingSnapshot = {
   activityCount: number | null;
   /** Aantal verschillende leerlijnen in die activiteiten. */
   leerlijnCount: number | null;
-  /** Actieve 3D-materialen die in de bibliotheek van de editor staan (zonder de verborgen "personen"). */
+  /** Actieve 3D-materialen die in de bibliotheek van de editor staan (zonder personen). */
   materialCount: number | null;
   /** Kaarten voor de hero en de bibliotheekpreview: activiteiten met 3D-plattegrond eerst, daarna de meest gewaardeerde. */
   preview: PublicActivity[];
@@ -26,9 +26,12 @@ export function pickPreview(activities: PublicActivity[], count = PREVIEW_COUNT)
 }
 
 async function countMaterials(): Promise<number | null> {
-  let query = createPublicClient().from("material_models").select("id", { count: "exact", head: true }).eq("active", true);
-  if (!SHOW_PERSONS_IN_LIBRARY) query = query.neq("categorie", PERSONS_ID);
-  const { count, error } = await query;
+  // Personen (leerlingen) zijn geen materiaal en tellen dus nooit mee, ook niet als de sectie Personen zichtbaar is.
+  const { count, error } = await createPublicClient()
+    .from("material_models")
+    .select("id", { count: "exact", head: true })
+    .eq("active", true)
+    .neq("categorie", PERSONS_ID);
   return error ? null : count;
 }
 

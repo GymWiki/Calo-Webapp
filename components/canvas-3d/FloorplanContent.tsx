@@ -8,7 +8,7 @@ import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
-import { dimsOf, shapeOfDims, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
+import { dimsForSlug, dimsOf, shapeOfDims, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 import { isOutsideRoom, itemIsTilted, rotationOf } from "@/components/canvas-3d/orientation";
 
 /**
@@ -29,6 +29,7 @@ export function FloorplanContent({
   lookup,
   debugCollision = false,
   selectedId = null,
+  groupIds,
   interactive = false,
   onItemPointerDown,
   onSelect,
@@ -50,6 +51,8 @@ export function FloorplanContent({
   /** `?debug=collision`. */
   debugCollision?: boolean;
   selectedId?: string | null;
+  /** Meervoudige selectie: alle geselecteerde ids; de overige leden krijgen een oranje omlijning. */
+  groupIds?: ReadonlySet<string>;
   /** false = alleen-lezen (viewer) of tijdens "Veld afzetten" in de editor. */
   interactive?: boolean;
   onItemPointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
@@ -78,9 +81,10 @@ export function FloorplanContent({
           key={item.id}
           item={item}
           model={modelBySlug(item.slug)}
-          dims={lookup?.(item.slug)}
+          dims={lookup ? dimsForSlug(item.slug, item.size, lookup) : undefined}
           debugCollision={debugCollision}
           selected={item.id === selectedId}
+          grouped={Boolean(groupIds?.has(item.id)) && item.id !== selectedId}
           interactive={interactive}
           onPointerDownItem={onItemPointerDown}
           onSelect={onSelect}

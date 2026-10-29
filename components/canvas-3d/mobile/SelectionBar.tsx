@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Lock, LockOpen, Move3d, RotateCcw, RotateCw, Trash2, X } from "lucide-react";
+import { ClipboardPaste, Copy, CopyPlus, Lock, LockOpen, Move3d, RotateCcw, RotateCw, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,8 @@ export function SelectionBar({
   onRotate,
   onOpenRotation,
   onDuplicate,
+  onCopy,
+  onPaste,
   onToggleLock,
   onDelete,
   onDeselect,
@@ -31,6 +33,9 @@ export function SelectionBar({
   /** Opent de rotatie-drawer (kantelen, rechtop zetten); alleen voor items, niet voor velden. */
   onOpenRotation?: () => void;
   onDuplicate: () => void;
+  /** Kopiëren naar het klembord, en plakken (alleen als er iets op het klembord staat). */
+  onCopy?: () => void;
+  onPaste?: () => void;
   onToggleLock: () => void;
   onDelete: () => void;
   onDeselect: () => void;
@@ -67,9 +72,21 @@ export function SelectionBar({
               <span className={compact ? "sr-only" : undefined}>Rotatie</span>
             </BarButton>
           )}
+          {onCopy && (
+            <BarButton label="Kopiëren" onClick={onCopy}>
+              <Copy className="size-5" aria-hidden="true" />
+              <span className={compact ? "sr-only" : undefined}>Kopieer</span>
+            </BarButton>
+          )}
+          {onPaste && (
+            <BarButton label="Plakken" onClick={onPaste}>
+              <ClipboardPaste className="size-5" aria-hidden="true" />
+              <span className={compact ? "sr-only" : undefined}>Plak</span>
+            </BarButton>
+          )}
           <BarButton label="Dupliceren" onClick={onDuplicate}>
-            <Copy className="size-5" aria-hidden="true" />
-            <span className={compact ? "sr-only" : undefined}>Kopie</span>
+            <CopyPlus className="size-5" aria-hidden="true" />
+            <span className={compact ? "sr-only" : undefined}>Dubbel</span>
           </BarButton>
           {canLock && (
             <BarButton label={locked ? "Ontgrendelen" : "Vergrendelen"} pressed={locked} onClick={onToggleLock}>

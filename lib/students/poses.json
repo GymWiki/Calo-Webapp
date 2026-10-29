@@ -1,0 +1,24 @@
+{
+  "_comment": "Catalogus van leerling-poses. Nieuwe pose toevoegen: GLB in de bronmap zetten, hier een regel toevoegen en `npm run process:students` draaien (zie docs/students.md). Geen codewijziging nodig.",
+  "poses": [
+    { "id": "staand", "label": "Staand", "sporten": ["algemeen"], "file": "leerling.glb", "sort": 1 },
+    { "id": "hardlopen", "label": "Hardlopen", "sporten": ["atletiek", "algemeen"], "file": "leerling_hardlopen.glb", "sort": 2 },
+    { "id": "juichen", "label": "Juichen", "sporten": ["algemeen"], "file": "leerling_juichen.glb", "sort": 3 },
+    { "id": "startblokken", "label": "Startblokken", "sporten": ["atletiek"], "file": "leerling_startblokken.glb", "sort": 4 },
+    { "id": "hoogspringen", "label": "Hoogspringen", "sporten": ["atletiek"], "file": "leerling_hoogspringen.glb", "sort": 5 },
+    { "id": "basketbal_dribbelen", "label": "Basketbal dribbelen", "sporten": ["basketbal"], "file": "leerling_basketbal.glb", "sort": 10 },
+    { "id": "volleybal_onderhands", "label": "Volleybal onderhands", "sporten": ["volleybal"], "file": "leerling_volleybal.glb", "sort": 11 },
+    { "id": "volleybal_bovenhands", "label": "Volleybal bovenhands", "sporten": ["volleybal"], "file": "leerling_volleybal_bovenhands.glb", "sort": 12 },
+    { "id": "badminton_slaan", "label": "Badminton slaan", "sporten": ["badminton", "racketsport"], "file": "leerling_badminton.glb", "sort": 13 },
+    { "id": "pickleball_klaar", "label": "Pickleball klaarstaan", "sporten": ["racketsport"], "file": "leerling_pickleball_klaarstand.glb", "sort": 14 },
+    { "id": "pickleball_slaan", "label": "Pickleball slaan", "sporten": ["racketsport"], "file": "leerling_pickleball.glb", "sort": 15 },
+    { "id": "hockey", "label": "Hockey", "sporten": ["hockey"], "file": "leerling_hockey.glb", "sort": 16 },
+    { "id": "hockey_sprint", "label": "Hockey sprinten", "sporten": ["hockey"], "file": "leerling_hockey_sprint.glb", "sort": 17 },
+    { "id": "floorball", "label": "Floorball", "sporten": ["floorball"], "file": "leerling_floorball.glb", "sort": 18 },
+    { "id": "floorball_sprint", "label": "Floorball sprinten", "sporten": ["floorball"], "file": "leerling_floorball_sprint.glb", "sort": 19 },
+    { "id": "honkbal_slaan", "label": "Honkbal slaan", "sporten": ["slagspelen"], "file": "leerling_honkbal.glb", "sort": 20 },
+    { "id": "honkbal_vangen", "label": "Honkbal vangen", "sporten": ["slagspelen"], "file": "leerling_honkbal_vangen.glb", "sort": 21 },
+    { "id": "trefbal_gooien", "label": "Trefbal gooien", "sporten": ["trefspelen"], "file": "leerling_trefbal.glb", "sort": 22 },
+    { "id": "verdedigen", "label": "Verdedigen", "sporten": ["trefspelen", "algemeen"], "file": "leerling_verdedigen.glb", "sort": 23 }
+  ]
+}

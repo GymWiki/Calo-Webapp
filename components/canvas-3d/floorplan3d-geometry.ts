@@ -7,6 +7,7 @@
 // houden.
 
 import type { MaterialModel } from "@/types/materialModel";
+import { isStudentSlug, studentScale } from "@/lib/students/catalog";
 import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import { EPS_M, OVERLAP_IGNORE_M } from "@/components/canvas-3d/placement-config";
 import { COLLISION_OVERRIDES } from "@/components/canvas-3d/collision-overrides";
@@ -107,8 +108,28 @@ export function dimsLookupFromModels(models: MaterialModel[], legacy = false): D
 
 const UNKNOWN_DIMS: ItemDims = { length_m: 0.5, width_m: 0.5, height_m: 0.5, stackable: true };
 
+/** Schaalt maten en collision-vorm mee met een factor (leerlingen: klein/middel/groot t.o.v. de 1,8 m van het model). */
+function scaleDims(dims: ItemDims, factor: number): ItemDims {
+  if (factor === 1) return dims;
+  return {
+    ...dims,
+    length_m: dims.length_m * factor,
+    width_m: dims.width_m * factor,
+    height_m: dims.height_m * factor,
+    ...(dims.offset_x !== undefined ? { offset_x: dims.offset_x * factor } : {}),
+    ...(dims.offset_z !== undefined ? { offset_z: dims.offset_z * factor } : {}),
+    ...(dims.base_m !== undefined ? { base_m: dims.base_m * factor } : {}),
+  };
+}
+
+/** Maten van een slug, met de grootte van een leerling (`size`) verrekend; andere items negeren `size`. */
+export function dimsForSlug(slug: string, size: Floorplan3dItem["size"], lookup: DimsLookup): ItemDims | undefined {
+  const base = lookup(slug);
+  return base && isStudentSlug(slug) ? scaleDims(base, studentScale(size)) : base;
+}
+
 export function dimsOf(item: Floorplan3dItem, lookup: DimsLookup): ItemDims {
-  return lookup(item.slug) ?? UNKNOWN_DIMS;
+  return dimsForSlug(item.slug, item.size, lookup) ?? UNKNOWN_DIMS;
 }
 
 // ----------------------------------------------------------------------------

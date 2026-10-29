@@ -15,10 +15,24 @@ import {
   LockOpen,
   Redo2,
   Save,
+  ClipboardPaste,
+  Scissors,
   Trash2,
   Undo2,
 } from "lucide-react";
 import { toast } from "@/components/canvas-3d/mobile/editor-toast";
+import { StudentPanel, type StudentPatch } from "@/components/students/StudentPanel";
+import { isStudentSlug } from "@/lib/students/catalog";
+import {
+  buildClipboard,
+  clipboardCount,
+  clipboardMessage,
+  parseClipboard,
+  pasteClipboard,
+  serializeClipboard,
+  PASTE_OFFSET_M,
+  type ClipboardPayload,
+} from "@/lib/plattegrond/clipboard";
 
 import { deleteFloorplan3d, renameFloorplan3d, saveFloorplan3d, saveFloorplanPreview } from "@/actions/floorplans3d";
 import { BackButton } from "@/components/BackButton";
@@ -123,6 +137,7 @@ import { haptic } from "@/lib/haptics";
 import {
   clampItemsToRoom,
   dimsLookupFromModels,
+  dimsForSlug,
   dimsOf,
   shapeOfDims,
   findItemsResting,
@@ -241,6 +256,19 @@ export function Floorplan3dEditor({
   const [floorplans, setFloorplans] = useState<Floorplan3dSummary[]>(initialFloorplans);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Meervoudige selectie: `primary` is het object met het paneel (= selectedId), `extras` de overige geselecteerde objecten.
+  // Verandert selectedId op een andere manier (plaatsen, ongedaan maken, …), dan vervalt de groep vanzelf (primary klopt niet meer).
+  const [group, setGroup] = useState<{ primary: string; extras: string[] } | null>(null);
+  // Klembord (intern; óók als JSON in het systeemklembord) en plak-/aanwijzerstatus.
+  const clipboardRef = useRef<ClipboardPayload | null>(null);
+  const [hasClipboard, setHasClipboard] = useState(false);
+  const pasteCountRef = useRef(0);
+  const floorPointRef = useRef<{ x: number; z: number } | null>(null);
+  const overCanvasRef = useRef(false);
+  const modifierRef = useRef(false);
+  const pendingCopyRef = useRef<string | null>(null);
+  const pendingPasteRef = useRef(false);
+  const clipboardActionsRef = useRef<{ pasteText: (text: string | null) => void }>({ pasteText: () => undefined });
   const [sideTab, setSideTab] = useState<"item" | "omgeving">("omgeving");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   // "Veld afzetten": tool aan/uit, het veld dat nu getekend wordt, en het
@@ -287,6 +315,7 @@ export function Floorplan3dEditor({
   const dragStartSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
   const dragStartItemRef = useRef<Floorplan3dItem | null>(null);
   const dragRestingIdsRef = useRef<Set<string>>(new Set());
+  const dragGroupFieldsRef = useRef<Map<string, { x: number; z: number }>>(new Map());
   const sidePanelRef = useRef<HTMLElement>(null);
   const fieldDragRef = useRef<{
     kind: "move" | "resize";
@@ -317,6 +346,17 @@ export function Floorplan3dEditor({
 
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
   const selectedField = coneFields.find((field) => field.id === selectedId) ?? null;
+  // Alle geselecteerde objecten (primair + extra), alleen bestaande ids.
+  const groupIds = useMemo(() => {
+    if (!selectedId) return [] as string[];
+    const extras = group && group.primary === selectedId ? group.extras.filter((id) => id !== selectedId) : [];
+    return [selectedId, ...extras];
+  }, [selectedId, group]);
+  const groupIdSet = useMemo(() => new Set(groupIds), [groupIds]);
+  const groupItems = useMemo(() => items.filter((item) => groupIdSet.has(item.id)), [items, groupIdSet]);
+  const groupFields = useMemo(() => coneFields.filter((field) => groupIdSet.has(field.id)), [coneFields, groupIdSet]);
+  const selectionCount = groupItems.length + groupFields.length;
+  const isMultiSelection = selectionCount > 1;
 
   // Het (hoge) velden-paneel begint bovenaan als je een ander item/veld kiest.
   useEffect(() => {
@@ -561,7 +601,7 @@ export function Floorplan3dEditor({
     pushHistory();
     // Collision-vorm uit de lookup (offset/onderkant/draaiing); start zo dat het MIDDEN van de
     // voetafdruk in het midden van de kamer ligt, niet de pivot van het model.
-    const dims = lookup(model.slug) ?? { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m, stackable: model.stackable };
+    const dims = dimsForSlug(model.slug, undefined, lookup) ?? { length_m: model.length_m, width_m: model.width_m, height_m: model.height_m, stackable: model.stackable };
     // Midden van het zichtbare vlak (waar de camera naar kijkt); zonder pannen is dat het midden van de kamer.
     const center = viewCenterRef.current;
     const start = originForCenter(shapeOfDims(dims), center.x, center.z, 0);
@@ -586,7 +626,11 @@ export function Floorplan3dEditor({
     };
     setItems((prev) => (itemIsTilted(newItem) ? recomputeStackedYs([...prev, newItem], lookup) : [...prev, newItem]));
     setSelectedId(newItem.id);
-    if (settings.closeLibraryAfterPlace) setMobilePanel(null);
+    if (isStudentSlug(model.slug)) {
+      // Een leerling kies je eerst en plaats je; pose, kleur en grootte stel je daarna in het itempaneel in.
+      setSideTab("item");
+      if (layout !== "desktop") setMobilePanel("item");
+    } else if (settings.closeLibraryAfterPlace) setMobilePanel(null);
     haptic(12);
     scheduleAutosave();
   }
@@ -595,6 +639,28 @@ export function Floorplan3dEditor({
   // Selecteren / slepen — zie Stap 4.2-4.5.
   // ---------------------------------------------------------------------
   function handleSelect(id: string) {
+    if (modifierRef.current) {
+      // Shift/Ctrl/Cmd+klik: object toevoegen aan of weghalen uit de selectie.
+      if (groupIdSet.has(id)) {
+        const rest = groupIds.filter((groupId) => groupId !== id);
+        setSelectedId(rest[0] ?? null);
+        setGroup(rest.length > 1 ? { primary: rest[0], extras: rest.slice(1) } : null);
+      } else if (selectedId) {
+        setGroup({ primary: selectedId, extras: [...groupIds.slice(1), id] });
+      } else {
+        setSelectedId(id);
+      }
+      setSideTab("item");
+      return;
+    }
+    if (groupIds.length > 1 && groupIdSet.has(id)) {
+      // Klik op een lid van de groep: de groep blijft (en schuift mee bij slepen).
+      setSelectedId(id);
+      setGroup({ primary: id, extras: groupIds.filter((groupId) => groupId !== id) });
+      setSideTab("item");
+      return;
+    }
+    setGroup(null);
     setSelectedId(id);
     setSideTab("item");
   }
@@ -741,16 +807,30 @@ export function Floorplan3dEditor({
 
   /** De velden van een item die plaatsing nodig heeft: model, draaiing, kanteling en hoogte. */
   function draggedFields(item: Floorplan3dItem) {
-    return { slug: item.slug, rot_y_deg: item.rot_y_deg, rot_x_deg: item.rot_x_deg, rot_z_deg: item.rot_z_deg, lift_m: item.lift_m };
+    return { slug: item.slug, rot_y_deg: item.rot_y_deg, rot_x_deg: item.rot_x_deg, rot_z_deg: item.rot_z_deg, lift_m: item.lift_m, size: item.size };
   }
 
   function handleItemPointerDown(id: string) {
+    // Shift/Ctrl/Cmd+klik is alleen selecteren, geen slepen.
+    if (modifierRef.current) return;
     dragStartSnapshotRef.current = { room, items, coneFields };
     dragStartItemRef.current = items.find((item) => item.id === id) ?? null;
     // Items die op het gesleepte item rusten reizen mee: ze tellen niet als
     // "andere" items, anders stapelt het onderste item op zijn eigen stapel
     // en schuift de hele stapel omhoog (ook bij een gewone klik).
-    dragRestingIdsRef.current = new Set(findItemsResting(id, items, lookup));
+    // Bij een meervoudige selectie reist de hele groep (ontgrendelde leden en afgezette velden) mee.
+    const travelers = new Set(findItemsResting(id, items, lookup));
+    const fieldStarts = new Map<string, { x: number; z: number }>();
+    if (groupIds.length > 1 && groupIdSet.has(id)) {
+      for (const member of items) {
+        if (member.id === id || !groupIdSet.has(member.id) || member.locked) continue;
+        travelers.add(member.id);
+        findItemsResting(member.id, items, lookup).forEach((restingId) => travelers.add(restingId));
+      }
+      for (const field of coneFields) if (groupIdSet.has(field.id)) fieldStarts.set(field.id, { x: field.x, z: field.z });
+    }
+    dragRestingIdsRef.current = travelers;
+    dragGroupFieldsRef.current = fieldStarts;
     setDraggingId(id);
   }
 
@@ -776,6 +856,7 @@ export function Floorplan3dEditor({
   }
 
   function handleFloorPointerMove(event: ThreeEvent<PointerEvent>) {
+    floorPointRef.current = { x: event.point.x, z: event.point.z };
     if (rotatingId) {
       rotateByHandle({ x: event.point.x, z: event.point.z });
       return;
@@ -811,11 +892,31 @@ export function Floorplan3dEditor({
     if (snapped && !lastSnappedRef.current) haptic(8);
     lastSnappedRef.current = snapped;
 
+    const startItem = dragStartItemRef.current;
+    const startItems = dragStartSnapshotRef.current?.items;
+    const travelers = dragRestingIdsRef.current;
+    const dx = startItem ? placement.x - startItem.x : 0;
+    const dy = startItem ? placement.y - startItem.y : 0;
+    const dz = startItem ? placement.z - startItem.z : 0;
     setItems((prev) =>
-      prev.map((item) =>
-        item.id === draggingId ? { ...item, x: placement.x, y: placement.y, z: placement.z } : item,
-      ),
+      prev.map((item) => {
+        if (item.id === draggingId) return { ...item, x: placement.x, y: placement.y, z: placement.z };
+        if (travelers.has(item.id)) {
+          // Meereizende items (stapel of groep) schuiven live mee, vanaf hun beginpositie.
+          const origin = startItems?.find((candidate) => candidate.id === item.id);
+          return origin ? { ...item, x: origin.x + dx, y: origin.y + dy, z: origin.z + dz } : item;
+        }
+        return item;
+      }),
     );
+    if (dragGroupFieldsRef.current.size > 0) {
+      setConeFields((prev) =>
+        prev.map((field) => {
+          const origin = dragGroupFieldsRef.current.get(field.id);
+          return origin ? { ...field, x: origin.x + dx, z: origin.z + dz } : field;
+        }),
+      );
+    }
   }
 
   function handleFloorPointerUp(event: ThreeEvent<PointerEvent>) {
@@ -895,10 +996,15 @@ export function Floorplan3dEditor({
 
       return prev.map((item) => {
         if (item.id === id) return { ...item, x: finalX, y: finalY, z: finalZ };
-        if (restingIds.has(item.id)) return { ...item, x: item.x + dx, y: item.y + dy, z: item.z + dz };
+        if (restingIds.has(item.id)) {
+          const origin = startSnapshot.items.find((candidate) => candidate.id === item.id);
+          return origin ? { ...item, x: origin.x + dx, y: origin.y + dy, z: origin.z + dz } : item;
+        }
         return item;
       });
     });
+    // Meegesleepte velden staan al op hun live-positie; alleen de verwijzing opruimen.
+    dragGroupFieldsRef.current = new Map();
 
     scheduleAutosave();
   }
@@ -973,24 +1079,23 @@ export function Floorplan3dEditor({
   function deleteSelected() {
     // Geen bevestigingsdialoog maar een toast met "Ongedaan maken": sneller en minder foutgevoelig op touch.
     const undoAction = { label: "Ongedaan maken", onClick: () => handleUndoRef.current() };
-    if (selectedField) {
-      pushHistory();
-      setConeFields((prev) => prev.filter((field) => field.id !== selectedField.id));
-      setSelectedId(null);
-      scheduleAutosave();
-      toast("Veld verwijderd", { action: undoAction, duration: 6000 });
-      return;
-    }
-    if (!selectedItem) return;
-    if (selectedItem.locked) {
+    if (selectionCount === 0) return;
+    const removableItems = groupItems.filter((item) => !item.locked);
+    if (removableItems.length === 0 && groupFields.length === 0) {
       toast.info("Dit item is vergrendeld. Ontgrendel het eerst om te verwijderen.");
       return;
     }
     pushHistory();
-    setItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
+    const removedItemIds = new Set(removableItems.map((item) => item.id));
+    const removedFieldIds = new Set(groupFields.map((field) => field.id));
+    if (removedItemIds.size > 0) setItems((prev) => prev.filter((item) => !removedItemIds.has(item.id)));
+    if (removedFieldIds.size > 0) setConeFields((prev) => prev.filter((field) => !removedFieldIds.has(field.id)));
     setSelectedId(null);
+    setGroup(null);
     scheduleAutosave();
-    toast("Item verwijderd", { action: undoAction, duration: 6000 });
+    const removed = removedItemIds.size + removedFieldIds.size;
+    const message = removed > 1 ? `${removed} objecten verwijderd` : removedFieldIds.size === 1 ? "Veld verwijderd" : "Item verwijderd";
+    toast(message, { action: undoAction, duration: 6000 });
   }
 
   function toggleLockSelected() {
@@ -1086,43 +1191,136 @@ export function Floorplan3dEditor({
     scheduleAutosave();
   }
 
-  function duplicateSelected() {
-    if (selectedField) {
-      pushHistory();
-      const copy = clampFieldToRoom({ ...selectedField, id: createItemId(), x: selectedField.x + 1, z: selectedField.z + 1 }, room).field;
-      setConeFields((prev) => [...prev, copy]);
-      setSelectedId(copy.id);
-      scheduleAutosave();
+  // ---------------------------------------------------------------------
+  // Kopiëren, knippen, plakken en dupliceren (alle objecten, ook meerdere tegelijk) — lib/plattegrond/clipboard.ts.
+  // ---------------------------------------------------------------------
+  function selectObjects(ids: string[]) {
+    setSelectedId(ids[0] ?? null);
+    setGroup(ids.length > 1 ? { primary: ids[0], extras: ids.slice(1) } : null);
+    if (ids.length > 0) setSideTab("item");
+  }
+
+  /** Alles selecteren (Ctrl+A): alle items en afgezette velden. */
+  function selectAll() {
+    const ids = [...items.map((item) => item.id), ...coneFields.map((field) => field.id)];
+    if (ids.length === 0) {
+      toast.info("Er is niets om te selecteren.");
       return;
     }
-    if (!selectedItem) return;
+    selectObjects(ids);
+    toast(`${ids.length} ${ids.length === 1 ? "object" : "objecten"} geselecteerd`, { duration: 2000 });
+  }
+
+  /** Zet de selectie op het interne klembord en (zodra de browser het toestaat) als JSON in het systeemklembord. */
+  function copySelection(cut = false): boolean {
+    if (selectionCount === 0) return false;
+    const payload = buildClipboard(groupItems, groupFields);
+    clipboardRef.current = payload;
+    pasteCountRef.current = 0;
+    setHasClipboard(true);
+    // Het native "copy"-event schrijft de tekst synchroon; blijft dat uit (Safari zonder selectie), dan schrijven we hem hier.
+    pendingCopyRef.current = serializeClipboard(payload);
+    window.setTimeout(() => {
+      const text = pendingCopyRef.current;
+      if (text === null) return;
+      pendingCopyRef.current = null;
+      navigator.clipboard?.writeText(text).catch(() => undefined);
+    }, 60);
+    const count = clipboardCount(payload);
+    if (!cut) {
+      toast(clipboardMessage(count, "gekopieerd"), { duration: 2000 });
+      return true;
+    }
+    const removableItems = groupItems.filter((item) => !item.locked);
     pushHistory();
-    const dims = lookup(selectedItem.slug) ?? { length_m: 0.5, width_m: 0.5, height_m: 0.5, stackable: true };
-    const spot = findNearestFreeSpot(
-      selectedItem.x + 0.2,
-      selectedItem.z + 0.2,
-      dims,
-      selectedItem.rot_y_deg,
-      items,
+    const removedItemIds = new Set(removableItems.map((item) => item.id));
+    const removedFieldIds = new Set(groupFields.map((field) => field.id));
+    if (removedItemIds.size > 0) setItems((prev) => prev.filter((item) => !removedItemIds.has(item.id)));
+    if (removedFieldIds.size > 0) setConeFields((prev) => prev.filter((field) => !removedFieldIds.has(field.id)));
+    setSelectedId(null);
+    setGroup(null);
+    scheduleAutosave();
+    const lockedLeft = groupItems.length - removableItems.length;
+    toast(clipboardMessage(count, "geknipt") + (lockedLeft > 0 ? ` (${lockedLeft} vergrendeld: blijft staan)` : ""), {
+      duration: 4000,
+      action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() },
+    });
+    return true;
+  }
+
+  /** Plakt `payload`: kopieën met nieuwe id's, gesnapt en binnen de zaal; één undo-stap; de kopieën worden geselecteerd. */
+  function pasteObjects(payload: ClipboardPayload, mode: "plak" | "dupliceer" = "plak") {
+    const index = mode === "plak" ? ++pasteCountRef.current : 1;
+    const point = floorPointRef.current;
+    const target = mode === "plak" && overCanvasRef.current && point ? { x: point.x + PASTE_OFFSET_M * (index - 1), z: point.z + PASTE_OFFSET_M * (index - 1) } : null;
+    const result = pasteClipboard(payload, {
       room,
       lookup,
-      { x: selectedItem.rot_x_deg, z: selectedItem.rot_z_deg, lift: selectedItem.lift_m },
+      grid: typeof snapGrid === "number" ? snapGrid : 0,
+      target,
+      pasteIndex: index,
+      offset: mode === "dupliceer" ? { x: PASTE_OFFSET_M, z: PASTE_OFFSET_M } : undefined,
+      createId: createItemId,
+    });
+    pushHistory();
+    // Hoogtes opnieuw berekenen: een kopie die op een ander item valt, stapelt erop.
+    setItems((prev) => recomputeStackedYs([...prev, ...result.items], lookup));
+    setConeFields((prev) => [...prev, ...result.coneFields]);
+    selectObjects([...result.items, ...result.coneFields].map((object) => object.id));
+    scheduleAutosave();
+    haptic(12);
+    const count = result.items.length + result.coneFields.length;
+    toast(mode === "dupliceer" ? `${count === 1 ? "1 object" : `${count} objecten`} gedupliceerd` : clipboardMessage(count, "geplakt"), { duration: 2000 });
+  }
+
+  /** Plakken met tekst uit het systeemklembord (event) of, zonder tekst, het interne klembord. */
+  function pasteFromText(text: string | null) {
+    if (text && text.trim()) {
+      const parsed = parseClipboard(text);
+      if (parsed.ok) pasteObjects(parsed.payload);
+      else toast.error(parsed.error);
+      return;
+    }
+    if (clipboardRef.current) pasteObjects(clipboardRef.current);
+    else toast.info("Er staat niets in het klembord.");
+  }
+
+  function duplicateSelected() {
+    if (selectionCount === 0) return;
+    pasteObjects(buildClipboard(groupItems, groupFields), "dupliceer");
+  }
+
+  /** Pose, kleur of grootte van de geselecteerde leerling. Kleurkiezer-sleepbewegingen binnen 1 s tellen als één undo-stap. */
+  function editSelectedStudent(patch: StudentPatch) {
+    if (!selectedItem || !isStudentSlug(selectedItem.slug)) return;
+    if (selectedItem.locked) {
+      toast.info("Dit item is vergrendeld.");
+      return;
+    }
+    const coalesce = patch.color !== undefined;
+    const now = Date.now();
+    if (!coalesce || !itemEditRef.current || now - itemEditRef.current > 1000) pushHistory();
+    itemEditRef.current = coalesce ? now : null;
+    const id = selectedItem.id;
+    setItems((prev) =>
+      recomputeStackedYs(
+        prev.map((item) => {
+          if (item.id !== id) return item;
+          const next = { ...item };
+          if (patch.slug) next.slug = patch.slug;
+          if (patch.color !== undefined) {
+            if (patch.color) next.color = patch.color;
+            else delete next.color;
+          }
+          if (patch.size) {
+            if (patch.size === "middel") delete next.size;
+            else next.size = patch.size;
+          }
+          return next;
+        }),
+        lookup,
+      ),
     );
-    // De kopie houdt de volledige rotatie (en eventuele hoogte) van het origineel.
-    const copy: Floorplan3dItem = {
-      id: createItemId(),
-      slug: selectedItem.slug,
-      x: spot.x,
-      y: 0,
-      z: spot.z,
-      rot_y_deg: selectedItem.rot_y_deg,
-      ...(selectedItem.rot_x_deg !== undefined ? { rot_x_deg: selectedItem.rot_x_deg } : {}),
-      ...(selectedItem.rot_z_deg !== undefined ? { rot_z_deg: selectedItem.rot_z_deg } : {}),
-      ...(selectedItem.lift_m !== undefined ? { lift_m: selectedItem.lift_m } : {}),
-    };
-    const needsY = itemIsTilted(copy) || copy.lift_m !== undefined;
-    setItems((prev) => (needsY ? recomputeStackedYs([...prev, copy], lookup) : [...prev, copy]));
-    setSelectedId(copy.id);
     scheduleAutosave();
   }
 
@@ -1180,6 +1378,38 @@ export function Floorplan3dEditor({
         handleRedo();
         return;
       }
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && !drawMode) {
+        const lower = event.key.toLowerCase();
+        const hasTextSelection = Boolean(window.getSelection()?.toString());
+        if (lower === "a" && !event.shiftKey) {
+          // Ctrl/Cmd+A: alle objecten selecteren (de browser selecteert dan geen paginatekst).
+          event.preventDefault();
+          selectAll();
+          return;
+        }
+        if (lower === "c" && !hasTextSelection) {
+          // Geen preventDefault: het native "copy"-event schrijft de JSON synchroon naar het systeemklembord.
+          if (selectionCount > 0) copySelection(false);
+          return;
+        }
+        if (lower === "x" && !hasTextSelection) {
+          if (selectionCount > 0) {
+            event.preventDefault();
+            copySelection(true);
+          }
+          return;
+        }
+        if (lower === "v" && !hasTextSelection) {
+          // Het native "paste"-event levert de tekst uit het systeemklembord (zonder toestemmingsvraag); blijft dat uit, dan het interne klembord.
+          pendingPasteRef.current = true;
+          window.setTimeout(() => {
+            if (!pendingPasteRef.current) return;
+            pendingPasteRef.current = false;
+            clipboardActionsRef.current.pasteText(null);
+          }, 80);
+          return;
+        }
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
         event.preventDefault();
         duplicateSelected();
@@ -1214,7 +1444,46 @@ export function Floorplan3dEditor({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, selectedItem, selectedField, items, coneFields, room, drawMode, draft, snapDeg]);
+  }, [selectedId, selectedItem, selectedField, items, coneFields, room, drawMode, draft, snapDeg, group, snapGrid, hasClipboard]);
+
+  // Klembord-events van de browser, en de aanwijzer: boven het canvas? Shift/Ctrl/Cmd ingedrukt bij een klik?
+  useEffect(() => {
+    clipboardActionsRef.current = { pasteText: pasteFromText };
+  });
+  useEffect(() => {
+    const isEditable = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      return Boolean(element && (element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName)));
+    };
+    const onCopy = (event: ClipboardEvent) => {
+      if (pendingCopyRef.current === null || isEditable(event.target)) return;
+      event.clipboardData?.setData("text/plain", pendingCopyRef.current);
+      event.preventDefault();
+      pendingCopyRef.current = null;
+    };
+    const onPaste = (event: ClipboardEvent) => {
+      if (!pendingPasteRef.current || isEditable(event.target)) return;
+      pendingPasteRef.current = false;
+      event.preventDefault();
+      clipboardActionsRef.current.pasteText(event.clipboardData?.getData("text/plain") ?? "");
+    };
+    const onPointer = (event: PointerEvent) => {
+      modifierRef.current = event.shiftKey || event.ctrlKey || event.metaKey;
+      overCanvasRef.current = (event.target as HTMLElement | null)?.tagName === "CANVAS";
+    };
+    document.addEventListener("copy", onCopy);
+    document.addEventListener("cut", onCopy);
+    document.addEventListener("paste", onPaste);
+    window.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("pointermove", onPointer, true);
+    return () => {
+      document.removeEventListener("copy", onCopy);
+      document.removeEventListener("cut", onCopy);
+      document.removeEventListener("paste", onPaste);
+      window.removeEventListener("pointerdown", onPointer, true);
+      window.removeEventListener("pointermove", onPointer, true);
+    };
+  }, []);
 
   // ---------------------------------------------------------------------
   // "Mijn 3D-plattegronden" — openen/hernoemen/verwijderen.
@@ -1434,7 +1703,38 @@ export function Floorplan3dEditor({
     />
   ) : null;
 
-  const itemPanel = selectedField ? (
+  const clipboardButtons = (
+    <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Klembord">
+      <Button type="button" variant="outline" size="sm" title="Kopiëren (Ctrl+C)" aria-label="Kopiëren" data-testid="knop-kopieren" onClick={() => copySelection(false)}>
+        <Copy className="size-4" /> Kopieer
+      </Button>
+      <Button type="button" variant="outline" size="sm" title="Knippen (Ctrl+X)" aria-label="Knippen" data-testid="knop-knippen" onClick={() => copySelection(true)}>
+        <Scissors className="size-4" /> Knip
+      </Button>
+      <Button type="button" variant="outline" size="sm" title="Plakken (Ctrl+V)" aria-label="Plakken" data-testid="knop-plakken" disabled={!hasClipboard} onClick={() => clipboardRef.current && pasteObjects(clipboardRef.current)}>
+        <ClipboardPaste className="size-4" /> Plak
+      </Button>
+    </div>
+  );
+
+  const groupPanel = (
+    <div className="space-y-3" data-testid="groep-paneel">
+      <p className="text-sm font-medium">{selectionCount} objecten geselecteerd</p>
+      <p className="text-xs text-muted-foreground">Sleep één van de objecten om de hele selectie te verplaatsen. Shift/Ctrl/Cmd+klik voegt toe of haalt weg.</p>
+      {clipboardButtons}
+      <Button type="button" variant="outline" className="w-full" title="Dupliceren (Ctrl+D)" onClick={duplicateSelected}>
+        <Copy className="size-4" /> Dupliceren (Ctrl+D)
+      </Button>
+      <Button type="button" variant="outline" className="w-full text-destructive" onClick={deleteSelected}>
+        <Trash2 className="size-4" /> Verwijderen (Delete)
+      </Button>
+      <Button type="button" variant="ghost" className="w-full" onClick={() => setSelectedId(null)}>
+        Selectie opheffen
+      </Button>
+    </div>
+  );
+
+  const itemPanel = isMultiSelection ? groupPanel : selectedField ? (
     <ConeFieldPanel
       field={selectedField}
       onChange={updateSelectedField}
@@ -1447,11 +1747,15 @@ export function Floorplan3dEditor({
       {selectedItem ? (
         <>
           <p className="text-sm font-medium">{modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item"}</p>
+          {isStudentSlug(selectedItem.slug) && (
+            <StudentPanel item={selectedItem} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedStudent} />
+          )}
           {rotationPanel}
           <Button type="button" variant={selectedItem.locked ? "default" : "outline"} className="w-full" aria-pressed={Boolean(selectedItem.locked)} onClick={toggleLockSelected}>
             {selectedItem.locked ? <LockOpen className="size-4" /> : <Lock className="size-4" />} {selectedItem.locked ? "Ontgrendelen" : "Vergrendelen"}
           </Button>
-          <Button type="button" variant="outline" className="w-full" onClick={duplicateSelected}>
+          {clipboardButtons}
+          <Button type="button" variant="outline" className="w-full" title="Dupliceren (Ctrl+D)" onClick={duplicateSelected}>
             <Copy className="size-4" /> Dupliceren (Ctrl+D)
           </Button>
           <Button type="button" variant="outline" className="w-full text-destructive" onClick={deleteSelected}>
@@ -1460,7 +1764,12 @@ export function Floorplan3dEditor({
         </>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">Selecteer een item of veld om te draaien, dupliceren of verwijderen.</p>
+          <p className="text-sm text-muted-foreground">Selecteer een item of veld om te draaien, dupliceren of verwijderen. Ctrl+A selecteert alles.</p>
+          {hasClipboard && (
+            <Button type="button" variant="outline" className="w-full" title="Plakken (Ctrl+V)" data-testid="knop-plakken" onClick={() => clipboardRef.current && pasteObjects(clipboardRef.current)}>
+              <ClipboardPaste className="size-4" /> Plakken (Ctrl+V)
+            </Button>
+          )}
           {fieldOverview}
         </>
       )}
@@ -1578,7 +1887,7 @@ export function Floorplan3dEditor({
   // De rotatie-drawer hoort bij een geselecteerd item: zonder selectie sluit hij vanzelf.
   const activePanel: MobilePanel = mobilePanel === "rotatie" && !selectedItem ? null : mobilePanel;
   const hasSelection = Boolean(selectedItem || selectedField);
-  const selectionTitle = selectedField ? fieldLabel(selectedField) : selectedItem ? (modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item") : "";
+  const selectionTitle = isMultiSelection ? `${selectionCount} objecten` : selectedField ? fieldLabel(selectedField) : selectedItem ? (modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item") : "";
 
   function resetCamera() {
     viewCenterRef.current = { x: 0, z: 0 };
@@ -1586,7 +1895,7 @@ export function Floorplan3dEditor({
   }
 
   // 3D-ringen: alleen met een muis (desktop), voor een ontgrendeld item dat niet gesleept wordt.
-  const gizmoItem = isDesktop && !coarsePointer && !drawMode && !draggingId && !rotatingId && selectedItem && !selectedItem.locked ? selectedItem : null;
+  const gizmoItem = isDesktop && !coarsePointer && !drawMode && !draggingId && !rotatingId && !isMultiSelection && selectedItem && !selectedItem.locked ? selectedItem : null;
   const gizmoProps = (() => {
     if (!gizmoItem) return null;
     const shape = shapeOfDims(dimsOf(gizmoItem, lookup));
@@ -1610,6 +1919,7 @@ export function Floorplan3dEditor({
       items={items}
       modelBySlug={modelBySlug}
       selectedId={selectedId}
+      groupIds={isMultiSelection ? groupIdSet : undefined}
       isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive}
       gizmo={gizmoProps}
       cameraMode={cameraMode}
@@ -1785,6 +2095,8 @@ export function Floorplan3dEditor({
               onRotate={rotateSelected}
               onOpenRotation={selectedItem ? () => setMobilePanel("rotatie") : undefined}
               onDuplicate={duplicateSelected}
+              onCopy={() => copySelection(false)}
+              onPaste={hasClipboard ? () => clipboardRef.current && pasteObjects(clipboardRef.current) : undefined}
               onToggleLock={toggleLockSelected}
               onDelete={deleteSelected}
               onDeselect={() => setSelectedId(null)}
