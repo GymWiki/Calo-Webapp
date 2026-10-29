@@ -12,6 +12,7 @@ import { measureMeshExtent } from "@/components/canvas-3d/collision-measure";
 import type { MeshExtent } from "@/components/canvas-3d/collision-shape";
 import { isTapDelta } from "@/components/canvas-3d/mobile/mobile-logic";
 import { trackModelScene } from "@/components/canvas-3d/model-cache";
+import { ModelErrorBoundary } from "@/components/canvas-3d/ModelErrorBoundary";
 import { StudentModel } from "@/components/students/StudentModel";
 import { isStudentSlug } from "@/lib/students/catalog";
 import { isTilted, rotationOf, tiltCenter } from "@/components/canvas-3d/orientation";
@@ -208,13 +209,15 @@ export function ItemMesh({
           model.devColor ? (
             <DevPlaceholderBox dims={dims} color={model.devColor} />
           ) : (
-            <Suspense fallback={<UnknownItemBox />}>
-              {isStudentSlug(item.slug) ? (
-                <StudentModel modelUrl={model.model_url} color={item.color} size={item.size} />
-              ) : (
-                <LoadedModel modelUrl={model.model_url} onMeasured={debugCollision ? handleMeasured : undefined} />
-              )}
-            </Suspense>
+            <ModelErrorBoundary resetKey={model.model_url} fallback={<UnknownItemBox />}>
+              <Suspense fallback={<UnknownItemBox />}>
+                {isStudentSlug(item.slug) ? (
+                  <StudentModel modelUrl={model.model_url} color={item.color} size={item.size} />
+                ) : (
+                  <LoadedModel modelUrl={model.model_url} onMeasured={debugCollision ? handleMeasured : undefined} />
+                )}
+              </Suspense>
+            </ModelErrorBoundary>
           )
         ) : (
           <UnknownItemBox />

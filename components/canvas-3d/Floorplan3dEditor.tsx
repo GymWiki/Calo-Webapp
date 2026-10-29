@@ -626,7 +626,11 @@ export function Floorplan3dEditor({
     };
     setItems((prev) => (itemIsTilted(newItem) ? recomputeStackedYs([...prev, newItem], lookup) : [...prev, newItem]));
     setSelectedId(newItem.id);
-    if (settings.closeLibraryAfterPlace) setMobilePanel(null);
+    if (isStudentSlug(model.slug)) {
+      // Een leerling kies je eerst en plaats je; pose, kleur en grootte stel je daarna in het itempaneel in.
+      setSideTab("item");
+      if (layout !== "desktop") setMobilePanel("item");
+    } else if (settings.closeLibraryAfterPlace) setMobilePanel(null);
     haptic(12);
     scheduleAutosave();
   }

@@ -81,3 +81,4 @@ fastlane/*.log
 /omgeving-import/
 test-results/
 playwright-report/
+public/dev-students/

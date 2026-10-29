@@ -68,6 +68,9 @@ function toMaterialModel(supabase: SupabaseClient, row: MaterialModelRow): Mater
 
 /** De leerling-poses (lib/students): staan niet in de database maar in de catalogus + bucket `students/`. */
 function studentModelsFor(supabase: SupabaseClient): MaterialModel[] {
+  // Alleen voor lokaal testen: een eigen basis-URL (bijv. /dev-students uit public/) in plaats van de Supabase-bucket.
+  const override = process.env.NEXT_PUBLIC_STUDENT_MODELS_BASE_URL;
+  if (override) return studentModels(override.replace(/\/$/, ""));
   const probe = supabase.storage.from(STUDENT_BUCKET).getPublicUrl("x").data.publicUrl;
   return studentModels(probe.replace(/\/x$/, ""));
 }
