@@ -111,8 +111,12 @@ const SPORTVELD_LAYOUTS: EnvironmentLayout[] = [
     glb: "sportveld_school_combiveld",
     lines: [
       { node: "Belijning_Voetbal_Handbal_40x20", label: "Voetbal / handbal 40 × 20 m" },
-      { node: "Belijning_Dwarsvelden_Geel", label: "Dwarsvelden (geel)", defaultHidden: true },
-      { node: "Belijning_Korfbal_Blauw", label: "Korfbal (blauw)", defaultHidden: true },
+      { node: "Belijning_Basketbal_28x15", label: "Basketbal 28 × 15 m", defaultHidden: true },
+      { node: "Belijning_Tennis_23x11", label: "Tennis 23,77 × 10,97 m", defaultHidden: true },
+      { node: "Belijning_Volleybal_18x9", label: "Volleybal 18 × 9 m", defaultHidden: true },
+      { node: "Belijning_Korfbal_40x20", label: "Korfbal 40 × 20 m", defaultHidden: true },
+      { node: "Belijning_Beachsport_27x12_16x8", label: "Beachhandbal / beachvolleybal", defaultHidden: true },
+      { node: "Belijning_Schoolplein_Spel", label: "Schoolplein (King en hinkelbaan)", defaultHidden: true },
     ],
   }),
   sportveld({
@@ -126,6 +130,9 @@ const SPORTVELD_LAYOUTS: EnvironmentLayout[] = [
       { node: "Belijning_Voetbal_100x60", label: "Voetbal 100 × 60 m" },
       { node: "Belijning_Hockey_91x55", label: "Hockey 91 × 55 m", defaultHidden: true },
       { node: "Belijning_Korfbal_2x_40x20", label: "Korfbal 2× 40 × 20 m", defaultHidden: true },
+      { node: "Belijning_Rugby_Union", label: "Rugby", defaultHidden: true },
+      { node: "Belijning_Honkbal_Softbal", label: "Honkbal / softbal", defaultHidden: true },
+      { node: "Belijning_Lacrosse", label: "Lacrosse", defaultHidden: true },
     ],
   }),
 ];
@@ -304,3 +311,48 @@ export function roomForEnvironment(environment: Pick<Floorplan3dEnvironment, "ty
 }
 
 export { GYM_LAYOUT_ORDER };
+
+// --- Bestaande plattegronden bijwerken ------------------------------------------
+
+/** Sportveld-belijning die er later bij is gekomen (de oudere nodes — voetbal, hockey, korfbal 2× — bestonden al). */
+const ADDED_SPORTVELD_LINES = new Set([
+  "Belijning_Basketbal_28x15",
+  "Belijning_Tennis_23x11",
+  "Belijning_Volleybal_18x9",
+  "Belijning_Korfbal_40x20",
+  "Belijning_Beachsport_27x12_16x8",
+  "Belijning_Schoolplein_Spel",
+  "Belijning_Rugby_Union",
+  "Belijning_Honkbal_Softbal",
+  "Belijning_Lacrosse",
+]);
+
+/** Belijning die er later bij is gekomen: oudere plattegronden kennen ze niet en zouden ze anders ineens allemaal tonen. */
+function addedLineNodes(environment: Pick<Floorplan3dEnvironment, "type" | "layout">): string[] {
+  if (environment.type === "gymzaal") {
+    const layout = GYM_LAYOUTS[environment.layout as GymLayoutId] ?? GYM_LAYOUTS[DEFAULT_GYM_LAYOUT];
+    return layout.lijnen.filter((part) => part.defaultHidden).flatMap((part) => part.nodes);
+  }
+  const layout = findEnvironmentLayout(environment.type, environment.layout) ?? layoutsOfKind(environment.type)[0];
+  if (environment.type !== "sportveld") return [];
+  return layout.groups.flatMap((group) => group.parts.flatMap((part) => part.nodes)).filter((node) => ADDED_SPORTVELD_LINES.has(node));
+}
+
+/**
+ * Zet een eerder opgeslagen omgeving om naar de huidige belijning: "Lijnen_Zaalvoetbal_Handbal" is gesplitst, en de nieuwe
+ * extra belijning staat standaard uit. Staat er al een van die nieuwe lijnen in `hidden`, dan is de omgeving al met de
+ * nieuwe belijning opgeslagen en blijft hij zoals hij is; anders is het een oude en gaan ze uit.
+ */
+export function upgradeEnvironment<T extends Pick<Floorplan3dEnvironment, "type" | "layout" | "hidden">>(environment: T): T {
+  let hidden = environment.hidden;
+  if (hidden.includes("Lijnen_Zaalvoetbal_Handbal")) {
+    hidden = [...hidden.filter((node) => node !== "Lijnen_Zaalvoetbal_Handbal"), "Lijnen_Zaalvoetbal", "Lijnen_Handbal"];
+  }
+  const added = addedLineNodes(environment);
+  if (added.length > 0 && !added.some((node) => hidden.includes(node))) hidden = [...hidden, ...added];
+  return hidden === environment.hidden ? environment : { ...environment, hidden };
+}
+
+export function upgradeRoomEnvironment<T extends { environment?: Floorplan3dEnvironment }>(room: T): T {
+  return room.environment ? { ...room, environment: upgradeEnvironment(room.environment) } : room;
+}

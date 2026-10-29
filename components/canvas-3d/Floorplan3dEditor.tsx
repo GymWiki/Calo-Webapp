@@ -90,6 +90,7 @@ import {
   defaultLayoutId,
   ENVIRONMENT_KIND_ORDER,
   roomForEnvironment,
+  upgradeRoomEnvironment,
   type EnvironmentKind,
 } from "@/components/canvas-3d/environment-kinds";
 import { EnvironmentPanel } from "@/components/canvas-3d/EnvironmentPanel";
@@ -239,7 +240,7 @@ export function Floorplan3dEditor({
     return null;
   });
 
-  const [room, setRoom] = useState<Floorplan3dRoom>(seed?.data.room ?? NEW_ROOM);
+  const [room, setRoom] = useState<Floorplan3dRoom>(seed ? upgradeRoomEnvironment(seed.data.room) : NEW_ROOM);
   const [items, setItems] = useState<Floorplan3dItem[]>(() =>
     seed
       ? recomputeStackedYs(

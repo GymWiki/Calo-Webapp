@@ -6,7 +6,9 @@
 
 export const ENVIRONMENT_NODES: Record<string, string[]> = {
   sportveld_school_combiveld: [
-    "Belijning_Dwarsvelden_Geel", "Belijning_Korfbal_Blauw", "Belijning_Voetbal_Handbal_40x20",
+    "Belijning_Basketbal_28x15", "Belijning_Beachsport_27x12_16x8", "Belijning_Korfbal_40x20",
+    "Belijning_Schoolplein_Spel", "Belijning_Tennis_23x11", "Belijning_Voetbal_Handbal_40x20",
+    "Belijning_Volleybal_18x9",
     "Bestrating_Omloop", "Kantplank_Noord", "Kantplank_Oost", "Kantplank_West", "Kantplank_Zuid",
     "Kunstgras_Strook_01", "Kunstgras_Strook_02", "Kunstgras_Strook_03", "Kunstgras_Strook_04",
     "Kunstgras_Strook_05", "Kunstgras_Strook_06", "Kunstgras_Strook_07", "Kunstgras_Strook_08",
@@ -15,7 +17,8 @@ export const ENVIRONMENT_NODES: Record<string, string[]> = {
     "Veldafscheiding_Zuid",
   ],
   sportveld_multifunctioneel: [
-    "Belijning_Hockey_91x55", "Belijning_Korfbal_2x_40x20", "Belijning_Voetbal_100x60", "Bestrating_Omloop",
+    "Belijning_Hockey_91x55", "Belijning_Honkbal_Softbal", "Belijning_Korfbal_2x_40x20", "Belijning_Lacrosse",
+    "Belijning_Rugby_Union", "Belijning_Voetbal_100x60", "Bestrating_Omloop",
     "Kantplank_Noord", "Kantplank_Oost", "Kantplank_West", "Kantplank_Zuid", "Kunstgras_Strook_01",
     "Kunstgras_Strook_02", "Kunstgras_Strook_03", "Kunstgras_Strook_04", "Kunstgras_Strook_05",
     "Kunstgras_Strook_06", "Kunstgras_Strook_07", "Kunstgras_Strook_08", "Kunstgras_Strook_09",

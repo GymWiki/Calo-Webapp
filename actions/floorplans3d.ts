@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { upgradeRoomEnvironment } from "@/components/canvas-3d/environment-kinds";
 import { fetchIsAdmin } from "@/lib/auth/roles";
 import { isFloorplanPreviewUrl } from "@/lib/floorplanPreview";
 import { getMaterialModelsBySlugs } from "@/lib/services/materialModels";
@@ -258,7 +259,7 @@ export async function getFloorplan3dViewData(
   if (!parsed.success) return { error: "Plattegrond kon niet worden geladen." };
 
   try {
-    const upgraded = { ...parsed.data, items: upgradeStudentItems(parsed.data.items) };
+    const upgraded = { ...parsed.data, room: upgradeRoomEnvironment(parsed.data.room), items: upgradeStudentItems(parsed.data.items) };
     const models = await getMaterialModelsBySlugs(supabase, upgraded.items.map((item) => item.slug));
     return { success: true, data: upgraded, models };
   } catch (modelError) {

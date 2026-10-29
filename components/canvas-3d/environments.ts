@@ -39,24 +39,38 @@ export type GymLayout = {
   walls: (EnvironmentPart & { side: WallSide })[];
   curtains: CurtainPart[];
   wandrekken: EnvironmentPart;
-  lijnen: EnvironmentPart[];
+  lijnen: (EnvironmentPart & { defaultHidden?: boolean })[];
 };
 
 const HALL_L = 24;
 const HALL_W = 14;
 
-const SPORT_LINES: { id: string; label: string; prefix: string }[] = [
-  { id: "lijnen-zaalvoetbal", label: "Zaalvoetbal / handbal", prefix: "Lijnen_Zaalvoetbal" },
+// Alle officiële zaalbelijningen, elk een eigen node (kleur en z-laag staan in het Blender-script). Zaalvoetbal, basketbal,
+// volleybal en badminton staan standaard aan (zoals voorheen); de rest is een klik in "Sportlijnen op de vloer".
+const SPORT_LINES: { id: string; label: string; prefix: string; defaultHidden?: boolean }[] = [
+  { id: "lijnen-zaalvoetbal", label: "Zaalvoetbal", prefix: "Lijnen_Zaalvoetbal" },
+  { id: "lijnen-handbal", label: "Handbal", prefix: "Lijnen_Handbal", defaultHidden: true },
   { id: "lijnen-basketbal", label: "Basketbal", prefix: "Lijnen_Basketbal" },
   { id: "lijnen-volleybal", label: "Volleybal", prefix: "Lijnen_Volleybal" },
+  { id: "lijnen-volleybal-dwars", label: "Volleybal (3 dwarsvelden)", prefix: "Lijnen_Volleybal_Dwarsvelden", defaultHidden: true },
   { id: "lijnen-badminton", label: "Badminton", prefix: "Lijnen_Badminton" },
+  { id: "lijnen-badminton-dwars", label: "Badminton (3 dwarsbanen)", prefix: "Lijnen_Badminton_Dwarsvelden", defaultHidden: true },
+  { id: "lijnen-zaalkorfbal", label: "Zaalkorfbal", prefix: "Lijnen_Zaalkorfbal", defaultHidden: true },
+  { id: "lijnen-zaalhockey", label: "Zaalhockey", prefix: "Lijnen_Zaalhockey", defaultHidden: true },
+  { id: "lijnen-tennis", label: "Tennis", prefix: "Lijnen_Tennis", defaultHidden: true },
 ];
 
-function lines(nodeNames: string[]): EnvironmentPart[] {
-  return SPORT_LINES.map(({ id, label, prefix }) => ({
+/** De node hoort bij deze sport: exact `prefix` (1 zaal) of `prefix_Zaal_<n>` (complexen) — zodat "Volleybal" de dwarsvelden niet meeneemt. */
+function belongsToLine(name: string, prefix: string): boolean {
+  return name === prefix || (name.startsWith(`${prefix}_Zaal_`) && /^\d+$/.test(name.slice(prefix.length + 6)));
+}
+
+function lines(nodeNames: string[]): GymLayout["lijnen"] {
+  return SPORT_LINES.map(({ id, label, prefix, defaultHidden }) => ({
     id,
     label,
-    nodes: nodeNames.filter((name) => name.startsWith(prefix)),
+    nodes: nodeNames.filter((name) => belongsToLine(name, prefix)),
+    ...(defaultHidden ? { defaultHidden } : {}),
   }));
 }
 
@@ -92,7 +106,7 @@ export const GYM_LAYOUTS: Record<GymLayoutId, GymLayout> = {
     walls: wallParts("Muur"),
     curtains: [],
     wandrekken: { id: "wandrekken", label: "Wandrekken", nodes: ["Wandrek_1", "Wandrek_2"] },
-    lijnen: lines(["Lijnen_Zaalvoetbal_Handbal", "Lijnen_Basketbal", "Lijnen_Volleybal", "Lijnen_Badminton"]),
+    lijnen: lines(SPORT_LINES.map(({ prefix }) => prefix)),
   },
   "2x2": {
     id: "2x2",
@@ -119,9 +133,7 @@ export const GYM_LAYOUTS: Record<GymLayoutId, GymLayout> = {
       label: "Wandrekken",
       nodes: ["Wandrek_Zaal_1_A", "Wandrek_Zaal_1_B", "Wandrek_Zaal_2_A", "Wandrek_Zaal_2_B"],
     },
-    lijnen: lines(
-      ["Zaalvoetbal", "Basketbal", "Volleybal", "Badminton"].flatMap((sport) => numbered(`Lijnen_${sport}`, 4)),
-    ),
+    lijnen: lines(SPORT_LINES.flatMap(({ prefix }) => numbered(prefix, 4))),
   },
   "4x1": {
     id: "4x1",
@@ -139,9 +151,7 @@ export const GYM_LAYOUTS: Record<GymLayoutId, GymLayout> = {
       { id: "gordijn-3-4", label: "Zaal 3 | 4", nodes: ["Scheidingswand_3_4"], from: { x: -HALL_L / 2, z: -HALL_W }, to: { x: HALL_L / 2, z: -HALL_W } },
     ],
     wandrekken: { id: "wandrekken", label: "Wandrekken", nodes: ["Wandrek_Zaal_4_A", "Wandrek_Zaal_4_B"] },
-    lijnen: lines(
-      ["Zaalvoetbal", "Basketbal", "Volleybal", "Badminton"].flatMap((sport) => numbered(`Lijnen_${sport}`, 4)),
-    ),
+    lijnen: lines(SPORT_LINES.flatMap(({ prefix }) => numbered(prefix, 4))),
   },
 };
 
@@ -164,9 +174,11 @@ export function roomForGymLayout(layout: GymLayout): Pick<Floorplan3dRoom, "widt
 const DEFAULT_HIDDEN_SIDES: WallSide[] = ["voor", "rechts"];
 
 export function createGymEnvironment(layoutId: GymLayoutId): Floorplan3dEnvironment {
-  const hidden = GYM_LAYOUTS[layoutId].walls
-    .filter((wall) => DEFAULT_HIDDEN_SIDES.includes(wall.side))
-    .flatMap((wall) => wall.nodes);
+  const layout = GYM_LAYOUTS[layoutId];
+  const hidden = [
+    ...layout.walls.filter((wall) => DEFAULT_HIDDEN_SIDES.includes(wall.side)).flatMap((wall) => wall.nodes),
+    ...layout.lijnen.filter((part) => part.defaultHidden).flatMap((part) => part.nodes),
+  ];
   return { type: "gymzaal", layout: layoutId, hidden };
 }
 
