@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 import { fetchIsAdmin } from "@/lib/auth/roles";
 import { isFloorplanPreviewUrl } from "@/lib/floorplanPreview";
 import { getMaterialModelsBySlugs } from "@/lib/services/materialModels";
+import { upgradeStudentItems } from "@/lib/students/catalog";
 import type { MaterialModel } from "@/types/materialModel";
 import {
   floorplan3dDataSchema,
@@ -257,8 +258,9 @@ export async function getFloorplan3dViewData(
   if (!parsed.success) return { error: "Plattegrond kon niet worden geladen." };
 
   try {
-    const models = await getMaterialModelsBySlugs(supabase, parsed.data.items.map((item) => item.slug));
-    return { success: true, data: parsed.data, models };
+    const upgraded = { ...parsed.data, items: upgradeStudentItems(parsed.data.items) };
+    const models = await getMaterialModelsBySlugs(supabase, upgraded.items.map((item) => item.slug));
+    return { success: true, data: upgraded, models };
   } catch (modelError) {
     logFloorplan3dError("view-models", modelError);
     return { error: "Plattegrond kon niet worden geladen." };

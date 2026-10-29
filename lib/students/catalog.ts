@@ -13,7 +13,8 @@ import type { MaterialModel } from "@/types/materialModel";
 export const STUDENT_SLUG_PREFIX = "leerling_pose_";
 export const STUDENT_BUCKET = "materials-3d";
 export const STUDENT_STORAGE_DIR = "students";
-export const DEFAULT_POSE_ID = "verdedigen";
+/** De standaard leerling (neutraal staand): eerste kaartje in het poseraster en de pose waarmee een nieuwe leerling start. */
+export const DEFAULT_POSE_ID = "standaard";
 /** Hoogte (m) waarop de GLB's zijn genormaliseerd; `size` schaalt hier vanaf. */
 export const STUDENT_BASE_HEIGHT_M = 1.8;
 
@@ -140,4 +141,38 @@ export function studentLibraryModel(models: MaterialModel[]): MaterialModel | nu
 export function libraryPersonModels(models: MaterialModel[]): MaterialModel[] {
   const card = studentLibraryModel(models);
   return card ? [card] : [];
+}
+
+// ----------------------------------------------------------------------------
+// Oudere plattegronden: slugs die niet meer bestaan laden als de standaard leerling (of hardlopen), zonder de rest te veranderen.
+// ----------------------------------------------------------------------------
+
+/** Kleuren van de oude losse kleurvarianten (leerling_blauw, …) → shirtkleur. */
+const LEGACY_COLOR_HEX: Record<string, string> = {
+  blauw: "#2563eb",
+  geel: "#facc15",
+  groen: "#16a34a",
+  oranje: "#f97316",
+  paars: "#7c3aed",
+  rood: "#dc2626",
+};
+
+/** Oude slug → pose (id) en eventueel shirtkleur. `leerling_zittend_turnbank` blijft bewust zoals hij is (de bank zit in het model). */
+const LEGACY_STUDENT_SLUGS: Record<string, { pose: string; color?: string }> = {
+  leerling_pose_staand: { pose: DEFAULT_POSE_ID },
+  leerling_staand_rust: { pose: DEFAULT_POSE_ID },
+  leerling_wandelen: { pose: DEFAULT_POSE_ID },
+  leerling_rennen: { pose: "hardlopen" },
+  ...Object.fromEntries(Object.entries(LEGACY_COLOR_HEX).map(([name, hex]) => [`leerling_${name}`, { pose: DEFAULT_POSE_ID, color: hex }])),
+};
+
+/** Vertaalt een oude leerling-slug naar de nieuwe pose (kleur van een oude kleurvariant wordt de shirtkleur). Andere items blijven ongewijzigd. */
+export function upgradeStudentItem<T extends { slug: string; color?: string }>(item: T): T {
+  const legacy = LEGACY_STUDENT_SLUGS[item.slug];
+  if (!legacy) return item;
+  return { ...item, slug: studentSlug(legacy.pose), ...(legacy.color && !item.color ? { color: legacy.color } : {}) };
+}
+
+export function upgradeStudentItems<T extends { slug: string; color?: string }>(items: readonly T[]): T[] {
+  return items.map(upgradeStudentItem);
 }

@@ -10,6 +10,7 @@ import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
 import type { ActivityFloorplan } from "@/lib/services/floorplans3d";
 import { getMaterialModelsBySlugs } from "@/lib/services/materialModels";
+import { upgradeStudentItems } from "@/lib/students/catalog";
 import { createClient } from "@/utils/supabase/server";
 
 /**
@@ -32,13 +33,15 @@ export async function PlattegrondSection({
   /** Reeds opgehaalde modellen (testharnas); zonder deze prop worden ze hier uit Supabase gehaald. */
   models?: Awaited<ReturnType<typeof getMaterialModelsBySlugs>>;
 }) {
+  // Oude leerling-slugs (laagpoly, kleurvarianten) laden als de standaard leerling; de rest blijft ongewijzigd.
+  const data = { ...plan.data, items: upgradeStudentItems(plan.data.items) };
   let models: Awaited<ReturnType<typeof getMaterialModelsBySlugs>> = providedModels ?? [];
   if (!providedModels) {
     try {
       const supabase = createClient(await cookies());
       models = await getMaterialModelsBySlugs(
         supabase,
-        plan.data.items.map((item) => item.slug),
+        data.items.map((item) => item.slug),
       );
     } catch {
       // Zonder modellen toont de viewer grijze "onbekend"-vakjes; de pagina blijft werken.
@@ -48,8 +51,8 @@ export async function PlattegrondSection({
   const nameBySlug = new Map(models.map((model) => [model.slug, model.naam]));
   const categoryBySlug = new Map(models.map((model) => [model.slug, model.categorie]));
   const summary = summarizeFloorplan(
-    plan.data.items,
-    plan.data.coneFields,
+    data.items,
+    data.coneFields,
     (slug) => nameBySlug.get(slug),
     (slug) => categoryBySlug.get(slug),
   );
@@ -71,7 +74,7 @@ export async function PlattegrondSection({
         )}
       </div>
       <div className="print:hidden">
-        <PlattegrondViewer data={plan.data} models={models} previewUrl={plan.previewUrl} title={plan.naam} />
+        <PlattegrondViewer data={data} models={models} previewUrl={plan.previewUrl} title={plan.naam} />
       </div>
       {/* Print: de interactieve viewer past niet op papier — de 3D-thumbnail is dan het beeld (nooit de losse afbeelding). */}
       {/* eslint-disable-next-line @next/next/no-img-element */}

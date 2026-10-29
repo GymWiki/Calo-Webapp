@@ -2,6 +2,7 @@
 // (types/floorplan3d.ts) — dezelfde regels als bij opslaan — en geeft Nederlandse meldingen met pad en reden terug.
 // Zonder DOM/React, dus ook bruikbaar vanuit het CLI-script (scripts/import-plattegrond.mts).
 
+import { upgradeStudentItems } from "@/lib/students/catalog";
 import type { ZodIssue } from "zod";
 
 import { FORMAT_NAME, FORMAT_VERSION } from "@/lib/plattegrond/format";
@@ -160,7 +161,8 @@ export function parsePlattegrondJson(text: string, options: ParseOptions = {}): 
       if (id !== entry.id) warnings.push({ code: "dubbel-id", message: `Dubbel id "${entry.id}" hernoemd naar "${id}".` });
       return id === entry.id ? entry : { ...entry, id };
     });
-  let items = dedupe(scene.items);
+  // Oude leerling-slugs (laagpoly, kleurvarianten) worden de standaard leerling.
+  let items = dedupe(upgradeStudentItems(scene.items));
   const coneFields = dedupe(scene.coneFields);
 
   // Onbekende items: laat de rest staan, meld de slugs.

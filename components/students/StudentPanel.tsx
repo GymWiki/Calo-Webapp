@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import { sportLabel } from "@/lib/constants/libraryTaxonomy";
 import {
+  DEFAULT_POSE_ID,
   DEFAULT_STUDENT_SIZE,
   STUDENT_COLORS,
   STUDENT_COLOR_PATTERN,
@@ -110,7 +111,14 @@ export function StudentPanel({
                   <span className="relative block h-16 w-full bg-muted/40 pointer-coarse:h-20">
                     {preview && <Image src={preview} alt="" fill sizes="(min-width: 1024px) 120px, 33vw" className="object-contain" />}
                   </span>
-                  <span className="px-1.5 py-1 text-xs leading-tight font-medium">{pose.label}</span>
+                  <span className="flex items-center justify-between gap-1 px-1.5 py-1 text-xs leading-tight font-medium">
+                    {pose.label}
+                    {pose.id === DEFAULT_POSE_ID && (
+                      <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary" data-testid="pose-standaard-badge">
+                        Start
+                      </span>
+                    )}
+                  </span>
                 </button>
               );
             })}

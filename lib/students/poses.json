@@ -1,6 +1,8 @@
 {
   "_comment": "Catalogus van leerling-poses. Nieuwe pose toevoegen: GLB in de bronmap zetten, hier een regel toevoegen en `npm run process:students` draaien (zie docs/students.md). Geen codewijziging nodig.",
   "poses": [
+    { "id": "standaard", "label": "Standaard", "sporten": ["algemeen"], "file": "leerling.glb", "sort": 0 },
+    { "id": "hardlopen", "label": "Hardlopen", "sporten": ["atletiek", "algemeen"], "file": "leerling_hardlopen.glb", "sort": 2 },
     { "id": "juichen", "label": "Juichen", "sporten": ["algemeen"], "file": "leerling_juichen.glb", "sort": 3 },
     { "id": "startblokken", "label": "Startblokken", "sporten": ["atletiek"], "file": "leerling_startblokken.glb", "sort": 4 },
     { "id": "hoogspringen", "label": "Hoogspringen", "sporten": ["atletiek"], "file": "leerling_hoogspringen.glb", "sort": 5 },

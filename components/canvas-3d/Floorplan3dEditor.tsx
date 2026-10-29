@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/components/canvas-3d/mobile/editor-toast";
 import { StudentPanel, type StudentPatch } from "@/components/students/StudentPanel";
-import { isStudentSlug } from "@/lib/students/catalog";
+import { isStudentSlug, upgradeStudentItem } from "@/lib/students/catalog";
 import {
   buildClipboard,
   clipboardCount,
@@ -244,7 +244,7 @@ export function Floorplan3dEditor({
     seed
       ? recomputeStackedYs(
           // Kantelhoeken binnen de limieten van het asset (oude plattegronden hebben er geen: ongewijzigd).
-          seed.data.items.map((item) => normalizeItemRotation(item, orientationOfSlug(item.slug))),
+          seed.data.items.map(upgradeStudentItem).map((item) => normalizeItemRotation(item, orientationOfSlug(item.slug))),
           lookup,
         )
       : [],
