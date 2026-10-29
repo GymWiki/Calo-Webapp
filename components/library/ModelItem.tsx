@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Box, Star } from "lucide-react";
 
+import { PREVIEW_OUTLINE_FILTER } from "@/components/library/preview-outline";
 import { cn } from "@/lib/utils";
 import type { MaterialModel } from "@/types/materialModel";
 import type { LibraryView } from "@/components/library/useLibraryPrefs";
@@ -34,6 +35,7 @@ function ModelPreview({ model, compact }: { model: MaterialModel; compact: boole
           fill
           sizes={compact ? "40px" : "(min-width: 1024px) 128px, 33vw"}
           className={cn("object-contain", compact ? "p-0.5" : "p-1.5")}
+          style={{ filter: PREVIEW_OUTLINE_FILTER }}
           onError={() => setFailed(true)}
           unoptimized
         />
