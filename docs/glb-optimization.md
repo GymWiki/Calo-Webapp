@@ -36,6 +36,8 @@ Uploadstatus: alle modellen uit de Drive staan in Supabase (`materials-3d/models
 
 ### Leerlingen: pose bakken vóór export
 
+> De huidige leerlingen (`lib/students`, zie `docs/students.md`) zijn statische meshes en hebben dit niet nodig; dit geldt voor een leerling met skin/armature.
+
 De Blender-export van `leerling_*` bevat alleen de bind-pose (A-pose); de gewenste pose zit in de `.blend` als pose van de
 armature. Een geskind GLB toont die pose dus niet in three.js. Daarom wordt de pose gebakken: de armature-modifier wordt
 toegepast en het resultaat zonder skin geëxporteerd (`export_apply=True`, `export_skins=False`). Zo is het model statisch,

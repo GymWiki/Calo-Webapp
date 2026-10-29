@@ -16,7 +16,7 @@ const orbitSeconds = Number(args.orbit ?? 4);
 const label = args.label ?? `${n} leerlingen`;
 const runs = Number(args.runs ?? 2);
 
-const POSES = ["staand", "hardlopen", "juichen", "startblokken", "hoogspringen", "basketbal_dribbelen", "volleybal_onderhands", "volleybal_bovenhands", "badminton_slaan", "pickleball_klaar", "pickleball_slaan", "hockey", "hockey_sprint", "floorball", "floorball_sprint", "honkbal_slaan", "honkbal_vangen", "trefbal_gooien", "verdedigen"];
+const POSES = ["juichen", "startblokken", "hoogspringen", "basketbal_dribbelen", "volleybal_onderhands", "volleybal_bovenhands", "badminton_slaan", "pickleball_klaar", "pickleball_slaan", "hockey", "hockey_sprint", "floorball", "floorball_sprint", "honkbal_slaan", "honkbal_vangen", "trefbal_gooien", "verdedigen"];
 const COLORS = [undefined, "#dc2626", "#2563eb", "#facc15", "#16a34a", "#f97316", "#f8fafc", "#171717"];
 const SIZES = [undefined, "klein", "groot"];
 

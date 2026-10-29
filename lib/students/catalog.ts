@@ -13,7 +13,7 @@ import type { MaterialModel } from "@/types/materialModel";
 export const STUDENT_SLUG_PREFIX = "leerling_pose_";
 export const STUDENT_BUCKET = "materials-3d";
 export const STUDENT_STORAGE_DIR = "students";
-export const DEFAULT_POSE_ID = "staand";
+export const DEFAULT_POSE_ID = "verdedigen";
 /** Hoogte (m) waarop de GLB's zijn genormaliseerd; `size` schaalt hier vanaf. */
 export const STUDENT_BASE_HEIGHT_M = 1.8;
 
@@ -136,8 +136,8 @@ export function studentLibraryModel(models: MaterialModel[]): MaterialModel | nu
   return base ? { ...base, naam: "Leerling" } : null;
 }
 
-/** Wat de sectie "Personen" in de bibliotheek toont: één "Leerling"-kaartje (poses kies je daarna in het itempaneel). Zonder poses: de oudere losse personen. */
+/** Wat de sectie "Personen" in de bibliotheek toont: alleen het ene "Leerling"-kaartje (poses kies je daarna in het itempaneel). De oudere losse personen (laagpoly, kleurvarianten) bestaan voor de bibliotheek niet meer. */
 export function libraryPersonModels(models: MaterialModel[]): MaterialModel[] {
   const card = studentLibraryModel(models);
-  return card ? [card] : models.filter((model) => model.categorie === "personen");
+  return card ? [card] : [];
 }

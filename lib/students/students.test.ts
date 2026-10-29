@@ -41,8 +41,8 @@ describe("pose-catalogus", () => {
   });
 
   it("slug ↔ pose-id", () => {
-    assert.equal(studentSlug("staand"), "leerling_pose_staand");
-    assert.equal(poseIdOfSlug("leerling_pose_staand"), "staand");
+    assert.equal(studentSlug("hockey"), "leerling_pose_hockey");
+    assert.equal(poseIdOfSlug("leerling_pose_hockey"), "hockey");
     assert.equal(poseIdOfSlug("turnbank"), null);
     assert.ok(isStudentSlug("leerling_pose_rennen"));
     assert.ok(!isStudentSlug("leerling_blauw"), "de oudere losse leerlingen zijn geen poses");
@@ -73,7 +73,8 @@ describe("pose-catalogus", () => {
     assert.equal(card?.slug, studentSlug(DEFAULT_POSE_ID));
     const legacy = { ...models[0], slug: "leerling_blauw", categorie: "personen" };
     assert.deepEqual(libraryPersonModels([...models, legacy]).map((m) => m.slug), [studentSlug(DEFAULT_POSE_ID)]);
-    assert.deepEqual(libraryPersonModels([legacy]).map((m) => m.slug), ["leerling_blauw"], "zonder poses: de oudere personen");
+    assert.deepEqual(libraryPersonModels([legacy]), [], "de oude losse personen komen niet meer in de bibliotheek");
+    assert.ok(!STUDENT_POSES.some((pose) => ["staand", "hardlopen"].includes(pose.id)), "alleen de nieuwe ontwerpen");
   });
 });
 
@@ -87,7 +88,7 @@ describe("grootte", () => {
   });
 
   it("schaalt de collision-maten van een leerling mee, andere items niet", () => {
-    const slug = studentSlug("staand");
+    const slug = studentSlug("hockey");
     const base = lookup(slug)!;
     const small = dimsForSlug(slug, "klein", lookup)!;
     const big = dimsForSlug(slug, "groot", lookup)!;
@@ -115,7 +116,7 @@ describe("kleur", () => {
   });
 
   it("het itemschema accepteert kleur en grootte en weigert onzin", () => {
-    const base = { id: "a", slug: studentSlug("staand"), x: 0, y: 0, z: 0, rot_y_deg: 0 };
+    const base = { id: "a", slug: studentSlug("hockey"), x: 0, y: 0, z: 0, rot_y_deg: 0 };
     assert.ok(floorplan3dItemSchema.safeParse({ ...base, color: "#ff0000", size: "groot" }).success);
     assert.ok(floorplan3dItemSchema.safeParse(base).success, "oude plattegronden zonder leerlingvelden blijven laden");
     assert.ok(!floorplan3dItemSchema.safeParse({ ...base, color: "rood" }).success);
@@ -126,7 +127,7 @@ describe("kleur", () => {
 describe("export/import met leerlingen", () => {
   const items: Floorplan3dItem[] = [
     { id: "s1", slug: studentSlug("basketbal_dribbelen"), x: 1.2345, y: 0, z: -2, rot_y_deg: 45, color: "#dc2626", size: "klein" },
-    { id: "s2", slug: studentSlug("staand"), x: 0, y: 0, z: 0, rot_y_deg: 0 },
+    { id: "s2", slug: studentSlug("hockey"), x: 0, y: 0, z: 0, rot_y_deg: 0 },
   ];
   const scene: Floorplan3dData = { version: 1, room: { width_m: 24, length_m: 14 }, items, coneFields: [] };
   const known = new Set(models.map((model) => model.slug));

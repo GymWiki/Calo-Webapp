@@ -144,8 +144,8 @@ export const PERSONS_ID = PERSONS_CATEGORY.id;
 
 /**
  * Toont de sectie "Personen" (leerlingen) in de bibliotheek. Was tijdelijk uit omdat de geskinde leerling-GLB's in een A-pose
- * stonden; de poses (staand, wandelend, rennend, zittend op turnbank) zijn nu in de GLB gebakken met
- * scripts/blender/bake-pose.py (zie docs/glb-optimization.md). Zet op false om de sectie weer te verbergen: de modellen blijven
+ * stonden; de nieuwe leerlingen (lib/students) hebben hun pose in het model; de oudere laagpoly-leerlingen zijn uit de bibliotheek.
+ * Een pose met skin bak je in de GLB met scripts/blender/bake-pose.py (zie docs/glb-optimization.md). Zet op false om de sectie weer te verbergen: de modellen blijven
  * in de database, zodat bestaande plattegronden ze blijven tonen.
  */
 export const SHOW_PERSONS_IN_LIBRARY = true;
