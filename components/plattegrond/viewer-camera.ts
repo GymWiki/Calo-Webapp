@@ -1,12 +1,13 @@
-// Pure camerawiskunde van de alleen-lezen plattegrond-viewer: standen
-// ("3D" schuin, "Bovenaanzicht"), beperkt draaien, zoomgrenzen en hoe groot
-// de kamer in beeld moet passen. Geen React/three — zie viewer-camera.test.ts.
+// Pure camerawiskunde van de alleen-lezen plattegrond-viewer: standen, vrij draaien en kantelen met de muis of
+// vinger, zoomen, verschuiven en hoe groot de inhoud in beeld moet passen. Geen React/three — zie viewer-camera.test.ts.
 //
-// Model: de camera kijkt altijd naar het midden van de kamer. De stand is
-//   preset  — "3d" (schuin, ~isometrisch) of "top" (recht van boven)
-//   step    — hele kwartslagen (pijltjes, 90° per stap, onbeperkt)
-//   offset  — vrij slepen, begrensd op ±DRAG_LIMIT_DEG rond de huidige stap
-//   zoom    — vermenigvuldiger op de "past precies"-zoom, begrensd
+// Model: de camera kijkt naar het midden van de inhoud (+ een verschuiving). De stand is
+//   preset   — de gekozen begin-weergave: "3d" (schuin) of "top" (recht van boven); "Reset" keert hiernaar terug
+//   step     — hele kwartslagen (pijltjestoetsen, 90° per stap, onbeperkt)
+//   offset   — vrij draaien (slepen), onbeperkt rond de huidige stap
+//   polarDeg — kantelen (slepen omhoog/omlaag): 0° = recht van boven, tot POLAR_MAX_DEG; weggelaten = die van de preset
+//   pan      — verschuiving van het doelpunt in meters (rechts slepen / twee vingers)
+//   zoom     — vermenigvuldiger op de "past precies"-zoom, begrensd
 
 export type ViewPreset = "3d" | "top";
 
@@ -17,6 +18,11 @@ export type ViewState = {
   zoom: number;
   /** Basisazimut van de schuine weergave (graden); weggelaten = AZIMUTH_3D_DEG. Gekozen door viewer-framing.ts op basis van de inhoud. */
   azimuthBase?: number;
+  /** Eigen kantelhoek (graden vanaf verticaal); weggelaten = die van de preset. */
+  polarDeg?: number;
+  /** Verschuiving van het doelpunt (m, wereldcoördinaten). */
+  panX?: number;
+  panZ?: number;
 };
 
 export const DEFAULT_VIEW: ViewState = { preset: "3d", step: 0, offsetDeg: 0, zoom: 1 };
@@ -27,9 +33,15 @@ export const POLAR_3D_DEG = 50;
 export const POLAR_TOP_DEG = 0.05;
 export const AZIMUTH_3D_DEG = 45;
 export const DRAG_LIMIT_DEG = 40;
-export const ZOOM_MIN = 0.6;
-export const ZOOM_MAX = 2.5;
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 6;
 export const ZOOM_STEP = 1.25;
+/** Kantelen: tot hier (graden vanaf verticaal) kan de camera omlaag; onder SNAP_TOP_DEG springt hij naar exact bovenaanzicht. */
+export const POLAR_MAX_DEG = 80;
+export const SNAP_TOP_DEG = 7;
+/** Graden draaien/kantelen per pixel slepen. */
+export const ORBIT_DEG_PER_PX = 0.4;
+export const TILT_DEG_PER_PX = 0.3;
 export const TRANSITION_MS = 400;
 
 export type CameraPose = {
@@ -53,16 +65,56 @@ export function polarDegOf(preset: ViewPreset): number {
   return preset === "3d" ? POLAR_3D_DEG : POLAR_TOP_DEG;
 }
 
+/** De kantelhoek van een stand: eigen (slepen) of die van de preset. */
+export function currentPolarDeg(view: Pick<ViewState, "preset" | "polarDeg">): number {
+  return view.polarDeg ?? polarDegOf(view.preset);
+}
+
 export function withPreset(view: ViewState, preset: ViewPreset): ViewState {
-  return { ...view, preset, offsetDeg: 0 };
+  return { ...view, preset, offsetDeg: 0, polarDeg: undefined, panX: undefined, panZ: undefined };
 }
 
 export function rotateStep(view: ViewState, direction: 1 | -1): ViewState {
   return { ...view, step: view.step + direction, offsetDeg: 0 };
 }
 
+/** Draaien rond de inhoud, onbeperkt (blijft op één richting steken als je meerdere keren rond gaat). */
 export function dragBy(view: ViewState, deltaDeg: number): ViewState {
-  return { ...view, offsetDeg: clamp(view.offsetDeg + deltaDeg, -DRAG_LIMIT_DEG, DRAG_LIMIT_DEG) };
+  return { ...view, offsetDeg: (view.offsetDeg + deltaDeg) % 360 };
+}
+
+/** Kantel naar een hoek (graden vanaf verticaal): begrensd, en vlak bij de bovenkant exact bovenaanzicht. */
+export function tiltTo(view: ViewState, polarDeg: number): ViewState {
+  const clamped = clamp(polarDeg, POLAR_TOP_DEG, POLAR_MAX_DEG);
+  return { ...view, polarDeg: clamped < SNAP_TOP_DEG ? POLAR_TOP_DEG : clamped };
+}
+
+/** Slepen met de muis of één vinger: horizontaal draait, verticaal kantelt (omlaag slepen = hoger kijken, zoals gebruikelijk). */
+export function orbitBy(view: ViewState, dxPx: number, dyPx: number): ViewState {
+  return tiltTo(dragBy(view, dxPx * ORBIT_DEG_PER_PX), currentPolarDeg(view) - dyPx * TILT_DEG_PER_PX);
+}
+
+/**
+ * Verschuif het doelpunt zodat de inhoud met de aanwijzer meebeweegt. `metersPerPx` = hoeveel meter één schermpixel is (dwars op
+ * de kijkrichting); schermverticaal is op de vloer uitgerekt met 1/cos(kanteling).
+ */
+export function panBy(view: ViewState, dxPx: number, dyPx: number, metersPerPx: number): ViewState {
+  const az = (azimuthDegOf(view) * Math.PI) / 180;
+  const polar = (currentPolarDeg(view) * Math.PI) / 180;
+  const right: [number, number] = [Math.cos(az), -Math.sin(az)];
+  const forward: [number, number] = [-Math.sin(az), -Math.cos(az)];
+  const across = -dxPx * metersPerPx;
+  const along = (dyPx * metersPerPx) / Math.max(Math.cos(polar), 0.2);
+  return {
+    ...view,
+    panX: (view.panX ?? 0) + right[0] * across + forward[0] * along,
+    panZ: (view.panZ ?? 0) + right[1] * across + forward[1] * along,
+  };
+}
+
+/** Zoom met het muiswiel: `deltaY` > 0 zoomt uit. Gladde, exponentiële stap. */
+export function wheelZoom(view: ViewState, deltaY: number): ViewState {
+  return zoomBy(view, Math.exp(-deltaY * 0.0015));
 }
 
 export function zoomBy(view: ViewState, factor: number): ViewState {
@@ -163,13 +215,20 @@ export function poseFor(
   /** Inhoud van de plattegrond: met `content` kadert de camera op wat er echt staat i.p.v. op de hele zaal (zie viewer-framing.ts). */
   content?: { framing: (azimuthDeg: number, polarDeg: number, aspect: number) => { target: [number, number, number]; visibleWidthM: number } },
 ): CameraPose {
-  const polarDeg = polarDegOf(view.preset);
+  const polarDeg = currentPolarDeg(view);
   // Ruimte voor de knoppenbalk onderaan (symmetrisch, zodat het midden klopt).
   viewport = { width: viewport.width, height: Math.max(viewport.height * 0.5, viewport.height - CONTROLS_RESERVE_PX) };
   const baseAzimuth = azimuthDegOf({ ...view, offsetDeg: 0 });
   if (content) {
-    const framed = content.framing(baseAzimuth, polarDeg, viewport.width / viewport.height);
-    return { azimuthDeg: azimuthDegOf(view), polarDeg, zoom: (viewport.width / framed.visibleWidthM) * view.zoom, target: framed.target };
+    // De passende zoom en het doelpunt komen uit de BEGINstand (preset en basisrichting): tijdens draaien en kantelen "pompt" het
+    // beeld dus niet, en Reset keert precies terug. De camerarichting volgt wel de huidige stand.
+    const framed = content.framing(azimuthDegOf({ ...view, step: 0, offsetDeg: 0 }), polarDegOf(view.preset), viewport.width / viewport.height);
+    return {
+      azimuthDeg: azimuthDegOf(view),
+      polarDeg,
+      zoom: (viewport.width / framed.visibleWidthM) * view.zoom,
+      target: [framed.target[0] + (view.panX ?? 0), framed.target[1], framed.target[2] + (view.panZ ?? 0)],
+    };
   }
   // Bovenaanzicht: de kamer vult het beeld (geen muurhoogte, en slepen
   // mag iets uit beeld lopen); de schuine weergave houdt rekening met

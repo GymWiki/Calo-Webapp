@@ -58,6 +58,8 @@ export type FramingInput = {
   lookup?: DimsLookup;
   /** Vaste kijkrichting (graden); zonder: de beste uit enkele kandidaten (alleen 3D). */
   azimuthDeg?: number;
+  /** Vaste kantelhoek (graden vanaf verticaal); zonder: die van de gekozen weergave. */
+  polarDeg?: number;
   margin?: number;
 };
 
@@ -158,7 +160,7 @@ export function computeFraming(input: FramingInput): Framing {
   // Lege zaal: val terug op de hele zaal.
   const bounds = padBounds(content ?? { minX: -room.width_m / 2, maxX: room.width_m / 2, minZ: -room.length_m / 2, maxZ: room.length_m / 2, maxY: 0.5 });
   const preset = resolveViewMode(mode, items, fields, lookup);
-  const polarDeg = preset === "top" ? POLAR_TOP_DEG : POLAR_3D_DEG;
+  const polarDeg = input.polarDeg ?? (preset === "top" ? POLAR_TOP_DEG : POLAR_3D_DEG);
   const spread = preset === "3d" ? DRAG_SPREAD_3D_DEG : 0;
 
   let azimuthDeg = input.azimuthDeg ?? (preset === "top" ? 0 : AZIMUTH_3D_DEG);
@@ -220,7 +222,7 @@ export function initialViewFor(input: Omit<FramingInput, "azimuthDeg">): ViewSta
 export function framingContent(input: Omit<FramingInput, "aspect" | "azimuthDeg" | "mode">) {
   return {
     framing: (azimuthDeg: number, polarDeg: number, aspect: number) =>
-      computeFraming({ ...input, aspect, azimuthDeg, mode: polarDeg < 5 ? "top" : "3d" }),
+      computeFraming({ ...input, aspect, azimuthDeg, polarDeg, mode: polarDeg < 5 ? "top" : "3d" }),
   };
 }
 
