@@ -124,7 +124,7 @@ function padBounds(bounds: ContentBounds): ContentBounds {
 }
 
 /** Breedte/hoogte (m) van de projectie van de box in het beeldvlak van een camera met deze richting. */
-function projectedSpan(bounds: ContentBounds, azimuthDeg: number, polarDeg: number): { width: number; height: number } {
+export function projectedSpan(bounds: ContentBounds, azimuthDeg: number, polarDeg: number): { width: number; height: number } {
   const d = viewDirection(azimuthDeg, polarDeg);
   const right = normalize(cross(d, [0, 1, 0]));
   const up = normalize(cross(right, d));
@@ -175,6 +175,7 @@ export function computeFraming(input: FramingInput): Framing {
   }
 
   const target: Vec3 = [(bounds.minX + bounds.maxX) / 2, preset === "top" ? 0 : bounds.maxY / 2, (bounds.minZ + bounds.maxZ) / 2];
+  clampToRoom(target, azimuthDeg, visibleWidthM, visibleWidthM / aspect, room);
   const distance = Math.max(room.width_m, room.length_m, 10) * 3 + 30;
   const offset = cameraPosition(azimuthDeg, polarDeg, distance);
   return {
@@ -188,6 +189,25 @@ export function computeFraming(input: FramingInput): Framing {
     bounds,
     empty,
   };
+}
+
+/**
+ * Houdt het kader binnen de zaal (geen leeg wit naast de vloer) als de camera recht op een wand kijkt (azimut 0/90/180/270°) en het
+ * kader in de zaal past. Bij schuine kijkrichtingen blijft het doelpunt op het midden van de inhoud.
+ */
+function clampToRoom(target: Vec3, azimuthDeg: number, visibleWidthM: number, _visibleHeightM: number, room: { width_m: number; length_m: number }): void {
+  const rad = (azimuthDeg * Math.PI) / 180;
+  const alongX = Math.abs(Math.cos(rad)) > 0.99; // horizontaal op het scherm = x
+  const alongZ = Math.abs(Math.sin(rad)) > 0.99; // horizontaal op het scherm = z
+  const half = visibleWidthM / 2;
+  if (alongX && visibleWidthM < room.width_m) target[0] = Math.min(Math.max(target[0], -room.width_m / 2 + half), room.width_m / 2 - half);
+  else if (alongZ && visibleWidthM < room.length_m) target[2] = Math.min(Math.max(target[2], -room.length_m / 2 + half), room.length_m / 2 - half);
+}
+
+/** Hoeveel van het kader de inhoud vult (0–1+): het grootste aandeel van breedte of hoogte, zonder marge. Boven 1 = afgesneden. */
+export function framingFill(framing: Pick<Framing, "bounds" | "azimuthDeg" | "polarDeg" | "visibleWidthM" | "visibleHeightM">): number {
+  const span = projectedSpan(framing.bounds, framing.azimuthDeg, framing.polarDeg);
+  return Math.max(span.width / framing.visibleWidthM, span.height / framing.visibleHeightM);
 }
 
 /** De begin-ViewState van een plattegrond: gekozen weergave en kijkrichting; "Reset" keert hiernaar terug. */

@@ -12,9 +12,11 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { dimsLookupFromModels } from "@/components/canvas-3d/floorplan3d-geometry";
-import { initialViewFor } from "@/components/plattegrond/viewer-framing";
+import { computeFraming, framingFill, initialViewFor } from "@/components/plattegrond/viewer-framing";
 import {
+  CONTROLS_RESERVE_PX,
   ZOOM_STEP,
+  azimuthDegOf,
   canZoomIn,
   canZoomOut,
   dragBy,
@@ -184,6 +186,23 @@ function ViewerBody({
   const view3dBase = useMemo(() => initialViewFor({ items, fields, room, lookup, aspect: 1.7, mode: "3d" }).azimuthBase, [items, fields, room, lookup]);
   const [{ view, instant }, setViewState] = useState<{ view: ViewState; instant: boolean }>(() => ({ view: initialView, instant: false }));
 
+  // Afmetingen van het kader: voor de kadrering-meting (data-framing-fill, gebruikt door de tests) — de camera zelf meet zijn eigen canvas.
+  const [box, setBox] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setBox({ width: element.clientWidth, height: element.clientHeight }));
+    observer.observe(element);
+    setBox({ width: element.clientWidth, height: element.clientHeight });
+    return () => observer.disconnect();
+  }, []);
+  const framingFillValue = useMemo(() => {
+    if (box.width === 0 || box.height === 0) return null;
+    const aspect = box.width / Math.max(box.height * 0.5, box.height - CONTROLS_RESERVE_PX);
+    const framing = computeFraming({ items, fields, room, lookup, aspect, mode: view.preset, azimuthDeg: azimuthDegOf({ ...view, offsetDeg: 0 }) });
+    return framing.empty ? null : framingFill(framing);
+  }, [box, items, fields, room, lookup, view]);
+
   const apply = useCallback((update: (view: ViewState) => ViewState, immediately = false) => {
     setViewState((previous) => ({ view: update(previous.view), instant: immediately }));
   }, []);
@@ -274,6 +293,8 @@ function ViewerBody({
       role="group"
       aria-label={`Interactieve 3D-plattegrond: ${title}. Pijltjes links en rechts draaien, plus en min zoomen, nul zet terug.`}
       tabIndex={0}
+      data-framing-fill={framingFillValue === null ? undefined : framingFillValue.toFixed(2)}
+      data-framing-mode={view.preset}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
