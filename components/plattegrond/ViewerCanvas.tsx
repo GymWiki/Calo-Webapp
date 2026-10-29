@@ -12,6 +12,7 @@ import {
   TRANSITION_MS,
   azimuthDegOf,
   cameraPosition,
+  currentPolarDeg,
   lerpPose,
   poseFor,
   type CameraPose,
@@ -126,7 +127,7 @@ export default function ViewerCanvas({
   const content = useMemo(() => framingContent({ items, fields, room, lookup }), [items, fields, room, lookup]);
   // Muren tussen camera en inhoud weglaten: de opstelling blijft zichtbaar zonder dat er iets wordt afgedekt.
   const hiddenWalls = useMemo(
-    () => wallNodes(room.environment, wallsToHide(azimuthDegOf({ ...view, offsetDeg: 0 }), view.preset)),
+    () => wallNodes(room.environment, wallsToHide(azimuthDegOf(view), currentPolarDeg(view) < 20 ? "top" : "3d")),
     [room.environment, view],
   );
   return (

@@ -1,10 +1,10 @@
 "use client";
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ArrowLeftRight, Box, Loader2, Maximize2, Minus, Plus, RotateCcw, RotateCw, ScanLine } from "lucide-react";
+import { Box, Loader2, Maximize2 } from "lucide-react";
 
 import { getFloorplan3dViewData } from "@/actions/floorplans3d";
 import { Button } from "@/components/ui/button";
@@ -13,19 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { dimsLookupFromModels } from "@/components/canvas-3d/floorplan3d-geometry";
 import { computeFraming, framingFill, initialViewFor } from "@/components/plattegrond/viewer-framing";
-import {
-  CONTROLS_RESERVE_PX,
-  ZOOM_STEP,
-  azimuthDegOf,
-  canZoomIn,
-  canZoomOut,
-  dragBy,
-  rotateStep,
-  withPreset,
-  zoomBy,
-  type ViewPreset,
-  type ViewState,
-} from "@/components/plattegrond/viewer-camera";
+import { useViewerGestures, type PointerKind } from "@/components/plattegrond/useViewerGestures";
+import { CONTROLS_RESERVE_PX, azimuthDegOf, currentPolarDeg, polarDegOf, type ViewState } from "@/components/plattegrond/viewer-camera";
 import type { Floorplan3dData, Floorplan3dItem } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 
@@ -33,11 +22,6 @@ import type { MaterialModel } from "@/types/materialModel";
 // chunk — de activiteitpagina zelf laadt dat pas zodra de viewer in beeld
 // komt (zie `inView` hieronder), nooit in de eerste JS.
 const ViewerCanvas = dynamic(() => import("@/components/plattegrond/ViewerCanvas"), { ssr: false });
-
-/** Graden per pixel slepen. */
-const DRAG_DEG_PER_PX = 0.3;
-/** Verticale beweging mag een touch-gebaar niet naar draaien trekken: dat is paginascroll. */
-const TOUCH_DRAG_THRESHOLD_PX = 8;
 
 type ViewerData = { data: Floorplan3dData; models: MaterialModel[] };
 
@@ -136,6 +120,26 @@ function ControlButton({
   );
 }
 
+/** Korte uitleg onderin de tekening (geen knoppen): verdwijnt zodra je de tekening gebruikt. Op aanraken: eerst tikken om te bewegen. */
+function InteractionHint({ pointerKind, active, interacted }: { pointerKind: PointerKind; active: boolean; interacted: boolean }) {
+  const text =
+    pointerKind === "touch"
+      ? active
+        ? interacted
+          ? "Tik buiten de tekening om verder te scrollen"
+          : "Sleep om te draaien · knijp om te zoomen · dubbeltik = terug"
+        : "Tik om de tekening te bewegen"
+      : "Sleep om te draaien · scroll om te zoomen · dubbelklik = terug";
+  const hidden = pointerKind === "mouse" && interacted;
+  return (
+    <div className={cn("pointer-events-none absolute inset-x-2 bottom-2 flex justify-center transition-opacity duration-500", hidden ? "opacity-0" : "opacity-100")} aria-hidden="true">
+      <span data-testid="viewer-hint" className="rounded-full bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-white shadow-brand-sm">
+        {text}
+      </span>
+    </div>
+  );
+}
+
 function ViewerBody({
   resolved,
   mode,
@@ -183,7 +187,6 @@ function ViewerBody({
     () => initialViewFor({ items, fields, room, lookup, aspect: 1.7, mode: room.view }),
     [items, fields, room, lookup],
   );
-  const view3dBase = useMemo(() => initialViewFor({ items, fields, room, lookup, aspect: 1.7, mode: "3d" }).azimuthBase, [items, fields, room, lookup]);
   const [{ view, instant }, setViewState] = useState<{ view: ViewState; instant: boolean }>(() => ({ view: initialView, instant: false }));
 
   // Afmetingen van het kader: voor de kadrering-meting (data-framing-fill, gebruikt door de tests) — de camera zelf meet zijn eigen canvas.
@@ -196,12 +199,14 @@ function ViewerBody({
     setBox({ width: element.clientWidth, height: element.clientHeight });
     return () => observer.disconnect();
   }, []);
-  const framingFillValue = useMemo(() => {
+  const framing = useMemo(() => {
     if (box.width === 0 || box.height === 0) return null;
     const aspect = box.width / Math.max(box.height * 0.5, box.height - CONTROLS_RESERVE_PX);
-    const framing = computeFraming({ items, fields, room, lookup, aspect, mode: view.preset, azimuthDeg: azimuthDegOf({ ...view, offsetDeg: 0 }) });
-    return framing.empty ? null : framingFill(framing);
+    return computeFraming({ items, fields, room, lookup, aspect, mode: view.preset, azimuthDeg: azimuthDegOf({ ...view, step: 0, offsetDeg: 0 }), polarDeg: polarDegOf(view.preset) });
   }, [box, items, fields, room, lookup, view]);
+  const framingFillValue = framing && !framing.empty ? framingFill(framing) : null;
+  // Hoeveel meter één schermpixel is (voor verschuiven met rechts slepen of twee vingers).
+  const metersPerPx = framing ? framing.visibleWidthM / Math.max(box.width, 1) / view.zoom : 0.05;
 
   const apply = useCallback((update: (view: ViewState) => ViewState, immediately = false) => {
     setViewState((previous) => ({ view: update(previous.view), instant: immediately }));
@@ -214,74 +219,16 @@ function ViewerBody({
   const handleReady = useCallback(() => setReady(true), []);
   const handleError = useCallback(() => setFailed(true), []);
 
-  // --- Slepen (muis: direct; touch: alleen horizontaal) en pinch-zoom. ----
-  const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef<{ startX: number; dragging: boolean; pinchDistance: number } | null>(null);
+  // Bediening zonder knoppen: muis (slepen, wiel, dubbelklik) en aanraken (tik om te bewegen, vinger, knijpen, dubbeltik).
+  const { handlers, active, pointerKind, interacted, touchAction } = useViewerGestures({
+    containerRef,
+    view,
+    apply,
+    initialView,
+    metersPerPx,
+    forceActive: mode === "fullscreen",
+  });
 
-  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if ((event.target as HTMLElement).closest("[data-viewer-control]")) return;
-    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.current.size === 1) {
-      gesture.current = { startX: event.clientX, dragging: event.pointerType === "mouse", pinchDistance: 0 };
-      if (event.pointerType === "mouse") event.currentTarget.setPointerCapture(event.pointerId);
-    } else if (pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()];
-      gesture.current = { startX: 0, dragging: false, pinchDistance: Math.hypot(a.x - b.x, a.y - b.y) };
-    }
-  }
-
-  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    const previous = pointers.current.get(event.pointerId);
-    if (!previous || !gesture.current) return;
-    const current = { x: event.clientX, y: event.clientY };
-    pointers.current.set(event.pointerId, current);
-
-    if (pointers.current.size >= 2) {
-      const [a, b] = [...pointers.current.values()];
-      const distance = Math.hypot(a.x - b.x, a.y - b.y);
-      if (gesture.current.pinchDistance > 0 && distance > 0) {
-        const factor = distance / gesture.current.pinchDistance;
-        apply((v) => zoomBy(v, factor), true);
-      }
-      gesture.current.pinchDistance = distance;
-      return;
-    }
-
-    if (!gesture.current.dragging) {
-      // Touch: pas draaien bij een duidelijk horizontale beweging; verticaal is paginascroll.
-      if (Math.abs(current.x - gesture.current.startX) < TOUCH_DRAG_THRESHOLD_PX) return;
-      gesture.current.dragging = true;
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-    const dx = current.x - previous.x;
-    if (dx !== 0) apply((v) => dragBy(v, dx * DRAG_DEG_PER_PX), true);
-  }
-
-  function onPointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
-    pointers.current.delete(event.pointerId);
-    if (pointers.current.size === 0) gesture.current = null;
-    else if (pointers.current.size === 1) gesture.current = { startX: [...pointers.current.values()][0].x, dragging: false, pinchDistance: 0 };
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if ((event.target as HTMLElement).closest("[data-viewer-control]")) return;
-    const handlers: Record<string, () => void> = {
-      ArrowLeft: () => apply((v) => rotateStep(v, -1)),
-      ArrowRight: () => apply((v) => rotateStep(v, 1)),
-      "+": () => apply((v) => zoomBy(v, ZOOM_STEP)),
-      "=": () => apply((v) => zoomBy(v, ZOOM_STEP)),
-      "-": () => apply((v) => zoomBy(v, 1 / ZOOM_STEP)),
-      "0": () => apply(() => initialView),
-      Home: () => apply(() => initialView),
-    };
-    const handler = handlers[event.key];
-    if (handler) {
-      event.preventDefault();
-      handler();
-    }
-  }
-
-  const setPreset = (preset: ViewPreset) => apply((v) => ({ ...withPreset(v, preset), azimuthBase: preset === "3d" ? view3dBase : undefined }));
   const showCanvas = inView && webgl === true && !failed && canvasActive;
   const showThumbnail = Boolean(previewUrl) && !thumbFailed && (!showCanvas || !ready);
   const unavailable = !failed && webgl === false;
@@ -291,20 +238,21 @@ function ViewerBody({
     <div
       ref={containerRef}
       role="group"
-      aria-label={`Interactieve 3D-plattegrond: ${title}. Pijltjes links en rechts draaien, plus en min zoomen, nul zet terug.`}
+      aria-label={`Interactieve 3D-plattegrond: ${title}. Sleep om te draaien, scroll om te zoomen, dubbelklik om terug te gaan. Pijltjestoetsen draaien en kantelen, plus en min zoomen, nul zet terug.`}
       tabIndex={0}
       data-framing-fill={framingFillValue === null ? undefined : framingFillValue.toFixed(2)}
       data-framing-mode={view.preset}
-      onKeyDown={onKeyDown}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerEnd}
-      onPointerCancel={onPointerEnd}
-      // pan-y: verticaal vegen scrolt de pagina; horizontaal slepen en
-      // pinchen komen bij ons terecht. Het muiswiel wordt niet onderschept.
-      style={{ touchAction: "pan-y" }}
+      data-view-azimuth={Math.round(((azimuthDegOf(view) % 360) + 360) % 360)}
+      data-view-polar={Math.round(currentPolarDeg(view))}
+      data-view-zoom={view.zoom.toFixed(2)}
+      data-view-pan={`${(view.panX ?? 0).toFixed(1)},${(view.panZ ?? 0).toFixed(1)}`}
+      data-view-active={active ? "true" : "false"}
+      {...handlers}
+      // Aanraken: standaard scrolt de pagina; na een tik beweegt één vinger de tekening (zie useViewerGestures.ts).
+      style={{ touchAction }}
       className={cn(
-        "relative w-full overflow-hidden rounded-xl border bg-slate-50 select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        "relative w-full cursor-grab overflow-hidden rounded-xl border bg-slate-50 select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing",
+        active && pointerKind === "touch" && "ring-2 ring-primary/60",
         mode === "compact" ? "h-[320px] md:h-[480px]" : "h-full min-h-[320px] rounded-none border-0",
         className,
       )}
@@ -370,39 +318,7 @@ function ViewerBody({
         </div>
       )}
 
-      {showCanvas && ready && (
-        <div className="pointer-events-none absolute inset-x-2 bottom-2 flex flex-wrap items-center justify-between gap-1.5 sm:justify-center sm:gap-4">
-          <div className="pointer-events-auto flex items-center gap-1.5" data-viewer-control>
-            <ControlButton label="Draai naar links" onClick={() => apply((v) => rotateStep(v, -1))}>
-              <RotateCcw className="size-4" aria-hidden="true" />
-            </ControlButton>
-            <ControlButton label="Draai naar rechts" onClick={() => apply((v) => rotateStep(v, 1))}>
-              <RotateCw className="size-4" aria-hidden="true" />
-            </ControlButton>
-          </div>
-          <div className="pointer-events-auto flex items-center gap-1.5" data-viewer-control>
-            <ControlButton label="Schuine 3D-weergave" pressed={view.preset === "3d"} onClick={() => setPreset("3d")}>
-              <Box className="size-4" aria-hidden="true" /> 3D
-            </ControlButton>
-            <ControlButton label="Bovenaanzicht" pressed={view.preset === "top"} onClick={() => setPreset("top")}>
-              <ScanLine className="size-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Bovenaanzicht</span>
-            </ControlButton>
-            <ControlButton label="Weergave terugzetten" onClick={() => apply(() => initialView)}>
-              <ArrowLeftRight className="size-4 rotate-90" aria-hidden="true" />
-              <span className="hidden sm:inline">Reset</span>
-            </ControlButton>
-          </div>
-          <div className="pointer-events-auto flex items-center gap-1.5" data-viewer-control>
-            <ControlButton label="Uitzoomen" disabled={!canZoomOut(view)} onClick={() => apply((v) => zoomBy(v, 1 / ZOOM_STEP))}>
-              <Minus className="size-4" aria-hidden="true" />
-            </ControlButton>
-            <ControlButton label="Inzoomen" disabled={!canZoomIn(view)} onClick={() => apply((v) => zoomBy(v, ZOOM_STEP))}>
-              <Plus className="size-4" aria-hidden="true" />
-            </ControlButton>
-          </div>
-        </div>
-      )}
+      {showCanvas && ready && <InteractionHint pointerKind={pointerKind} active={active} interacted={interacted} />}
     </div>
   );
 }
