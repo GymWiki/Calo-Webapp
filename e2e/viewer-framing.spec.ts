@@ -7,7 +7,7 @@ import { expectNoHorizontalOverflow } from "./helpers";
 const SCENARIOS = [
   { id: "volleybal", mode: "3d" },
   { id: "circuit", mode: "3d" },
-  { id: "veld", mode: "top" },
+  { id: "veld", mode: "3d" },
 ] as const;
 
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 0) < 640;

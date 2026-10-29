@@ -4,132 +4,151 @@
     "width_m": 0.3,
     "height_m": 1.8,
     "tris": 6000,
-    "bytes": 102912
+    "bytes": 102912,
+    "version": "06db019a"
   },
   "hardlopen": {
     "length_m": 0.435,
     "width_m": 0.887,
     "height_m": 1.659,
     "tris": 6000,
-    "bytes": 109740
+    "bytes": 109740,
+    "version": "26e73fd5"
   },
   "juichen": {
     "length_m": 0.35,
     "width_m": 0.3,
     "height_m": 2.138,
     "tris": 5999,
-    "bytes": 105580
+    "bytes": 105580,
+    "version": "297eaaf8"
   },
   "startblokken": {
     "length_m": 0.371,
     "width_m": 0.98,
     "height_m": 0.96,
     "tris": 5996,
-    "bytes": 118288
+    "bytes": 118288,
+    "version": "145cf1fa"
   },
   "hoogspringen": {
     "length_m": 0.955,
     "width_m": 0.538,
     "height_m": 1.139,
     "tris": 5998,
-    "bytes": 103696
+    "bytes": 103696,
+    "version": "f4cc57be"
   },
   "basketbal_dribbelen": {
     "length_m": 0.612,
     "width_m": 0.553,
     "height_m": 1.459,
     "tris": 5998,
-    "bytes": 110676
+    "bytes": 110676,
+    "version": "4e0244b5"
   },
   "volleybal_onderhands": {
     "length_m": 0.555,
     "width_m": 0.467,
     "height_m": 1.478,
     "tris": 6000,
-    "bytes": 112756
+    "bytes": 112756,
+    "version": "2e71c438"
   },
   "volleybal_bovenhands": {
     "length_m": 0.645,
     "width_m": 0.3,
     "height_m": 1.929,
     "tris": 5999,
-    "bytes": 109208
+    "bytes": 109208,
+    "version": "295b53b1"
   },
   "badminton_slaan": {
     "length_m": 0.975,
     "width_m": 0.397,
     "height_m": 1.579,
     "tris": 5996,
-    "bytes": 116260
+    "bytes": 116260,
+    "version": "0695c590"
   },
   "pickleball_klaar": {
     "length_m": 0.602,
     "width_m": 0.516,
     "height_m": 1.498,
     "tris": 5998,
-    "bytes": 105948
+    "bytes": 105948,
+    "version": "d91e37b6"
   },
   "pickleball_slaan": {
     "length_m": 0.755,
     "width_m": 0.884,
     "height_m": 1.487,
     "tris": 6000,
-    "bytes": 102540
+    "bytes": 102540,
+    "version": "3d391aae"
   },
   "hockey": {
     "length_m": 0.541,
     "width_m": 0.844,
     "height_m": 1.357,
     "tris": 6000,
-    "bytes": 113196
+    "bytes": 113196,
+    "version": "7eee7855"
   },
   "hockey_sprint": {
     "length_m": 0.53,
     "width_m": 0.441,
     "height_m": 1.594,
     "tris": 6000,
-    "bytes": 104688
+    "bytes": 104688,
+    "version": "73625249"
   },
   "floorball": {
     "length_m": 0.513,
     "width_m": 0.539,
     "height_m": 1.479,
     "tris": 6000,
-    "bytes": 115680
+    "bytes": 115680,
+    "version": "8f0c7fbd"
   },
   "floorball_sprint": {
     "length_m": 0.582,
     "width_m": 0.501,
     "height_m": 1.629,
     "tris": 6000,
-    "bytes": 111716
+    "bytes": 111716,
+    "version": "c4dd5253"
   },
   "honkbal_slaan": {
     "length_m": 0.502,
     "width_m": 0.361,
     "height_m": 1.859,
     "tris": 6000,
-    "bytes": 99216
+    "bytes": 99216,
+    "version": "037c29e0"
   },
   "honkbal_vangen": {
     "length_m": 0.631,
     "width_m": 0.414,
     "height_m": 1.599,
     "tris": 5998,
-    "bytes": 112320
+    "bytes": 112320,
+    "version": "88102f6d"
   },
   "trefbal_gooien": {
     "length_m": 0.833,
     "width_m": 0.59,
     "height_m": 1.43,
     "tris": 5999,
-    "bytes": 107628
+    "bytes": 107628,
+    "version": "dd3da3a5"
   },
   "verdedigen": {
     "length_m": 0.644,
     "width_m": 0.325,
     "height_m": 1.71,
     "tris": 5998,
-    "bytes": 106764
+    "bytes": 106764,
+    "version": "59409e97"
   }
 }

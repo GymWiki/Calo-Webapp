@@ -42,8 +42,9 @@ Blender-aanpassing nodig hebben").
 
 Omgevingen (gymzaal, sportveld, atletiekbaan, zwembad) zijn één GLB met losse
 nodes met vaste namen (`Muur_Voor`, `Banenlijn_1_Seg_00`, `Belijning_Voetbal_…`).
-Wijzig een nodenaam niet zonder `environment-nodes.ts` en
-`environment-kinds.ts` bij te werken. Three.js verwijdert de tekens `[ ] . : /`
+Na elke wijziging: `npm run sync:environments -- --upload` (genereert `environment-nodes.ts`, zie
+`docs/3d-bijwerken.md`). Is er een nieuwe of hernoemde lijn, dan moet je die ook in `environments.ts` /
+`environment-kinds.ts` zetten; een test meldt het als dat ontbreekt. Three.js verwijdert de tekens `[ ] . : /`
 uit nodenamen; gebruik die dus niet.
 
 ## Controleren

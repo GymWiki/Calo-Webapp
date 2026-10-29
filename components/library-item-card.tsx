@@ -4,6 +4,7 @@ import { BookOpen, ImageOff, Lock, MapPinned, Pencil, ThumbsUp, Users, Users2 } 
 
 import { getActivitySource, type ActivitySource } from "@/lib/activity-source";
 import { getCategoryColor } from "@/lib/constants/categoryColors";
+import { isFloorplanPreviewUrl } from "@/lib/floorplanPreview";
 import { cn } from "@/lib/utils";
 import { DOELGROEP_LABELS, type Activity } from "@/types/activity";
 
@@ -135,6 +136,8 @@ function ActivityTile({
             alt={locked ? "" : activity.titel}
             fill
             sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
+            // 3D-plattegrondpreviews hebben dunne lijnen en kleine figuren: hogere kwaliteit voorkomt korrelige randen.
+            quality={isFloorplanPreviewUrl(image) ? 90 : undefined}
             className="object-cover"
           />
         ) : source !== "gymwiki" ? (

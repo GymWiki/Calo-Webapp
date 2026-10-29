@@ -12,6 +12,7 @@
 // Uitvoer in --out (standaard materiaal-import/leerlingen/): <id>.glb en, met --thumbs, <id>.png (via headless Chromium).
 // Dit script schrijft NIETS naar Supabase. Uploaden doe je zelf met `npm run upload:students` (zie docs/students.md).
 
+import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NodeIO, getBounds, type Document, type Node } from "@gltf-transform/core";
@@ -135,7 +136,7 @@ for (const pose of catalog.poses) {
   const bytes = await io.writeBinary(document);
   await writeFile(path.join(outDir, `${pose.id}.glb`), bytes);
   const body = { length_m: Math.max(0.35, +(x1 - x0).toFixed(3)), width_m: Math.max(0.3, +(z1 - z0).toFixed(3)), height_m: +height.toFixed(3) };
-  generated[pose.id] = { ...body, tris: triangleCount(document), bytes: bytes.byteLength };
+  generated[pose.id] = { ...body, tris: triangleCount(document), bytes: bytes.byteLength, version: createHash("sha1").update(bytes).digest("hex").slice(0, 8) };
   rows.push(`${pose.id.padEnd(22)} ${(before / 1024).toFixed(0).padStart(6)} KB → ${(bytes.byteLength / 1024).toFixed(0).padStart(4)} KB   ${trisBefore} → ${triangleCount(document)} driehoeken   ${body.length_m}×${body.width_m}×${body.height_m} m`);
 }
 

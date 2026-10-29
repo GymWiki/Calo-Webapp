@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { PlattegrondLegend } from "@/components/plattegrond/PlattegrondLegend";
 import { PlattegrondViewer } from "@/components/plattegrond/PlattegrondViewer";
+import { upgradeRoomEnvironment } from "@/components/canvas-3d/environment-kinds";
 import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
 import type { ActivityFloorplan } from "@/lib/services/floorplans3d";
@@ -34,7 +35,7 @@ export async function PlattegrondSection({
   models?: Awaited<ReturnType<typeof getMaterialModelsBySlugs>>;
 }) {
   // Oude leerling-slugs (laagpoly, kleurvarianten) laden als de standaard leerling; de rest blijft ongewijzigd.
-  const data = { ...plan.data, items: upgradeStudentItems(plan.data.items) };
+  const data = { ...plan.data, room: upgradeRoomEnvironment(plan.data.room), items: upgradeStudentItems(plan.data.items) };
   let models: Awaited<ReturnType<typeof getMaterialModelsBySlugs>> = providedModels ?? [];
   if (!providedModels) {
     try {

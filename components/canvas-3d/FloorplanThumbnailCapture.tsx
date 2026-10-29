@@ -16,6 +16,20 @@ export const THUMBNAIL_WIDTH = 800;
 export const THUMBNAIL_HEIGHT = 450;
 const BACKGROUND = "#f8fafc"; // slate-50, gelijk aan de viewer-achtergrond
 
+// De opgeslagen preview mag niet groter zijn dan MAX_PREVIEW_BYTES in actions/floorplans3d.ts (600 KB, base64 ≈ 4/3 daarvan).
+const MAX_JPEG_DATA_URL_LENGTH = 780_000;
+
+/** JPEG zo scherp mogelijk binnen de limiet: begint hoog en gaat pas omlaag als de preview te groot wordt. */
+function encode(canvas: HTMLCanvasElement, mime: "image/jpeg" | "image/png"): string {
+  if (mime === "image/png") return canvas.toDataURL(mime);
+  let dataUrl = "";
+  for (const quality of [0.92, 0.85, 0.75, 0.65]) {
+    dataUrl = canvas.toDataURL(mime, quality);
+    if (dataUrl.length <= MAX_JPEG_DATA_URL_LENGTH) break;
+  }
+  return dataUrl;
+}
+
 /** Wacht tot alles geladen is en leest dan de canvas uit als JPEG. */
 function CaptureProbe({ onCapture, mime }: { onCapture: (dataUrl: string) => void; mime: "image/jpeg" | "image/png" }) {
   const { active } = useProgress();
@@ -28,7 +42,7 @@ function CaptureProbe({ onCapture, mime }: { onCapture: (dataUrl: string) => voi
     // Minstens even wachten: de camerarig zet de stand pas na de eerste meting.
     const timer = setTimeout(() => {
       gl.render(scene, camera);
-      onCapture(gl.domElement.toDataURL(mime, 0.85));
+      onCapture(encode(gl.domElement, mime));
     }, 700);
     return () => clearTimeout(timer);
   }, [active, gl, scene, camera, onCapture, mime]);
@@ -79,7 +93,9 @@ export function FloorplanThumbnailCapture({
     >
       <Canvas
         frameloop="demand"
-        dpr={1}
+        // Kleine afbeeldingen (de preview in de bibliotheek, 800 × 450) worden 2× uitgerekend en zijn dus 1600 × 900: vloerlijnen en
+        // leerlingen blijven daardoor glad als de kaart ze verkleind toont. Grote exports (gastdownload) zijn al groot genoeg.
+        dpr={width >= 1400 ? 1 : 2}
         orthographic
         camera={{ position: [10, 10, 10], zoom: 30, near: 0.1, far: 500 }}
         gl={{ preserveDrawingBuffer: true, antialias: true }}
