@@ -160,6 +160,13 @@ export const GYM_LAYOUT_ORDER: GymLayoutId[] = ["standaard", "2x2", "4x1"];
 
 export const DEFAULT_GYM_LAYOUT: GymLayoutId = "standaard";
 
+/**
+ * Onderdelen van de gymzaal die nooit getoond worden, ook niet als het GLB ze (weer) bevat: het plafond met spanten en relingen
+ * ontneemt het zicht op de zaal, en de turnringen en klimtouwen voegt de gebruiker zelf toe via het materiaalmenu. Zo blijven ze weg na
+ * elke nieuwe versie uit de Drive en in elke bestaande plattegrond.
+ */
+export const ALWAYS_HIDDEN_NODES: readonly string[] = ["Plafond_Constructie_Spanten", "Turnringen_Klimtouwen"];
+
 /** De GLB's staan in dezelfde publieke bucket als het materiaal. `?v=` = inhoudshash (npm run sync:environments): een gewijzigd GLB wordt direct overal geladen. */
 export function environmentModelUrl(layout: { glb: string }): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";

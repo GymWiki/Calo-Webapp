@@ -11,7 +11,7 @@ import {
   roomForEnvironment,
   upgradeEnvironment,
 } from "@/components/canvas-3d/environment-kinds";
-import { GYM_LAYOUTS, environmentModelUrl, isPartOn } from "@/components/canvas-3d/environments";
+import { ALWAYS_HIDDEN_NODES, GYM_LAYOUTS, environmentModelUrl, isPartOn } from "@/components/canvas-3d/environments";
 
 test("alle vier de soorten staan in de keuzelijst, gymzaal eerst", () => {
   assert.deepEqual(
@@ -156,4 +156,14 @@ test("model-URL's krijgen de versie van het GLB mee, zodat een wijziging direct 
   const url = environmentModelUrl({ glb: "gymzaal_standaard" });
   assert.match(url, /gymzaal_standaard\.glb\?v=[0-9a-f]{8}$/);
   assert.ok(!environmentModelUrl({ glb: "bestaat_niet" }).includes("?v="));
+});
+
+test("plafond en turnringen/klimtouwen worden nooit getoond en zijn geen schakelbaar onderdeel", () => {
+  assert.deepEqual([...ALWAYS_HIDDEN_NODES].sort(), ["Plafond_Constructie_Spanten", "Turnringen_Klimtouwen"]);
+  const gymNodes = new Set(ENVIRONMENT_NODES.gymzaal_standaard);
+  for (const node of ALWAYS_HIDDEN_NODES) assert.ok(gymNodes.has(node), `${node} zit in het GLB`);
+  for (const layout of Object.values(GYM_LAYOUTS)) {
+    const used = [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken].flatMap((part) => part.nodes);
+    for (const node of ALWAYS_HIDDEN_NODES) assert.ok(!used.includes(node));
+  }
 });

@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import { environmentModelUrl } from "@/components/canvas-3d/environments";
+import { ALWAYS_HIDDEN_NODES, environmentModelUrl } from "@/components/canvas-3d/environments";
 import { resolveEnvironment } from "@/components/canvas-3d/environment-kinds";
 import type { Floorplan3dEnvironment } from "@/types/floorplan3d";
 
@@ -28,7 +28,7 @@ export function EnvironmentModel({ environment, extraHidden = [] }: { environmen
   }, [gltf.scene]);
 
   const invalidate = useThree((state) => state.invalidate);
-  const hiddenKey = [...environment.hidden, ...extraHidden].join("|");
+  const hiddenKey = [...ALWAYS_HIDDEN_NODES, ...environment.hidden, ...extraHidden].join("|");
 
   useEffect(() => {
     const hidden = new Set(hiddenKey ? hiddenKey.split("|") : []);
