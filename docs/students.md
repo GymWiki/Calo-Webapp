@@ -33,11 +33,11 @@ Volgorde: **eerst uploaden, dan pas deployen** (anders staan er kaartjes zonder 
 Terugdraaien: de code via een Vercel-rollback; de bestanden blijven onschuldig staan.
 
 ## Bronmodellen uit de Drive (map Leerlingen)
-24 unieke GLB's (alle statisch, geen rig of animatie; Tripo-meshes van ±38.000 driehoeken met 3 textures van 1024 px, gemaakt in Blender). Verwerkt tot 19 poses:
+22 unieke GLB's (de oudere generatie meegerekend) (alle statisch, geen rig of animatie; Tripo-meshes van ±38.000 driehoeken met 3 textures van 1024 px, gemaakt in Blender). Verwerkt tot 17 poses (alleen de nieuwe ontwerpen; de oudere generatie `leerling.glb` en `leerling_hardlopen.glb` en alle laagpoly-leerlingen zijn niet meer in de editor):
 
 | Sport | Poses |
 | --- | --- |
-| Algemeen / atletiek | staand, hardlopen, juichen, startblokken, hoogspringen |
+| Algemeen / atletiek | juichen, startblokken, hoogspringen |
 | Basketbal | dribbelen |
 | Volleybal | onderhands, bovenhands |
 | Badminton / racketsport | badminton slaan, pickleball klaarstaan, pickleball slaan |
@@ -49,7 +49,22 @@ Terugdraaien: de code via een Vercel-rollback; de bestanden blijven onschuldig s
 Dubbel in de Drive (byte-identiek): `leerling_ringstel` = `juichen`, `leerling_sprintstart` = `startblokken`, `leerling_fosbury_flop` = `hoogspringen`, `leerling_unihockey` = `floorball`, `leerling_unihockey_sprint` = `floorball_sprint`. Niet gebruikt: `leerling_referentie_3d` (referentie), `leerling_sprint_temp` (tijdelijk). Kleurvarianten (`_blauw`, `_geel`, …) zijn niet nodig: de kleur wordt in de editor gekozen.
 
 ## Wat in Blender nog moet
-- **Poses ontbreken**: zittend (op bank/grond), wandelen, balanceren, klimmen, hurken, springen, bal vasthouden zonder sport. De eerder geleverde `leerling_zittend_turnbank` en `leerling_wandelen` hebben een andere (laagpoly) stijl en zijn niet meegenomen.
+- **Poses ontbreken**: zittend (op bank/grond), wandelen, balanceren, klimmen, hurken, springen, bal vasthouden zonder sport. De eerder geleverde laagpoly-leerlingen (`leerling_zittend_turnbank`, `leerling_wandelen`, `leerling_rennen`, `leerling_staand_rust`, de kleurvarianten) zijn geschrapt.
 - **Broek en schoenen kleuren** kan niet los: ze zitten in dezelfde texture als huid/haar zonder aparte materialen (`mat_shirt`/`mat_broek` bestaan niet). Wil je dat, lever dan per zone een eigen materiaal of een kleurzone-map; nu is alleen het shirt/hesje instelbaar.
 - Uitrusting (bal, racket, stick, knuppel, handschoen) zit in het mesh van de pose en is niet los te zetten of te verbergen.
-- `leerling.glb` (staand) en `leerling_hardlopen.glb` zijn van een oudere generatie (19k driehoeken, texture 512 px): minder gedetailleerd dan de rest.
+- **Neutraal staand en hardlopen** in de nieuwe stijl: de oude `leerling.glb`/`leerling_hardlopen.glb` zijn bewust geschrapt (oudere generatie, minder detail). Tot er nieuwe zijn is de standaardpose van het kaartje *Verdedigen* (klaarstaan).
+
+## De oude leerlingen opruimen (optioneel, door jou te draaien)
+De oude laagpoly-leerlingen (`leerling_blauw`, `_geel`, `_groen`, `_oranje`, `_paars`, `_rood`, `leerling_staand_rust`, `leerling_wandelen`, `leerling_rennen`, `leerling_zittend_turnbank`) staan niet meer in de bibliotheek, maar nog wel als rij in `material_models`, zodat bestaande plattegronden ze blijven tonen. Uitzetten kan zo (er verdwijnt niets; terugzetten = `active = true`):
+```sql
+-- 1. Back-up van de rijen (voor het geval je ze terug wilt)
+create table public.material_models_leerlingen_backup as
+  select * from public.material_models where categorie = 'personen' and slug not like 'leerling_pose_%';
+-- 2. Controle: welke plattegronden gebruiken ze nog?
+select id, naam from public.floorplans_3d
+  where data::text ~ 'leerling_(blauw|geel|groen|oranje|paars|rood|staand_rust|wandelen|rennen|zittend_turnbank)';
+-- 3. Uitzetten
+update public.material_models set active = false
+  where categorie = 'personen' and slug not like 'leerling_pose_%';
+```
+Een plattegrond die ze nog gebruikt toont daarna een grijs "onbekend"-vakje op die plek: vervang ze dan eerst door een nieuwe leerling (stap 2 laat zien welke dat zijn).

@@ -64,7 +64,7 @@ test("leerling plaatsen, pose/kleur/grootte kiezen, sluiten en heropenen geeft d
   await start(page);
   await placeStudent(page);
   const placed = await readDraft(page, (d) => d.items.length === 1);
-  expect(placed.items[0].slug).toBe("leerling_pose_staand");
+  expect(placed.items[0].slug).toBe("leerling_pose_verdedigen");
   expect(placed.items[0].color).toBeUndefined();
 
   await page.getByTestId("pose-hockey").click();
