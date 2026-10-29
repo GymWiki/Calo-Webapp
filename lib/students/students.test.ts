@@ -63,8 +63,8 @@ describe("pose-catalogus", () => {
     for (const model of models) {
       assert.equal(model.categorie, "personen");
       assert.equal(model.stackable, false);
-      assert.ok(model.model_url.endsWith(".glb") && model.model_url.includes("/students/"));
-      assert.ok(model.preview_url.endsWith(".png"));
+      assert.ok(model.model_url.includes(".glb") && model.model_url.includes("/students/"));
+      assert.ok(model.preview_url.includes(".png"));
     }
   });
 

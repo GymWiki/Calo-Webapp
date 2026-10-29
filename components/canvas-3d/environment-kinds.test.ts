@@ -11,7 +11,7 @@ import {
   roomForEnvironment,
   upgradeEnvironment,
 } from "@/components/canvas-3d/environment-kinds";
-import { GYM_LAYOUTS, isPartOn } from "@/components/canvas-3d/environments";
+import { GYM_LAYOUTS, environmentModelUrl, isPartOn } from "@/components/canvas-3d/environments";
 
 test("alle vier de soorten staan in de keuzelijst, gymzaal eerst", () => {
   assert.deepEqual(
@@ -120,4 +120,40 @@ test("oude plattegronden: gesplitste zaalvoetbal/handbal en de nieuwe extra beli
   assert.ok(veld.hidden.includes("Belijning_Rugby_Union") && veld.hidden.includes("Belijning_Lacrosse"));
   const zwembad = { type: "zwembad" as const, layout: "instructie", hidden: [] };
   assert.equal(upgradeEnvironment(zwembad), zwembad);
+});
+
+test("elke belijning in een GLB is in de editor aan/uit te zetten (nieuwe lijnen uit de Drive worden niet vergeten)", () => {
+  const covered = new Set<string>();
+  for (const layout of Object.values(GYM_LAYOUTS)) {
+    for (const part of [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken]) part.nodes.forEach((node) => covered.add(`${layout.glb}/${node}`));
+  }
+  for (const kind of OTHER_ENVIRONMENTS) {
+    for (const layout of kind.layouts) {
+      for (const group of layout.groups) for (const part of group.parts) part.nodes.forEach((node) => covered.add(`${layout.glb}/${node}`));
+    }
+  }
+  const missing: string[] = [];
+  for (const [glb, names] of Object.entries(ENVIRONMENT_NODES)) {
+    for (const name of names) {
+      if (/^(Lijnen|Belijning|Banenlijn|Baanlijnen)_/.test(name) && !covered.has(`${glb}/${name}`)) missing.push(`${glb}/${name}`);
+    }
+  }
+  assert.deepEqual(missing, [], "voeg deze nodes toe aan environments.ts / environment-kinds.ts (en draai npm run sync:environments)");
+});
+
+test("de gymzaal-onderdelen die de editor kent bestaan echt in de GLB's", () => {
+  for (const layout of Object.values(GYM_LAYOUTS)) {
+    const names = new Set(ENVIRONMENT_NODES[layout.glb]);
+    assert.ok(names.size > 0, `${layout.glb} staat in environment-nodes.ts`);
+    for (const part of [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken]) {
+      assert.ok(part.nodes.length > 0, `${layout.id}/${part.id} heeft nodes`);
+      for (const node of part.nodes) assert.ok(names.has(node), `${layout.glb} mist ${node}`);
+    }
+  }
+});
+
+test("model-URL's krijgen de versie van het GLB mee, zodat een wijziging direct overal laadt", () => {
+  const url = environmentModelUrl({ glb: "gymzaal_standaard" });
+  assert.match(url, /gymzaal_standaard\.glb\?v=[0-9a-f]{8}$/);
+  assert.ok(!environmentModelUrl({ glb: "bestaat_niet" }).includes("?v="));
 });

@@ -7,6 +7,7 @@
 // Coördinaten: meters, glTF/three.js (Y omhoog), middelpunt op de
 // oorsprong. `x` loopt naar rechts, `z` naar de kijker ("voor" = +z).
 
+import { ENVIRONMENT_VERSIONS } from "@/components/canvas-3d/environment-nodes";
 import type { Floorplan3dEnvironment, Floorplan3dRoom } from "@/types/floorplan3d";
 
 export type GymLayoutId = "standaard" | "2x2" | "4x1";
@@ -159,10 +160,11 @@ export const GYM_LAYOUT_ORDER: GymLayoutId[] = ["standaard", "2x2", "4x1"];
 
 export const DEFAULT_GYM_LAYOUT: GymLayoutId = "standaard";
 
-/** De GLB's staan in dezelfde publieke bucket als het materiaal. */
+/** De GLB's staan in dezelfde publieke bucket als het materiaal. `?v=` = inhoudshash (npm run sync:environments): een gewijzigd GLB wordt direct overal geladen. */
 export function environmentModelUrl(layout: { glb: string }): string {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return `${base}/storage/v1/object/public/materials-3d/environments/${layout.glb}.glb`;
+  const version = ENVIRONMENT_VERSIONS[layout.glb];
+  return `${base}/storage/v1/object/public/materials-3d/environments/${layout.glb}.glb${version ? `?v=${version}` : ""}`;
 }
 
 export function roomForGymLayout(layout: GymLayout): Pick<Floorplan3dRoom, "width_m" | "length_m"> {

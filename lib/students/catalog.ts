@@ -48,11 +48,12 @@ export type StudentPose = {
   length_m: number;
   width_m: number;
   height_m: number;
+  version?: string;
   sort: number;
 };
 
 type PoseConfig = { id: string; label: string; sporten: string[]; sort?: number };
-type PoseDims = { length_m: number; width_m: number; height_m: number };
+type PoseDims = { length_m: number; width_m: number; height_m: number; /** Inhoudshash van het verwerkte GLB (process:students): ?v= achter de URL, zodat een gewijzigde pose direct overal laadt. */ version?: string };
 
 const dimsById = generated as Record<string, PoseDims | undefined>;
 
@@ -68,6 +69,10 @@ export const STUDENT_POSES: readonly StudentPose[] = (posesConfig.poses as PoseC
     sort: pose.sort ?? 100,
   }))
   .sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label, "nl"));
+
+function versionQuery(pose: { version?: string }): string {
+  return pose.version ? `?v=${pose.version}` : "";
+}
 
 export function studentSlug(poseId: string): string {
   return `${STUDENT_SLUG_PREFIX}${poseId}`;
@@ -121,8 +126,8 @@ export function studentModels(publicBaseUrl: string): MaterialModel[] {
     subgroep: null,
     sporten: pose.sporten,
     tags: ["leerling", "pose"],
-    model_url: `${publicBaseUrl}/${STUDENT_STORAGE_DIR}/${pose.id}.glb`,
-    preview_url: `${publicBaseUrl}/${STUDENT_STORAGE_DIR}/${pose.id}.png`,
+    model_url: `${publicBaseUrl}/${STUDENT_STORAGE_DIR}/${pose.id}.glb${versionQuery(pose)}`,
+    preview_url: `${publicBaseUrl}/${STUDENT_STORAGE_DIR}/${pose.id}.png${versionQuery(pose)}`,
     length_m: pose.length_m,
     width_m: pose.width_m,
     height_m: pose.height_m,
