@@ -74,6 +74,7 @@ export function Scene3D({
   items,
   modelBySlug,
   selectedId,
+  groupIds,
   isDragging,
   cameraMode,
   onItemPointerDown,
@@ -104,6 +105,8 @@ export function Scene3D({
   items: Floorplan3dItem[];
   modelBySlug: (slug: string) => MaterialModel | undefined;
   selectedId: string | null;
+  /** Meervoudige selectie: alle geselecteerde ids (zonder: alleen `selectedId`). */
+  groupIds?: ReadonlySet<string>;
   isDragging: boolean;
   cameraMode: CameraMode;
   onItemPointerDown: (id: string, event: ThreeEvent<PointerEvent>) => void;
@@ -192,6 +195,7 @@ export function Scene3D({
         lookup={lookup}
         debugCollision={debugCollision}
         selectedId={selectedId}
+        groupIds={groupIds}
         interactive={!drawMode}
         onItemPointerDown={onItemPointerDown}
         onSelect={onSelect}
