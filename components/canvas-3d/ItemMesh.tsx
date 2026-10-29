@@ -12,12 +12,15 @@ import { measureMeshExtent } from "@/components/canvas-3d/collision-measure";
 import type { MeshExtent } from "@/components/canvas-3d/collision-shape";
 import { isTapDelta } from "@/components/canvas-3d/mobile/mobile-logic";
 import { trackModelScene } from "@/components/canvas-3d/model-cache";
+import { StudentModel } from "@/components/students/StudentModel";
+import { isStudentSlug } from "@/lib/students/catalog";
 import { isTilted, rotationOf, tiltCenter } from "@/components/canvas-3d/orientation";
 
 const SELECTION_COLOR = "#2563eb"; // tailwind blue-600
 const UNKNOWN_BOX_COLOR = "#9ca3af"; // tailwind gray-400
 
 const OUTSIDE_COLOR = "#dc2626"; // tailwind red-600
+const GROUP_COLOR = "#f97316"; // GymWiki-oranje: overige leden van een meervoudige selectie
 
 /** Selectie-outline = de echte collision-vorm (oriented, met offset en onderkant), niet een gecentreerde box.
  * Rood als (een deel van) het item buiten de zaal valt. */
@@ -113,6 +116,7 @@ export function ItemMesh({
   model,
   dims: dimsFromLookup,
   selected,
+  grouped = false,
   interactive = true,
   debugCollision = false,
   onPointerDownItem,
@@ -129,6 +133,8 @@ export function ItemMesh({
   /** Collision-vorm en maten van dit asset (uit de dims-lookup); zonder: de oude box uit het model. */
   dims?: ItemDims;
   selected: boolean;
+  /** Onderdeel van een meervoudige selectie (niet het primaire object): oranje omlijning. */
+  grouped?: boolean;
   /** false tijdens "Veld afzetten": klikken gaan dan door naar de vloer. */
   interactive?: boolean;
   /** `?debug=collision`: collision-vorm (blauw) en mesh-bounds (groen) tonen. */
@@ -203,13 +209,18 @@ export function ItemMesh({
             <DevPlaceholderBox dims={dims} color={model.devColor} />
           ) : (
             <Suspense fallback={<UnknownItemBox />}>
-              <LoadedModel modelUrl={model.model_url} onMeasured={debugCollision ? handleMeasured : undefined} />
+              {isStudentSlug(item.slug) ? (
+                <StudentModel modelUrl={model.model_url} color={item.color} size={item.size} />
+              ) : (
+                <LoadedModel modelUrl={model.model_url} onMeasured={debugCollision ? handleMeasured : undefined} />
+              )}
             </Suspense>
           )
         ) : (
           <UnknownItemBox />
         )}
         {selected && !debugCollision && <SelectionOutline dims={dims} outside={outsideRoom} />}
+        {grouped && !selected && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={GROUP_COLOR} />}
         {!selected && outsideRoom && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={OUTSIDE_COLOR} />}
         {debugCollision && (
           <CollisionDebug slug={item.slug} shape={shapeOfDims(dims)} extent={measured} labelVisible={selected || hovered} />

@@ -1,3 +1,4 @@
+import { studentModels } from "@/lib/students/catalog";
 import type { MaterialModel } from "@/types/materialModel";
 
 // Vaste testmodellen voor de Playwright-tests (e2e/*.spec.ts): gekleurde dozen (`devColor`),
@@ -45,4 +46,6 @@ export const E2E_MODELS: MaterialModel[] = [
   model("kettlebell_test", "Kettlebell test", "fitness", null, ["fitness"], [0.25, 0.2, 0.3], "#0891b2"),
   model("ballenkar_test", "Ballenkar test", "opslag_karren", null, ["algemeen"], [1, 0.7, 1], "#64748b"),
   model("leerling_test", "Leerling test", "personen", null, ["algemeen"], [0.5, 0.4, 1.4], "#db2777"),
+  // Leerling-poses als gekleurde dozen op de echte maten (zonder GLB of netwerk).
+  ...studentModels("").map((student) => ({ ...student, model_url: "", preview_url: "", devColor: "#db2777" })),
 ];

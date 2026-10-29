@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isValidCategory } from "@/lib/constants/libraryTaxonomy";
 import { classifyModel } from "@/lib/library/classify";
+import { STUDENT_BUCKET, studentModels } from "@/lib/students/catalog";
 import type { MaterialModel } from "@/types/materialModel";
 
 const BUCKET = "materials-3d";
@@ -65,6 +66,12 @@ function toMaterialModel(supabase: SupabaseClient, row: MaterialModelRow): Mater
   };
 }
 
+/** De leerling-poses (lib/students): staan niet in de database maar in de catalogus + bucket `students/`. */
+function studentModelsFor(supabase: SupabaseClient): MaterialModel[] {
+  const probe = supabase.storage.from(STUDENT_BUCKET).getPublicUrl("x").data.publicUrl;
+  return studentModels(probe.replace(/\/x$/, ""));
+}
+
 /**
  * Haalt alle actieve 3D-materiaalmodellen op (menu van de 3D-editor) —
  * werkt zowel server- als client-side, net als getAllMaterials
@@ -89,7 +96,7 @@ export async function getActiveMaterialModels(supabase: SupabaseClient): Promise
     throw new Error(`Kon 3D-materiaalmodellen niet ophalen: ${error.message}`);
   }
 
-  return ((data ?? []) as unknown as MaterialModelRow[]).map((row) => toMaterialModel(supabase, row));
+  return [...((data ?? []) as unknown as MaterialModelRow[]).map((row) => toMaterialModel(supabase, row)), ...studentModelsFor(supabase)];
 }
 
 /**
@@ -120,5 +127,9 @@ export async function getMaterialModelsBySlugs(
     throw new Error(`Kon 3D-materiaalmodellen niet ophalen: ${error.message}`);
   }
 
-  return ((data ?? []) as unknown as MaterialModelRow[]).map((row) => toMaterialModel(supabase, row));
+  const wanted = new Set(slugs);
+  return [
+    ...((data ?? []) as unknown as MaterialModelRow[]).map((row) => toMaterialModel(supabase, row)),
+    ...studentModelsFor(supabase).filter((model) => wanted.has(model.slug)),
+  ];
 }

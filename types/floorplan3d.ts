@@ -25,6 +25,10 @@ export const floorplan3dItemSchema = z.object({
   rot_z_deg: z.number().min(-180).max(180).optional(),
   /** "Vrij in hoogte": hoogte (m) van het laagste punt boven de ondergrond. Weggelaten = op de vloer houden. */
   lift_m: z.number().min(0).max(10).optional(),
+  /** Leerling: shirtkleur (#rrggbb). Weggelaten = de oorspronkelijke kleur van het model. Zie lib/students/catalog.ts. */
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  /** Leerling: grootte (klein 1,2 m, middel 1,4 m, groot 1,6 m). Weggelaten = middel. */
+  size: z.enum(["klein", "middel", "groot"]).optional(),
 });
 export type Floorplan3dItem = z.infer<typeof floorplan3dItemSchema>;
 

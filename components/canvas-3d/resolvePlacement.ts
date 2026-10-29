@@ -69,7 +69,7 @@ export type PlacementResult = {
 export type PlacementInput = {
   /** Gewenste positie van de pivot van het item (ruwe pointerpositie, vóór snappen). */
   pointer: Point2D;
-  dragged: { slug: string; rot_y_deg: number; rot_x_deg?: number; rot_z_deg?: number; lift_m?: number };
+  dragged: { slug: string; rot_y_deg: number; rot_x_deg?: number; rot_z_deg?: number; lift_m?: number; size?: Floorplan3dItem["size"] };
   /** Alle andere items (het gesleepte item zelf niet meegeven). */
   others: Floorplan3dItem[];
   room: Floorplan3dRoom;
@@ -156,7 +156,7 @@ function effectiveAngle(rotDeg: number, yawDeg: number): number {
 
 export function resolvePlacement(input: PlacementInput): PlacementResult {
   const { pointer, dragged, others, room, grid, lookup } = input;
-  const dims = dimsOf({ slug: dragged.slug } as Floorplan3dItem, lookup);
+  const dims = dimsOf({ slug: dragged.slug, size: dragged.size } as Floorplan3dItem, lookup);
   const shape = shapeOfDims(dims);
   const rot = dragged.rot_y_deg;
   const rot3 = rotationOf(dragged);
