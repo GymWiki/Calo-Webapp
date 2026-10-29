@@ -37,6 +37,8 @@ const nextConfig: NextConfig = {
   // projectsubdomein i.p.v. de exacte projectref, zodat dit niet breekt als
   // het Supabase-project ooit verhuist.
   images: {
+    // 90 = scherpe 3D-previews (belijning, leerlingen) in de bibliotheek; 75 = de standaard voor foto's.
+    qualities: [75, 90],
     remotePatterns: [
       {
         protocol: "https",
