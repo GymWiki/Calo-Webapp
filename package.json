@@ -19,6 +19,8 @@
     "migrate:activiteiten": "node --env-file=.env.local scripts/migrate-activiteiten.mjs",
     "validate:plattegrond": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/import-plattegrond.mts --validate-only",
     "import:plattegrond": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/import-plattegrond.mts",
+    "process:students": "node --experimental-strip-types scripts/process-students.mts",
+    "upload:students": "node --experimental-strip-types --env-file=.env.local scripts/upload-students.mts",
     "import:materials": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file=.env.local scripts/import-materials.mts",
     "eval:import": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file=.env.local scripts/eval-import.mjs",
     "mobile:icons": "node scripts/generate-app-icon.mjs",
