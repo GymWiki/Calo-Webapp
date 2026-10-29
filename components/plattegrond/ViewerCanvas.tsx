@@ -60,6 +60,8 @@ export function ViewerCameraRig({
 
   useEffect(() => {
     const rig = state.current;
+    // Canvas meet zich pas na de eerste layout: met 0×0 zou de eerste stand uitgezoomd zijn en daarna naar de echte stand "springen".
+    if (size.width === 0 || size.height === 0) return;
     const target = poseFor(view, room, size, content);
     if (instant || !rig.current) {
       rig.tween = null;

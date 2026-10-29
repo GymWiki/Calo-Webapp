@@ -89,9 +89,9 @@ test("velden tellen mee in het kader", () => {
   assert.ok(framing.visibleHeightM >= 20, "het hele veld past");
 });
 
-test("auto: vlakke indeling van boven, ruimtelijke opstelling schuin", () => {
-  assert.equal(suggestViewMode([], [field(0, 0)], lookup), "top", "alleen een afgezet veld");
-  assert.equal(suggestViewMode([item("a", "balk", 0, 0)], [], lookup), "top", "lage toestellen/matten");
+test("auto: altijd schuin, ook bij een vlakke indeling", () => {
+  assert.equal(suggestViewMode([], [field(0, 0)], lookup), "3d", "alleen een afgezet veld");
+  assert.equal(suggestViewMode([item("a", "balk", 0, 0)], [], lookup), "3d", "lage toestellen/matten");
   assert.equal(suggestViewMode([item("a", "balk", 0, 0), item("n", "net", 0, 0)], [], lookup), "3d", "een net maakt het ruimtelijk");
   assert.equal(suggestViewMode([item("k", "kast", 0, 0)], [], lookup), "3d");
   assert.equal(suggestViewMode([], [], lookup), "3d");

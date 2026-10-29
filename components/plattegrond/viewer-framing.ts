@@ -35,8 +35,6 @@ export const FRAMING_MARGIN = 1.2;
 /** Kleinste kader (m): één pion of één leerling mag niet tot een absurde zoom leiden. */
 export const MIN_SPAN_X_M = 6;
 export const MIN_SPAN_Z_M = 4;
-/** Items hoger dan dit (m) maken de opstelling "ruimtelijk": dan is de schuine 3D-weergave het duidelijkst. */
-export const FLAT_LAYOUT_MAX_HEIGHT_M = 0.9;
 /** Hoogste punt dat we in het kader meenemen (hoge palen/doelen niet laten bepalen hoe ver we uitzoomen). */
 const MAX_FRAMED_HEIGHT_M = 4;
 /** De zoom houdt rekening met een beetje slepen (graden), zodat de inhoud niet meteen uit beeld draait. */
@@ -107,11 +105,9 @@ export function contentBounds(items: readonly Floorplan3dItem[], fields: readonl
   return bounds;
 }
 
-/** "auto": een vlakke indeling (veld afzetten, circuit met lage toestellen) is het duidelijkst van boven; ruimtelijke opstellingen (netten, doelen, leerlingen) schuin. */
-export function suggestViewMode(items: readonly Floorplan3dItem[], fields: readonly ConeField[] = [], lookup?: DimsLookup): ViewPreset {
-  if (items.length === 0) return fields.length > 0 ? "top" : "3d";
-  const tallest = Math.max(...items.map((item) => (lookup ? itemVerticalRange(item, lookup)[1] - item.y : 1)));
-  return tallest <= FLAT_LAYOUT_MAX_HEIGHT_M ? "top" : "3d";
+/** "auto": altijd de schuine 3D-weergave (meer diepte-effect); recht van boven is een bewuste keuze per plattegrond (`room.view = "top"`). */
+export function suggestViewMode(_items: readonly Floorplan3dItem[], _fields: readonly ConeField[] = [], _lookup?: DimsLookup): ViewPreset {
+  return "3d";
 }
 
 export function resolveViewMode(mode: ViewMode | undefined, items: readonly Floorplan3dItem[], fields: readonly ConeField[] = [], lookup?: DimsLookup): ViewPreset {
