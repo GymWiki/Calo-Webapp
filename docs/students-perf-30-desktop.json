@@ -1,0 +1,35 @@
+{
+  "summary": {
+    "label": "30 leerlingen",
+    "n": 30,
+    "device": "desktop",
+    "cpuThrottle": 1,
+    "runs": 2,
+    "loadMs": 1601,
+    "fps": 21.3,
+    "drawCallsPerFrame": 45,
+    "trianglesPerFrame": 185409,
+    "heapAfterLoadMB": 29,
+    "errors": []
+  },
+  "results": [
+    {
+      "loadMs": 1601,
+      "fps": 21,
+      "drawCallsPerFrame": 45,
+      "trianglesPerFrame": 185409,
+      "heapAfterLoadMB": 29,
+      "heapEndMB": 27,
+      "errors": []
+    },
+    {
+      "loadMs": 1535,
+      "fps": 21.3,
+      "drawCallsPerFrame": 45,
+      "trianglesPerFrame": 185409,
+      "heapAfterLoadMB": 21,
+      "heapEndMB": 29,
+      "errors": []
+    }
+  ]
+}

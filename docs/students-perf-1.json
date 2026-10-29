@@ -1,0 +1,35 @@
+{
+  "summary": {
+    "label": "1 leerlingen",
+    "n": 1,
+    "device": "iPhone 14",
+    "cpuThrottle": 4,
+    "runs": 2,
+    "loadMs": 2165,
+    "fps": 42.7,
+    "drawCallsPerFrame": 16,
+    "trianglesPerFrame": 11446,
+    "heapAfterLoadMB": 14,
+    "errors": []
+  },
+  "results": [
+    {
+      "loadMs": 2095,
+      "fps": 42.7,
+      "drawCallsPerFrame": 16,
+      "trianglesPerFrame": 11446,
+      "heapAfterLoadMB": 14,
+      "heapEndMB": 15,
+      "errors": []
+    },
+    {
+      "loadMs": 2165,
+      "fps": 40.2,
+      "drawCallsPerFrame": 16,
+      "trianglesPerFrame": 11446,
+      "heapAfterLoadMB": 14,
+      "heapEndMB": 15,
+      "errors": []
+    }
+  ]
+}
