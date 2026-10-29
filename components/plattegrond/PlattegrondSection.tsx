@@ -90,7 +90,7 @@ export function PlattegrondSectionSkeleton() {
   return (
     <div className="space-y-3 print:hidden" role="status" aria-label="Plattegrond laden">
       <Skeleton className="h-6 w-32" />
-      <Skeleton className="h-[280px] w-full rounded-xl md:h-[400px]" />
+      <Skeleton className="h-[320px] w-full rounded-xl md:h-[480px]" />
     </div>
   );
 }

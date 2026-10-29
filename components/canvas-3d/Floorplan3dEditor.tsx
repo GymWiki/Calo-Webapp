@@ -1016,7 +1016,7 @@ export function Floorplan3dEditor({
   function applyEnvironment(kind: EnvironmentKind, layoutId: string) {
     pushHistory();
     const environment = createEnvironment(kind, layoutId);
-    const nextRoom: Floorplan3dRoom = { ...roomForEnvironment(environment), environment };
+    const nextRoom: Floorplan3dRoom = { ...roomForEnvironment(environment), environment, ...(room.view ? { view: room.view } : {}) };
     const fitted = clampItemsToRoom(items, nextRoom, lookup);
     setRoom(nextRoom);
     setItems(fitted.items);
@@ -1046,7 +1046,19 @@ export function Floorplan3dEditor({
     }
     if (!room.environment) return;
     pushHistory();
-    setRoom({ width_m: room.width_m, length_m: room.length_m });
+    setRoom({ width_m: room.width_m, length_m: room.length_m, ...(room.view ? { view: room.view } : {}) });
+    scheduleAutosave();
+  }
+
+  /** Weergave van de viewer bij de activiteit: automatisch (standaard), schuin 3D of bovenaanzicht. */
+  function setRoomView(view: "auto" | "3d" | "top") {
+    if ((room.view ?? "auto") === view) return;
+    pushHistory();
+    setRoom((prev) => {
+      const { view: _previous, ...rest } = prev;
+      void _previous;
+      return view === "auto" ? rest : { ...rest, view };
+    });
     scheduleAutosave();
   }
 
@@ -1778,6 +1790,23 @@ export function Floorplan3dEditor({
 
   const roomPanel = (
     <div className="space-y-5">
+      <div>
+        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Weergave bij de activiteit</p>
+        <div role="group" aria-label="Weergave bij de activiteit" className="grid grid-cols-3 gap-1.5">
+          {([
+            ["auto", "Automatisch"],
+            ["3d", "3D"],
+            ["top", "Boven"],
+          ] as const).map(([id, label]) => (
+            <Button key={id} type="button" size="sm" variant={(room.view ?? "auto") === id ? "default" : "outline"} aria-pressed={(room.view ?? "auto") === id} data-testid={`weergave-${id}`} onClick={() => setRoomView(id)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Zo ziet een docent de plattegrond op de activiteitpagina. Automatisch: vlakke indelingen (veld afzetten, circuit) van boven, opstellingen met netten, doelen of leerlingen schuin.
+        </p>
+      </div>
       <div>
         <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Omgeving</p>
         <div className="grid grid-cols-2 gap-1.5">

@@ -11,13 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { dimsLookupFromModels } from "@/components/canvas-3d/floorplan3d-geometry";
+import { initialViewFor } from "@/components/plattegrond/viewer-framing";
 import {
-  DEFAULT_VIEW,
   ZOOM_STEP,
   canZoomIn,
   canZoomOut,
   dragBy,
-  resetView,
   rotateStep,
   withPreset,
   zoomBy,
@@ -158,7 +158,6 @@ function ViewerBody({
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
   const [thumbFailed, setThumbFailed] = useState(false);
-  const [{ view, instant }, setViewState] = useState<{ view: ViewState; instant: boolean }>({ view: DEFAULT_VIEW, instant: false });
   const [hovered, setHovered] = useState<string | null>(null);
 
   useEffect(() => {
@@ -174,6 +173,16 @@ function ViewerBody({
   const room = resolved.data.room;
   const items = resolved.data.items;
   const fields = resolved.data.coneFields;
+
+  // Zoom op de inhoud: de begin-stand (en wat "Reset" herstelt) komt uit wat er echt staat, niet uit de hele zaal.
+  // `room.view` ("auto" | "3d" | "top") is per plattegrond in te stellen in de editor.
+  const lookup = useMemo(() => dimsLookupFromModels(resolved.models), [resolved.models]);
+  const initialView = useMemo(
+    () => initialViewFor({ items, fields, room, lookup, aspect: 1.7, mode: room.view }),
+    [items, fields, room, lookup],
+  );
+  const view3dBase = useMemo(() => initialViewFor({ items, fields, room, lookup, aspect: 1.7, mode: "3d" }).azimuthBase, [items, fields, room, lookup]);
+  const [{ view, instant }, setViewState] = useState<{ view: ViewState; instant: boolean }>(() => ({ view: initialView, instant: false }));
 
   const apply = useCallback((update: (view: ViewState) => ViewState, immediately = false) => {
     setViewState((previous) => ({ view: update(previous.view), instant: immediately }));
@@ -243,8 +252,8 @@ function ViewerBody({
       "+": () => apply((v) => zoomBy(v, ZOOM_STEP)),
       "=": () => apply((v) => zoomBy(v, ZOOM_STEP)),
       "-": () => apply((v) => zoomBy(v, 1 / ZOOM_STEP)),
-      "0": () => apply(() => resetView()),
-      Home: () => apply(() => resetView()),
+      "0": () => apply(() => initialView),
+      Home: () => apply(() => initialView),
     };
     const handler = handlers[event.key];
     if (handler) {
@@ -253,7 +262,7 @@ function ViewerBody({
     }
   }
 
-  const setPreset = (preset: ViewPreset) => apply((v) => withPreset(v, preset));
+  const setPreset = (preset: ViewPreset) => apply((v) => ({ ...withPreset(v, preset), azimuthBase: preset === "3d" ? view3dBase : undefined }));
   const showCanvas = inView && webgl === true && !failed && canvasActive;
   const showThumbnail = Boolean(previewUrl) && !thumbFailed && (!showCanvas || !ready);
   const unavailable = !failed && webgl === false;
@@ -275,7 +284,7 @@ function ViewerBody({
       style={{ touchAction: "pan-y" }}
       className={cn(
         "relative w-full overflow-hidden rounded-xl border bg-slate-50 select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-        mode === "compact" ? "h-[280px] md:h-[400px]" : "h-full min-h-[320px] rounded-none border-0",
+        mode === "compact" ? "h-[320px] md:h-[480px]" : "h-full min-h-[320px] rounded-none border-0",
         className,
       )}
     >
@@ -286,6 +295,7 @@ function ViewerBody({
               room={room}
               items={items}
               fields={fields}
+              models={resolved.models}
               modelBySlug={modelBySlug}
               view={view}
               instant={instant}
@@ -357,7 +367,7 @@ function ViewerBody({
               <ScanLine className="size-4" aria-hidden="true" />
               <span className="hidden sm:inline">Bovenaanzicht</span>
             </ControlButton>
-            <ControlButton label="Weergave terugzetten" onClick={() => apply(() => resetView())}>
+            <ControlButton label="Weergave terugzetten" onClick={() => apply(() => initialView)}>
               <ArrowLeftRight className="size-4 rotate-90" aria-hidden="true" />
               <span className="hidden sm:inline">Reset</span>
             </ControlButton>
@@ -413,7 +423,7 @@ export function PlattegrondViewer(props: PlattegrondViewerProps) {
       <div
         className={cn(
           "relative w-full overflow-hidden rounded-xl border",
-          mode === "compact" ? "h-[280px] md:h-[400px]" : "h-full min-h-[320px]",
+          mode === "compact" ? "h-[320px] md:h-[480px]" : "h-full min-h-[320px]",
           className,
         )}
         role="status"

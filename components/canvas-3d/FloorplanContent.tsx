@@ -6,6 +6,7 @@ import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
 import { EnvironmentModel } from "@/components/canvas-3d/EnvironmentModel";
 import { ItemMesh } from "@/components/canvas-3d/ItemMesh";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
+import { ContactShadows } from "@/components/canvas-3d/ContactShadows";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 import { dimsForSlug, dimsOf, shapeOfDims, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
@@ -30,6 +31,8 @@ export function FloorplanContent({
   debugCollision = false,
   selectedId = null,
   groupIds,
+  hideEnvironmentNodes,
+  contactShadows = false,
   interactive = false,
   onItemPointerDown,
   onSelect,
@@ -51,6 +54,10 @@ export function FloorplanContent({
   /** `?debug=collision`. */
   debugCollision?: boolean;
   selectedId?: string | null;
+  /** GLB-nodes van de omgeving die extra verborgen worden (viewer: muren tussen camera en inhoud). */
+  hideEnvironmentNodes?: readonly string[];
+  /** Zachte contactschaduw onder de items (alleen-lezen viewer en thumbnails): geeft leerlingen en materiaal houvast op de vloer. */
+  contactShadows?: boolean;
   /** Meervoudige selectie: alle geselecteerde ids; de overige leden krijgen een oranje omlijning. */
   groupIds?: ReadonlySet<string>;
   /** false = alleen-lezen (viewer) of tijdens "Veld afzetten" in de editor. */
@@ -70,7 +77,7 @@ export function FloorplanContent({
       {room.environment ? (
         // Tijdens het laden van de GLB staat de gewone vloer er al; geen leeg scherm.
         <Suspense fallback={<RoomFloor room={room} />}>
-          <EnvironmentModel environment={room.environment} />
+          <EnvironmentModel environment={room.environment} extraHidden={hideEnvironmentNodes} />
         </Suspense>
       ) : (
         <RoomFloor room={room} />
@@ -98,6 +105,7 @@ export function FloorplanContent({
           }
         />
       ))}
+      {contactShadows && lookup && <ContactShadows items={items} lookup={lookup} />}
       {fields.map((field) => (
         <ConeFieldMesh
           key={field.id}

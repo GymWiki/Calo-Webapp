@@ -50,6 +50,8 @@ export const floorplan3dRoomSchema = z.object({
   width_m: z.number().positive(),
   length_m: z.number().positive(),
   environment: floorplan3dEnvironmentSchema.optional(),
+  /** Weergave van de alleen-lezen viewer bij de activiteit: "auto" (standaard, weggelaten) kiest zelf, "3d" schuin, "top" bovenaanzicht. */
+  view: z.enum(["auto", "3d", "top"]).optional(),
 });
 export type Floorplan3dRoom = z.infer<typeof floorplan3dRoomSchema>;
 
