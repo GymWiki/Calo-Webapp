@@ -122,14 +122,14 @@ describe("grootte", () => {
   });
 
   it("schaalt de collision-maten van een leerling mee, andere items niet", () => {
-    const slug = studentSlug("hockey");
+    const slug = studentSlug("standaard");
     const base = lookup(slug)!;
     const small = dimsForSlug(slug, "klein", lookup)!;
     const big = dimsForSlug(slug, "groot", lookup)!;
     assert.ok(small.height_m < big.height_m);
     assert.ok(Math.abs(big.height_m - 1.6) < 0.02, `groot ≈ 1,6 m (was ${big.height_m})`);
     assert.ok(Math.abs(dimsForSlug(slug, undefined, lookup)!.height_m - 1.4) < 0.02, "zonder size: middel");
-    assert.ok(base.height_m > big.height_m, "het model zelf is 1,8 m");
+    assert.ok(base.height_m > big.height_m, "de staande leerling zelf is 1,8 m");
     const other: DimsLookup = () => ({ length_m: 1, width_m: 1, height_m: 1, stackable: true });
     assert.equal(dimsForSlug("turnbank", "klein", other)!.height_m, 1);
     assert.equal(dimsOf({ id: "a", slug, x: 0, y: 0, z: 0, rot_y_deg: 0, size: "klein" }, lookup).height_m, small.height_m);
