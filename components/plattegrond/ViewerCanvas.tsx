@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useProgress } from "@react-three/drei";
 import type * as THREE from "three";
 
 import { FloorplanContent } from "@/components/canvas-3d/FloorplanContent";
+import { dimsLookupFromModels } from "@/components/canvas-3d/floorplan3d-geometry";
+import { framingContent, wallNodes, wallsToHide } from "@/components/plattegrond/viewer-framing";
 import {
   TRANSITION_MS,
+  azimuthDegOf,
   cameraPosition,
   lerpPose,
   poseFor,
@@ -23,11 +26,12 @@ type TweenState = { from: CameraPose; to: CameraPose; start: number } | null;
  * camera is een mutable three-object dat R3F beheert, geen React-state. */
 function applyPose(camera: THREE.OrthographicCamera, pose: CameraPose, distance: number) {
   const [x, y, z] = cameraPosition(pose.azimuthDeg, pose.polarDeg, distance);
-  camera.position.set(x, y, z);
+  const [tx, ty, tz] = pose.target ?? [0, 0, 0];
+  camera.position.set(tx + x, ty + y, tz + z);
   camera.zoom = pose.zoom;
   camera.near = 0.1;
   camera.far = distance * 3;
-  camera.lookAt(0, 0, 0);
+  camera.lookAt(tx, ty, tz);
   camera.updateProjectionMatrix();
 }
 
@@ -39,10 +43,13 @@ export function ViewerCameraRig({
   room,
   view,
   instant,
+  content,
 }: {
   room: Pick<Floorplan3dRoom, "width_m" | "length_m" | "environment">;
   view: ViewState;
   instant: boolean;
+  /** Inhoud om op in te zoomen (zie viewer-framing.ts); zonder: de hele zaal. */
+  content?: ReturnType<typeof framingContent>;
 }) {
   const camera = useThree((state) => state.camera) as THREE.OrthographicCamera;
   const size = useThree((state) => state.size);
@@ -52,7 +59,7 @@ export function ViewerCameraRig({
 
   useEffect(() => {
     const rig = state.current;
-    const target = poseFor(view, room, size);
+    const target = poseFor(view, room, size, content);
     if (instant || !rig.current) {
       rig.tween = null;
       applyPose(camera, target, distance);
@@ -63,7 +70,7 @@ export function ViewerCameraRig({
     invalidate();
     // De afhankelijkheden zijn de echte invoer (stand, kamermaat, canvasgrootte).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, instant, room.width_m, room.length_m, room.environment, size.width, size.height]);
+  }, [view, instant, content, room.width_m, room.length_m, room.environment, size.width, size.height]);
 
   useFrame(() => {
     const rig = state.current;
@@ -98,6 +105,7 @@ export default function ViewerCanvas({
   room,
   items,
   fields,
+  models,
   modelBySlug,
   view,
   instant,
@@ -107,12 +115,20 @@ export default function ViewerCanvas({
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
   fields: ConeField[];
+  models: MaterialModel[];
   modelBySlug: (slug: string) => MaterialModel | undefined;
   view: ViewState;
   instant: boolean;
   onReady: () => void;
   onItemHover: (item: Floorplan3dItem | null) => void;
 }) {
+  const lookup = useMemo(() => dimsLookupFromModels(models), [models]);
+  const content = useMemo(() => framingContent({ items, fields, room, lookup }), [items, fields, room, lookup]);
+  // Muren tussen camera en inhoud weglaten: de opstelling blijft zichtbaar zonder dat er iets wordt afgedekt.
+  const hiddenWalls = useMemo(
+    () => wallNodes(room.environment, wallsToHide(azimuthDegOf({ ...view, offsetDeg: 0 }), view.preset)),
+    [room.environment, view],
+  );
   return (
     <Canvas
       // Geen continue render-loop: alleen bij een wijziging of animatie.
@@ -127,12 +143,15 @@ export default function ViewerCanvas({
     >
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
-      <ViewerCameraRig room={room} view={view} instant={instant} />
+      <ViewerCameraRig room={room} view={view} instant={instant} content={content} />
       <FloorplanContent
         room={room}
         items={items}
         fields={fields}
         modelBySlug={modelBySlug}
+        lookup={lookup}
+        hideEnvironmentNodes={hiddenWalls}
+        contactShadows
         interactive={false}
         onItemHover={onItemHover}
       />

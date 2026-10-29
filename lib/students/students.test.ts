@@ -15,6 +15,7 @@ import {
   studentModels,
   studentScale,
   studentSlug,
+  upgradeStudentItem,
 } from "@/lib/students/catalog";
 import { SHIRT_FRAGMENT } from "@/components/students/student-shader";
 import { buildEnvelope, stringifyEnvelope } from "@/lib/plattegrond/format";
@@ -74,7 +75,40 @@ describe("pose-catalogus", () => {
     const legacy = { ...models[0], slug: "leerling_blauw", categorie: "personen" };
     assert.deepEqual(libraryPersonModels([...models, legacy]).map((m) => m.slug), [studentSlug(DEFAULT_POSE_ID)]);
     assert.deepEqual(libraryPersonModels([legacy]), [], "de oude losse personen komen niet meer in de bibliotheek");
-    assert.ok(!STUDENT_POSES.some((pose) => ["staand", "hardlopen"].includes(pose.id)), "alleen de nieuwe ontwerpen");
+    assert.deepEqual(STUDENT_POSES.slice(0, 1).map((pose) => pose.id), [DEFAULT_POSE_ID], "de standaard leerling staat eerst");
+    assert.equal(DEFAULT_POSE_ID, "standaard");
+    assert.ok(STUDENT_POSES.some((pose) => pose.id === "hardlopen"));
+  });
+});
+
+describe("oudere plattegronden", () => {
+  const base = { id: "a", x: 1, y: 0, z: 2, rot_y_deg: 30 };
+
+  it("laadt oude leerling-slugs als de standaard leerling (kleurvariant wordt shirtkleur)", () => {
+    assert.deepEqual(upgradeStudentItem({ ...base, slug: "leerling_pose_staand" }), { ...base, slug: "leerling_pose_standaard" });
+    assert.deepEqual(upgradeStudentItem({ ...base, slug: "leerling_rood" }), { ...base, slug: "leerling_pose_standaard", color: "#dc2626" });
+    assert.equal(upgradeStudentItem({ ...base, slug: "leerling_staand_rust" }).slug, "leerling_pose_standaard");
+    assert.equal(upgradeStudentItem({ ...base, slug: "leerling_rennen" }).slug, "leerling_pose_hardlopen");
+  });
+
+  it("verandert verder niets: positie, rotatie, eigen kleur en andere items blijven gelijk", () => {
+    const own = { ...base, slug: "leerling_blauw", color: "#ff00ff", size: "klein" as const };
+    assert.deepEqual(upgradeStudentItem(own), { ...own, slug: "leerling_pose_standaard" });
+    const mat = { ...base, slug: "turnmat" };
+    assert.equal(upgradeStudentItem(mat), mat, "hetzelfde object terug");
+    const bench = { ...base, slug: "leerling_zittend_turnbank" };
+    assert.equal(upgradeStudentItem(bench), bench, "de bank zit in het model: blijft zoals hij is");
+    const current = { ...base, slug: "leerling_pose_hockey", color: "#16a34a" };
+    assert.equal(upgradeStudentItem(current), current);
+  });
+
+  it("import van een oude plattegrond maakt er de standaard leerling van", () => {
+    const text = JSON.stringify({ version: 1, room: { width_m: 24, length_m: 14 }, items: [{ ...base, slug: "leerling_geel" }], coneFields: [] });
+    const result = parsePlattegrondJson(text, { knownSlugs: new Set(models.map((model) => model.slug)) });
+    assert.ok(result.ok);
+    assert.deepEqual(result.warnings.filter((w) => w.code === "onbekend-item"), []);
+    assert.equal(result.scene.items[0].slug, "leerling_pose_standaard");
+    assert.equal(result.scene.items[0].color, "#facc15");
   });
 });
 

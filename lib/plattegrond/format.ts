@@ -26,7 +26,7 @@ const KEY_ORDER = [
   "format", "version", "exportedAt", "title", "scene", "room", "items", "coneFields",
   "id", "slug", "type", "x", "y", "z", "rot_y_deg", "rot_x_deg", "rot_z_deg", "lift_m", "locked", "size",
   "width_m", "length_m", "interval_m", "distribution", "marker", "color", "corner_color",
-  "environment", "layout", "hidden",
+  "environment", "layout", "hidden", "view",
 ];
 const rank = new Map(KEY_ORDER.map((key, index) => [key, index]));
 

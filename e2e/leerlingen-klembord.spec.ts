@@ -64,9 +64,13 @@ test("leerling plaatsen, pose/kleur/grootte kiezen, sluiten en heropenen geeft d
   await start(page);
   await placeStudent(page);
   const placed = await readDraft(page, (d) => d.items.length === 1);
-  expect(placed.items[0].slug).toBe("leerling_pose_verdedigen");
+  expect(placed.items[0].slug).toBe("leerling_pose_standaard");
   expect(placed.items[0].color).toBeUndefined();
 
+  await expect(page.getByTestId("pose-standaard")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("pose-standaard-badge")).toBeVisible();
+  // De standaard leerling is de eerste kaart in het poseraster.
+  expect(await page.locator("[data-testid^=pose-]:not([data-testid$=badge])").first().getAttribute("data-testid")).toBe("pose-standaard");
   await page.getByTestId("pose-hockey").click();
   await page.getByTestId("kleur-rood").click();
   await page.getByTestId("grootte-groot").click();
@@ -91,6 +95,11 @@ test("leerling plaatsen, pose/kleur/grootte kiezen, sluiten en heropenen geeft d
   await page.getByLabel("Zoek pose").fill("");
 
   await page.getByTestId("kleur-blauw").click();
+  await page.getByTestId("pose-hardlopen").click();
+  await readDraft(page, (d) => d.items[0].slug === "leerling_pose_hardlopen" && d.items[0].color === "#2563eb");
+  // Terug naar de standaard leerling: de kleur blijft staan.
+  await page.getByTestId("pose-standaard").click();
+  await readDraft(page, (d) => d.items[0].slug === "leerling_pose_standaard" && d.items[0].color === "#2563eb");
   await page.getByTestId("pose-juichen").click();
   await readDraft(page, (d) => d.items[0].slug === "leerling_pose_juichen" && d.items[0].color === "#2563eb");
 

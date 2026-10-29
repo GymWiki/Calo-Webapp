@@ -15,12 +15,14 @@ export type ViewState = {
   step: number;
   offsetDeg: number;
   zoom: number;
+  /** Basisazimut van de schuine weergave (graden); weggelaten = AZIMUTH_3D_DEG. Gekozen door viewer-framing.ts op basis van de inhoud. */
+  azimuthBase?: number;
 };
 
 export const DEFAULT_VIEW: ViewState = { preset: "3d", step: 0, offsetDeg: 0, zoom: 1 };
 
-/** Hoek (graden) vanaf verticaal van de schuine weergave (≈ isometrisch). */
-export const POLAR_3D_DEG = 54.7;
+/** Hoek (graden) vanaf verticaal van de schuine weergave: 50° = camera 40° boven de horizon (zicht op de opstelling, niet plat van boven). */
+export const POLAR_3D_DEG = 50;
 /** Bijna 0 i.p.v. exact 0: bij precies loodrecht omlaag is "boven" op het scherm ongedefinieerd. */
 export const POLAR_TOP_DEG = 0.05;
 export const AZIMUTH_3D_DEG = 45;
@@ -30,14 +32,20 @@ export const ZOOM_MAX = 2.5;
 export const ZOOM_STEP = 1.25;
 export const TRANSITION_MS = 400;
 
-export type CameraPose = { azimuthDeg: number; polarDeg: number; zoom: number };
+export type CameraPose = {
+  azimuthDeg: number;
+  polarDeg: number;
+  zoom: number;
+  /** Punt waar de camera naar kijkt; weggelaten = het midden van de kamer (0,0,0). */
+  target?: [number, number, number];
+};
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export function azimuthDegOf(view: Pick<ViewState, "preset" | "step" | "offsetDeg">): number {
-  const base = view.preset === "3d" ? AZIMUTH_3D_DEG : 0;
+export function azimuthDegOf(view: Pick<ViewState, "preset" | "step" | "offsetDeg"> & { azimuthBase?: number }): number {
+  const base = view.preset === "3d" ? (view.azimuthBase ?? AZIMUTH_3D_DEG) : 0;
   return base + 90 * view.step + view.offsetDeg;
 }
 
@@ -79,19 +87,19 @@ export function resetView(): ViewState {
 
 type Vec3 = [number, number, number];
 
-function cross(a: Vec3, b: Vec3): Vec3 {
+export function cross(a: Vec3, b: Vec3): Vec3 {
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
 
-function normalize(v: Vec3): Vec3 {
+export function normalize(v: Vec3): Vec3 {
   const length = Math.hypot(...v) || 1;
   return [v[0] / length, v[1] / length, v[2] / length];
 }
 
-const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+export const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 /** Camerarichting (van camera naar midden) bij een azimut/polar. */
-function viewDirection(azimuthDeg: number, polarDeg: number): Vec3 {
+export function viewDirection(azimuthDeg: number, polarDeg: number): Vec3 {
   const az = (azimuthDeg * Math.PI) / 180;
   const polar = (polarDeg * Math.PI) / 180;
   return [-Math.sin(polar) * Math.sin(az), -Math.cos(polar), -Math.sin(polar) * Math.cos(az)];
@@ -145,15 +153,24 @@ export function fitZoom({
   return Number.isFinite(best) && best > 0 ? best : 10;
 }
 
+/** Ruimte (px) die de knoppenbalk onderaan inneemt; symmetrisch afgetrokken zodat het midden klopt. */
+export const CONTROLS_RESERVE_PX = 64;
+
 export function poseFor(
   view: ViewState,
   room: { width_m: number; length_m: number; environment?: unknown },
   viewport: { width: number; height: number },
+  /** Inhoud van de plattegrond: met `content` kadert de camera op wat er echt staat i.p.v. op de hele zaal (zie viewer-framing.ts). */
+  content?: { framing: (azimuthDeg: number, polarDeg: number, aspect: number) => { target: [number, number, number]; visibleWidthM: number } },
 ): CameraPose {
   const polarDeg = polarDegOf(view.preset);
   // Ruimte voor de knoppenbalk onderaan (symmetrisch, zodat het midden klopt).
-  viewport = { width: viewport.width, height: Math.max(viewport.height * 0.4, viewport.height - 100) };
+  viewport = { width: viewport.width, height: Math.max(viewport.height * 0.5, viewport.height - CONTROLS_RESERVE_PX) };
   const baseAzimuth = azimuthDegOf({ ...view, offsetDeg: 0 });
+  if (content) {
+    const framed = content.framing(baseAzimuth, polarDeg, viewport.width / viewport.height);
+    return { azimuthDeg: azimuthDegOf(view), polarDeg, zoom: (viewport.width / framed.visibleWidthM) * view.zoom, target: framed.target };
+  }
   // Bovenaanzicht: de kamer vult het beeld (geen muurhoogte, en slepen
   // mag iets uit beeld lopen); de schuine weergave houdt rekening met
   // muren en het hele sleepbereik zodat er nooit iets wegvalt.
@@ -176,5 +193,10 @@ export function lerpPose(from: CameraPose, to: CameraPose, t: number): CameraPos
     polarDeg: from.polarDeg + (to.polarDeg - from.polarDeg) * e,
     // zoom vermenigvuldigt: gelijkmatig in log-ruimte voelt natuurlijker.
     zoom: from.zoom * Math.pow(to.zoom / from.zoom, e),
+    ...(from.target || to.target
+      ? {
+          target: [0, 1, 2].map((i) => (from.target?.[i] ?? 0) + ((to.target?.[i] ?? 0) - (from.target?.[i] ?? 0)) * e) as [number, number, number],
+        }
+      : {}),
   };
 }

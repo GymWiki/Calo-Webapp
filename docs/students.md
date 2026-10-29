@@ -33,11 +33,11 @@ Volgorde: **eerst uploaden, dan pas deployen** (anders staan er kaartjes zonder 
 Terugdraaien: de code via een Vercel-rollback; de bestanden blijven onschuldig staan.
 
 ## Bronmodellen uit de Drive (map Leerlingen)
-22 unieke GLB's (de oudere generatie meegerekend) (alle statisch, geen rig of animatie; Tripo-meshes van ±38.000 driehoeken met 3 textures van 1024 px, gemaakt in Blender). Verwerkt tot 17 poses (alleen de nieuwe ontwerpen; de oudere generatie `leerling.glb` en `leerling_hardlopen.glb` en alle laagpoly-leerlingen zijn niet meer in de editor):
+22 unieke GLB's (de oudere generatie meegerekend) (alle statisch, geen rig of animatie; Tripo-meshes van ±38.000 driehoeken met 3 textures van 1024 px, gemaakt in Blender). Verwerkt tot 19 poses (de laagpoly-leerlingen zijn niet meer in de editor; de standaard leerling `leerling.glb` en `leerling_hardlopen.glb` zijn er wel):
 
 | Sport | Poses |
 | --- | --- |
-| Algemeen / atletiek | juichen, startblokken, hoogspringen |
+| Algemeen / atletiek | **standaard** (neutraal staand, de startpose), hardlopen, juichen, startblokken, hoogspringen |
 | Basketbal | dribbelen |
 | Volleybal | onderhands, bovenhands |
 | Badminton / racketsport | badminton slaan, pickleball klaarstaan, pickleball slaan |
@@ -52,7 +52,8 @@ Dubbel in de Drive (byte-identiek): `leerling_ringstel` = `juichen`, `leerling_s
 - **Poses ontbreken**: zittend (op bank/grond), wandelen, balanceren, klimmen, hurken, springen, bal vasthouden zonder sport. De eerder geleverde laagpoly-leerlingen (`leerling_zittend_turnbank`, `leerling_wandelen`, `leerling_rennen`, `leerling_staand_rust`, de kleurvarianten) zijn geschrapt.
 - **Broek en schoenen kleuren** kan niet los: ze zitten in dezelfde texture als huid/haar zonder aparte materialen (`mat_shirt`/`mat_broek` bestaan niet). Wil je dat, lever dan per zone een eigen materiaal of een kleurzone-map; nu is alleen het shirt/hesje instelbaar.
 - Uitrusting (bal, racket, stick, knuppel, handschoen) zit in het mesh van de pose en is niet los te zetten of te verbergen.
-- **Neutraal staand en hardlopen** in de nieuwe stijl: de oude `leerling.glb`/`leerling_hardlopen.glb` zijn bewust geschrapt (oudere generatie, minder detail). Tot er nieuwe zijn is de standaardpose van het kaartje *Verdedigen* (klaarstaan).
+- **Standaard en hardlopen** (`leerling.glb`, `leerling_hardlopen.glb`) zijn van een oudere generatie (19k driehoeken, 512 px-texture bij de standaard): iets minder gedetailleerd dan de rest, maar wel de neutrale basis. Een nieuwe in de stijl van de sportposes mag ze later vervangen: zelfde bestandsnaam of een nieuwe regel in `poses.json`.
+- **`mat_shirt`/`mat_broek` bestaan niet** in deze modellen (één materiaal met één texture): de shirtkleur komt uit de texturetint (zie hierboven), de broek is niet apart te kleuren.
 
 ## De oude leerlingen opruimen (optioneel, door jou te draaien)
 De oude laagpoly-leerlingen (`leerling_blauw`, `_geel`, `_groen`, `_oranje`, `_paars`, `_rood`, `leerling_staand_rust`, `leerling_wandelen`, `leerling_rennen`, `leerling_zittend_turnbank`) staan niet meer in de bibliotheek, maar nog wel als rij in `material_models`, zodat bestaande plattegronden ze blijven tonen. Uitzetten kan zo (er verdwijnt niets; terugzetten = `active = true`):

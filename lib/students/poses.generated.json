@@ -1,4 +1,18 @@
 {
+  "standaard": {
+    "length_m": 0.421,
+    "width_m": 0.3,
+    "height_m": 1.8,
+    "tris": 6000,
+    "bytes": 102912
+  },
+  "hardlopen": {
+    "length_m": 0.471,
+    "width_m": 0.962,
+    "height_m": 1.799,
+    "tris": 6000,
+    "bytes": 109696
+  },
   "juichen": {
     "length_m": 0.35,
     "width_m": 0.3,

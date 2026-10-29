@@ -16,7 +16,7 @@ import type { Floorplan3dEnvironment } from "@/types/floorplan3d";
  * slepen/selecteren gaat altijd door muren en vloer heen naar het
  * onzichtbare sleepvlak in Scene3D.
  */
-export function EnvironmentModel({ environment }: { environment: Floorplan3dEnvironment }) {
+export function EnvironmentModel({ environment, extraHidden = [] }: { environment: Floorplan3dEnvironment; /** Extra verborgen nodes bovenop `environment.hidden` (viewer: de muren die voor de camera staan). */ extraHidden?: readonly string[] }) {
   const layout = resolveEnvironment(environment);
   const gltf = useGLTF(environmentModelUrl(layout));
   const scene = useMemo(() => {
@@ -28,7 +28,7 @@ export function EnvironmentModel({ environment }: { environment: Floorplan3dEnvi
   }, [gltf.scene]);
 
   const invalidate = useThree((state) => state.invalidate);
-  const hiddenKey = environment.hidden.join("|");
+  const hiddenKey = [...environment.hidden, ...extraHidden].join("|");
 
   useEffect(() => {
     const hidden = new Set(hiddenKey ? hiddenKey.split("|") : []);
