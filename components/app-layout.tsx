@@ -79,11 +79,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-dvh w-full md:flex-row">
-      <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
-        <div className="px-6 py-5">
+      {/* Sticky op schermhoogte: het menu blijft staan als de pagina scrolt (anders neemt het de hoogte van de hele pagina over en
+          scrollen de onderste knoppen en "Uitloggen" mee naar beneden). Past het menu niet op een laag scherm, dan scrolt alleen de lijst. */}
+      <aside className="hidden md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col md:self-start md:border-r md:bg-sidebar md:text-sidebar-foreground print:hidden">
+        <div className="shrink-0 px-6 py-5">
           <GymWikiLogo size={24} wordmarkClassName="text-lg" />
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3">
           {navItems.map((item) => {
             const isActive = isNavItemActive(pathname, item.href);
             const Icon = item.icon;
@@ -121,7 +123,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </>
           )}
         </nav>
-        <form action={logout} className="border-t p-3">
+        <form action={logout} className="shrink-0 border-t p-3">
           <Button
             type="submit"
             variant="ghost"
