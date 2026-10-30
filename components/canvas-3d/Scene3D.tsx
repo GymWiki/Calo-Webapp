@@ -7,7 +7,8 @@ import { CameraRig, type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
 import { FloorplanContent } from "@/components/canvas-3d/FloorplanContent";
 import { RotationGizmo } from "@/components/canvas-3d/RotationGizmo";
-import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
+import type { ConeField, Floorplan3dItem, Floorplan3dRoom, Rope } from "@/types/floorplan3d";
+import type { Vec3 } from "@/components/canvas-3d/orientation";
 import type { MaterialModel } from "@/types/materialModel";
 import { dimsOf, itemPolygons, shapeOfDims, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 import type { SnapGuide } from "@/components/canvas-3d/resolvePlacement";
@@ -100,7 +101,26 @@ export function Scene3D({
   touchUi = false,
   onRotateHandleDown,
   gizmo = null,
+  ropes = [],
+  hiddenRopeId = null,
+  ropeDraft = null,
+  ropeTool = false,
+  ropeTargetId = null,
+  onRopePointerDown,
+  onRopeHandlePointerDown,
+  onItemPointerMove,
+  onItemPointerUp,
 }: {
+  /** Touwen en het touw dat nu gespannen of verplaatst wordt (zie FloorplanContent). */
+  ropes?: Rope[];
+  hiddenRopeId?: string | null;
+  ropeDraft?: { from: Vec3; to: Vec3 } | null;
+  ropeTool?: boolean;
+  ropeTargetId?: string | null;
+  onRopePointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  onRopeHandlePointerDown?: (id: string, end: "a" | "b", event: ThreeEvent<PointerEvent>) => void;
+  onItemPointerMove?: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  onItemPointerUp?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
   modelBySlug: (slug: string) => MaterialModel | undefined;
@@ -204,6 +224,15 @@ export function Scene3D({
         touchUi={touchUi}
         onRotateHandleDown={onRotateHandleDown}
         warnOutside
+        ropes={ropes}
+        hiddenRopeId={hiddenRopeId}
+        ropeDraft={ropeDraft}
+        ropeTool={ropeTool}
+        ropeTargetId={ropeTargetId}
+        onRopePointerDown={onRopePointerDown}
+        onRopeHandlePointerDown={onRopeHandlePointerDown}
+        onItemPointerMove={onItemPointerMove}
+        onItemPointerUp={onItemPointerUp}
       />
       {gizmo && <RotationGizmo {...gizmo} />}
       {draftField && <ConeFieldMesh field={draftField} preview interactive={false} />}

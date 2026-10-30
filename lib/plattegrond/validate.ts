@@ -2,6 +2,7 @@
 // (types/floorplan3d.ts) — dezelfde regels als bij opslaan — en geeft Nederlandse meldingen met pad en reden terug.
 // Zonder DOM/React, dus ook bruikbaar vanuit het CLI-script (scripts/import-plattegrond.mts).
 
+import { ropesWithItems } from "@/lib/plattegrond/ropes";
 import { upgradeStudentItems } from "@/lib/students/catalog";
 import type { ZodIssue } from "zod";
 
@@ -14,7 +15,7 @@ const MAX_ISSUES = 20;
 export type Issue = { path: string; message: string };
 
 export type ImportWarning = {
-  code: "onbekend-item" | "buiten-zaal" | "dubbel-id" | "zonder-envelope" | "gemigreerd";
+  code: "onbekend-item" | "touw-weggelaten" | "buiten-zaal" | "dubbel-id" | "zonder-envelope" | "gemigreerd";
   message: string;
 };
 
@@ -189,5 +190,12 @@ export function parsePlattegrondJson(text: string, options: ParseOptions = {}): 
     warnings.push({ code: "buiten-zaal", message: `${outsideRoom.length} ${outsideRoom.length === 1 ? "item staat" : "items staan"} buiten de zaal (${scene.room.width_m} × ${scene.room.length_m} m) en ${outsideRoom.length === 1 ? "wordt" : "worden"} teruggeschoven.` });
   }
 
-  return { ok: true, scene: { ...scene, items, coneFields }, title, source, warnings, unknownItems, outsideRoom, migratedFrom };
+  // Touwen horen bij twee items: ontbreekt er een (weggelaten of nooit bestaan), dan vervalt het touw.
+  const ropes = ropesWithItems(dedupe(scene.ropes), items);
+  if (ropes.length < scene.ropes.length) {
+    const dropped = scene.ropes.length - ropes.length;
+    warnings.push({ code: "touw-weggelaten", message: `${dropped} ${dropped === 1 ? "touw is" : "touwen zijn"} weggelaten omdat een van de bijbehorende items ontbreekt.` });
+  }
+
+  return { ok: true, scene: { ...scene, items, coneFields, ropes }, title, source, warnings, unknownItems, outsideRoom, migratedFrom };
 }

@@ -27,6 +27,7 @@ function plan(count: number): Floorplan3dData {
     coneFields: [
       { id: "f1", type: "coneField", x: 1, z: 2, rot_y_deg: 0, width_m: 8, length_m: 6, interval_m: 1.5, distribution: "even", marker: "pion", color: "#f97316", corner_color: null },
     ],
+    ropes: [{ id: "t1", a: { item: "00000000-0000-4000-8000-000000000000", local: [0.1, 1.2, 0] }, b: { item: "00000000-0000-4000-8000-000000000001", local: [0, 0.9, -0.2] } }],
   };
 }
 

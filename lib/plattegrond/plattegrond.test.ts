@@ -15,6 +15,7 @@ const scene: Floorplan3dData = {
   coneFields: [
     { id: "f", type: "coneField", x: 1, z: 2, rot_y_deg: 0, width_m: 12, length_m: 20, interval_m: 3, distribution: "even", marker: "pion", color: "#ff5a1f", corner_color: null },
   ],
+  ropes: [{ id: "t", a: { item: "a", local: [0.1, 1.5, 0.2] }, b: { item: "b", local: [0, 0.8, 0] } }],
 };
 const known = new Set(["turnbank", "mat"]);
 const exported = (s = scene, title = "Mijn zaal") => stringifyEnvelope(buildEnvelope(s, title, new Date("2026-10-28T10:00:00Z")));
@@ -26,7 +27,7 @@ describe("export", () => {
     assert.ok(text.includes('"x": 0.3'));
     const envelope = JSON.parse(text);
     assert.deepEqual(Object.keys(envelope), ["format", "version", "exportedAt", "title", "scene"]);
-    assert.deepEqual(Object.keys(envelope.scene), ["version", "room", "items", "coneFields"]);
+    assert.deepEqual(Object.keys(envelope.scene), ["version", "room", "items", "coneFields", "ropes"]);
     assert.deepEqual(Object.keys(envelope.scene.items[0]).slice(0, 6), ["id", "slug", "x", "y", "z", "rot_y_deg"]);
     assert.equal(envelope.format, FORMAT_NAME);
     assert.equal(envelope.version, FORMAT_VERSION);

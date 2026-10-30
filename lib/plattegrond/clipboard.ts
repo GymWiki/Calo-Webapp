@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { fieldBounds } from "@/components/canvas-3d/cone-field";
 import { itemPolygons, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
-import { coneFieldSchema, floorplan3dItemSchema, type ConeField, type Floorplan3dItem, type Floorplan3dRoom } from "@/types/floorplan3d";
+import { coneFieldSchema, floorplan3dItemSchema, ropeSchema, type ConeField, type Floorplan3dItem, type Floorplan3dRoom, type Rope } from "@/types/floorplan3d";
 
 export const CLIPBOARD_FORMAT = "gymwiki-clipboard";
 export const CLIPBOARD_VERSION = 1;
@@ -21,6 +21,8 @@ const clipboardSchema = z.object({
   version: z.literal(CLIPBOARD_VERSION),
   items: z.array(floorplan3dItemSchema).max(MAX_CLIPBOARD_ITEMS),
   coneFields: z.array(coneFieldSchema).max(MAX_CLIPBOARD_ITEMS),
+  /** Touwen waarvan beide items meegekopieerd zijn; ontbreekt in oudere klembordinhoud. */
+  ropes: z.array(ropeSchema).max(MAX_CLIPBOARD_ITEMS).default([]),
 });
 export type ClipboardPayload = z.infer<typeof clipboardSchema>;
 
@@ -28,12 +30,15 @@ export type Bounds2D = { minX: number; maxX: number; minZ: number; maxZ: number 
 export type Vec2 = { x: number; z: number };
 
 /** Diepe kopie van de geselecteerde objecten (alle eigenschappen blijven behouden, ook ids — die vervangt `pasteClipboard`). */
-export function buildClipboard(items: readonly Floorplan3dItem[], coneFields: readonly ConeField[]): ClipboardPayload {
+export function buildClipboard(items: readonly Floorplan3dItem[], coneFields: readonly ConeField[], ropes: readonly Rope[] = []): ClipboardPayload {
+  const ids = new Set(items.map((item) => item.id));
   return {
     format: CLIPBOARD_FORMAT,
     version: CLIPBOARD_VERSION,
     items: items.map((item) => ({ ...item })),
     coneFields: coneFields.map((field) => ({ ...field })),
+    // Een touw gaat alleen mee als allebei zijn items meegaan.
+    ropes: ropes.filter((rope) => ids.has(rope.a.item) && ids.has(rope.b.item)).map((rope) => ({ ...rope, a: { ...rope.a }, b: { ...rope.b } })),
   };
 }
 
@@ -105,7 +110,7 @@ export type PasteOptions = {
   createId: () => string;
 };
 
-export type PasteResult = { items: Floorplan3dItem[]; coneFields: ConeField[]; delta: Vec2; clamped: boolean };
+export type PasteResult = { items: Floorplan3dItem[]; coneFields: ConeField[]; ropes: Rope[]; delta: Vec2; clamped: boolean };
 
 /**
  * Nieuwe kopieën van het klembord: unieke ids, alle overige eigenschappen (rotatie over alle assen, hoogte, kleur, pose, grootte,
@@ -144,9 +149,19 @@ export function pasteClipboard(payload: ClipboardPayload, options: PasteOptions)
     delta = { x: dx, z: dz };
   }
 
+  const newIds = new Map(payload.items.map((item) => [item.id, createId()]));
+  // Touwen volgen hun items: de kopie van een touw hangt aan de kopieën van de items (niet aan de originelen).
+  const ropes: Rope[] = [];
+  for (const rope of payload.ropes) {
+    const a = newIds.get(rope.a.item);
+    const b = newIds.get(rope.b.item);
+    if (a && b) ropes.push({ id: createId(), a: { ...rope.a, item: a }, b: { ...rope.b, item: b } });
+  }
+
   return {
-    items: payload.items.map((item) => ({ ...item, id: createId(), x: item.x + delta.x, z: item.z + delta.z })),
+    items: payload.items.map((item) => ({ ...item, id: newIds.get(item.id) as string, x: item.x + delta.x, z: item.z + delta.z })),
     coneFields: payload.coneFields.map((field) => ({ ...field, id: createId(), x: field.x + delta.x, z: field.z + delta.z })),
+    ropes,
     delta,
     clamped,
   };

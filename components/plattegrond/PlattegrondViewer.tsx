@@ -264,6 +264,7 @@ function ViewerBody({
               room={room}
               items={items}
               fields={fields}
+              ropes={resolved.data.ropes ?? []}
               models={resolved.models}
               modelBySlug={modelBySlug}
               view={view}

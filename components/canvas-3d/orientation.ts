@@ -158,6 +158,19 @@ export function localToWorld(shape: CollisionShape, pos: Vec3, rot: Rotation3, p
   return toWorld(frameOf(shape, pos, rot), p);
 }
 
+function transpose(m: Mat3): Mat3 {
+  return [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];
+}
+
+/** Wereldpunt → lokaal punt (omgekeerde van `localToWorld`): het punt dat bij het item blijft zitten als het beweegt of draait. */
+export function worldToLocal(shape: CollisionShape, pos: Vec3, rot: Rotation3, p: Vec3): Vec3 {
+  const frame = frameOf(shape, pos, rot);
+  const q = apply(transpose(frame.heading), [p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]]);
+  const t: Vec3 = [q[0] - frame.center[0], q[1] - frame.center[1], q[2] - frame.center[2]];
+  const rel = apply(transpose(frame.tilt), t);
+  return [rel[0] + frame.center[0], rel[1] + frame.center[1], rel[2] + frame.center[2]];
+}
+
 function localCorners(box: LocalBox): Vec3[] {
   const corners: Vec3[] = [];
   for (const sx of [-1, 1]) {

@@ -23,7 +23,8 @@ export const roundNumber = (value: number): number => Math.round(value * factor)
 
 /** Vaste volgorde van sleutels (de rest alfabetisch erachter): leesbaar en een stabiele diff tussen exports. */
 const KEY_ORDER = [
-  "format", "version", "exportedAt", "title", "scene", "room", "items", "coneFields",
+  "format", "version", "exportedAt", "title", "scene", "room", "items", "coneFields", "ropes",
+  "a", "b", "item", "local",
   "id", "slug", "type", "x", "y", "z", "rot_y_deg", "rot_x_deg", "rot_z_deg", "lift_m", "locked", "size",
   "width_m", "length_m", "interval_m", "distribution", "marker", "color", "corner_color",
   "environment", "layout", "hidden", "view",

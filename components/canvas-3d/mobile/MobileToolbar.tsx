@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Cone, LayoutGrid, Redo2, SlidersHorizontal, Home, Undo2, type LucideIcon } from "lucide-react";
+import { Cable, Camera, Cone, LayoutGrid, Redo2, SlidersHorizontal, Home, Undo2, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { MobilePanel } from "@/components/canvas-3d/mobile/mobile-logic";
@@ -27,6 +27,8 @@ export function MobileToolbar({
   hasSelection,
   drawMode,
   onToggleDraw,
+  ropeMode = false,
+  onToggleRope,
   cameraMenuOpen,
   onToggleCameraMenu,
   canUndo,
@@ -40,6 +42,9 @@ export function MobileToolbar({
   hasSelection: boolean;
   drawMode: boolean;
   onToggleDraw: () => void;
+  /** "Touw spannen" aan/uit. */
+  ropeMode?: boolean;
+  onToggleRope?: () => void;
   cameraMenuOpen: boolean;
   onToggleCameraMenu: () => void;
   canUndo: boolean;
@@ -54,6 +59,7 @@ export function MobileToolbar({
     { id: "item", label: "Item", icon: SlidersHorizontal, active: panel === "item", disabled: !hasSelection, onClick: () => onPanel(panel === "item" ? null : "item") },
     { id: "omgeving", label: "Kamer", icon: Home, active: panel === "kamer", onClick: () => onPanel(panel === "kamer" ? null : "kamer") },
     { id: "veld", label: "Veld", icon: Cone, active: drawMode, onClick: onToggleDraw },
+    ...(onToggleRope ? [{ id: "touw", label: "Touw spannen", short: "Touw", icon: Cable, active: ropeMode, onClick: onToggleRope }] : []),
     { id: "camera", label: "Camera", icon: Camera, active: cameraMenuOpen, onClick: onToggleCameraMenu },
     { id: "undo", label: "Ongedaan maken", short: "Ongedaan", icon: Undo2, disabled: !canUndo, onClick: onUndo },
     { id: "redo", label: "Opnieuw", icon: Redo2, disabled: !canRedo, onClick: onRedo },
