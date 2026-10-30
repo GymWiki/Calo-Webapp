@@ -223,8 +223,9 @@ export function useViewerGestures({
     (event: KeyboardEvent<HTMLElement>) => {
       if ((event.target as HTMLElement).closest("[data-viewer-control]")) return;
       const handlers: Record<string, () => void> = {
-        ArrowLeft: () => apply((v) => dragBy(v, -KEY_ROTATE_DEG)),
-        ArrowRight: () => apply((v) => dragBy(v, KEY_ROTATE_DEG)),
+        // Pijl = dezelfde richting als slepen: naar rechts = de plattegrond draait naar rechts.
+        ArrowLeft: () => apply((v) => dragBy(v, KEY_ROTATE_DEG)),
+        ArrowRight: () => apply((v) => dragBy(v, -KEY_ROTATE_DEG)),
         ArrowUp: () => apply((v) => tiltTo(v, currentPolarDeg(v) + KEY_TILT_DEG)),
         ArrowDown: () => apply((v) => tiltTo(v, currentPolarDeg(v) - KEY_TILT_DEG)),
         "+": () => apply((v) => zoomBy(v, ZOOM_STEP)),

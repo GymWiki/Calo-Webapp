@@ -91,7 +91,9 @@ export function tiltTo(view: ViewState, polarDeg: number): ViewState {
 
 /** Slepen met de muis of één vinger: horizontaal draait, verticaal kantelt (omlaag slepen = hoger kijken, zoals gebruikelijk). */
 export function orbitBy(view: ViewState, dxPx: number, dyPx: number): ViewState {
-  return tiltTo(dragBy(view, dxPx * ORBIT_DEG_PER_PX), currentPolarDeg(view) - dyPx * TILT_DEG_PER_PX);
+  // Zoals OrbitControls in de editor: de plattegrond draait met de aanwijzer mee (naar rechts slepen = de camera gaat naar links,
+  // omlaag slepen = de camera gaat omhoog).
+  return tiltTo(dragBy(view, -dxPx * ORBIT_DEG_PER_PX), currentPolarDeg(view) - dyPx * TILT_DEG_PER_PX);
 }
 
 /**
