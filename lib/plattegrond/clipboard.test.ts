@@ -117,3 +117,34 @@ describe("systeemklembord", () => {
     assert.equal(clipboardMessage(2, "geknipt"), "2 objecten geknipt");
   });
 });
+
+describe("touwen in het klembord", () => {
+  const a = { id: "a", slug: "paal", x: 0, y: 0, z: 0, rot_y_deg: 0 };
+  const b = { id: "b", slug: "paal", x: 4, y: 0, z: 0, rot_y_deg: 0 };
+  const ab = { id: "t1", a: { item: "a", local: [0, 1.5, 0] as [number, number, number] }, b: { item: "b", local: [0, 1.5, 0] as [number, number, number] } };
+  const bc = { id: "t2", a: { item: "b", local: [0, 1.2, 0] as [number, number, number] }, b: { item: "c", local: [0, 1.2, 0] as [number, number, number] } };
+  const lookup = () => ({ length_m: 1, width_m: 1, height_m: 2, stackable: true });
+
+  it("neemt alleen touwen mee waarvan beide items meegaan", () => {
+    const payload = buildClipboard([a, b], [], [ab, bc]);
+    assert.deepEqual(payload.ropes.map((rope) => rope.id), ["t1"]);
+  });
+
+  it("de geplakte kopie hangt aan de kopieën, niet aan de originelen, en houdt het punt op het item", () => {
+    let n = 0;
+    const result = pasteClipboard(buildClipboard([a, b], [], [ab]), { room: { width_m: 30, length_m: 30 }, lookup, createId: () => `n${++n}`, offset: { x: 1, z: 1 } });
+    assert.equal(result.ropes.length, 1);
+    const ids = new Set(result.items.map((item) => item.id));
+    assert.ok(ids.has(result.ropes[0].a.item) && ids.has(result.ropes[0].b.item));
+    assert.notEqual(result.ropes[0].a.item, "a");
+    assert.deepEqual(result.ropes[0].a.local, [0, 1.5, 0]);
+    assert.notEqual(result.ropes[0].id, "t1");
+  });
+
+  it("oudere klembordinhoud zonder touwen blijft leesbaar", () => {
+    const text = JSON.stringify({ format: "gymwiki-clipboard", version: 1, items: [a], coneFields: [] });
+    const parsed = parseClipboard(text);
+    assert.ok(parsed.ok);
+    if (parsed.ok) assert.deepEqual(parsed.payload.ropes, []);
+  });
+});

@@ -163,7 +163,7 @@ describe("export/import met leerlingen", () => {
     { id: "s1", slug: studentSlug("basketbal_dribbelen"), x: 1.2345, y: 0, z: -2, rot_y_deg: 45, color: "#dc2626", size: "klein" },
     { id: "s2", slug: studentSlug("hockey"), x: 0, y: 0, z: 0, rot_y_deg: 0 },
   ];
-  const scene: Floorplan3dData = { version: 1, room: { width_m: 24, length_m: 14 }, items, coneFields: [] };
+  const scene: Floorplan3dData = { version: 1, room: { width_m: 24, length_m: 14 }, items, coneFields: [], ropes: [] };
   const known = new Set(models.map((model) => model.slug));
 
   it("roundtrip behoudt pose (slug), kleur en grootte", () => {

@@ -79,6 +79,21 @@ export type ConeField = z.infer<typeof coneFieldSchema>;
 export type ConeMarkerType = (typeof CONE_MARKER_TYPES)[number];
 export type ConeDistribution = ConeField["distribution"];
 
+// Touw: een rood koord dat tussen twee objecten gespannen is. Beide uiteinden zitten vast aan een punt op een item (`local` = het
+// punt in de lokale ruimte van het item, in meters: het reist dus mee bij verplaatsen, draaien en kantelen). Een touw is geen item:
+// het heeft geen maten, botst nergens mee en stapelt dus ook niet. Zie components/canvas-3d/rope.ts.
+export const ropeAnchorSchema = z.object({
+  item: z.string().min(1),
+  local: z.tuple([z.number(), z.number(), z.number()]),
+});
+export type RopeAnchor = z.infer<typeof ropeAnchorSchema>;
+export const ropeSchema = z.object({
+  id: z.string().min(1),
+  a: ropeAnchorSchema,
+  b: ropeAnchorSchema,
+});
+export type Rope = z.infer<typeof ropeSchema>;
+
 // `coneFields` is optioneel bij het lezen (default []) zodat plattegronden
 // die vóór deze feature zijn opgeslagen gewoon blijven laden.
 export const floorplan3dDataSchema = z.object({
@@ -86,13 +101,15 @@ export const floorplan3dDataSchema = z.object({
   room: floorplan3dRoomSchema,
   items: z.array(floorplan3dItemSchema),
   coneFields: z.array(coneFieldSchema).default([]),
+  /** Touwen tussen items. Optioneel bij het lezen (default []): plattegronden van vóór deze feature laden gewoon. */
+  ropes: z.array(ropeSchema).default([]),
 });
 export type Floorplan3dData = z.infer<typeof floorplan3dDataSchema>;
 
 export const DEFAULT_ROOM: Floorplan3dRoom = { width_m: 15, length_m: 27 };
 
 export function createEmptyFloorplan3dData(): Floorplan3dData {
-  return { version: 1, room: DEFAULT_ROOM, items: [], coneFields: [] };
+  return { version: 1, room: DEFAULT_ROOM, items: [], coneFields: [], ropes: [] };
 }
 
 // actions/floorplans3d.ts — server-actie-inputschema's.

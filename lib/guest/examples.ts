@@ -81,5 +81,5 @@ export function buildExamplePlan(id: GuestExampleId, models: MaterialModel[]): {
     ];
     coneFields = [coneField(14, 24, 0, 0, "#16a34a", null)];
   }
-  return { naam: example.titel, data: { version: 1, room, items, coneFields } };
+  return { naam: example.titel, data: { version: 1, room, items, coneFields, ropes: [] } };
 }

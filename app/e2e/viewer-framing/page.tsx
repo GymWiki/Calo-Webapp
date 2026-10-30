@@ -38,6 +38,7 @@ function scenarioData(scenario: string, echt: boolean, view?: string): Floorplan
         student("s6", "volleybal_onderhands", -4, -1, 0, "#2563eb"),
       ],
       coneFields: [],
+      ropes: [],
     };
   }
   if (scenario === "circuit") {
@@ -56,6 +57,18 @@ function scenarioData(scenario: string, echt: boolean, view?: string): Floorplan
         student("s2", "juichen", 3, 1, 0, "#16a34a"),
       ],
       coneFields: [],
+      ropes: [],
+    };
+  }
+  if (scenario === "touw") {
+    // Twee palen met een rood touw ertussen (op 1,2 m hoogte) en een leerling ernaast: het touw hoort in de viewer te staan.
+    const paal = echt ? "volleybalpalen_mobiel_set" : "korfbalpaal_test";
+    return {
+      version: 1,
+      room: base,
+      items: [item("p1", paal, -5, 0), item("p2", paal, 5, 0), student("s1", "standaard", 0, 2.5, 0, "#2563eb")],
+      coneFields: [],
+      ropes: [{ id: "t1", a: { item: "p1", local: [0, 1.2, 0] }, b: { item: "p2", local: [0, 1.2, 0] } }],
     };
   }
   if (scenario === "veld") {
@@ -64,9 +77,10 @@ function scenarioData(scenario: string, echt: boolean, view?: string): Floorplan
       room: base,
       items: echt ? [item("b1", "basketbal_maat_5", 0, 0)] : [item("b1", "basketbal_test", 0, 0)],
       coneFields: [field("f1", -2, 0, 10, 8, "#f97316"), field("f2", 6, 1, 4, 6, "#2563eb")],
+      ropes: [],
     };
   }
-  return { version: 1, room: base, items: [], coneFields: [] };
+  return { version: 1, room: base, items: [], coneFields: [], ropes: [] };
 }
 
 export default async function ViewerFramingHarness({ searchParams }: { searchParams: Promise<{ scenario?: string; echt?: string; view?: string }> }) {

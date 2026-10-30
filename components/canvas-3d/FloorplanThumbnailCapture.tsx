@@ -9,7 +9,7 @@ import { dimsLookupFromModels } from "@/components/canvas-3d/floorplan3d-geometr
 import { framingContent, initialViewFor, wallNodes, wallsToHide } from "@/components/plattegrond/viewer-framing";
 import { ViewerCameraRig } from "@/components/plattegrond/ViewerCanvas";
 import { azimuthDegOf, type ViewState } from "@/components/plattegrond/viewer-camera";
-import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
+import type { ConeField, Floorplan3dItem, Floorplan3dRoom, Rope } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 
 export const THUMBNAIL_WIDTH = 800;
@@ -60,6 +60,7 @@ export function FloorplanThumbnailCapture({
   room,
   items,
   fields,
+  ropes = [],
   models,
   onCapture,
   view: viewProp,
@@ -70,6 +71,8 @@ export function FloorplanThumbnailCapture({
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
   fields: ConeField[];
+  /** Touwen tussen items. */
+  ropes?: Rope[];
   models: MaterialModel[];
   onCapture: (dataUrl: string) => void;
   /** Camerastand: standaard de automatisch gekozen weergave (viewer-framing.ts); `{ ...DEFAULT_VIEW, preset: "top" }` voor het bovenaanzicht (gast-export). */
@@ -104,7 +107,7 @@ export function FloorplanThumbnailCapture({
         <ambientLight intensity={0.75} />
         <directionalLight position={[10, 20, 10]} intensity={0.9} />
         <ViewerCameraRig room={room} view={view} instant content={content} />
-        <FloorplanContent room={room} items={items} fields={fields} modelBySlug={(slug) => bySlug.get(slug)} lookup={lookup} hideEnvironmentNodes={hiddenWalls} contactShadows interactive={false} />
+        <FloorplanContent room={room} items={items} fields={fields} ropes={ropes} modelBySlug={(slug) => bySlug.get(slug)} lookup={lookup} hideEnvironmentNodes={hiddenWalls} contactShadows interactive={false} />
         <CaptureProbe onCapture={onCapture} mime={mime} />
       </Canvas>
     </div>

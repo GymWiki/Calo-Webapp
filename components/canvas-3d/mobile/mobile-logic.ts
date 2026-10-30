@@ -87,7 +87,7 @@ export function isTapDelta(delta: number): boolean {
   return delta < 6;
 }
 
-export type DraftPlan = { savedAt: number; naam: string; room: unknown; items: unknown[]; coneFields: unknown[] };
+export type DraftPlan = { savedAt: number; naam: string; room: unknown; items: unknown[]; coneFields: unknown[]; /** Optioneel: kladversies van vóór de touwen hebben het niet. */ ropes?: unknown[] };
 
 export function draftStorageKey(floorplanId: string | null): string {
   return `gymwiki.floorplan3d.draft.${floorplanId ?? "nieuw"}`;

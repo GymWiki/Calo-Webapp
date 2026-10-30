@@ -25,6 +25,7 @@ export default async function ThumbnailPage({ searchParams }: { searchParams: Pr
       item("s4", "leerling_pose_hockey", 3, 2, 45, "#f97316"),
     ],
     coneFields: [],
+    ropes: [],
   };
   return <ThumbnailHarness data={data} models={models} />;
 }

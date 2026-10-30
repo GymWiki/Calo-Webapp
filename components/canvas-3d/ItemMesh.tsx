@@ -126,7 +126,17 @@ export function ItemMesh({
   touchUi = false,
   onRotateHandleDown,
   outsideRoom = false,
+  ropeTool = false,
+  ropeTarget = false,
+  onPointerMoveItem,
+  onPointerUpItem,
 }: {
+  /** "Touw spannen" actief: een vinger/muis op het item start een touw (ook op touch, ook niet-geselecteerd) en loslaten maakt het vast. */
+  ropeTool?: boolean;
+  /** Dit item is het punt waar het touw nu op zou vastzitten (oranje omlijning). */
+  ropeTarget?: boolean;
+  onPointerMoveItem?: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  onPointerUpItem?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   /** Een gekanteld item steekt buiten de zaal: subtiele rode outline (waarschuwing, geen blokkade). */
   outsideRoom?: boolean;
   item: Floorplan3dItem;
@@ -172,13 +182,16 @@ export function ItemMesh({
         // Touch: een vinger op een NIET-geselecteerd item draait de camera (OrbitControls luistert
         // op het canvas zelf); selecteren gebeurt pas bij een tik (onClick). Alleen het
         // geselecteerde item is sleepbaar — zo verschuift er nooit iets per ongeluk.
-        if (event.nativeEvent.pointerType === "touch" && !selected) return;
+        if (event.nativeEvent.pointerType === "touch" && !selected && !ropeTool) return;
         event.stopPropagation();
         onSelect?.(item.id);
         // Vergrendelde items selecteer je wel, maar slepen niet.
-        if (item.locked) return;
+        // (Het touw spannen werkt wel aan een vergrendeld item: dat verplaatst het niet.)
+        if (item.locked && !ropeTool) return;
         onPointerDownItem?.(item.id, event);
       }}
+      onPointerMove={interactive && onPointerMoveItem ? (event) => onPointerMoveItem(item.id, event) : undefined}
+      onPointerUp={interactive && onPointerUpItem ? (event) => onPointerUpItem(item.id, event) : undefined}
       onClick={(event) => {
         if (!interactive) return;
         if (lastPointerTypeRef.current === "touch" && !selected && isTapDelta(event.delta)) {
@@ -224,6 +237,7 @@ export function ItemMesh({
         )}
         {selected && !debugCollision && <SelectionOutline dims={dims} outside={outsideRoom} />}
         {grouped && !selected && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={GROUP_COLOR} />}
+        {ropeTarget && !selected && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={GROUP_COLOR} />}
         {!selected && outsideRoom && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={OUTSIDE_COLOR} />}
         {debugCollision && (
           <CollisionDebug slug={item.slug} shape={shapeOfDims(dims)} extent={measured} labelVisible={selected || hovered} />

@@ -18,7 +18,7 @@ import {
   type CameraPose,
   type ViewState,
 } from "@/components/plattegrond/viewer-camera";
-import type { ConeField, Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
+import type { ConeField, Floorplan3dItem, Floorplan3dRoom, Rope } from "@/types/floorplan3d";
 import type { MaterialModel } from "@/types/materialModel";
 
 type TweenState = { from: CameraPose; to: CameraPose; start: number } | null;
@@ -108,6 +108,7 @@ export default function ViewerCanvas({
   room,
   items,
   fields,
+  ropes,
   models,
   modelBySlug,
   view,
@@ -118,6 +119,7 @@ export default function ViewerCanvas({
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
   fields: ConeField[];
+  ropes: Rope[];
   models: MaterialModel[];
   modelBySlug: (slug: string) => MaterialModel | undefined;
   view: ViewState;
@@ -151,6 +153,7 @@ export default function ViewerCanvas({
         room={room}
         items={items}
         fields={fields}
+        ropes={ropes}
         modelBySlug={modelBySlug}
         lookup={lookup}
         hideEnvironmentNodes={hiddenWalls}

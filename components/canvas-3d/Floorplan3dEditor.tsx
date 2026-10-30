@@ -8,6 +8,7 @@ import {
   Check,
   FilePlus2,
   X,
+  Cable,
   Cone,
   Copy,
   Loader2,
@@ -60,7 +61,11 @@ import {
   type Floorplan3dItem,
   type Floorplan3dRoom,
   type Floorplan3dSummary,
+  type Rope,
+  type RopeAnchor,
 } from "@/types/floorplan3d";
+import { anchorAt, anchorWorld, canConnect, createRope, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems, withAnchor } from "@/components/canvas-3d/rope";
+import type { Vec3 } from "@/components/canvas-3d/orientation";
 import type { MaterialModel } from "@/types/materialModel";
 import { type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldOverview, ConeFieldPanel } from "@/components/canvas-3d/ConeFieldPanel";
@@ -232,7 +237,7 @@ export function Floorplan3dEditor({
         return {
           id: null,
           naam: stored.naam || "Nieuwe plattegrond",
-          data: { version: 1, room: stored.room as Floorplan3dRoom, items: stored.items as Floorplan3dItem[], coneFields: stored.coneFields as ConeField[] },
+          data: { version: 1, room: stored.room as Floorplan3dRoom, items: stored.items as Floorplan3dItem[], coneFields: stored.coneFields as ConeField[], ropes: (stored.ropes ?? []) as Rope[] },
         };
       }
     } catch {
@@ -253,6 +258,8 @@ export function Floorplan3dEditor({
   );
   // Oudere plattegronden hebben geen `coneFields` (de server geeft de jsonb ongeparsed terug).
   const [coneFields, setConeFields] = useState<ConeField[]>(seed?.data.coneFields ?? []);
+  // Touwen tussen items (oudere plattegronden hebben er geen); een touw zonder een van zijn items vervalt.
+  const [ropes, setRopes] = useState<Rope[]>(() => (seed ? ropesWithItems(seed.data.ropes ?? [], seed.data.items) : []));
   const [floorplanId, setFloorplanId] = useState<string | null>(seed?.id ?? null);
   const [floorplanName, setFloorplanName] = useState(seed?.naam ?? "Nieuwe plattegrond");
   const [floorplans, setFloorplans] = useState<Floorplan3dSummary[]>(initialFloorplans);
@@ -349,6 +356,7 @@ export function Floorplan3dEditor({
     room: Floorplan3dRoom;
     items: Floorplan3dItem[];
     coneFields: ConeField[];
+    ropes: Rope[];
   } | null>(null);
   const thumbnailFloorplanIdRef = useRef<string | null>(null);
   const floorplanIdRef = useRef(floorplanId);
@@ -358,6 +366,7 @@ export function Floorplan3dEditor({
 
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
   const selectedField = coneFields.find((field) => field.id === selectedId) ?? null;
+  const selectedRope = ropes.find((rope) => rope.id === selectedId) ?? null;
   // Alle geselecteerde objecten (primair + extra), alleen bestaande ids.
   const groupIds = useMemo(() => {
     if (!selectedId) return [] as string[];
@@ -383,21 +392,21 @@ export function Floorplan3dEditor({
   // bijgewerkt (niet inline tijdens render) — react-hooks/refs staat geen
   // ref-mutatie tijdens render toe.
   // ---------------------------------------------------------------------
-  const latestStateRef = useRef({ room, items, coneFields, naam: floorplanName });
+  const latestStateRef = useRef({ room, items, coneFields, ropes, naam: floorplanName });
   useEffect(() => {
-    latestStateRef.current = { room, items, coneFields, naam: floorplanName };
-  }, [room, items, coneFields, floorplanName]);
+    latestStateRef.current = { room, items, coneFields, ropes, naam: floorplanName };
+  }, [room, items, coneFields, ropes, floorplanName]);
 
   const scheduleThumbnail = useCallback(() => {
     if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
     thumbnailTimerRef.current = setTimeout(() => {
       thumbnailTimerRef.current = null;
       const id = floorplanIdRef.current;
-      const { room: currentRoom, items: currentItems, coneFields: currentFields } = latestStateRef.current;
+      const { room: currentRoom, items: currentItems, coneFields: currentFields, ropes: currentRopes } = latestStateRef.current;
       // Een lege plattegrond heeft geen preview nodig (de activiteitpagina toont hem niet).
       if (!id || (currentItems.length === 0 && currentFields.length === 0)) return;
       thumbnailFloorplanIdRef.current = id;
-      setThumbnailJob({ floorplanId: id, room: currentRoom, items: currentItems, coneFields: currentFields });
+      setThumbnailJob({ floorplanId: id, room: currentRoom, items: currentItems, coneFields: currentFields, ropes: currentRopes });
     }, THUMBNAIL_DELAY_MS);
   }, []);
 
@@ -416,14 +425,14 @@ export function Floorplan3dEditor({
       return true;
     }
     setSaveStatus("saving");
-    const { room: currentRoom, items: currentItems, coneFields: currentFields, naam } = latestStateRef.current;
+    const { room: currentRoom, items: currentItems, coneFields: currentFields, ropes: currentRopes, naam } = latestStateRef.current;
     let result: Awaited<ReturnType<typeof saveFloorplan3d>>;
     try {
       result = await saveFloorplan3d({
         id: floorplanIdRef.current ?? undefined,
         naam,
         activiteitId,
-        data: { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields },
+        data: { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields, ropes: ropesWithItems(currentRopes, currentItems) },
       });
     } catch {
       result = { error: "Geen verbinding met de server." };
@@ -518,14 +527,14 @@ export function Floorplan3dEditor({
     if (!dirtyRef.current) return;
     const timer = setTimeout(() => {
       try {
-        const draft: DraftPlan = { savedAt: Date.now(), naam: floorplanName, room, items, coneFields };
+        const draft: DraftPlan = { savedAt: Date.now(), naam: floorplanName, room, items, coneFields, ropes };
         window.localStorage.setItem(draftStorageKey(floorplanId), JSON.stringify(draft));
       } catch {
         // vol of geblokkeerd: de serverautosave blijft werken
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [room, items, coneFields, floorplanName, floorplanId]);
+  }, [room, items, coneFields, ropes, floorplanName, floorplanId]);
 
   // Bij openen: staat er een nieuwere, niet-opgeslagen kladversie, bied herstel aan.
   useEffect(() => {
@@ -556,6 +565,7 @@ export function Floorplan3dEditor({
           setRoom(found.room as Floorplan3dRoom);
           setItems(found.items as Floorplan3dItem[]);
           setConeFields(found.coneFields as ConeField[]);
+          setRopes(ropesWithItems((found.ropes ?? []) as Rope[], found.items as Floorplan3dItem[]));
           setFloorplanName(found.naam);
           scheduleAutosave();
         },
@@ -616,7 +626,7 @@ export function Floorplan3dEditor({
   });
 
   function pushHistory() {
-    history.push({ room, items, coneFields });
+    history.push({ room, items, coneFields, ropes });
   }
 
   // ---------------------------------------------------------------------
@@ -664,6 +674,7 @@ export function Floorplan3dEditor({
   // Selecteren / slepen — zie Stap 4.2-4.5.
   // ---------------------------------------------------------------------
   function handleSelect(id: string) {
+    if (ropeMode) return; // "Touw spannen": een klik op een object start een touw, het selecteert niet
     if (modifierRef.current) {
       // Shift/Ctrl/Cmd+klik: object toevoegen aan of weghalen uit de selectie.
       if (groupIdSet.has(id)) {
@@ -691,7 +702,7 @@ export function Floorplan3dEditor({
   }
 
   function handleBackgroundClick() {
-    if (drawMode) return;
+    if (drawMode || ropeMode) return;
     setSelectedId(null);
   }
 
@@ -705,6 +716,7 @@ export function Floorplan3dEditor({
   });
 
   function startDrawing() {
+    stopRopeMode();
     setDrawMode(true);
     setDraft(null);
     setSelectedId(null);
@@ -752,7 +764,7 @@ export function Floorplan3dEditor({
       id,
       corner: 0,
       offset: { x: event.point.x - field.x, z: event.point.z - field.z },
-      snapshot: { room, items, coneFields },
+      snapshot: { room, items, coneFields, ropes },
       moved: false,
     };
     setFieldDragActive(true);
@@ -764,7 +776,7 @@ export function Floorplan3dEditor({
       id,
       corner: cornerIndex,
       offset: { x: 0, z: 0 },
-      snapshot: { room, items, coneFields },
+      snapshot: { room, items, coneFields, ropes },
       moved: false,
     };
     setFieldDragActive(true);
@@ -835,10 +847,152 @@ export function Floorplan3dEditor({
     return { slug: item.slug, rot_y_deg: item.rot_y_deg, rot_x_deg: item.rot_x_deg, rot_z_deg: item.rot_z_deg, lift_m: item.lift_m, size: item.size };
   }
 
+  // ---------------------------------------------------------------------
+  // Touw spannen — van een punt op het ene object naar een punt op een ander object.
+  // ---------------------------------------------------------------------
+  // Een touw is geen item: het stapelt niet, botst nergens mee en volgt zijn twee items vanzelf (components/canvas-3d/rope.ts).
+  type RopeDraft = {
+    /** Bestaand touw waarvan een uiteinde wordt verplaatst; `null` = een nieuw touw. */
+    ropeId: string | null;
+    /** Het uiteinde dat blijft zitten. */
+    fixed: RopeAnchor;
+    /** Welk uiteinde van het bestaande touw je sleept (bij een nieuw touw altijd "b"). */
+    moving: "a" | "b";
+    cursor: Vec3;
+    /** Item onder de cursor (het touw zou daar vastzitten). */
+    targetId: string | null;
+  };
+  const [ropeMode, setRopeMode] = useState(false);
+  const [ropeDraft, setRopeDraftState] = useState<RopeDraft | null>(null);
+  const ropeDraftRef = useRef<RopeDraft | null>(null);
+  const ropeMoveStampRef = useRef(0);
+  const ropeSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
+
+  function updateRopeDraft(next: RopeDraft | null) {
+    ropeDraftRef.current = next;
+    setRopeDraftState(next);
+  }
+
+  function startRopeMode() {
+    setDrawMode(false);
+    setDraft(null);
+    setRopeMode(true);
+    setSelectedId(null);
+    setGroup(null);
+    setMobilePanel(null);
+    toast.info(isDesktop ? "Sleep van het ene object naar het andere. Esc = stoppen." : "Sleep met je vinger van het ene object naar het andere.");
+  }
+
+  function stopRopeMode() {
+    setRopeMode(false);
+    updateRopeDraft(null);
+  }
+
+  function beginRope(itemId: string, point: Vec3) {
+    const item = items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    ropeSnapshotRef.current = { room, items, coneFields, ropes };
+    updateRopeDraft({ ropeId: null, fixed: anchorAt(item, point, lookup), moving: "b", cursor: point, targetId: null });
+  }
+
+  function handleRopeHandleDown(ropeId: string, end: "a" | "b") {
+    const rope = ropes.find((candidate) => candidate.id === ropeId);
+    if (!rope) return;
+    const cursor = anchorWorld(rope[end], items, lookup);
+    if (!cursor) return;
+    ropeSnapshotRef.current = { room, items, coneFields, ropes };
+    updateRopeDraft({ ropeId, fixed: end === "a" ? rope.b : rope.a, moving: end, cursor, targetId: null });
+  }
+
+  function handleRopeSelect(ropeId: string) {
+    setGroup(null);
+    setSelectedId(ropeId);
+    setSideTab("item");
+  }
+
+  /** Cursor boven een item: het touw zou daar (op het geraakte punt) vastzitten. */
+  function handleItemPointerMove(id: string, event: ThreeEvent<PointerEvent>) {
+    const current = ropeDraftRef.current;
+    if (!current) return;
+    ropeMoveStampRef.current = event.nativeEvent.timeStamp;
+    const targetId = id === current.fixed.item ? null : id;
+    updateRopeDraft({ ...current, cursor: [event.point.x, event.point.y, event.point.z], targetId });
+  }
+
+  /** Cursor op de vloer: het losse uiteinde volgt de vinger op dezelfde hoogte als het vaste punt. */
+  function moveRopeOnFloor(event: ThreeEvent<PointerEvent>): boolean {
+    const current = ropeDraftRef.current;
+    if (!current) return false;
+    // Zelfde pointer-event dat al door een item is afgehandeld (het item ligt voor de vloer): de itemcursor wint.
+    if (ropeMoveStampRef.current === event.nativeEvent.timeStamp) return true;
+    const fixed = anchorWorld(current.fixed, items, lookup);
+    updateRopeDraft({ ...current, cursor: [event.point.x, fixed ? fixed[1] : 0.5, event.point.z], targetId: null });
+    return true;
+  }
+
+  /** Loslaten: op een ander item = vastmaken, anders niets (het touw springt terug of verdwijnt). */
+  function finishRope(targetId: string | null, point: Vec3 | null) {
+    const current = ropeDraftRef.current;
+    updateRopeDraft(null);
+    if (!current) return;
+    const snapshot = ropeSnapshotRef.current;
+    ropeSnapshotRef.current = null;
+    const target = targetId ? items.find((item) => item.id === targetId) : null;
+    if (!target || !point) {
+      if (!current.ropeId) toast.info("Laat het touw los op een ander object om het vast te maken.");
+      return;
+    }
+    const anchor = anchorAt(target, point, lookup);
+    if (!canConnect(current.fixed, anchor)) {
+      toast.info("Een touw loopt tussen twee verschillende objecten.");
+      return;
+    }
+    if (snapshot) history.push(snapshot);
+    if (current.ropeId) {
+      setRopes((prev) => prev.map((rope) => (rope.id === current.ropeId ? withAnchor(rope, current.moving, anchor) : rope)));
+    } else {
+      setRopes((prev) => [...prev, createRope(createItemId(), current.fixed, anchor)]);
+    }
+    haptic(10);
+    scheduleAutosave();
+  }
+
+  function handleItemPointerUp(id: string, event: ThreeEvent<PointerEvent>) {
+    if (!ropeDraftRef.current) return;
+    event.stopPropagation();
+    finishRope(id, [event.point.x, event.point.y, event.point.z]);
+  }
+
+  // Loslaten buiten het canvas of op een plek zonder object: het slepen stopt altijd.
+  useEffect(() => {
+    if (!ropeDraft) return;
+    function onUp() {
+      window.setTimeout(() => {
+        if (ropeDraftRef.current) finishRope(null, null);
+      }, 0);
+    }
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ropeDraft !== null]);
+
+  function deleteSelectedRope() {
+    if (!selectedRope) return;
+    pushHistory();
+    setRopes((prev) => prev.filter((rope) => rope.id !== selectedRope.id));
+    setSelectedId(null);
+    scheduleAutosave();
+    toast("Touw verwijderd", { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 6000 });
+  }
+
   function handleItemPointerDown(id: string) {
     // Shift/Ctrl/Cmd+klik is alleen selecteren, geen slepen.
     if (modifierRef.current) return;
-    dragStartSnapshotRef.current = { room, items, coneFields };
+    dragStartSnapshotRef.current = { room, items, coneFields, ropes };
     dragStartItemRef.current = items.find((item) => item.id === id) ?? null;
     // Items die op het gesleepte item rusten reizen mee: ze tellen niet als
     // "andere" items, anders stapelt het onderste item op zijn eigen stapel
@@ -882,6 +1036,7 @@ export function Floorplan3dEditor({
 
   function handleFloorPointerMove(event: ThreeEvent<PointerEvent>) {
     floorPointRef.current = { x: event.point.x, z: event.point.z };
+    if (moveRopeOnFloor(event)) return;
     if (rotatingId) {
       rotateByHandle({ x: event.point.x, z: event.point.z });
       return;
@@ -945,6 +1100,10 @@ export function Floorplan3dEditor({
   }
 
   function handleFloorPointerUp(event: ThreeEvent<PointerEvent>) {
+    if (ropeDraftRef.current) {
+      finishRope(null, null);
+      return;
+    }
     if (rotatingId) {
       setRotatingId(null);
       scheduleAutosave();
@@ -1116,6 +1275,10 @@ export function Floorplan3dEditor({
   function deleteSelected() {
     // Geen bevestigingsdialoog maar een toast met "Ongedaan maken": sneller en minder foutgevoelig op touch.
     const undoAction = { label: "Ongedaan maken", onClick: () => handleUndoRef.current() };
+    if (selectedRope && selectionCount === 0) {
+      deleteSelectedRope();
+      return;
+    }
     if (selectionCount === 0) return;
     const removableItems = groupItems.filter((item) => !item.locked);
     if (removableItems.length === 0 && groupFields.length === 0) {
@@ -1127,6 +1290,8 @@ export function Floorplan3dEditor({
     const removedFieldIds = new Set(groupFields.map((field) => field.id));
     if (removedItemIds.size > 0) setItems((prev) => prev.filter((item) => !removedItemIds.has(item.id)));
     if (removedFieldIds.size > 0) setConeFields((prev) => prev.filter((field) => !removedFieldIds.has(field.id)));
+    // Touwen die aan een verwijderd item hangen verdwijnen mee (terug te halen met ongedaan maken).
+    if (removedItemIds.size > 0) setRopes((prev) => removeRopesOfItems(prev, removedItemIds));
     setSelectedId(null);
     setGroup(null);
     scheduleAutosave();
@@ -1251,7 +1416,7 @@ export function Floorplan3dEditor({
   /** Zet de selectie op het interne klembord en (zodra de browser het toestaat) als JSON in het systeemklembord. */
   function copySelection(cut = false): boolean {
     if (selectionCount === 0) return false;
-    const payload = buildClipboard(groupItems, groupFields);
+    const payload = buildClipboard(groupItems, groupFields, ropes);
     clipboardRef.current = payload;
     pasteCountRef.current = 0;
     setHasClipboard(true);
@@ -1274,6 +1439,8 @@ export function Floorplan3dEditor({
     const removedFieldIds = new Set(groupFields.map((field) => field.id));
     if (removedItemIds.size > 0) setItems((prev) => prev.filter((item) => !removedItemIds.has(item.id)));
     if (removedFieldIds.size > 0) setConeFields((prev) => prev.filter((field) => !removedFieldIds.has(field.id)));
+    // Touwen die aan een verwijderd item hangen verdwijnen mee (terug te halen met ongedaan maken).
+    if (removedItemIds.size > 0) setRopes((prev) => removeRopesOfItems(prev, removedItemIds));
     setSelectedId(null);
     setGroup(null);
     scheduleAutosave();
@@ -1303,6 +1470,7 @@ export function Floorplan3dEditor({
     // Hoogtes opnieuw berekenen: een kopie die op een ander item valt, stapelt erop.
     setItems((prev) => recomputeStackedYs([...prev, ...result.items], lookup));
     setConeFields((prev) => [...prev, ...result.coneFields]);
+    if (result.ropes.length > 0) setRopes((prev) => [...prev, ...result.ropes]);
     selectObjects([...result.items, ...result.coneFields].map((object) => object.id));
     scheduleAutosave();
     haptic(12);
@@ -1324,7 +1492,7 @@ export function Floorplan3dEditor({
 
   function duplicateSelected() {
     if (selectionCount === 0) return;
-    pasteObjects(buildClipboard(groupItems, groupFields), "dupliceer");
+    pasteObjects(buildClipboard(groupItems, groupFields, ropes), "dupliceer");
   }
 
   /** Pose, kleur of grootte van de geselecteerde leerling. Kleurkiezer-sleepbewegingen binnen 1 s tellen als één undo-stap. */
@@ -1365,9 +1533,11 @@ export function Floorplan3dEditor({
     setRoom(snapshot.room);
     setItems(snapshot.items);
     setConeFields(snapshot.coneFields);
+    setRopes(snapshot.ropes ?? []);
     if (
       !snapshot.items.some((item) => item.id === selectedId) &&
-      !snapshot.coneFields.some((field) => field.id === selectedId)
+      !snapshot.coneFields.some((field) => field.id === selectedId) &&
+      !(snapshot.ropes ?? []).some((rope) => rope.id === selectedId)
     ) {
       setSelectedId(null);
     }
@@ -1375,7 +1545,7 @@ export function Floorplan3dEditor({
   }
 
   function handleUndo() {
-    const previous = history.undo({ room, items, coneFields });
+    const previous = history.undo({ room, items, coneFields, ropes });
     if (previous) applyHistorySnapshot(previous);
   }
 
@@ -1385,7 +1555,7 @@ export function Floorplan3dEditor({
   });
 
   function handleRedo() {
-    const next = history.redo({ room, items, coneFields });
+    const next = history.redo({ room, items, coneFields, ropes });
     if (next) applyHistorySnapshot(next);
   }
 
@@ -1396,6 +1566,13 @@ export function Floorplan3dEditor({
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+
+      if (event.key === "Escape" && (ropeMode || ropeDraftRef.current)) {
+        event.preventDefault();
+        if (ropeDraftRef.current) updateRopeDraft(null);
+        else stopRopeMode();
+        return;
+      }
 
       if (event.key === "Escape" && drawMode) {
         event.preventDefault();
@@ -1481,7 +1658,7 @@ export function Floorplan3dEditor({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, selectedItem, selectedField, items, coneFields, room, drawMode, draft, snapDeg, group, snapGrid, hasClipboard]);
+  }, [selectedId, selectedItem, selectedField, selectedRope, items, coneFields, ropes, room, drawMode, ropeMode, draft, snapDeg, group, snapGrid, hasClipboard]);
 
   // Klembord-events van de browser, en de aanwijzer: boven het canvas? Shift/Ctrl/Cmd ingedrukt bij een klik?
   useEffect(() => {
@@ -1530,6 +1707,7 @@ export function Floorplan3dEditor({
     setRoom(NEW_ROOM);
     setItems([]);
     setConeFields([]);
+    setRopes([]);
     setFloorplanId(null);
     setFloorplanName("Nieuwe plattegrond");
     setSelectedId(null);
@@ -1616,7 +1794,7 @@ export function Floorplan3dEditor({
     }
     setGuestBusy(action);
     try {
-      const data: Floorplan3dData = { version: 1, room, items, coneFields };
+      const data: Floorplan3dData = { version: 1, room, items, coneFields, ropes: ropesWithItems(ropes, items) };
       const baseName = (floorplanName || "plattegrond").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "plattegrond";
       if (action === "link") {
         const link = buildShareLink(`${window.location.origin}${GUEST_TOOL_PATH}`, await encodeFloorplan(data));
@@ -1668,6 +1846,7 @@ export function Floorplan3dEditor({
       room={room}
       items={items}
       fields={coneFields}
+      ropes={ropes}
       models={models}
       view={captureView}
       width={captureFormat.width}
@@ -1683,8 +1862,8 @@ export function Floorplan3dEditor({
   const knownSlugs = useMemo(() => new Set(models.map((model) => model.slug)), [models]);
   const plattegrondJson = usePlattegrondJson({
     getScene: () => {
-      const { room: currentRoom, items: currentItems, coneFields: currentFields } = latestStateRef.current;
-      return { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields };
+      const { room: currentRoom, items: currentItems, coneFields: currentFields, ropes: currentRopes } = latestStateRef.current;
+      return { version: 1, room: currentRoom, items: currentItems, coneFields: currentFields, ropes: ropesWithItems(currentRopes, currentItems) };
     },
     title: floorplanName,
     knownSlugs,
@@ -1702,6 +1881,7 @@ export function Floorplan3dEditor({
     setRoom(result.scene.room);
     setItems(placed);
     setConeFields(result.scene.coneFields);
+    setRopes(result.scene.ropes);
     setFloorplanName(result.title);
     setSelectedId(null);
     setMobilePanel(null);
@@ -1770,7 +1950,21 @@ export function Floorplan3dEditor({
     </div>
   );
 
-  const itemPanel = isMultiSelection ? groupPanel : selectedField ? (
+  const selectedRopeEnds = selectedRope ? ropeEndpoints(selectedRope, items, lookup) : null;
+  const ropePanel = selectedRope ? (
+    <div className="space-y-3" data-testid="touw-paneel">
+      <p className="text-sm font-medium">Touw</p>
+      <p className="text-sm text-muted-foreground">
+        {selectedRopeEnds ? `Lengte ${ropeLength(selectedRopeEnds.a, selectedRopeEnds.b).toLocaleString("nl-NL", { maximumFractionDigits: 1 })} m. ` : ""}
+        Sleep een oranje uiteinde naar een ander object om het touw te verplaatsen. Het touw blijft vastzitten aan zijn punt als je een object verschuift of draait.
+      </p>
+      <Button type="button" variant="outline" className="w-full text-destructive" data-testid="touw-verwijderen" onClick={deleteSelectedRope}>
+        <Trash2 className="size-4" /> Touw verwijderen (Delete)
+      </Button>
+    </div>
+  ) : null;
+
+  const itemPanel = isMultiSelection ? groupPanel : ropePanel ? ropePanel : selectedField ? (
     <ConeFieldPanel
       field={selectedField}
       onChange={updateSelectedField}
@@ -1939,8 +2133,8 @@ export function Floorplan3dEditor({
   const isDesktop = layout === "desktop";
   // De rotatie-drawer hoort bij een geselecteerd item: zonder selectie sluit hij vanzelf.
   const activePanel: MobilePanel = mobilePanel === "rotatie" && !selectedItem ? null : mobilePanel;
-  const hasSelection = Boolean(selectedItem || selectedField);
-  const selectionTitle = isMultiSelection ? `${selectionCount} objecten` : selectedField ? fieldLabel(selectedField) : selectedItem ? (modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item") : "";
+  const hasSelection = Boolean(selectedItem || selectedField || selectedRope);
+  const selectionTitle = isMultiSelection ? `${selectionCount} objecten` : selectedRope ? "Touw" : selectedField ? fieldLabel(selectedField) : selectedItem ? (modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item") : "";
 
   function resetCamera() {
     viewCenterRef.current = { x: 0, z: 0 };
@@ -1966,6 +2160,10 @@ export function Floorplan3dEditor({
     };
   })();
 
+  // Het touw dat je nu sleept: van het vaste punt naar de cursor.
+  const ropeFixedWorld = ropeDraft ? anchorWorld(ropeDraft.fixed, items, lookup) : null;
+  const ropePreview = ropeDraft && ropeFixedWorld ? { from: ropeFixedWorld, to: ropeDraft.cursor } : null;
+
   const scene = (
     <Scene3D
       room={room}
@@ -1973,10 +2171,19 @@ export function Floorplan3dEditor({
       modelBySlug={modelBySlug}
       selectedId={selectedId}
       groupIds={isMultiSelection ? groupIdSet : undefined}
-      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive}
+      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDraft !== null}
       gizmo={gizmoProps}
       cameraMode={cameraMode}
-      onItemPointerDown={handleItemPointerDown}
+      onItemPointerDown={(id, event) => (ropeMode ? beginRope(id, [event.point.x, event.point.y, event.point.z]) : handleItemPointerDown(id))}
+      ropes={ropes}
+      hiddenRopeId={ropeDraft?.ropeId ?? null}
+      ropeDraft={ropePreview}
+      ropeTool={ropeMode}
+      ropeTargetId={ropeDraft?.targetId ?? null}
+      onRopePointerDown={(id) => handleRopeSelect(id)}
+      onRopeHandlePointerDown={(id, end) => handleRopeHandleDown(id, end)}
+      onItemPointerMove={handleItemPointerMove}
+      onItemPointerUp={handleItemPointerUp}
       fields={coneFields}
       draftField={draftField}
       drawMode={drawMode}
@@ -2018,6 +2225,34 @@ export function Floorplan3dEditor({
       </div>
     </div>
   );
+
+  // Zwevend label tijdens "Touw spannen" (en bij een geselecteerd touw op touch: verwijderen of klaar).
+  const ropeChip = ropeMode ? (
+    <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
+      <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl bg-slate-900/90 px-3 py-1.5 text-xs text-white shadow" data-testid="touw-hint">
+        <Cable className="size-3.5 shrink-0" aria-hidden="true" />
+        <span>{ropeDraft ? "Laat los op een ander object" : "Sleep van het ene object naar het andere"}</span>
+        <button type="button" onClick={stopRopeMode} className="min-h-8 rounded-full bg-white/15 px-3 py-0.5 font-medium hover:bg-white/25">
+          Stoppen{isDesktop ? " (Esc)" : ""}
+        </button>
+      </div>
+    </div>
+  ) : null;
+  const ropeHud =
+    !isDesktop && !ropeMode && selectedRope ? (
+      <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
+        <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-2xl bg-slate-900/90 py-1 pr-1 pl-3 text-xs text-white shadow">
+          <Cable className="size-3.5 shrink-0" aria-hidden="true" />
+          <strong className="truncate">Touw</strong>
+          <button type="button" onClick={deleteSelectedRope} className="min-h-9 rounded-xl bg-white/15 px-3 font-medium">
+            Verwijderen
+          </button>
+          <button type="button" onClick={() => setSelectedId(null)} className="min-h-9 rounded-xl bg-primary px-4 font-semibold text-primary-foreground">
+            Klaar
+          </button>
+        </div>
+      </div>
+    ) : null;
 
   // Na het afzetten blijft het veld geselecteerd (handles om aan te passen): label met afmetingen + "Klaar".
   const fieldHud =
@@ -2128,7 +2363,9 @@ export function Floorplan3dEditor({
           {scene}
           {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
           {drawChip}
+          {ropeChip}
           {fieldHud}
+          {ropeHud}
           {cameraMenuOpen && (
             <CameraMenu
               mode={cameraMode}
@@ -2172,6 +2409,8 @@ export function Floorplan3dEditor({
           hasSelection={hasSelection}
           drawMode={drawMode}
           onToggleDraw={() => (drawMode ? stopDrawing() : startDrawing())}
+          ropeMode={ropeMode}
+          onToggleRope={() => (ropeMode ? stopRopeMode() : startRopeMode())}
           cameraMenuOpen={cameraMenuOpen}
           onToggleCameraMenu={() => setCameraMenuOpen((open) => !open)}
           canUndo={history.canUndo}
@@ -2192,6 +2431,7 @@ export function Floorplan3dEditor({
             room={thumbnailJob.room}
             items={thumbnailJob.items}
             fields={thumbnailJob.coneFields}
+            ropes={thumbnailJob.ropes}
             models={models}
             onCapture={handleThumbnailCaptured}
           />
@@ -2276,11 +2516,22 @@ export function Floorplan3dEditor({
           <Button
             type="button"
             variant={drawMode ? "default" : "outline"}
-            className="mb-3 w-full"
+            className="mb-2 w-full"
             aria-pressed={drawMode}
             onClick={() => (drawMode ? stopDrawing() : startDrawing())}
           >
             <Cone className="size-4" /> Veld afzetten
+          </Button>
+          <Button
+            type="button"
+            variant={ropeMode ? "default" : "outline"}
+            className="mb-3 w-full"
+            aria-pressed={ropeMode}
+            data-testid="knop-touw"
+            title="Een rood touw spannen tussen twee objecten"
+            onClick={() => (ropeMode ? stopRopeMode() : startRopeMode())}
+          >
+            <Cable className="size-4" /> Touw spannen
           </Button>
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>
@@ -2290,6 +2541,7 @@ export function Floorplan3dEditor({
           {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
 
           {drawChip}
+          {ropeChip}
 
         </div>
 
@@ -2314,6 +2566,7 @@ export function Floorplan3dEditor({
           room={thumbnailJob.room}
           items={thumbnailJob.items}
           fields={thumbnailJob.coneFields}
+          ropes={thumbnailJob.ropes}
           models={models}
           onCapture={handleThumbnailCaptured}
         />
