@@ -52,9 +52,9 @@ test("kantelen is begrensd en springt vlak bij de bovenkant naar exact bovenaanz
   near(tiltTo(start, 30).polarDeg ?? 0, 30);
 });
 
-test("slepen draait (horizontaal) en kantelt (verticaal): omlaag slepen = hoger kijken", () => {
+test("slepen draait (horizontaal) en kantelt (verticaal), in dezelfde richting als de editor: omlaag slepen = hoger kijken", () => {
   const view = orbitBy(DEFAULT_VIEW, 50, 0);
-  near(view.offsetDeg, 50 * ORBIT_DEG_PER_PX);
+  near(view.offsetDeg, -50 * ORBIT_DEG_PER_PX); // naar rechts slepen = camera naar links, zoals de editor
   near(currentPolarDeg(view), POLAR_3D_DEG);
   const higher = orbitBy(DEFAULT_VIEW, 0, 40);
   assert.ok(currentPolarDeg(higher) < POLAR_3D_DEG, "omlaag slepen: camera hoger (kleinere hoek vanaf verticaal)");
@@ -173,4 +173,11 @@ test("onzinnige afmetingen geven een bruikbare zoom", () => {
     polarDeg: 54.7,
   });
   assert.ok(Number.isFinite(zoom) && zoom > 0);
+});
+
+test("de draairichting komt overeen met OrbitControls in de editor: naar rechts slepen verplaatst de camera naar links", () => {
+  // Een toenemend azimut verplaatst de camera naar rechts (vanuit de camera gezien); slepen naar rechts moet het dus verlagen.
+  const before = azimuthDegOf(DEFAULT_VIEW);
+  assert.ok(azimuthDegOf(orbitBy(DEFAULT_VIEW, 40, 0)) < before);
+  assert.ok(azimuthDegOf(orbitBy(DEFAULT_VIEW, -40, 0)) > before);
 });

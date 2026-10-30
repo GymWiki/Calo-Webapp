@@ -31,8 +31,10 @@ export function BackButton({
   className?: string;
   /** Best-effort hook (bijv. eerst een lopende autosave laten afronden) —
    * wordt afgewacht vóórdat er daadwerkelijk genavigeerd wordt, zodat er
-   * niets verloren gaat. Zie lesson-form.tsx's flushAutosave. */
-  onBeforeNavigate?: () => void | Promise<void>;
+   * niets verloren gaat. Zie lesson-form.tsx's flushAutosave. Geeft hij
+   * `false` terug, dan blijft de knop staan waar hij is (bijv. omdat er een
+   * waarschuwing voor onopgeslagen wijzigingen is getoond). */
+  onBeforeNavigate?: () => void | boolean | Promise<void | boolean>;
 }) {
   const router = useRouter();
   const [hasHistory, setHasHistory] = useState(false);
@@ -48,10 +50,13 @@ export function BackButton({
   async function handleClick() {
     if (isNavigating) return;
     setIsNavigating(true);
+    let cancelled = false;
     try {
-      await onBeforeNavigate?.();
+      cancelled = (await onBeforeNavigate?.()) === false;
     } finally {
-      if (hasHistory) {
+      if (cancelled) {
+        setIsNavigating(false);
+      } else if (hasHistory) {
         router.back();
       } else {
         router.push(fallbackHref);
