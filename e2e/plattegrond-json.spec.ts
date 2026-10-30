@@ -53,7 +53,7 @@ test("downloaden levert een geldig bestand met envelope en scene", async ({ page
   expect(parsed.version).toBe(1);
   expect(Number.isNaN(Date.parse(parsed.exportedAt))).toBe(false);
   expect(parsed.scene.items[0].slug).toBe("testmat_groot");
-  expect(Object.keys(parsed.scene)).toEqual(["version", "room", "items", "coneFields"]);
+  expect(Object.keys(parsed.scene)).toEqual(["version", "room", "items", "coneFields", "ropes"]);
   expect(text).not.toMatch(/user_id|activiteit|token/);
   expect(text).toContain('\n  "scene": {');
   expect(errors).toEqual([]);
