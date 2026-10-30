@@ -88,8 +88,14 @@ test("loslaten op de lege vloer maakt geen touw; een touw selecteren en verwijde
   await readDraft(page, (d) => (d.ropes?.length ?? 0) === 1);
   await page.keyboard.press("Escape");
 
-  // Klik op het touw (het midden tussen de twee uiteinden) selecteert het.
-  await page.mouse.click((left.x + middle.x) / 2, (left.y + middle.y) / 2);
+  // Klik op het touw. Waar precies hangt af van de camera en de doorhang (en het midden ligt vaak op een mat, die dichterbij is): probeer
+  // een rij punten langs de lijn tussen de twee uiteinden tot het touw geraakt wordt.
+  search: for (const dy of [0, 8, -8]) {
+    for (let step = 1; step <= 11; step++) {
+      await page.mouse.click(left.x + ((middle.x - left.x) * step) / 12, left.y + dy);
+      if (await page.getByTestId("touw-paneel").isVisible()) break search;
+    }
+  }
   await expect(page.getByTestId("touw-paneel")).toBeVisible();
   await page.getByTestId("touw-verwijderen").click();
   await readDraft(page, (d) => (d.ropes?.length ?? 0) === 0);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { anchorAt, anchorWorld, canConnect, createRope, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems, withAnchor } from "@/components/canvas-3d/rope";
+import { ROPE_MAX_SAG_M, anchorAt, anchorWorld, canConnect, createRope, removeRopesOfItems, ropeCurvePoints, ropeEndpoints, ropeLength, ropesWithItems, withAnchor } from "@/components/canvas-3d/rope";
 import { worldToLocal, localToWorld } from "@/components/canvas-3d/orientation";
 import type { DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 import { floorplan3dDataSchema, type Floorplan3dItem } from "@/types/floorplan3d";
@@ -83,4 +83,22 @@ test("het dataformaat: touwen zijn optioneel (oude plattegronden) en worden geva
   const rope = { id: "t", a: { item: "a", local: [0, 1, 0] }, b: { item: "b", local: [0, 1, 0] } };
   assert.equal(floorplan3dDataSchema.parse({ ...base, ropes: [rope] }).ropes.length, 1);
   assert.equal(floorplan3dDataSchema.safeParse({ ...base, ropes: [{ id: "t", a: { item: "a" }, b: rope.b }] }).success, false);
+});
+
+test("het touw hangt een klein beetje door: uiteinden op hun punt, het midden iets lager, nooit onder de vloer", () => {
+  const points = ropeCurvePoints([0, 1.5, 0], [8, 1.5, 0]);
+  assert.deepEqual(points[0], [0, 1.5, 0]);
+  assert.deepEqual(points[points.length - 1], [8, 1.5, 0]);
+  const mid = points[Math.floor(points.length / 2)];
+  near(mid[1], 1.5 - 8 * 0.03, 1e-9); // 3% van de horizontale afstand
+  assert.ok(points.every((p) => p[1] <= 1.5 + 1e-9));
+  // Een lang touw hangt hoogstens ROPE_MAX_SAG_M door.
+  const long = ropeCurvePoints([0, 1.5, 0], [40, 1.5, 0]);
+  near(long[Math.floor(long.length / 2)][1], 1.5 - ROPE_MAX_SAG_M, 1e-9);
+  // Bijna verticaal: geen doorhang (volgt de horizontale afstand).
+  const vertical = ropeCurvePoints([0, 3, 0], [0, 0.5, 0.2]);
+  assert.ok(vertical.every((p) => p[1] > 0.4));
+  // Laag bij de vloer: het touw hangt nauwelijks door en blijft boven de vloer.
+  const low = ropeCurvePoints([0, 0.05, 0], [10, 0.05, 0]);
+  assert.ok(low.every((p) => p[1] >= 0.03 - 1e-9));
 });
