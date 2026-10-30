@@ -13,6 +13,11 @@ export type { Rope, RopeAnchor };
 export const ROPE_COLOR = "#dc2626";
 /** Dikte van het touw (m): dik genoeg om vanaf de hele zaal te zien. */
 export const ROPE_RADIUS_M = 0.03;
+/** Doorhang: een klein beetje, evenredig met de horizontale afstand tussen de uiteinden, met een maximum (m). */
+export const ROPE_SAG_RATIO = 0.03;
+export const ROPE_MAX_SAG_M = 0.3;
+/** Het touw komt niet onder de vloer. */
+export const ROPE_MIN_Y_M = 0.03;
 /** Een touw korter dan dit (m) is geen touw: de twee punten zitten op elkaar. */
 export const MIN_ROPE_LENGTH_M = 0.1;
 
@@ -59,4 +64,20 @@ export function createRope(id: string, a: RopeAnchor, b: RopeAnchor): Rope {
 /** Zet één uiteinde van een touw op een ander punt. */
 export function withAnchor(rope: Rope, end: "a" | "b", anchor: RopeAnchor): Rope {
   return { ...rope, [end]: anchor };
+}
+
+/**
+ * De lijn van het touw: een lichte parabool tussen de twee uiteinden (de uiteinden liggen exact op hun punt), het midden hangt een
+ * klein beetje door. De doorhang volgt de horizontale afstand, dus een bijna verticaal touw hangt niet door, en blijft zo klein dat het touw
+ * boven de vloer blijft (een touw tussen twee lage objecten hangt dus bijna niet door). `segments + 1` punten.
+ */
+export function ropeCurvePoints(a: Vec3, b: Vec3, segments = 24): Vec3[] {
+  const horizontal = Math.hypot(b[0] - a[0], b[2] - a[2]);
+  const sag = Math.max(0, Math.min(ROPE_MAX_SAG_M, horizontal * ROPE_SAG_RATIO, Math.min(a[1], b[1]) - ROPE_MIN_Y_M));
+  const points: Vec3[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    points.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t - 4 * sag * t * (1 - t), a[2] + (b[2] - a[2]) * t]);
+  }
+  return points;
 }
