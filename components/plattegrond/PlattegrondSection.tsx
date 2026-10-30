@@ -4,10 +4,8 @@ import { Box, Pencil } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { PlattegrondLegend } from "@/components/plattegrond/PlattegrondLegend";
 import { PlattegrondViewer } from "@/components/plattegrond/PlattegrondViewer";
 import { upgradeRoomEnvironment } from "@/components/canvas-3d/environment-kinds";
-import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
 import type { ActivityFloorplan } from "@/lib/services/floorplans3d";
 import { getMaterialModelsBySlugs } from "@/lib/services/materialModels";
@@ -49,15 +47,6 @@ export async function PlattegrondSection({
     }
   }
 
-  const nameBySlug = new Map(models.map((model) => [model.slug, model.naam]));
-  const categoryBySlug = new Map(models.map((model) => [model.slug, model.categorie]));
-  const summary = summarizeFloorplan(
-    data.items,
-    data.coneFields,
-    (slug) => nameBySlug.get(slug),
-    (slug) => categoryBySlug.get(slug),
-  );
-
   return (
     <section aria-labelledby={`plattegrond-3d-${plan.id}`} className="animate-fade-up space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -80,9 +69,6 @@ export async function PlattegrondSection({
       {/* Print: de interactieve viewer past niet op papier — de 3D-thumbnail is dan het beeld (nooit de losse afbeelding). */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={plan.previewUrl} alt={`3D-plattegrond: ${plan.naam}`} className="hidden w-full max-w-xl rounded-lg border print:block" />
-      <div className="print:hidden">
-        <PlattegrondLegend summary={summary} />
-      </div>
     </section>
   );
 }

@@ -1,5 +1,5 @@
-// Compacte samenvatting van een plattegrond voor de legenda onder de viewer
-// (activiteitpagina): afgezette velden, pionnen/dopjes per kleur en de
+// Compacte samenvatting van een plattegrond (gastexport en editor):
+// afgezette velden, pionnen/dopjes per kleur en de
 // gebruikte materialen. Pure functie, zie floorplan-summary.test.ts. Het
 // materiaaloverzicht van de pionnen is dezelfde logica als in de editor
 // (coneMaterialTotals in cone-field.ts) — niet opnieuw geïmplementeerd.
