@@ -65,6 +65,7 @@ import type { MaterialModel } from "@/types/materialModel";
 import { type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldOverview, ConeFieldPanel } from "@/components/canvas-3d/ConeFieldPanel";
 import { FloorplanThumbnailCapture } from "@/components/canvas-3d/FloorplanThumbnailCapture";
+import { useUnsavedChangesGuard } from "@/components/canvas-3d/useUnsavedChangesGuard";
 import { GymEnvironmentPanel } from "@/components/canvas-3d/GymEnvironmentPanel";
 import {
   clampFieldToRoom,
@@ -302,6 +303,16 @@ export function Floorplan3dEditor({
   }, []);
   const lastSnappedRef = useRef(false);
   const dirtyRef = useRef(false);
+  // Zelfde waarde als dirtyRef, maar reactief: de waarschuwing bij het verlaten van de pagina reageert erop (useUnsavedChangesGuard).
+  const [unsaved, setUnsaved] = useState(false);
+  const markDirty = useCallback(() => {
+    dirtyRef.current = true;
+    setUnsaved(true);
+  }, []);
+  const markClean = useCallback(() => {
+    dirtyRef.current = false;
+    setUnsaved(false);
+  }, []);
   const lowEndDevice = useMemo(() => {
     const nav = navigator as Navigator & { deviceMemory?: number };
     return (nav.hardwareConcurrency ?? 8) <= 4 || (nav.deviceMemory ?? 8) <= 4;
@@ -397,12 +408,12 @@ export function Floorplan3dEditor({
     if (id) void saveFloorplanPreview(id, dataUrl).catch(() => undefined);
   }, []);
 
-  const performSaveRef = useRef<() => Promise<void>>(async () => {});
-  const performSave = useCallback(async () => {
+  const performSaveRef = useRef<() => Promise<boolean>>(async () => true);
+  const performSave = useCallback(async (): Promise<boolean> => {
     // Gastmodus: niets naar de server. De lokale kladversie (zie het draft-effect hieronder) is de opslag.
     if (guest) {
       setSaveStatus("saved");
-      return;
+      return true;
     }
     setSaveStatus("saving");
     const { room: currentRoom, items: currentItems, coneFields: currentFields, naam } = latestStateRef.current;
@@ -426,11 +437,11 @@ export function Floorplan3dEditor({
         id: "save-error",
         action: { label: "Opnieuw proberen", onClick: () => void performSaveRef.current() },
       });
-      return;
+      return false;
     }
 
     toast.dismiss("save-error");
-    dirtyRef.current = false;
+    markClean();
     try {
       window.localStorage.removeItem(draftStorageKey(floorplanIdRef.current));
       window.localStorage.removeItem(draftStorageKey(null));
@@ -443,20 +454,21 @@ export function Floorplan3dEditor({
     }
     setSaveStatus("saved");
     scheduleThumbnail();
-  }, [activiteitId, scheduleThumbnail, guest]);
+    return true;
+  }, [activiteitId, scheduleThumbnail, guest, markClean]);
 
   useEffect(() => {
     performSaveRef.current = performSave;
   }, [performSave]);
 
   const scheduleAutosave = useCallback(() => {
-    dirtyRef.current = true;
+    markDirty();
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
       void performSave();
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [performSave]);
+  }, [performSave, markDirty]);
 
   useEffect(() => {
     return () => {
@@ -545,7 +557,6 @@ export function Floorplan3dEditor({
           setItems(found.items as Floorplan3dItem[]);
           setConeFields(found.coneFields as ConeField[]);
           setFloorplanName(found.naam);
-          dirtyRef.current = true;
           scheduleAutosave();
         },
       },
@@ -590,6 +601,19 @@ export function Floorplan3dEditor({
     }
     await performSave();
   }
+
+  // Waarschuwing bij wegklikken, terug en een andere plattegrond openen zolang er niet goed is opgeslagen (niet in gastmodus: die bewaart lokaal).
+  const guard = useUnsavedChangesGuard({
+    unsaved: unsaved && !guest,
+    saveFailed: saveStatus === "error",
+    saveNow: async () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      return performSave();
+    },
+  });
 
   function pushHistory() {
     history.push({ room, items, coneFields });
@@ -1512,7 +1536,7 @@ export function Floorplan3dEditor({
     setMobilePanel(null);
     if (guest) {
       // "Nieuwe plattegrond" wist ook de lokale kladversie, anders komt de oude bij het volgende bezoek terug.
-      dirtyRef.current = false;
+      markClean();
       try {
         window.localStorage.removeItem(draftStorageKey(null));
       } catch {
@@ -1543,7 +1567,7 @@ export function Floorplan3dEditor({
 
   function handleOpen(id: string) {
     setMobilePanel(null);
-    router.push(`/plattegrond-3d?open=${id}`);
+    guard.request(() => router.push(`/plattegrond-3d?open=${id}`));
   }
 
   // ---------------------------------------------------------------------
@@ -1681,7 +1705,6 @@ export function Floorplan3dEditor({
     setFloorplanName(result.title);
     setSelectedId(null);
     setMobilePanel(null);
-    dirtyRef.current = true;
     scheduleAutosave();
   }
 
@@ -2174,6 +2197,7 @@ export function Floorplan3dEditor({
           />
         )}
         {captureMount}
+        {guard.dialog}
       </div>
     );
   }
@@ -2187,7 +2211,12 @@ export function Floorplan3dEditor({
             <X className="size-4" aria-hidden="true" /> Sluiten
           </Button>
         ) : (
-          <BackButton fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"} fallbackLabel="Terug" className="-ml-2" />
+          <BackButton
+            fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"}
+            fallbackLabel="Terug"
+            className="-ml-2"
+            onBeforeNavigate={() => !guard.interceptBack(activiteitId ? `/activiteit/${activiteitId}` : "/dashboard")}
+          />
         )}
         <Input
           value={floorplanName}
@@ -2290,6 +2319,7 @@ export function Floorplan3dEditor({
         />
       )}
       {captureMount}
+      {guard.dialog}
 
       <Sheet open={activePanel !== null} onOpenChange={(open) => !open && setMobilePanel(null)}>
         <SheetContent side="bottom" className="h-[70vh] overflow-y-auto">
