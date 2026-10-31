@@ -41,7 +41,14 @@ export function isStudentCategory(value: unknown): value is StudentCategoryId {
 }
 
 /** Sporten die (nog) niet in de sportenlijst van de bibliotheek staan, met een nette naam. */
-const EXTRA_SPORT_LABELS: Record<string, string> = { judo: "Judo", tafeltennis: "Tafeltennis" };
+const EXTRA_SPORT_LABELS: Record<string, string> = {
+  judo: "Judo",
+  tafeltennis: "Tafeltennis",
+  football: "American football",
+  rugby: "Rugby",
+  frisbee: "Frisbee",
+  tikspelen: "Tikspelen",
+};
 
 /** Leesbare naam van een sport, ook voor sporten die alleen bij de leerlingen voorkomen. */
 export function studentSportLabel(id: string): string {

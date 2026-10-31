@@ -227,13 +227,75 @@
       "sort": 21
     },
     {
+      "id": "football_rennen",
+      "label": "Football rennen met bal",
+      "sporten": [
+        "football",
+        "rugby"
+      ],
+      "categorie": "spel",
+      "file": "leerling_american_football.glb",
+      "sort": 22
+    },
+    {
+      "id": "football_passen",
+      "label": "Football gooien",
+      "sporten": [
+        "football",
+        "rugby"
+      ],
+      "categorie": "spel",
+      "file": "leerling_american_football_passen.glb",
+      "sort": 23
+    },
+    {
+      "id": "rugby_tackle",
+      "label": "Rugby tackle (2 personen)",
+      "sporten": [
+        "rugby"
+      ],
+      "categorie": "spel",
+      "file": "leerling_rugby_duel.glb",
+      "sort": 24
+    },
+    {
+      "id": "tikspel",
+      "label": "Tikspel aantikken",
+      "sporten": [
+        "tikspelen"
+      ],
+      "categorie": "spel",
+      "file": "leerling_aantikken.glb",
+      "sort": 25
+    },
+    {
+      "id": "frisbee",
+      "label": "Frisbee werpen",
+      "sporten": [
+        "frisbee"
+      ],
+      "categorie": "spel",
+      "file": "leerling_frisbee.glb",
+      "sort": 26
+    },
+    {
+      "id": "honkbal_pitchen",
+      "label": "Honkbal pitchen",
+      "sporten": [
+        "slagspelen"
+      ],
+      "categorie": "spel",
+      "file": "leerling_honkbal_pitcher.glb",
+      "sort": 27
+    },
+    {
       "id": "startblokken",
       "label": "Startblokken",
       "sporten": [
         "atletiek"
       ],
       "file": "leerling_startblokken.glb",
-      "sort": 22,
+      "sort": 28,
       "categorie": "atletiek"
     },
     {
@@ -243,8 +305,58 @@
         "atletiek"
       ],
       "file": "leerling_hoogspringen.glb",
-      "sort": 23,
+      "sort": 29,
       "categorie": "atletiek"
+    },
+    {
+      "id": "discuswerpen",
+      "label": "Discuswerpen",
+      "sporten": [
+        "atletiek"
+      ],
+      "categorie": "atletiek",
+      "file": "leerling_discus.glb",
+      "sort": 30
+    },
+    {
+      "id": "kogelstoten",
+      "label": "Kogelstoten",
+      "sporten": [
+        "atletiek"
+      ],
+      "categorie": "atletiek",
+      "file": "leerling_kogel.glb",
+      "sort": 31
+    },
+    {
+      "id": "speerwerpen",
+      "label": "Speerwerpen",
+      "sporten": [
+        "atletiek"
+      ],
+      "categorie": "atletiek",
+      "file": "leerling_speer.glb",
+      "sort": 32
+    },
+    {
+      "id": "speer_klaarstand",
+      "label": "Speerwerpen klaarstaan",
+      "sporten": [
+        "atletiek"
+      ],
+      "categorie": "atletiek",
+      "file": "leerling_speer_klaarstand.glb",
+      "sort": 33
+    },
+    {
+      "id": "fietsband",
+      "label": "Fietsband slingeren",
+      "sporten": [
+        "atletiek"
+      ],
+      "categorie": "atletiek",
+      "file": "leerling_fietsband.glb",
+      "sort": 34
     },
     {
       "id": "balanceren",
@@ -254,7 +366,7 @@
       ],
       "categorie": "turnen",
       "file": "leerling_balanceren.glb",
-      "sort": 24
+      "sort": 35
     },
     {
       "id": "handstand",
@@ -264,7 +376,7 @@
       ],
       "categorie": "turnen",
       "file": "leerling_handstand.glb",
-      "sort": 25
+      "sort": 36
     },
     {
       "id": "salto",
@@ -274,7 +386,7 @@
       ],
       "categorie": "turnen",
       "file": "leerling_salto.glb",
-      "sort": 26
+      "sort": 37
     },
     {
       "id": "landen",
@@ -284,7 +396,7 @@
       ],
       "categorie": "turnen",
       "file": "leerling_landen.glb",
-      "sort": 27
+      "sort": 38
     },
     {
       "id": "judo",
@@ -294,7 +406,7 @@
       ],
       "categorie": "zelfverdediging",
       "file": "leerling_judo.glb",
-      "sort": 28
+      "sort": 39
     },
     {
       "id": "judo_worp",
@@ -304,7 +416,7 @@
       ],
       "categorie": "zelfverdediging",
       "file": "leerling_judo_worp.glb",
-      "sort": 29
+      "sort": 40
     },
     {
       "id": "judo_partij",
@@ -314,7 +426,7 @@
       ],
       "categorie": "zelfverdediging",
       "file": "leerling_judo_partij.glb",
-      "sort": 30
+      "sort": 41
     },
     {
       "id": "judo_zittend",
@@ -324,7 +436,7 @@
       ],
       "categorie": "zelfverdediging",
       "file": "leerling_judo_zittend.glb",
-      "sort": 31
+      "sort": 42
     }
   ]
 }

@@ -175,6 +175,54 @@
     "bytes": 102332,
     "version": "0ec84117"
   },
+  "football_rennen": {
+    "length_m": 0.909,
+    "width_m": 0.418,
+    "height_m": 1.62,
+    "tris": 6000,
+    "bytes": 117992,
+    "version": "7cca010b"
+  },
+  "football_passen": {
+    "length_m": 1.014,
+    "width_m": 0.3,
+    "height_m": 1.65,
+    "tris": 5998,
+    "bytes": 111768,
+    "version": "84b8334e"
+  },
+  "rugby_tackle": {
+    "length_m": 1.269,
+    "width_m": 0.757,
+    "height_m": 1.55,
+    "tris": 5999,
+    "bytes": 121312,
+    "version": "624ad182"
+  },
+  "tikspel": {
+    "length_m": 0.832,
+    "width_m": 0.537,
+    "height_m": 1.298,
+    "tris": 5999,
+    "bytes": 117064,
+    "version": "88da6ab0"
+  },
+  "frisbee": {
+    "length_m": 1.12,
+    "width_m": 0.3,
+    "height_m": 1.437,
+    "tris": 6000,
+    "bytes": 106592,
+    "version": "347e036f"
+  },
+  "honkbal_pitchen": {
+    "length_m": 0.926,
+    "width_m": 0.3,
+    "height_m": 1.55,
+    "tris": 6000,
+    "bytes": 113924,
+    "version": "727784a5"
+  },
   "startblokken": {
     "length_m": 0.371,
     "width_m": 0.98,
@@ -190,6 +238,46 @@
     "tris": 5998,
     "bytes": 103696,
     "version": "f4cc57be"
+  },
+  "discuswerpen": {
+    "length_m": 0.603,
+    "width_m": 0.546,
+    "height_m": 1.638,
+    "tris": 5997,
+    "bytes": 111684,
+    "version": "a420fca8"
+  },
+  "kogelstoten": {
+    "length_m": 0.659,
+    "width_m": 0.323,
+    "height_m": 1.646,
+    "tris": 5999,
+    "bytes": 111164,
+    "version": "68906487"
+  },
+  "speerwerpen": {
+    "length_m": 0.822,
+    "width_m": 0.504,
+    "height_m": 1.817,
+    "tris": 6000,
+    "bytes": 106172,
+    "version": "f887ab10"
+  },
+  "speer_klaarstand": {
+    "length_m": 0.417,
+    "width_m": 0.3,
+    "height_m": 1.8,
+    "tris": 6000,
+    "bytes": 112212,
+    "version": "0c9805af"
+  },
+  "fietsband": {
+    "length_m": 0.765,
+    "width_m": 0.518,
+    "height_m": 1.68,
+    "tris": 6000,
+    "bytes": 110508,
+    "version": "134de08e"
   },
   "balanceren": {
     "length_m": 0.424,
