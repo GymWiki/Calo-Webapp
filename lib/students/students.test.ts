@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dimsForSlug, dimsOf, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
+import { dimsForSlug, dimsOf, findItemsResting, recomputeStackedYs, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 import {
   DEFAULT_POSE_ID,
   STUDENT_COLORS,
@@ -15,12 +15,14 @@ import {
   isStudentSlug,
   libraryPersonModels,
   poseIdOfSlug,
+  poseOfSlug,
   studentLibraryModel,
   studentModels,
   studentScale,
   studentSlug,
   upgradeStudentItem,
 } from "@/lib/students/catalog";
+import { resolvePlacement } from "@/components/canvas-3d/resolvePlacement";
 import { SHIRT_FRAGMENT } from "@/components/students/student-shader";
 import { buildEnvelope, stringifyEnvelope } from "@/lib/plattegrond/format";
 import { parsePlattegrondJson } from "@/lib/plattegrond/validate";
@@ -223,5 +225,67 @@ describe("beweegcategorieën en zoeken", () => {
     assert.equal(studentSportLabel("judo"), "Judo");
     assert.equal(studentSportLabel("basketbal"), "Basketbal");
     assert.deepEqual(studentSportsOf(filterPoses(STUDENT_POSES, { categorie: "zelfverdediging" })), ["judo"]);
+  });
+});
+
+describe("zittende leerling op een bank", () => {
+  // Turnbank van 0,32 m hoog; de leerling-poses komen uit de echte catalogus (zitvlak van `zittend` = 0,42 m bij 1,8 m).
+  const BANK = { length_m: 3.6, width_m: 0.27, height_m: 0.32, stackable: true };
+  const benchLookup: DimsLookup = (slug) => (slug === "turnbank" ? BANK : lookup(slug));
+  const bank = { id: "b", slug: "turnbank", x: 0, y: 0, z: 0, rot_y_deg: 0 };
+  const zitter = (size?: "klein" | "middel" | "groot") => ({ id: "s", slug: studentSlug("zittend"), x: 0, y: 0, z: 0, rot_y_deg: 0, ...(size ? { size } : {}) });
+
+  it("de pose zittend heeft een zitvlak, staande poses niet; het zitvlak schaalt mee met de grootte", () => {
+    assert.ok((poseOfSlug(studentSlug("zittend"))?.seat_m ?? 0) > 0.3);
+    assert.equal(poseOfSlug(studentSlug("standaard"))?.seat_m, undefined);
+    const klein = dimsOf(zitter("klein"), benchLookup).seat_m!;
+    const groot = dimsOf(zitter("groot"), benchLookup).seat_m!;
+    assert.ok(klein < groot);
+    assert.equal(dimsOf({ ...zitter(), slug: studentSlug("standaard") }, benchLookup).seat_m, undefined);
+  });
+
+  it("op een bank rust het zitvlak op de bovenkant: de voeten staan op of vlak boven de vloer, niet op de bank", () => {
+    const [, op] = recomputeStackedYs([bank, zitter()], benchLookup);
+    assert.ok(op.y < 0.05, `y = ${op.y}: de voeten horen bij de vloer te blijven`);
+    // Een lage leerling (klein) op dezelfde bank: de voeten hangen hooguit een paar cm boven de vloer, zitvlak op de bank.
+    const [, klein] = recomputeStackedYs([bank, zitter("klein")], benchLookup);
+    const seat = dimsOf(zitter("klein"), benchLookup).seat_m!;
+    assert.ok(Math.abs(klein.y + seat - BANK.height_m) < 1e-9 || klein.y === 0);
+  });
+
+  it("een staande leerling staat nog steeds met zijn voeten op de bank", () => {
+    const staand = { ...zitter(), slug: studentSlug("standaard") };
+    const [, op] = recomputeStackedYs([bank, staand], benchLookup);
+    assert.ok(Math.abs(op.y - BANK.height_m) < 1e-9);
+  });
+
+  it("een hoge ondergrond (stapel banken): het zitvlak komt op de bovenkant, de leerling zit dus hoger", () => {
+    const stapel = { ...bank, slug: "stapel" };
+    const hoog = (slug: string) => (slug === "stapel" ? { ...BANK, height_m: 1.28 } : benchLookup(slug));
+    const [, op] = recomputeStackedYs([stapel, zitter()], hoog);
+    const seat = dimsOf(zitter(), hoog).seat_m!;
+    assert.ok(Math.abs(op.y - (1.28 - seat)) < 1e-9);
+  });
+
+  it("de zittende leerling reist mee als de bank verplaatst wordt", () => {
+    const items = recomputeStackedYs([bank, zitter("klein")], benchLookup);
+    assert.ok(findItemsResting("b", items, benchLookup).includes("s"));
+  });
+
+  it("slepen of neerzetten op een bank geeft dezelfde hoogte als het herberekenen bij het laden", () => {
+    const result = resolvePlacement({
+      pointer: { x: 0.1, z: 0 },
+      dragged: { slug: studentSlug("zittend"), rot_y_deg: 0, size: "groot" },
+      others: [bank],
+      room: { width_m: 20, length_m: 20 },
+      grid: 0,
+      lookup: benchLookup,
+    });
+    assert.equal(result.mode, "stack");
+    const [, geladen] = recomputeStackedYs([bank, { ...zitter("groot"), x: result.x, z: result.z }], benchLookup);
+    assert.ok(Math.abs(result.y - geladen.y) < 1e-9, `${result.y} ≠ ${geladen.y}`);
+    // Staand op dezelfde bank staat hij hoger (voeten op de bank): zittend zit dus lager.
+    const staand = resolvePlacement({ pointer: { x: 0.1, z: 0 }, dragged: { slug: studentSlug("standaard"), rot_y_deg: 0, size: "groot" }, others: [bank], room: { width_m: 20, length_m: 20 }, grid: 0, lookup: benchLookup });
+    assert.ok(result.y < staand.y);
   });
 });

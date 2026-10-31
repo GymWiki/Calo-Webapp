@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { dimsLookupFromModels } from "@/components/canvas-3d/floorplan3d-geometry";
+import { dimsLookupFromModels, recomputeStackedYs } from "@/components/canvas-3d/floorplan3d-geometry";
 import { computeFraming, framingFill, initialViewFor } from "@/components/plattegrond/viewer-framing";
 import { useViewerGestures, type PointerKind } from "@/components/plattegrond/useViewerGestures";
 import { CONTROLS_RESERVE_PX, azimuthDegOf, currentPolarDeg, polarDegOf, type ViewState } from "@/components/plattegrond/viewer-camera";
@@ -177,12 +177,14 @@ function ViewerBody({
   }, [resolved.models]);
 
   const room = resolved.data.room;
-  const items = resolved.data.items;
   const fields = resolved.data.coneFields;
 
   // Zoom op de inhoud: de begin-stand (en wat "Reset" herstelt) komt uit wat er echt staat, niet uit de hele zaal.
   // `room.view` ("auto" | "3d" | "top") is per plattegrond in te stellen in de editor.
   const lookup = useMemo(() => dimsLookupFromModels(resolved.models), [resolved.models]);
+  // Hoogtes opnieuw uit de stapeling berekenen, net als de editor bij het openen: een opgeslagen `y` wordt nooit blind vertrouwd
+  // (bv. een zittende leerling op een bank rust met zijn zitvlak, niet met zijn voeten, op de bank).
+  const items = useMemo(() => recomputeStackedYs(resolved.data.items, lookup), [resolved.data.items, lookup]);
   const initialView = useMemo(
     () => initialViewFor({ items, fields, room, lookup, aspect: 1.7, mode: room.view }),
     [items, fields, room, lookup],

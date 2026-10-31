@@ -7,7 +7,7 @@
 // houden.
 
 import type { MaterialModel } from "@/types/materialModel";
-import { isStudentSlug, studentScale } from "@/lib/students/catalog";
+import { isStudentSlug, poseOfSlug, studentScale } from "@/lib/students/catalog";
 import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import { EPS_M, OVERLAP_IGNORE_M } from "@/components/canvas-3d/placement-config";
 import { COLLISION_OVERRIDES } from "@/components/canvas-3d/collision-overrides";
@@ -53,6 +53,11 @@ export type ItemDims = {
   base_m?: number;
   yaw_deg?: number;
   parts?: ShapePart[];
+  /**
+   * Leerling die op iets zit (pose met een zitvlak): hoogte van het zitvlak boven de pivot (de voeten), al geschaald met de grootte.
+   * Op een bank rust zo'n item met zijn zitvlak op de bovenkant; zonder `seat_m` rust het met zijn onderkant (`base_m`).
+   */
+  seat_m?: number;
 };
 
 /** De volledige collision-vorm van een asset (ontbrekende velden = gecentreerde box op de vloer). */
@@ -119,13 +124,21 @@ function scaleDims(dims: ItemDims, factor: number): ItemDims {
     ...(dims.offset_x !== undefined ? { offset_x: dims.offset_x * factor } : {}),
     ...(dims.offset_z !== undefined ? { offset_z: dims.offset_z * factor } : {}),
     ...(dims.base_m !== undefined ? { base_m: dims.base_m * factor } : {}),
+    ...(dims.seat_m !== undefined ? { seat_m: dims.seat_m * factor } : {}),
   };
+}
+
+/** Hoogte (boven de pivot) waarmee een item op een ondergrond rust: het zitvlak van een zittende leerling, anders de onderkant van de vorm. */
+export function supportOffsetOf(dims: ItemDims): number {
+  return dims.seat_m ?? dims.base_m ?? 0;
 }
 
 /** Maten van een slug, met de grootte van een leerling (`size`) verrekend; andere items negeren `size`. */
 export function dimsForSlug(slug: string, size: Floorplan3dItem["size"], lookup: DimsLookup): ItemDims | undefined {
   const base = lookup(slug);
-  return base && isStudentSlug(slug) ? scaleDims(base, studentScale(size)) : base;
+  if (!base || !isStudentSlug(slug)) return base;
+  const seat = poseOfSlug(slug)?.seat_m;
+  return scaleDims(seat !== undefined ? { ...base, seat_m: seat } : base, studentScale(size));
 }
 
 export function dimsOf(item: Floorplan3dItem, lookup: DimsLookup): ItemDims {
@@ -454,8 +467,9 @@ export function findItemsResting(baseId: string, items: Floorplan3dItem[], looku
     (item) =>
       item.id !== baseId &&
       !itemIsTilted(item) &&
-      // Een item rust op de bovenkant van de basis als zijn ONDERKANT daar ligt.
-      Math.abs(itemVerticalRange(item, lookup)[0] - baseTop) < EPS_M &&
+      // Een item rust op de bovenkant van de basis als zijn ONDERKANT daar ligt (een zittende leerling: zijn zitvlak).
+      (Math.abs(itemVerticalRange(item, lookup)[0] - baseTop) < EPS_M ||
+        (dimsOf(item, lookup).seat_m !== undefined && Math.abs(item.y + supportOffsetOf(dimsOf(item, lookup)) - baseTop) < EPS_M)) &&
       polygonsOverlap(basePolygons, itemPolygons(item, lookup)),
   );
 
@@ -513,7 +527,7 @@ export function recomputeStackedYs(items: Floorplan3dItem[], lookup: DimsLookup)
       if (!dimsOf(base, lookup).stackable || itemIsTilted(base)) continue;
       if (!polygonsOverlap(polygons, itemPolygons(base, lookup))) continue;
       // Onderkant van dit item op de bovenkant van de basis.
-      y = Math.max(y, itemVerticalRange(base, lookup)[1] - shape.base_m);
+      y = Math.max(y, itemVerticalRange(base, lookup)[1] - supportOffsetOf(dimsOf(item, lookup)));
     }
     placed.push({ ...item, y: y + lift });
   }

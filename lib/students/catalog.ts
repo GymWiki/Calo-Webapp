@@ -41,7 +41,14 @@ export function isStudentCategory(value: unknown): value is StudentCategoryId {
 }
 
 /** Sporten die (nog) niet in de sportenlijst van de bibliotheek staan, met een nette naam. */
-const EXTRA_SPORT_LABELS: Record<string, string> = { judo: "Judo", tafeltennis: "Tafeltennis" };
+const EXTRA_SPORT_LABELS: Record<string, string> = {
+  judo: "Judo",
+  tafeltennis: "Tafeltennis",
+  football: "American football",
+  rugby: "Rugby",
+  frisbee: "Frisbee",
+  tikspelen: "Tikspelen",
+};
 
 /** Leesbare naam van een sport, ook voor sporten die alleen bij de leerlingen voorkomen. */
 export function studentSportLabel(id: string): string {
@@ -77,6 +84,11 @@ export type StudentPose = {
   sporten: string[];
   /** Beweegcategorie (filter in het leerlingmenu). */
   categorie: StudentCategoryId;
+  /**
+   * Alleen bij een pose waarin de leerling op iets zit: hoogte (m, bij het model van 1,8 m) van het zitvlak boven de voeten. Zo'n
+   * leerling rust met zijn zitvlak op de bovenkant van een bank, niet met zijn voeten (zie `seat_m` in floorplan3d-geometry.ts).
+   */
+  seat_m?: number;
   /** Slug van het plattegrond-item (leerling_pose_<id>). */
   slug: string;
   length_m: number;
@@ -86,7 +98,7 @@ export type StudentPose = {
   sort: number;
 };
 
-type PoseConfig = { id: string; label: string; sporten: string[]; categorie?: string; sort?: number };
+type PoseConfig = { id: string; label: string; sporten: string[]; categorie?: string; seat_m?: number; sort?: number };
 type PoseDims = { length_m: number; width_m: number; height_m: number; /** Inhoudshash van het verwerkte GLB (process:students): ?v= achter de URL, zodat een gewijzigde pose direct overal laadt. */ version?: string };
 
 const dimsById = generated as Record<string, PoseDims | undefined>;
@@ -99,6 +111,7 @@ export const STUDENT_POSES: readonly StudentPose[] = (posesConfig.poses as PoseC
     label: pose.label,
     sporten: pose.sporten,
     categorie: isStudentCategory(pose.categorie) ? pose.categorie : DEFAULT_STUDENT_CATEGORY,
+    ...(typeof pose.seat_m === "number" && pose.seat_m > 0 ? { seat_m: pose.seat_m } : {}),
     slug: studentSlug(pose.id),
     ...(dimsById[pose.id] as PoseDims),
     sort: pose.sort ?? 100,

@@ -49,6 +49,20 @@ async function placeMat(page: Page) {
   await mat.click();
 }
 
+/** De poseskeuze is een uitklapbare lijst (standaard dicht): klap hem open als hij dicht staat. */
+async function openPoses(page: Page) {
+  const knop = page.getByTestId("poseskeuze-knop");
+  if ((await knop.getAttribute("aria-expanded")) !== "true") await knop.click();
+  await expect(knop).toHaveAttribute("aria-expanded", "true");
+}
+
+/** Kies een pose: open de lijst als dat nodig is en klik de pose; daarna klapt de lijst vanzelf in. */
+async function kiesPose(page: Page, id: string) {
+  await openPoses(page);
+  await page.getByTestId(`pose-${id}`).click();
+  await expect(page.getByTestId("poseskeuze-knop")).toHaveAttribute("aria-expanded", "false");
+}
+
 test("bibliotheek toont één Leerling-kaartje, geen 19 losse poses", async ({ page }) => {
   await start(page);
   if (!isDesktop(page)) await page.getByTestId("toolbar-bibliotheek").click();
@@ -67,11 +81,16 @@ test("leerling plaatsen, pose/kleur/grootte kiezen, sluiten en heropenen geeft d
   expect(placed.items[0].slug).toBe("leerling_pose_standaard");
   expect(placed.items[0].color).toBeUndefined();
 
+  // Standaard dicht: alleen de huidige pose staat in de knop; open je de lijst, dan is hij daar aangevinkt.
+  await expect(page.getByTestId("poseskeuze-knop")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("huidige-pose")).toHaveText("Standaard");
+  await expect(page.getByTestId("pose-hockey")).toBeHidden();
+  await openPoses(page);
   await expect(page.getByTestId("pose-standaard")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("pose-standaard-badge")).toBeVisible();
   // De standaard leerling is de eerste kaart in het poseraster.
   expect(await page.locator("[data-testid^=pose-]:not([data-testid$=badge])").first().getAttribute("data-testid")).toBe("pose-standaard");
-  await page.getByTestId("pose-hockey").click();
+  await kiesPose(page, "hockey");
   await page.getByTestId("kleur-rood").click();
   await page.getByTestId("grootte-groot").click();
   const edited = await readDraft(page, (d) => d.items[0].slug === "leerling_pose_hockey" && d.items[0].color === "#dc2626" && d.items[0].size === "groot");
@@ -84,7 +103,8 @@ test("leerling plaatsen, pose/kleur/grootte kiezen, sluiten en heropenen geeft d
   await page.getByTestId("kleur-standaard").click();
   await readDraft(page, (d) => d.items[0].size === undefined && d.items[0].color === undefined);
 
-  // Sportfilter en zoekbalk.
+  // Sportfilter en zoekbalk (in de uitgeklapte lijst).
+  await openPoses(page);
   await page.getByLabel("Sport", { exact: true }).selectOption("basketbal");
   await expect(page.getByTestId("pose-basketbal_dribbelen")).toBeVisible();
   await expect(page.getByTestId("pose-hockey")).toHaveCount(0);
@@ -115,16 +135,17 @@ test("leerling plaatsen, pose/kleur/grootte kiezen, sluiten en heropenen geeft d
   await page.getByTestId("filters-wissen").click();
 
   await page.getByTestId("kleur-blauw").click();
-  await page.getByTestId("pose-hardlopen").click();
+  await kiesPose(page, "hardlopen");
   await readDraft(page, (d) => d.items[0].slug === "leerling_pose_hardlopen" && d.items[0].color === "#2563eb");
   // Terug naar de standaard leerling: de kleur blijft staan.
-  await page.getByTestId("pose-standaard").click();
+  await kiesPose(page, "standaard");
   await readDraft(page, (d) => d.items[0].slug === "leerling_pose_standaard" && d.items[0].color === "#2563eb");
-  await page.getByTestId("pose-juichen").click();
+  await kiesPose(page, "juichen");
   await readDraft(page, (d) => d.items[0].slug === "leerling_pose_juichen" && d.items[0].color === "#2563eb");
 
   if (isPhone(page)) {
     // De kaartjes zijn minstens 44 px hoog en de pagina scrolt niet zijwaarts.
+    await openPoses(page);
     const box = await page.getByTestId("pose-hockey").boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(44);
     await expectNoHorizontalOverflow(page);
@@ -153,7 +174,7 @@ test.describe("kopiëren en plakken (desktop)", () => {
   test("Ctrl+C / Ctrl+V op één object: kopie met nieuw id en alle eigenschappen, één undo-stap", async ({ page }) => {
     await start(page);
     await placeStudent(page);
-    await page.getByTestId("pose-verdedigen").click();
+    await kiesPose(page, "verdedigen");
     await page.getByTestId("kleur-geel").click();
     await page.getByTestId("grootte-klein").click();
     await readDraft(page, (d) => d.items[0].color === "#facc15" && d.items[0].size === "klein");
