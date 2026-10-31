@@ -23,21 +23,13 @@
     "bytes": 105580,
     "version": "297eaaf8"
   },
-  "startblokken": {
-    "length_m": 0.371,
-    "width_m": 0.98,
-    "height_m": 0.96,
+  "zittend": {
+    "length_m": 0.474,
+    "width_m": 0.441,
+    "height_m": 1.35,
     "tris": 5996,
-    "bytes": 118288,
-    "version": "145cf1fa"
-  },
-  "hoogspringen": {
-    "length_m": 0.955,
-    "width_m": 0.538,
-    "height_m": 1.139,
-    "tris": 5998,
-    "bytes": 103696,
-    "version": "f4cc57be"
+    "bytes": 107996,
+    "version": "06330179"
   },
   "basketbal_dribbelen": {
     "length_m": 0.612,
@@ -150,5 +142,117 @@
     "tris": 5998,
     "bytes": 106764,
     "version": "59409e97"
+  },
+  "handbal": {
+    "length_m": 0.734,
+    "width_m": 0.326,
+    "height_m": 1.74,
+    "tris": 5999,
+    "bytes": 110664,
+    "version": "9b8bfeef"
+  },
+  "korfbal": {
+    "length_m": 0.47,
+    "width_m": 0.519,
+    "height_m": 1.65,
+    "tris": 6000,
+    "bytes": 107148,
+    "version": "d4c4ec97"
+  },
+  "basketbal_schot": {
+    "length_m": 0.414,
+    "width_m": 0.3,
+    "height_m": 1.899,
+    "tris": 5997,
+    "bytes": 101264,
+    "version": "7f2b0f7c"
+  },
+  "tafeltennis": {
+    "length_m": 0.666,
+    "width_m": 0.323,
+    "height_m": 1.619,
+    "tris": 6000,
+    "bytes": 102332,
+    "version": "0ec84117"
+  },
+  "startblokken": {
+    "length_m": 0.371,
+    "width_m": 0.98,
+    "height_m": 0.96,
+    "tris": 5996,
+    "bytes": 118288,
+    "version": "145cf1fa"
+  },
+  "hoogspringen": {
+    "length_m": 0.955,
+    "width_m": 0.538,
+    "height_m": 1.139,
+    "tris": 5998,
+    "bytes": 103696,
+    "version": "f4cc57be"
+  },
+  "balanceren": {
+    "length_m": 0.424,
+    "width_m": 0.3,
+    "height_m": 1.8,
+    "tris": 6000,
+    "bytes": 106788,
+    "version": "450e160d"
+  },
+  "handstand": {
+    "length_m": 0.372,
+    "width_m": 0.3,
+    "height_m": 1.98,
+    "tris": 6000,
+    "bytes": 104512,
+    "version": "d4cc5ba9"
+  },
+  "salto": {
+    "length_m": 0.68,
+    "width_m": 0.332,
+    "height_m": 0.93,
+    "tris": 6000,
+    "bytes": 122156,
+    "version": "29606ca2"
+  },
+  "landen": {
+    "length_m": 0.461,
+    "width_m": 0.306,
+    "height_m": 1.54,
+    "tris": 5998,
+    "bytes": 111148,
+    "version": "2d9596e0"
+  },
+  "judo": {
+    "length_m": 0.485,
+    "width_m": 0.387,
+    "height_m": 1.647,
+    "tris": 5998,
+    "bytes": 102080,
+    "version": "eb27d731"
+  },
+  "judo_worp": {
+    "length_m": 0.532,
+    "width_m": 0.361,
+    "height_m": 1.638,
+    "tris": 6000,
+    "bytes": 105812,
+    "version": "4d12aec4"
+  },
+  "judo_partij": {
+    "length_m": 0.931,
+    "width_m": 0.447,
+    "height_m": 1.578,
+    "tris": 6000,
+    "bytes": 118384,
+    "version": "e0d4fde2"
+  },
+  "judo_zittend": {
+    "length_m": 0.475,
+    "width_m": 0.323,
+    "height_m": 1.02,
+    "tris": 6000,
+    "bytes": 111928,
+    "version": "03674a28"
   }
 }

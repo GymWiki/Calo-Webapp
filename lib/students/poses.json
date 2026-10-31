@@ -1,24 +1,329 @@
 {
-  "_comment": "Catalogus van leerling-poses. Nieuwe pose toevoegen: GLB in de bronmap zetten, hier een regel toevoegen en `npm run process:students` draaien (zie docs/students.md). Geen codewijziging nodig.",
+  "_comment": "Catalogus van leerling-poses. Nieuwe pose toevoegen: GLB in de bronmap zetten, hier een regel toevoegen (id, label, sporten, categorie, file) en `npm run process:students` draaien (zie docs/students.md). Categorieën: standaard, spel, atletiek, turnen, zelfverdediging, zwemmen, klimmen (lib/students/catalog.ts). Geen codewijziging nodig.",
   "poses": [
-    { "id": "standaard", "label": "Standaard", "sporten": ["algemeen"], "file": "leerling.glb", "sort": 0 },
-    { "id": "hardlopen", "label": "Hardlopen", "sporten": ["atletiek", "algemeen"], "file": "leerling_hardlopen.glb", "sort": 2 },
-    { "id": "juichen", "label": "Juichen", "sporten": ["algemeen"], "file": "leerling_juichen.glb", "sort": 3 },
-    { "id": "startblokken", "label": "Startblokken", "sporten": ["atletiek"], "file": "leerling_startblokken.glb", "sort": 4 },
-    { "id": "hoogspringen", "label": "Hoogspringen", "sporten": ["atletiek"], "file": "leerling_hoogspringen.glb", "sort": 5 },
-    { "id": "basketbal_dribbelen", "label": "Basketbal dribbelen", "sporten": ["basketbal"], "file": "leerling_basketbal.glb", "sort": 10 },
-    { "id": "volleybal_onderhands", "label": "Volleybal onderhands", "sporten": ["volleybal"], "file": "leerling_volleybal.glb", "sort": 11 },
-    { "id": "volleybal_bovenhands", "label": "Volleybal bovenhands", "sporten": ["volleybal"], "file": "leerling_volleybal_bovenhands.glb", "sort": 12 },
-    { "id": "badminton_slaan", "label": "Badminton slaan", "sporten": ["badminton", "racketsport"], "file": "leerling_badminton.glb", "sort": 13 },
-    { "id": "pickleball_klaar", "label": "Pickleball klaarstaan", "sporten": ["racketsport"], "file": "leerling_pickleball_klaarstand.glb", "sort": 14 },
-    { "id": "pickleball_slaan", "label": "Pickleball slaan", "sporten": ["racketsport"], "file": "leerling_pickleball.glb", "sort": 15 },
-    { "id": "hockey", "label": "Hockey", "sporten": ["hockey"], "file": "leerling_hockey.glb", "sort": 16 },
-    { "id": "hockey_sprint", "label": "Hockey sprinten", "sporten": ["hockey"], "file": "leerling_hockey_sprint.glb", "sort": 17 },
-    { "id": "floorball", "label": "Floorball", "sporten": ["floorball"], "file": "leerling_floorball.glb", "sort": 18 },
-    { "id": "floorball_sprint", "label": "Floorball sprinten", "sporten": ["floorball"], "file": "leerling_floorball_sprint.glb", "sort": 19 },
-    { "id": "honkbal_slaan", "label": "Honkbal slaan", "sporten": ["slagspelen"], "file": "leerling_honkbal.glb", "sort": 20 },
-    { "id": "honkbal_vangen", "label": "Honkbal vangen", "sporten": ["slagspelen"], "file": "leerling_honkbal_vangen.glb", "sort": 21 },
-    { "id": "trefbal_gooien", "label": "Trefbal gooien", "sporten": ["trefspelen"], "file": "leerling_trefbal.glb", "sort": 22 },
-    { "id": "verdedigen", "label": "Verdedigen", "sporten": ["trefspelen", "algemeen"], "file": "leerling_verdedigen.glb", "sort": 23 }
+    {
+      "id": "standaard",
+      "label": "Standaard",
+      "sporten": [
+        "algemeen"
+      ],
+      "file": "leerling.glb",
+      "sort": 0,
+      "categorie": "standaard"
+    },
+    {
+      "id": "hardlopen",
+      "label": "Hardlopen",
+      "sporten": [
+        "atletiek",
+        "algemeen"
+      ],
+      "file": "leerling_hardlopen.glb",
+      "sort": 1,
+      "categorie": "standaard"
+    },
+    {
+      "id": "juichen",
+      "label": "Juichen",
+      "sporten": [
+        "algemeen"
+      ],
+      "file": "leerling_juichen.glb",
+      "sort": 2,
+      "categorie": "standaard"
+    },
+    {
+      "id": "zittend",
+      "label": "Zittend",
+      "sporten": [
+        "algemeen"
+      ],
+      "categorie": "standaard",
+      "file": "leerling_zittend.glb",
+      "sort": 3
+    },
+    {
+      "id": "basketbal_dribbelen",
+      "label": "Basketbal dribbelen",
+      "sporten": [
+        "basketbal"
+      ],
+      "file": "leerling_basketbal.glb",
+      "sort": 4,
+      "categorie": "spel"
+    },
+    {
+      "id": "volleybal_onderhands",
+      "label": "Volleybal onderhands",
+      "sporten": [
+        "volleybal"
+      ],
+      "file": "leerling_volleybal.glb",
+      "sort": 5,
+      "categorie": "spel"
+    },
+    {
+      "id": "volleybal_bovenhands",
+      "label": "Volleybal bovenhands",
+      "sporten": [
+        "volleybal"
+      ],
+      "file": "leerling_volleybal_bovenhands.glb",
+      "sort": 6,
+      "categorie": "spel"
+    },
+    {
+      "id": "badminton_slaan",
+      "label": "Badminton slaan",
+      "sporten": [
+        "badminton",
+        "racketsport"
+      ],
+      "file": "leerling_badminton.glb",
+      "sort": 7,
+      "categorie": "spel"
+    },
+    {
+      "id": "pickleball_klaar",
+      "label": "Pickleball klaarstaan",
+      "sporten": [
+        "racketsport"
+      ],
+      "file": "leerling_pickleball_klaarstand.glb",
+      "sort": 8,
+      "categorie": "spel"
+    },
+    {
+      "id": "pickleball_slaan",
+      "label": "Pickleball slaan",
+      "sporten": [
+        "racketsport"
+      ],
+      "file": "leerling_pickleball.glb",
+      "sort": 9,
+      "categorie": "spel"
+    },
+    {
+      "id": "hockey",
+      "label": "Hockey",
+      "sporten": [
+        "hockey"
+      ],
+      "file": "leerling_hockey.glb",
+      "sort": 10,
+      "categorie": "spel"
+    },
+    {
+      "id": "hockey_sprint",
+      "label": "Hockey sprinten",
+      "sporten": [
+        "hockey"
+      ],
+      "file": "leerling_hockey_sprint.glb",
+      "sort": 11,
+      "categorie": "spel"
+    },
+    {
+      "id": "floorball",
+      "label": "Floorball",
+      "sporten": [
+        "floorball"
+      ],
+      "file": "leerling_floorball.glb",
+      "sort": 12,
+      "categorie": "spel"
+    },
+    {
+      "id": "floorball_sprint",
+      "label": "Floorball sprinten",
+      "sporten": [
+        "floorball"
+      ],
+      "file": "leerling_floorball_sprint.glb",
+      "sort": 13,
+      "categorie": "spel"
+    },
+    {
+      "id": "honkbal_slaan",
+      "label": "Honkbal slaan",
+      "sporten": [
+        "slagspelen"
+      ],
+      "file": "leerling_honkbal.glb",
+      "sort": 14,
+      "categorie": "spel"
+    },
+    {
+      "id": "honkbal_vangen",
+      "label": "Honkbal vangen",
+      "sporten": [
+        "slagspelen"
+      ],
+      "file": "leerling_honkbal_vangen.glb",
+      "sort": 15,
+      "categorie": "spel"
+    },
+    {
+      "id": "trefbal_gooien",
+      "label": "Trefbal gooien",
+      "sporten": [
+        "trefspelen"
+      ],
+      "file": "leerling_trefbal.glb",
+      "sort": 16,
+      "categorie": "spel"
+    },
+    {
+      "id": "verdedigen",
+      "label": "Verdedigen",
+      "sporten": [
+        "trefspelen",
+        "algemeen"
+      ],
+      "file": "leerling_verdedigen.glb",
+      "sort": 17,
+      "categorie": "spel"
+    },
+    {
+      "id": "handbal",
+      "label": "Handbal",
+      "sporten": [
+        "handbal"
+      ],
+      "categorie": "spel",
+      "file": "leerling_handbal.glb",
+      "sort": 18
+    },
+    {
+      "id": "korfbal",
+      "label": "Korfbal bal vangen",
+      "sporten": [
+        "korfbal"
+      ],
+      "categorie": "spel",
+      "file": "leerling_korfbal.glb",
+      "sort": 19
+    },
+    {
+      "id": "basketbal_schot",
+      "label": "Basketbal schieten",
+      "sporten": [
+        "basketbal"
+      ],
+      "categorie": "spel",
+      "file": "leerling_basketbal_schot.glb",
+      "sort": 20
+    },
+    {
+      "id": "tafeltennis",
+      "label": "Tafeltennis",
+      "sporten": [
+        "tafeltennis",
+        "racketsport"
+      ],
+      "categorie": "spel",
+      "file": "leerling_tafeltennis.glb",
+      "sort": 21
+    },
+    {
+      "id": "startblokken",
+      "label": "Startblokken",
+      "sporten": [
+        "atletiek"
+      ],
+      "file": "leerling_startblokken.glb",
+      "sort": 22,
+      "categorie": "atletiek"
+    },
+    {
+      "id": "hoogspringen",
+      "label": "Hoogspringen",
+      "sporten": [
+        "atletiek"
+      ],
+      "file": "leerling_hoogspringen.glb",
+      "sort": 23,
+      "categorie": "atletiek"
+    },
+    {
+      "id": "balanceren",
+      "label": "Balanceren",
+      "sporten": [
+        "turnen"
+      ],
+      "categorie": "turnen",
+      "file": "leerling_balanceren.glb",
+      "sort": 24
+    },
+    {
+      "id": "handstand",
+      "label": "Handstand",
+      "sporten": [
+        "turnen"
+      ],
+      "categorie": "turnen",
+      "file": "leerling_handstand.glb",
+      "sort": 25
+    },
+    {
+      "id": "salto",
+      "label": "Salto",
+      "sporten": [
+        "turnen"
+      ],
+      "categorie": "turnen",
+      "file": "leerling_salto.glb",
+      "sort": 26
+    },
+    {
+      "id": "landen",
+      "label": "Landen",
+      "sporten": [
+        "turnen"
+      ],
+      "categorie": "turnen",
+      "file": "leerling_landen.glb",
+      "sort": 27
+    },
+    {
+      "id": "judo",
+      "label": "Judo klaarstaan",
+      "sporten": [
+        "judo"
+      ],
+      "categorie": "zelfverdediging",
+      "file": "leerling_judo.glb",
+      "sort": 28
+    },
+    {
+      "id": "judo_worp",
+      "label": "Judo worp",
+      "sporten": [
+        "judo"
+      ],
+      "categorie": "zelfverdediging",
+      "file": "leerling_judo_worp.glb",
+      "sort": 29
+    },
+    {
+      "id": "judo_partij",
+      "label": "Judo partij (2 personen)",
+      "sporten": [
+        "judo"
+      ],
+      "categorie": "zelfverdediging",
+      "file": "leerling_judo_partij.glb",
+      "sort": 30
+    },
+    {
+      "id": "judo_zittend",
+      "label": "Judo zittend",
+      "sporten": [
+        "judo"
+      ],
+      "categorie": "zelfverdediging",
+      "file": "leerling_judo_zittend.glb",
+      "sort": 31
+    }
   ]
 }
