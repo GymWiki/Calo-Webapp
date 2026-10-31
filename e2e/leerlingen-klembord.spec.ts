@@ -85,14 +85,34 @@ test("leerling plaatsen, pose/kleur/grootte kiezen, sluiten en heropenen geeft d
   await readDraft(page, (d) => d.items[0].size === undefined && d.items[0].color === undefined);
 
   // Sportfilter en zoekbalk.
-  await page.getByRole("group", { name: "Filter op sport" }).getByRole("button", { name: "Basketbal" }).click();
+  await page.getByLabel("Sport", { exact: true }).selectOption("basketbal");
   await expect(page.getByTestId("pose-basketbal_dribbelen")).toBeVisible();
   await expect(page.getByTestId("pose-hockey")).toHaveCount(0);
-  await page.getByRole("group", { name: "Filter op sport" }).getByRole("button", { name: "Alle" }).click();
+  await page.getByLabel("Sport", { exact: true }).selectOption("");
   await page.getByLabel("Zoek pose").fill("volleybal");
   await expect(page.getByTestId("pose-volleybal_bovenhands")).toBeVisible();
   await expect(page.getByTestId("pose-hockey")).toHaveCount(0);
   await page.getByLabel("Zoek pose").fill("");
+
+  // Beweegcategorie: kiezen toont alleen die poses; de sportchips volgen de categorie; filters wissen zet alles terug.
+  await page.getByTestId("categorie-zelfverdediging").click();
+  await expect(page.getByTestId("pose-judo_worp")).toBeVisible();
+  await expect(page.getByTestId("pose-hockey")).toHaveCount(0);
+  await expect(page.getByTestId("categorie-zelfverdediging")).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("categorie-turnen").click();
+  await expect(page.getByTestId("pose-salto")).toBeVisible();
+  await expect(page.getByTestId("pose-judo_worp")).toHaveCount(0);
+  await page.getByTestId("categorie-alle").click();
+  await page.getByLabel("Zoek pose").fill("judo");
+  await expect(page.getByTestId("pose-judo_partij")).toBeVisible();
+  await expect(page.getByTestId("pose-salto")).toHaveCount(0);
+  await page.getByTestId("filters-wissen").click();
+  await expect(page.getByLabel("Zoek pose")).toHaveValue("");
+  await expect(page.getByTestId("pose-hockey")).toBeVisible();
+  // Een pose die niet bestaat: duidelijke melding in plaats van een leeg paneel.
+  await page.getByLabel("Zoek pose").fill("bestaat-niet");
+  await expect(page.getByText("Geen poses gevonden")).toBeVisible();
+  await page.getByTestId("filters-wissen").click();
 
   await page.getByTestId("kleur-blauw").click();
   await page.getByTestId("pose-hardlopen").click();

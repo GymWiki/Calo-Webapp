@@ -1,19 +1,13 @@
 "use client";
 
-import { Search, X } from "lucide-react";
-import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import { sportLabel } from "@/lib/constants/libraryTaxonomy";
+import { PosePicker } from "@/components/students/PosePicker";
 import {
-  DEFAULT_POSE_ID,
   DEFAULT_STUDENT_SIZE,
   STUDENT_COLORS,
   STUDENT_COLOR_PATTERN,
-  STUDENT_POSES,
   STUDENT_SIZES,
-  filterPoses,
-  studentSportIds,
   type StudentSize,
 } from "@/lib/students/catalog";
 import { cn } from "@/lib/utils";
@@ -41,11 +35,7 @@ export function StudentPanel({
   disabled: boolean;
   onChange: (patch: StudentPatch) => void;
 }) {
-  const [query, setQuery] = useState("");
-  const [sport, setSport] = useState<string | null>(null);
   const previewBySlug = useMemo(() => new Map(models.map((model) => [model.slug, model.preview_url])), [models]);
-  const sports = useMemo(() => studentSportIds(), []);
-  const poses = useMemo(() => filterPoses(STUDENT_POSES, { query, sport }), [query, sport]);
   const color = item.color?.toLowerCase() ?? null;
   const size = item.size ?? DEFAULT_STUDENT_SIZE;
   const presetMatch = STUDENT_COLORS.find((option) => (option.hex ?? null) === color);
@@ -54,76 +44,7 @@ export function StudentPanel({
     <section aria-label="Leerling" className="space-y-4" data-testid="student-panel">
       <div>
         <p className={SECTION_TITLE}>Pose</p>
-        <div className="relative mb-2">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Zoek pose of sport..."
-            aria-label="Zoek pose"
-            className={cn("w-full rounded-md border bg-background pr-8 pl-9 text-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden", TAP)}
-          />
-          {query && (
-            <button type="button" aria-label="Zoekopdracht wissen" onClick={() => setQuery("")} className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground">
-              <X className="size-3.5" aria-hidden="true" />
-            </button>
-          )}
-        </div>
-        <div role="group" aria-label="Filter op sport" className="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {[null, ...sports].map((id) => (
-            <button
-              key={id ?? "alle"}
-              type="button"
-              aria-pressed={sport === id}
-              onClick={() => setSport(id)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 text-sm font-medium whitespace-nowrap focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-                TAP,
-                sport === id ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-accent",
-              )}
-            >
-              {id ? sportLabel(id) : "Alle"}
-            </button>
-          ))}
-        </div>
-        {poses.length === 0 ? (
-          <p className="py-3 text-center text-sm text-muted-foreground">Geen poses gevonden.</p>
-        ) : (
-          <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-2" role="group" aria-label="Poses">
-            {poses.map((pose) => {
-              const active = item.slug === pose.slug;
-              const preview = previewBySlug.get(pose.slug);
-              return (
-                <button
-                  key={pose.id}
-                  type="button"
-                  disabled={disabled}
-                  aria-pressed={active}
-                  aria-label={`Pose ${pose.label}`}
-                  data-testid={`pose-${pose.id}`}
-                  onClick={() => onChange({ slug: pose.slug })}
-                  className={cn(
-                    "flex min-h-11 flex-col overflow-hidden rounded-lg border bg-background text-left focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50",
-                    active ? "border-primary ring-2 ring-primary/40" : "hover:bg-accent",
-                  )}
-                >
-                  <span className="relative block h-16 w-full bg-muted/40 pointer-coarse:h-20">
-                    {preview && <Image src={preview} alt="" fill sizes="(min-width: 1024px) 120px, 33vw" className="object-contain" />}
-                  </span>
-                  <span className="flex items-center justify-between gap-1 px-1.5 py-1 text-xs leading-tight font-medium">
-                    {pose.label}
-                    {pose.id === DEFAULT_POSE_ID && (
-                      <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary" data-testid="pose-standaard-badge">
-                        Start
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <PosePicker currentSlug={item.slug} previewBySlug={previewBySlug} disabled={disabled} onSelect={(pose) => onChange({ slug: pose.slug })} />
       </div>
 
       <div>
