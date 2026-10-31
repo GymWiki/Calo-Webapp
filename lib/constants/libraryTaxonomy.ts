@@ -135,6 +135,7 @@ export const LIBRARY_SPORTS: readonly LibrarySport[] = [
   { id: "klimmen", label: "Klimmen" },
   { id: "atletiek", label: "Atletiek" },
   { id: "fitness", label: "Fitness" },
+  { id: "judo", label: "Judo" },
   { id: "algemeen", label: "Algemeen" },
 ] as const;
 

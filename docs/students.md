@@ -1,10 +1,10 @@
 # Leerlingen in de 3D-editor
 
-Eén bibliotheekitem **Leerling** (sectie *Personen*). Na plaatsen kies je in het itempaneel (tab *Item*, op mobiel de onderste drawer) de **pose**, de **shirtkleur** en de **grootte**. Wijzigen werkt direct op het geplaatste figuur.
+Eén bibliotheekitem **Leerling** (sectie *Personen*). Na plaatsen kies je in het itempaneel (tab *Item*, op mobiel de onderste drawer) de **pose**, de **shirtkleur** en de **grootte**. De pose kies je door te zoeken of te filteren op **beweegcategorie** (standaard, spel, atletiek, turnen, zelfverdediging, zwemmen, klimmen) en op **sport** binnen die categorie; zonder filter staan de poses gegroepeerd per categorie. Wijzigen werkt direct op het geplaatste figuur.
 
 ## Hoe het werkt
 - **Item**: een gewoon plattegrond-item met `slug = leerling_pose_<poseId>` plus optioneel `color` (`#rrggbb`) en `size` (`klein`/`middel`/`groot`). Van pose wisselen = slug vervangen, dus afmetingen, collision, rotatie (alleen draaien, nooit kantelen), export/import en viewer werken ongewijzigd. Zie `lib/students/catalog.ts` en `docs/plattegrond-json.md`.
-- **Catalogus**: `lib/students/poses.json` (id, label, sporten, bron-GLB — met de hand) en `lib/students/poses.generated.json` (maten van het lichaam — door het script). Alleen poses met gegenereerde maten verschijnen in de editor. De poses staan niet in de database maar in de bucket `materials-3d/students/<id>.glb|png`.
+- **Catalogus**: `lib/students/poses.json` (id, label, sporten, `categorie`, bron-GLB — met de hand) en `lib/students/poses.generated.json` (maten van het lichaam — door het script). Alleen poses met gegenereerde maten verschijnen in de editor. De poses staan niet in de database maar in de bucket `materials-3d/students/<id>.glb|png`.
 - **Kleur**: de modellen hebben één kleurtexture waarin het shirt marineblauw is (dezelfde regel als de Blender-kleurvarianten: tint 0,52–0,72, verzadiging > 0,2). Een shader (`components/students/student-shader.ts`) vervangt precies die pixels door de gekozen kleur, met behoud van schaduw en vouwen; huid, haar, broek en schoenen blijven gelijk. Eén shaderprogramma voor alle leerlingen, één gedeeld materiaal per (pose, kleur): geen extra laadtijd of GLB's per kleur.
 - **Grootte**: de GLB's zijn 1,8 m; `klein` = 1,2 m, `middel` (standaard) = 1,4 m, `groot` = 1,6 m. De collision-vorm schaalt mee (`dimsOf` in `floorplan3d-geometry.ts`).
 - **Collision**: de voetafdruk van het lichaam (10e–90e percentiel van de vertices), dus een hockeystick of racket maakt de leerling niet breder.
@@ -13,7 +13,7 @@ Eén bibliotheekitem **Leerling** (sectie *Personen*). Na plaatsen kies je in he
 ## Nieuwe pose toevoegen (geen codewijziging)
 1. Exporteer de pose uit Blender **met de pose toegepast** als GLB (zonder skin: zie `scripts/blender/bake-pose.py`), 1,8 m hoog, voorkant +Z, shirt in dezelfde marineblauwe tint.
 2. Zet het GLB in de bronmap (standaard `materiaal-import/leerlingen-bron/`, of je Drive-map met `--src`).
-3. Voeg een regel toe aan `lib/students/poses.json`: `{ "id": "zwemmen", "label": "Zwemmen", "sporten": ["algemeen"], "file": "leerling_zwemmen.glb", "sort": 30 }` (sporten uit `lib/constants/libraryTaxonomy.ts`).
+3. Voeg een regel toe aan `lib/students/poses.json`: `{ "id": "borstcrawl", "label": "Borstcrawl", "sporten": ["zwemmen"], "categorie": "zwemmen", "file": "leerling_borstcrawl.glb", "sort": 40 }`. `categorie` is een van `standaard`, `spel`, `atletiek`, `turnen`, `zelfverdediging`, `zwemmen`, `klimmen` (lijst en volgorde in `STUDENT_CATEGORIES`, `lib/students/catalog.ts`); een categorie verschijnt in het menu zodra er een pose in zit. `sporten` is vrij (namen uit `lib/constants/libraryTaxonomy.ts`, andere sporten krijgen een nette naam in `EXTRA_SPORT_LABELS`). Zelfde GLB onder twee namen in de Drive (bv. `leerling_korfbal` en `leerling_bal_vangen`, `leerling_squat` en `leerling_landen`)? Neem er één op.
 4. `npm run process:students -- --src=<map> --thumbs` (zie hieronder), commit `poses.json` + `poses.generated.json`, upload de bestanden.
 
 ## Verwerken (lokaal, schrijft niets naar Supabase)

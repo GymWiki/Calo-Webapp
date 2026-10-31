@@ -8,9 +8,9 @@ Tolerantie: afwijking > 2 cm of > 5% volume = FAIL. Bron database-maten: lokale 
 
 | | Voor (oude box uit de database) | Na (vorm uit geometrie + overrides) |
 |---|---|---|
-| PASS | 100 | 205 |
+| PASS | 106 | 211 |
 | FAIL | 105 | 0 |
-| Totaal | 205 | 205 |
+| Totaal | 211 | 211 |
 
 ### Oorzaken (voor), aantal assets
 
@@ -26,9 +26,9 @@ Assets met overrides: `dikke_mat_300x200x30`.
 
 Schaaltest (uniform 2× en 1,5/1/0,7): afwijkend: leerling_wandelen.
 
-Rotatietest (0°, 30°, 45°, 90°): de oriented box omvat de mesh bij alle rotaties voor 205 van 205 assets.
+Rotatietest (0°, 30°, 45°, 90°): de oriented box omvat de mesh bij alle rotaties voor 211 van 211 assets.
 
-Een world-AABB (oude aanpak) is bij 45° rotatie gemiddeld 16.50× zo groot als de oriented box; 203 assets > 10% groter.
+Een world-AABB (oude aanpak) is bij 45° rotatie gemiddeld 16.09× zo groot als de oriented box; 209 assets > 10% groter.
 
 ## Assets die een Blender-aanpassing nodig hebben
 
@@ -239,6 +239,12 @@ De editor corrigeert deze assets nu automatisch (offset, onderkant, draaiing kom
 | `honkbalknuppel_aluminium` | PASS | PASS | 6.6×6.6×83.8 | 0.0, 0.0 | 0.0 | 0.0° |
 | `honkbalknuppel_hout` | PASS | PASS | 6.6×6.6×83.8 | 0.0, 0.0 | 0.0 | 0.0° |
 | `honkbalknuppel_veiligheidsschuim` | PASS | PASS | 7.5×7.5×68.0 | 0.0, 0.0 | 0.0 | 0.0° |
+| `judomat_los_200x100x4_groen` | PASS | PASS | 199.6×99.6×4.0 | 0.0, 0.0 | 0.0 | 0.0° |
+| `judomat_los_200x100x4_rood` | PASS | PASS | 199.6×99.6×4.0 | 0.0, 0.0 | 0.0 | 0.0° |
+| `judomatten_halve_gymzaal_10x10m` | PASS | PASS | 1007.6×1007.6×4.0 | 0.0, 0.0 | 0.0 | 0.0° |
+| `judomatten_halve_gymzaal_10x12m` | PASS | PASS | 1007.6×1207.6×4.0 | 0.0, 0.0 | 0.0 | 0.0° |
+| `judomatten_halve_gymzaal_10x12m_blauw_rood` | PASS | PASS | 1007.6×1207.6×4.0 | 0.0, 0.0 | 0.0 | 0.0° |
+| `judomatten_halve_gymzaal_10x12m_groen` | PASS | PASS | 1007.6×1207.6×4.0 | 0.0, 0.0 | 0.0 | 0.0° |
 | `kettlebell_rood_16kg` | PASS | PASS | 21.9×21.2×28.9 | 0.0, 0.1 | 0.0 | 0.0° |
 | `kin_ball_reuzenbal` | PASS | PASS | 122.0×122.0×122.0 | 0.0, 0.0 | 0.0 | 0.0° |
 | `klembord_en_kijkwijzer_kaarten_set` | FAIL | PASS | 60.7×40.0×24.1 | -0.8, 1.8 | 0.0 | 0.0° |

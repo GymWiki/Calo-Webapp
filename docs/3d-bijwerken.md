@@ -7,7 +7,7 @@ plattegrond zodra het in de bucket staat en de site is gedeployed. Drie dingen m
 | Wat | Commando | Wat het doet |
 | --- | --- | --- |
 | Gymzaal, sportveld, atletiekbaan, zwembad | `npm run sync:environments -- --upload` | leest `omgeving-import/*.glb`, schrijft `components/canvas-3d/environment-nodes.ts` (nodenamen + versie-hash), uploadt de GLB's |
-| Leerlingposes | `npm run process:students -- --thumbs` en `npm run upload:students` | verkleint de GLB's, schrijft `lib/students/poses.generated.json` (maten + versie-hash), maakt thumbnails, uploadt |
+| Leerlingposes | nieuwe pose: regel in `lib/students/poses.json` (inclusief `categorie`, zie `docs/students.md`); daarna `npm run process:students -- --thumbs` en `npm run upload:students` | verkleint de GLB's, schrijft `lib/students/poses.generated.json` (maten + versie-hash), maakt thumbnails, uploadt |
 | Overig materiaal | `npm run import:materials` | bestaand importscript |
 
 Daarna: commit de gegenereerde bestanden, PR, merge en deploy.

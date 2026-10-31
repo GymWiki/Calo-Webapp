@@ -8,6 +8,7 @@
 
 import posesConfig from "./poses.json" with { type: "json" };
 import generated from "./poses.generated.json" with { type: "json" };
+import { sportLabel } from "@/lib/constants/libraryTaxonomy";
 import type { MaterialModel } from "@/types/materialModel";
 
 export const STUDENT_SLUG_PREFIX = "leerling_pose_";
@@ -17,6 +18,37 @@ export const STUDENT_STORAGE_DIR = "students";
 export const DEFAULT_POSE_ID = "standaard";
 /** Hoogte (m) waarop de GLB's zijn genormaliseerd; `size` schaalt hier vanaf. */
 export const STUDENT_BASE_HEIGHT_M = 1.8;
+
+/**
+ * Beweegcategorieën van de poses (filter in het leerlingmenu). `standaard` = lopen, staan, zitten en juichen; de rest is de soort
+ * beweging. Een categorie zonder poses (nu zwemmen en klimmen) verschijnt pas in het menu zodra er een pose bij komt — de categorie
+ * van een pose staat in poses.json (`categorie`).
+ */
+export const STUDENT_CATEGORIES = [
+  { id: "standaard", label: "Standaard" },
+  { id: "spel", label: "Spel" },
+  { id: "atletiek", label: "Atletiek" },
+  { id: "turnen", label: "Turnen" },
+  { id: "zelfverdediging", label: "Zelfverdediging" },
+  { id: "zwemmen", label: "Zwemmen" },
+  { id: "klimmen", label: "Klimmen" },
+] as const;
+export type StudentCategoryId = (typeof STUDENT_CATEGORIES)[number]["id"];
+export const DEFAULT_STUDENT_CATEGORY: StudentCategoryId = "standaard";
+
+export function isStudentCategory(value: unknown): value is StudentCategoryId {
+  return STUDENT_CATEGORIES.some((category) => category.id === value);
+}
+
+/** Sporten die (nog) niet in de sportenlijst van de bibliotheek staan, met een nette naam. */
+const EXTRA_SPORT_LABELS: Record<string, string> = { judo: "Judo", tafeltennis: "Tafeltennis" };
+
+/** Leesbare naam van een sport, ook voor sporten die alleen bij de leerlingen voorkomen. */
+export function studentSportLabel(id: string): string {
+  if (EXTRA_SPORT_LABELS[id]) return EXTRA_SPORT_LABELS[id];
+  const label = sportLabel(id);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 export type StudentSize = "klein" | "middel" | "groot";
 export const STUDENT_SIZES: readonly { id: StudentSize; label: string; height_m: number }[] = [
@@ -43,6 +75,8 @@ export type StudentPose = {
   id: string;
   label: string;
   sporten: string[];
+  /** Beweegcategorie (filter in het leerlingmenu). */
+  categorie: StudentCategoryId;
   /** Slug van het plattegrond-item (leerling_pose_<id>). */
   slug: string;
   length_m: number;
@@ -52,7 +86,7 @@ export type StudentPose = {
   sort: number;
 };
 
-type PoseConfig = { id: string; label: string; sporten: string[]; sort?: number };
+type PoseConfig = { id: string; label: string; sporten: string[]; categorie?: string; sort?: number };
 type PoseDims = { length_m: number; width_m: number; height_m: number; /** Inhoudshash van het verwerkte GLB (process:students): ?v= achter de URL, zodat een gewijzigde pose direct overal laadt. */ version?: string };
 
 const dimsById = generated as Record<string, PoseDims | undefined>;
@@ -64,6 +98,7 @@ export const STUDENT_POSES: readonly StudentPose[] = (posesConfig.poses as PoseC
     id: pose.id,
     label: pose.label,
     sporten: pose.sporten,
+    categorie: isStudentCategory(pose.categorie) ? pose.categorie : DEFAULT_STUDENT_CATEGORY,
     slug: studentSlug(pose.id),
     ...(dimsById[pose.id] as PoseDims),
     sort: pose.sort ?? 100,
@@ -107,9 +142,32 @@ export function studentSportIds(): string[] {
   return [...new Set(STUDENT_POSES.flatMap((pose) => pose.sporten))];
 }
 
-export function filterPoses(poses: readonly StudentPose[], { query = "", sport = null }: { query?: string; sport?: string | null }): StudentPose[] {
-  const q = query.trim().toLowerCase();
-  return poses.filter((pose) => (!sport || pose.sporten.includes(sport)) && (!q || pose.label.toLowerCase().includes(q) || pose.sporten.some((s) => s.includes(q))));
+/** Categorieën die minstens één pose hebben, in vaste volgorde, met het aantal poses. */
+export function studentCategoriesInUse(poses: readonly StudentPose[] = STUDENT_POSES): { id: StudentCategoryId; label: string; count: number }[] {
+  return STUDENT_CATEGORIES.map((category) => ({ ...category, count: poses.filter((pose) => pose.categorie === category.id).length })).filter((category) => category.count > 0);
+}
+
+/** Sporten van deze poses (zonder "algemeen"), op naam gesorteerd. */
+export function studentSportsOf(poses: readonly StudentPose[]): string[] {
+  return [...new Set(poses.flatMap((pose) => pose.sporten))].filter((sport) => sport !== "algemeen").sort((a, b) => studentSportLabel(a).localeCompare(studentSportLabel(b), "nl"));
+}
+
+/**
+ * Poses filteren op zoektekst, sport en beweegcategorie. De zoektekst zoekt in de naam van de pose, de sporten (id en naam) en de
+ * categorie, zodat "judo", "turnen" of "tafeltennis" allemaal iets vinden; meerdere woorden moeten allemaal passen.
+ */
+export function filterPoses(
+  poses: readonly StudentPose[],
+  { query = "", sport = null, categorie = null }: { query?: string; sport?: string | null; categorie?: string | null },
+): StudentPose[] {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return poses.filter((pose) => {
+    if (sport && !pose.sporten.includes(sport)) return false;
+    if (categorie && pose.categorie !== categorie) return false;
+    if (words.length === 0) return true;
+    const haystack = [pose.label, pose.categorie, STUDENT_CATEGORIES.find((category) => category.id === pose.categorie)?.label ?? "", ...pose.sporten, ...pose.sporten.map(studentSportLabel)].join(" ").toLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
 }
 
 /**

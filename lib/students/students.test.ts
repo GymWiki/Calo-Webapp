@@ -7,7 +7,11 @@ import {
   STUDENT_COLORS,
   STUDENT_COLOR_PATTERN,
   STUDENT_POSES,
+  STUDENT_CATEGORIES,
   filterPoses,
+  studentCategoriesInUse,
+  studentSportLabel,
+  studentSportsOf,
   isStudentSlug,
   libraryPersonModels,
   poseIdOfSlug,
@@ -184,5 +188,40 @@ describe("export/import met leerlingen", () => {
     assert.ok(result.ok);
     assert.equal(result.scene.items.length, 2);
     assert.equal(result.unknownItems.length, 1);
+  });
+});
+
+describe("beweegcategorieën en zoeken", () => {
+  it("elke pose heeft een bekende categorie en de basisposes staan onder standaard", () => {
+    const known = new Set<string>(STUDENT_CATEGORIES.map((category) => category.id));
+    for (const pose of STUDENT_POSES) assert.ok(known.has(pose.categorie), `${pose.id}: ${pose.categorie}`);
+    const standaard = filterPoses(STUDENT_POSES, { categorie: "standaard" }).map((pose) => pose.id);
+    for (const id of ["standaard", "hardlopen", "juichen", "zittend"]) assert.ok(standaard.includes(id), id);
+  });
+
+  it("categorieën zonder poses (zwemmen, klimmen) verschijnen niet in het menu, de overige in vaste volgorde", () => {
+    const inUse = studentCategoriesInUse().map((category) => category.id);
+    assert.deepEqual(inUse.filter((id) => ["standaard", "spel", "atletiek", "turnen", "zelfverdediging"].includes(id)), ["standaard", "spel", "atletiek", "turnen", "zelfverdediging"]);
+    for (const category of studentCategoriesInUse()) assert.ok(category.count > 0);
+    assert.equal(studentCategoriesInUse().reduce((sum, category) => sum + category.count, 0), STUDENT_POSES.length);
+  });
+
+  it("filtert op categorie, sport en zoekwoord (ook meerdere woorden en de sportnaam)", () => {
+    const judo = filterPoses(STUDENT_POSES, { categorie: "zelfverdediging" });
+    assert.ok(judo.length >= 3 && judo.every((pose) => pose.sporten.includes("judo")));
+    assert.ok(filterPoses(STUDENT_POSES, { query: "judo" }).length >= judo.length);
+    assert.ok(filterPoses(STUDENT_POSES, { query: "turnen" }).every((pose) => pose.categorie === "turnen" || pose.sporten.includes("turnen")));
+    assert.ok(filterPoses(STUDENT_POSES, { query: "spel basketbal" }).every((pose) => pose.categorie === "spel" && pose.sporten.includes("basketbal")));
+    assert.equal(filterPoses(STUDENT_POSES, { categorie: "atletiek", sport: "basketbal" }).length, 0);
+    assert.ok(filterPoses(STUDENT_POSES, { query: "Tafeltennis" }).some((pose) => pose.id === "tafeltennis"));
+  });
+
+  it("sporten per set poses: zonder 'algemeen', op naam, en met nette namen voor sporten buiten de bibliotheek", () => {
+    const sports = studentSportsOf(STUDENT_POSES);
+    assert.ok(!sports.includes("algemeen"));
+    assert.ok(sports.includes("judo") && sports.includes("basketbal"));
+    assert.equal(studentSportLabel("judo"), "Judo");
+    assert.equal(studentSportLabel("basketbal"), "Basketbal");
+    assert.deepEqual(studentSportsOf(filterPoses(STUDENT_POSES, { categorie: "zelfverdediging" })), ["judo"]);
   });
 });
