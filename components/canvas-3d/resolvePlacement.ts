@@ -24,6 +24,7 @@ import {
   rangeFor,
   shapeOfDims,
   shapesCollide,
+  supportOffsetOf,
   type DimsLookup,
   type Point2D,
   type SnapGridSize,
@@ -199,7 +200,8 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
   const stacking = stackBases.length > 0 && !blockedByUnstackable;
   // Onderkant van het item op de bovenkant van de hoogste basis.
   const restY = floorY(shape, rot3, lift);
-  const y = stacking ? Math.max(...stackBases.map((base) => itemVerticalRange(base, lookup)[1])) - shape.base_m + lift : restY;
+  // Een zittende leerling rust met zijn zitvlak op de ondergrond (nooit onder de vloer: is de bank lager dan het zitvlak, dan staat hij op de vloer).
+  const y = stacking ? Math.max(restY, Math.max(...stackBases.map((base) => itemVerticalRange(base, lookup)[1])) - supportOffsetOf(dims) + lift) : restY;
   const ownRange = rangeFor(shape, y, rot3);
   const sameHeight = (other: Floorplan3dItem) => {
     const [lo, hi] = itemVerticalRange(other, lookup);

@@ -40,7 +40,8 @@
       ],
       "categorie": "standaard",
       "file": "leerling_zittend.glb",
-      "sort": 3
+      "sort": 3,
+      "seat_m": 0.42
     },
     {
       "id": "basketbal_dribbelen",
