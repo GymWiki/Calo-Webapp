@@ -1,6 +1,6 @@
 # Leerlingen in de 3D-editor
 
-Eén bibliotheekitem **Leerling** (sectie *Personen*). Na plaatsen kies je in het itempaneel (tab *Item*, op mobiel de onderste drawer) de **pose**, de **shirtkleur** en de **grootte**. De pose kies je door te zoeken of te filteren op **beweegcategorie** (standaard, spel, atletiek, turnen, zelfverdediging, zwemmen, klimmen) en op **sport** binnen die categorie; zonder filter staan de poses gegroepeerd per categorie. Wijzigen werkt direct op het geplaatste figuur.
+Eén bibliotheekitem **Leerling** (sectie *Personen*). Na plaatsen kies je in het itempaneel (tab *Item*, op mobiel de onderste drawer) de **pose**, de **shirtkleur** en de **grootte**. De pose kies je in een uitklapbare lijst (standaard dicht, met de huidige pose in de knop; kiezen klapt hem weer in) door te zoeken of te filteren op **beweegcategorie** (standaard, spel, atletiek, turnen, zelfverdediging, zwemmen, klimmen) en op **sport** binnen die categorie; zonder filter staan de poses gegroepeerd per categorie. Wijzigen werkt direct op het geplaatste figuur.
 
 ## Hoe het werkt
 - **Item**: een gewoon plattegrond-item met `slug = leerling_pose_<poseId>` plus optioneel `color` (`#rrggbb`) en `size` (`klein`/`middel`/`groot`). Van pose wisselen = slug vervangen, dus afmetingen, collision, rotatie (alleen draaien, nooit kantelen), export/import en viewer werken ongewijzigd. Zie `lib/students/catalog.ts` en `docs/plattegrond-json.md`.

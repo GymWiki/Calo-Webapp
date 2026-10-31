@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 
@@ -9,6 +9,7 @@ import {
   STUDENT_CATEGORIES,
   STUDENT_POSES,
   filterPoses,
+  poseOfSlug,
   studentCategoriesInUse,
   studentSportLabel,
   studentSportsOf,
@@ -54,6 +55,8 @@ export function PosePicker({
   const [query, setQuery] = useState("");
   const [categorie, setCategorie] = useState<StudentCategoryId | null>(null);
   const [sport, setSport] = useState<string | null>(null);
+  // Standaard dicht: alleen de huidige pose is te zien. Kiezen klapt de lijst weer in.
+  const [open, setOpen] = useState(false);
 
   const categories = useMemo(() => studentCategoriesInUse(), []);
   const sportsInScope = useMemo(
@@ -69,6 +72,9 @@ export function PosePicker({
     [categorie, poses],
   );
   const filtered = Boolean(query.trim() || categorie || sport);
+  const current = poseOfSlug(currentSlug);
+  const currentPreview = previewBySlug.get(currentSlug);
+  const currentCategory = STUDENT_CATEGORIES.find((category) => category.id === current?.categorie)?.label;
 
   function chooseCategory(next: StudentCategoryId | null) {
     setCategorie(next);
@@ -84,6 +90,30 @@ export function PosePicker({
 
   return (
     <div data-testid="poseskeuze">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="pose-keuzelijst"
+        data-testid="poseskeuze-knop"
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-lg border bg-background p-1.5 text-left hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+          open && "border-primary ring-2 ring-primary/30",
+        )}
+      >
+        <span className="relative block h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted/40 pointer-coarse:h-14 pointer-coarse:w-14">
+          {currentPreview && <Image src={currentPreview} alt="" fill sizes="56px" className="object-contain" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium" data-testid="huidige-pose">
+            {current?.label ?? "Kies een pose"}
+          </span>
+          {currentCategory && <span className="block truncate text-xs text-muted-foreground">{currentCategory}</span>}
+        </span>
+        <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-150", open && "rotate-180")} aria-hidden="true" />
+      </button>
+
+      <div id="pose-keuzelijst" hidden={!open} className="mt-2">
       <div className="relative mb-2">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
         <input
@@ -162,7 +192,10 @@ export function PosePicker({
                       aria-pressed={active}
                       aria-label={`Pose ${pose.label}`}
                       data-testid={`pose-${pose.id}`}
-                      onClick={() => onSelect(pose)}
+                      onClick={() => {
+                        onSelect(pose);
+                        setOpen(false);
+                      }}
                       className={cn(
                         "flex min-h-11 flex-col overflow-hidden rounded-lg border bg-background text-left focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50",
                         active ? "border-primary ring-2 ring-primary/40" : "hover:bg-accent",
@@ -187,6 +220,7 @@ export function PosePicker({
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
