@@ -15,9 +15,9 @@
 > **No login needed for:** the public library preview and the free 3D editor at "Plattegrond maken".
 > **Login:** use the demo account in the fields above. You can also create an account in the app.
 >
-> **3D editor (WebGL):** open the tab "Plattegrond 3D" → "Nieuwe plattegrond". Tap "+" to place equipment (e.g. a bench or a mat), drag to move, pinch to zoom, two fingers to rotate the view. Use "Delen" to export a PNG/PDF — the native share sheet opens.
+> **3D editor (WebGL):** open "Plattegronden" in the navigation → create a new floor plan. Tap "+" to place equipment (e.g. a bench or a mat), drag to move, pinch to zoom, two fingers to rotate the view. Use "Delen" to export a PNG/PDF — the native share sheet opens.
 >
-> **Subscriptions:** open Profile → "Abonnement". Two auto-renewing subscriptions in one group ("GymWiki Pro"): monthly and yearly, each with a 7-day free trial for new subscribers. "Aankopen herstellen" (Restore Purchases) is on the same screen. Use a sandbox tester account. Terms of use and privacy policy are linked on the paywall and in the registration screen.
+> **Subscriptions:** open "Abonnement" (in the navigation or via Profile). Two auto-renewing subscriptions in one group ("GymWiki Pro"): monthly and yearly, each with a 7-day free trial for new subscribers. "Aankopen herstellen" (Restore Purchases) is on the same screen. Use a sandbox tester account. Terms of use and privacy policy are linked on the paywall and in the registration screen.
 > **Account deletion:** Profile → Settings → "Account verwijderen" (in-app, confirmation by typing VERWIJDEREN).
 > **Language:** the app is in Dutch (the Dutch education market).
 > **Payments:** all purchases in the app use In-App Purchase. The website offers its own subscription, which is not promoted or linked inside the app.

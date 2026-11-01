@@ -50,7 +50,7 @@ Gebruik dezelfde teksten voor App Store Connect en Play Console, binnen de lengt
 - **What's new (1.0):** First release of the GymWiki app: library, 3D floor plan editor, lesson planning and sharing.
 
 ## Leeftijdsclassificatie
-- Apple: alle vragen "Geen/None" (geen geweld, gokken, onbeperkte webtoegang is **ja**? → de app toont alleen gymwiki.nl; kies "Unrestricted Web Access: No"). Verwacht **4+**. Gebruikersgegenereerde inhoud: ja (activiteiten van gebruikers, gemodereerd door AI-check + beheerders) — vul dit eerlijk in; dat kan de rating naar 12+ of 17+ drukken, controleer de uitkomst in de nieuwe vragenlijst.
+- Apple: beantwoord de vragenlijst eerlijk: geen geweld, seks, gokken of medische inhoud; "Unrestricted Web Access": nee (de app toont alleen gymwiki.nl). Gebruikersinhoud wordt gedeeld (gemodereerd door AI-check en beheerders); vul dat in en lees de uitkomst af (verwacht 4+ of 12+).
 - Google (IARC): onderwijs-app, geen geweld/seks/gokken; "gebruikers kunnen inhoud delen: ja (gemodereerd)". Verwacht **PEGI 3 / Everyone** (kan door UGC-vraag hoger uitvallen).
 - Lijkt de app op kinderen gericht? Nee: doelgroep zijn docenten/studenten. Kies bij Google *Target audience: 18+* (of 13+/18+) en **niet** "Designed for Families".
 
