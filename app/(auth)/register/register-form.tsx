@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -142,6 +143,11 @@ export function RegisterForm() {
             ? "Account aanmaken..."
             : "Account aanmaken"}
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          Door een account aan te maken ga je akkoord met de{" "}
+          <Link href="/voorwaarden" className="underline underline-offset-2">gebruiksvoorwaarden</Link> en de{" "}
+          <Link href="/privacy" className="underline underline-offset-2">privacyverklaring</Link>.
+        </p>
       </form>
     </Form>
   );
