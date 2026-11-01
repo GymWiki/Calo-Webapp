@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --test \"components/canvas-3d/*.test.ts\" \"components/plattegrond/*.test.ts\" \"lib/library/*.test.ts\" \"components/canvas-3d/mobile/*.test.ts\" \"lib/activities/*.test.ts\" \"lib/guest/*.test.ts\" \"lib/plattegrond/*.test.ts\" \"lib/landing/*.test.ts\" \"lib/beheer/*.test.ts\" \"lib/students/*.test.ts\" \"lib/subscription/*.test.ts\"",
+    "test": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --test \"components/canvas-3d/*.test.ts\" \"components/plattegrond/*.test.ts\" \"lib/library/*.test.ts\" \"components/canvas-3d/mobile/*.test.ts\" \"lib/activities/*.test.ts\" \"lib/guest/*.test.ts\" \"lib/plattegrond/*.test.ts\" \"lib/landing/*.test.ts\" \"lib/beheer/*.test.ts\" \"lib/students/*.test.ts\" \"lib/subscription/*.test.ts\" \"lib/mobile/*.test.ts\"",
     "test:rls": "bash scripts/test-admin-rls.sh",
     "test:e2e": "playwright test",
     "perf:mobile": "node e2e/perf-mobile.mjs",

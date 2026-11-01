@@ -22,10 +22,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- "Terug naar de app"-deeplink vanaf de betaalpagina in de
-                 systeem-browser (zie lib/mobile/capacitor.ts's appUrlOpen-
-                 listener + components/mobile/ReturnToAppBanner.tsx).
-                 @string/custom_url_scheme is al com.mycompany.gymwiki (door
+            <!-- Eigen URL-schema (com.mycompany.gymwiki://pad), zie
+                 lib/mobile/capacitor.ts's appUrlOpen-listener en
+                 lib/mobile/deepLinks.ts. @string/custom_url_scheme is al com.mycompany.gymwiki (door
                  `cap add android` gezet, zie strings.xml) — hier ontbrak
                  alleen nog het intent-filter dat 'm daadwerkelijk aan deze
                  activity koppelt. -->
@@ -34,6 +33,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="@string/custom_url_scheme" />
+            </intent-filter>
+
+            <!-- App Links: https://www.gymwiki.nl/... opent de app. autoVerify
+                 vereist /.well-known/assetlinks.json (route in de webapp,
+                 vult zich via ANDROID_SHA256_FINGERPRINTS, zie docs/release/checklist.md). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.gymwiki.nl" />
+                <data android:scheme="https" android:host="gymwiki.nl" />
             </intent-filter>
 
         </activity>
