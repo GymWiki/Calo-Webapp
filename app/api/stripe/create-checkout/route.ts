@@ -4,6 +4,10 @@ import { PLAN_ORDER, type SubscriptionPlan } from "@/lib/constants/subscriptionP
 import { getUserPermissions } from "@/lib/permissions";
 import { getStripeClient } from "@/lib/stripe/client";
 import type { SubscriptionType } from "@/lib/types";
+import { hasActiveEntitlement, isTrialEligible, type EntitlementRow } from "@/lib/subscription/entitlement";
+
+/** Gratis proefperiode (dagen) voor een eerste abonnement — gelijk aan de store-aanbiedingen (docs/store-products.md). */
+const TRIAL_DAYS = 7;
 
 const PRICE_ENV_VAR: Record<SubscriptionPlan, string> = {
   monthly: "STRIPE_PRICE_MONTHLY",
@@ -80,6 +84,32 @@ export async function POST(request: Request) {
     }
   }
 
+  // Betaalt de gebruiker al via Apple/Google (store-abonnement)? Dan geen
+  // tweede, dubbele betaling via Stripe. De kolommen bestaan pas na
+  // supabase/migrations/entitlements_multi_source.sql; een fout (migratie
+  // nog niet gedraaid) betekent "geen store-abonnement" en wordt genegeerd.
+  const { data: entitlement } = await supabase
+    .from("subscriptions")
+    .select("source, status, expires_at, subscription_type")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (entitlement && entitlement.source !== "stripe" && hasActiveEntitlement(entitlement as EntitlementRow)) {
+    return Response.json(
+      { error: "Je abonnement loopt via de App Store of Google Play. Beheer het daar." },
+      { status: 400 },
+    );
+  }
+
+  // Proefperiode alleen bij een eerste abonnement (trial_used is gedeeld over
+  // Stripe, Apple en Google). Bij een fout (kolom ontbreekt nog) of
+  // onbekende waarde: GEEN proef — liever geen gratis week dan een tweede.
+  const { data: trialRow, error: trialError } = await supabase
+    .from("users")
+    .select("trial_used")
+    .eq("id", user.id)
+    .single();
+  const offerTrial = plan !== "lifetime" && !trialError && isTrialEligible(trialRow);
+
   const priceId = process.env[PRICE_ENV_VAR[plan]];
   if (!priceId) {
     return Response.json(
@@ -117,6 +147,7 @@ export async function POST(request: Request) {
       // wijzigt/dupliceert. De webhook (app/api/stripe/webhook/route.ts)
       // leest dit veld direct.
       metadata: { userId: user.id, subscription_type: plan },
+      ...(offerTrial ? { subscription_data: { trial_period_days: TRIAL_DAYS, metadata: { userId: user.id, subscription_type: plan } } } : {}),
       success_url: `${origin}/pro?checkout=success${nativeParam}`,
       cancel_url: `${origin}/pro?checkout=cancelled${nativeParam}`,
     });

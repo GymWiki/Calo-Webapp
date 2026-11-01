@@ -112,6 +112,14 @@ export async function POST(request: Request) {
         { onConflict: "user_id" },
       );
 
+      // Meer-bronnen-velden (supabase/migrations/entitlements_multi_source.sql).
+      // Best-effort: vóór die migratie bestaan de kolommen niet; de fout
+      // wordt bewust genegeerd zodat bestaande betalingen blijven werken.
+      if (!isLifetime) {
+        await supabase.from("subscriptions").update({ source: "stripe" }).eq("user_id", userId);
+        await supabase.from("users").update({ trial_used: true }).eq("id", userId);
+      }
+
       // Het eventueel vervangen oude abonnement opzeggen — NA de upsert
       // hierboven, zodat de subscriptions-rij al naar het nieuwe plan wijst
       // vóórdat Stripe het bijbehorende customer.subscription.deleted-event
@@ -197,6 +205,25 @@ export async function POST(request: Request) {
           current_period_end: currentPeriodEnd
             ? new Date(currentPeriodEnd * 1000).toISOString()
             : null,
+        })
+        .eq("stripe_subscription_id", subscription.id);
+
+      // Entitlement-velden (best-effort, zie hierboven).
+      await supabase
+        .from("subscriptions")
+        .update({
+          source: "stripe",
+          status:
+            subscription.status === "trialing"
+              ? "trialing"
+              : isActive
+                ? "active"
+                : subscription.status === "past_due"
+                  ? "past_due"
+                  : "canceled",
+          expires_at: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
+          trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+          cancel_at_period_end: subscription.cancel_at_period_end,
         })
         .eq("stripe_subscription_id", subscription.id);
 
