@@ -43,14 +43,8 @@ export async function withWatermark(dataUrl: string, background = "#f8fafc"): Pr
 }
 
 export function downloadBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  // Web: gewone download; native app: deelmenu (lib/mobile/shareFile.ts).
+  void import("@/lib/mobile/shareFile").then(({ saveOrShareFile }) => saveOrShareFile(blob, fileName));
 }
 
 export function blobToDataUrl(blob: Blob): Promise<string> {

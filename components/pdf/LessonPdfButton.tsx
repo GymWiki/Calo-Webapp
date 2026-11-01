@@ -113,14 +113,9 @@ export function LessonPdfButton({
         "groep",
       )}.pdf`;
 
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      // Web: download; native app: deelmenu.
+      const { saveOrShareFile } = await import("@/lib/mobile/shareFile");
+      await saveOrShareFile(blob, fileName);
     } catch (err) {
       console.error("LessonPdfButton: PDF genereren mislukt —", err);
       reportPdfExportError({
