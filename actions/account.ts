@@ -2,11 +2,10 @@
 
 import { cookies } from "next/headers";
 
+import { DELETE_ACCOUNT_CONFIRMATION } from "@/lib/constants/account";
 import { getStripeClient } from "@/lib/stripe/client";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceClient } from "@/utils/supabase/service";
-
-export const DELETE_ACCOUNT_CONFIRMATION = "VERWIJDEREN";
 
 type Result = { error: string } | { success: true };
 

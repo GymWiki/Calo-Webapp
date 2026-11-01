@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 
-import { DELETE_ACCOUNT_CONFIRMATION, deleteAccount } from "@/actions/account";
+import { deleteAccount } from "@/actions/account";
+import { DELETE_ACCOUNT_CONFIRMATION } from "@/lib/constants/account";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
