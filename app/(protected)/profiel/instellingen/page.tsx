@@ -1,12 +1,16 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Mail } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
+import { DeleteAccountCard } from "@/components/profile/DeleteAccountCard";
 import { AvailableForInternshipToggle } from "@/components/profile/AvailableForInternshipToggle";
 import { HolidayRegionSelect } from "@/components/profile/HolidayRegionSelect";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { manageTarget, type EntitlementRow } from "@/lib/subscription/entitlement";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
+import { createClient } from "@/utils/supabase/server";
 
 export default async function ProfielInstellingenPage() {
   const profile = await getCurrentUserProfile();
@@ -14,6 +18,20 @@ export default async function ProfielInstellingenPage() {
   if (!profile) {
     redirect("/login");
   }
+
+  // Waar loopt het abonnement? (kolommen bestaan pas na de entitlements-migratie;
+  // een fout levert gewoon geen rij op en dan vallen we terug op Stripe.)
+  const supabase = createClient(await cookies());
+  const { data: entitlement } = await supabase
+    .from("subscriptions")
+    .select("source, status, expires_at, subscription_type")
+    .eq("user_id", profile.id)
+    .maybeSingle();
+  const manage = entitlement
+    ? manageTarget(entitlement as EntitlementRow)
+    : profile.subscription_status === "paid_subscriber"
+      ? "stripe-portal"
+      : "none";
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-8 px-4 py-6 sm:px-8 sm:py-10">
@@ -45,6 +63,8 @@ export default async function ProfielInstellingenPage() {
           <ThemeToggle />
         </CardContent>
       </Card>
+
+      <DeleteAccountCard manage={manage} />
     </main>
   );
 }
