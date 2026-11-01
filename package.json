@@ -25,6 +25,10 @@
     "import:materials": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file=.env.local scripts/import-materials.mts",
     "eval:import": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file=.env.local scripts/eval-import.mjs",
     "mobile:icons": "node scripts/generate-app-icon.mjs",
+    "app:build": "node scripts/app-build.mjs",
+    "app:sync": "npm run app:build && cap sync",
+    "app:ios": "npm run app:sync && cap open ios",
+    "app:android": "npm run app:sync && cap open android",
     "mobile:sync": "cap sync",
     "mobile:ios": "cap open ios",
     "mobile:android": "cap open android"
