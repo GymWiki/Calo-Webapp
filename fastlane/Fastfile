@@ -17,7 +17,6 @@
 opt_out_usage # stuurt geen anonieme gebruiksstatistieken naar Fastlane/Google — geen reden om dat impliciet aan te laten staan.
 default_platform(:ios)
 
-IOS_WORKSPACE = "ios/App/App.xcworkspace"
 IOS_SCHEME = "App"
 IOS_XCODEPROJ = "ios/App/App.xcodeproj"
 ANDROID_PROJECT_DIR = "android/"
@@ -44,6 +43,7 @@ platform :ios do
 
   desc "Zorgt dat het native iOS-project de laatste webapp-config/plugins heeft."
   private_lane :sync_capacitor do
+    sh("npm", "run", "app:build")
     sh("npx", "cap", "sync", "ios")
   end
 
@@ -63,7 +63,9 @@ platform :ios do
     increment_build_number(xcodeproj: IOS_XCODEPROJ, build_number: current + 1)
 
     build_app(
-      workspace: IOS_WORKSPACE,
+      # Capacitor 8 gebruikt Swift Package Manager (ios/App/CapApp-SPM): er is
+      # geen CocoaPods-workspace, dus bouwen we het .xcodeproj.
+      project: IOS_XCODEPROJ,
       scheme: IOS_SCHEME,
       export_method: "app-store",
       output_directory: "build/ios",
@@ -81,7 +83,9 @@ platform :ios do
     ensure_signing
 
     build_app(
-      workspace: IOS_WORKSPACE,
+      # Capacitor 8 gebruikt Swift Package Manager (ios/App/CapApp-SPM): er is
+      # geen CocoaPods-workspace, dus bouwen we het .xcodeproj.
+      project: IOS_XCODEPROJ,
       scheme: IOS_SCHEME,
       export_method: "app-store",
       output_directory: "build/ios",
@@ -107,6 +111,7 @@ end
 platform :android do
   desc "Zorgt dat het native Android-project de laatste webapp-config/plugins heeft."
   private_lane :sync_capacitor do
+    sh("npm", "run", "app:build")
     sh("npx", "cap", "sync", "android")
   end
 
