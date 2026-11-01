@@ -41,6 +41,7 @@ import { TeamLibraryActionButton } from "@/components/team/TeamLibraryActionButt
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
+import { RememberActivity } from "@/components/mobile/RememberActivity";
 import { isAdmin } from "@/lib/auth/roles";
 import { DOELGROEP_LABELS, type Activity } from "@/types/activity";
 import type { DidacticItem } from "@/types/lesson";
@@ -329,6 +330,7 @@ export default async function ActiviteitDetailPage({
 
     return (
       <main className="mx-auto w-full max-w-3xl space-y-5 p-4 pb-28 md:space-y-6 md:p-8 md:pb-24 print:max-w-none print:p-0">
+        <RememberActivity id={activity.id} title={activity.titel} />
         <PlannedForBanner plannedLessons={plannedLessons} />
         <ActivityWizardPage
           mode="view"
