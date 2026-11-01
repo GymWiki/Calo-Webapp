@@ -1,14 +1,16 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Check } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
-import { ReturnToAppBanner } from "@/components/mobile/ReturnToAppBanner";
 import { SubscriptionPlansSection } from "@/components/subscription/SubscriptionPlansSection";
 import { Card, CardContent } from "@/components/ui/card";
 import { MONTHLY_CONTRIBUTION_REQUIRED_COUNT, type SubscriptionPlan } from "@/lib/constants/subscriptionPlans";
 import { getUserPermissions } from "@/lib/permissions";
+import { hasActiveEntitlement, manageTarget, type EntitlementRow } from "@/lib/subscription/entitlement";
 import { getCurrentUserProfile } from "@/lib/supabase/get-current-profile";
+import { createClient } from "@/utils/supabase/server";
 
 const SUBSCRIPTION_FEATURES = [
   "Altijd volledige toegang tot de activiteitenbibliotheek",
@@ -23,7 +25,7 @@ function isSubscriptionPlan(value: string | undefined): value is SubscriptionPla
 export default async function ProPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; native?: string; plan?: string }>;
+  searchParams: Promise<{ checkout?: string; plan?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
 
@@ -31,21 +33,25 @@ export default async function ProPage({
     redirect("/login");
   }
 
-  const { checkout, native, plan } = await searchParams;
+  const { plan } = await searchParams;
   // ?plan= komt van de prijskaarten op de landingspagina (app/page.tsx) via
-  // /register — zie register-form.tsx. Puur een visuele nadruk (welke
-  // kaart lichtjes oplicht), geen automatische checkout: de gebruiker moet
-  // altijd zelf op de knop klikken.
+  // /register — puur visuele nadruk (web), geen automatische checkout.
   const highlightPlan = isSubscriptionPlan(plan) ? plan : undefined;
-  // Alleen tonen als deze pagina via de systeem-browser-link vanuit de
-  // native app is geopend (zie NativeUpgradeAction) — een gewone
-  // webgebruiker die per ongeluk ?native=1 in de URL heeft staan ziet dit
-  // ook, maar de link is een no-op deeplink zonder geïnstalleerde app, dus
-  // onschadelijk.
-  const returnBanner =
-    native === "1" && (checkout === "success" || checkout === "cancelled") ? (
-      <ReturnToAppBanner status={checkout} />
-    ) : null;
+
+  // Waar loopt het abonnement? Kolommen bestaan pas na
+  // supabase/migrations/entitlements_multi_source.sql; een fout = geen rij →
+  // terugval op het bestaande profiel (Stripe).
+  const supabase = createClient(await cookies());
+  const { data: row } = await supabase
+    .from("subscriptions")
+    .select("source, status, expires_at, subscription_type")
+    .eq("user_id", profile.id)
+    .maybeSingle();
+  const paidByProfile = getUserPermissions(profile).subscriptionStatus === "paid_subscriber";
+  const entitlement = {
+    active: row ? hasActiveEntitlement(row as EntitlementRow) || paidByProfile : paidByProfile,
+    manage: row ? manageTarget(row as EntitlementRow) : paidByProfile ? ("stripe-portal" as const) : ("none" as const),
+  };
 
   const isPaid = getUserPermissions(profile).subscriptionStatus === "paid_subscriber";
 
@@ -60,8 +66,6 @@ export default async function ProPage({
             : `GymWiki is gratis zolang je maandelijks minstens ${MONTHLY_CONTRIBUTION_REQUIRED_COUNT} activiteiten bijdraagt aan de bibliotheek. Liever geen bijdrage-eis? Kies een van de opties hieronder.`
         }
       />
-
-      {returnBanner}
 
       {profile.team_id && (
         <Card className="border-primary/30 bg-primary/5">
@@ -86,9 +90,14 @@ export default async function ProPage({
         ))}
       </ul>
 
-      <SubscriptionPlansSection currentType={profile.subscription_type} highlightPlan={highlightPlan} />
+      <SubscriptionPlansSection
+        currentType={profile.subscription_type}
+        highlightPlan={highlightPlan}
+        userId={profile.id}
+        entitlement={entitlement}
+      />
 
-      {isPaid && profile.subscription_type !== "lifetime" && (
+      {isPaid && profile.subscription_type !== "lifetime" && entitlement.manage === "stripe-portal" && (
         <p className="text-center text-sm text-muted-foreground">
           Je abonnement wordt automatisch verlengd via Stripe. Opzeggen kan op elk moment via je
           Stripe-facturatieportaal.
