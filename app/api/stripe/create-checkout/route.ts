@@ -110,6 +110,13 @@ export async function POST(request: Request) {
     .single();
   const offerTrial = plan !== "lifetime" && !trialError && isTrialEligible(trialRow);
 
+  const { data: customerRow } = await supabase
+    .from("subscriptions")
+    .select("stripe_customer_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const existingCustomerId = customerRow?.stripe_customer_id ?? null;
+
   const priceId = process.env[PRICE_ENV_VAR[plan]];
   if (!priceId) {
     return Response.json(
@@ -141,14 +148,16 @@ export async function POST(request: Request) {
       mode: plan === "lifetime" ? "payment" : "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: user.id,
-      customer_email: user.email ?? undefined,
+      // Bestaande Stripe-klant hergebruiken (geen nieuwe klant per betaling);
+      // anders het e-mailadres van het account voorinvullen.
+      ...(existingCustomerId ? { customer: existingCustomerId } : { customer_email: user.email ?? undefined }),
       // subscription_type in de metadata i.p.v. de Price-ID terug-mappen in
       // de webhook: dat zou breken zodra iemand ooit een Price-ID in Stripe
       // wijzigt/dupliceert. De webhook (app/api/stripe/webhook/route.ts)
       // leest dit veld direct.
-      metadata: { userId: user.id, subscription_type: plan },
+      metadata: { userId: user.id, user_id: user.id, subscription_type: plan },
       ...(offerTrial ? { subscription_data: { trial_period_days: TRIAL_DAYS, metadata: { userId: user.id, subscription_type: plan } } } : {}),
-      success_url: `${origin}/pro?checkout=success${nativeParam}`,
+      success_url: `${origin}/pro?checkout=success&session_id={CHECKOUT_SESSION_ID}${nativeParam}`,
       cancel_url: `${origin}/pro?checkout=cancelled${nativeParam}`,
     });
 

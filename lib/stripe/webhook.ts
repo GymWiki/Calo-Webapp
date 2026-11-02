@@ -79,26 +79,30 @@ function factsFromEventObject(o: Record<string, unknown>): SubscriptionFacts | n
   };
 }
 
+/** Gedeeld door de webhook en de "bevestig checkout"-route van de succespagina (idempotent). */
+export async function processCheckoutSession(deps: Pick<WebhookDeps, "retrieveSubscription" | "billing">, obj: Record<string, unknown>): Promise<SyncResult | null> {
+  const meta = (obj.metadata as Record<string, string> | null) ?? {};
+  const hints = {
+    metadataUserId: meta.userId ?? meta.user_id ?? null,
+    clientReferenceId: str(obj.client_reference_id),
+    email: str((obj.customer_details as { email?: unknown } | null)?.email),
+  };
+  if (obj.mode === "payment") {
+    return syncLifetime(deps.billing, { paymentStatus: String(obj.payment_status), customerId: idOf(obj.customer), hints });
+  }
+  const subId = idOf(obj.subscription);
+  if (obj.mode !== "subscription" || !subId) return null;
+  const sub = await deps.retrieveSubscription(subId);
+  if (!sub) throw new Error(`subscription ${subId} niet op te halen`);
+  return syncSubscription(deps.billing, sub, hints, { replaceOld: true });
+}
+
 async function process(deps: WebhookDeps, event: StripeEventLike): Promise<SyncResult | null> {
   const obj = event.data.object;
   switch (event.type) {
     case "checkout.session.completed":
-    case "checkout.session.async_payment_succeeded": {
-      const meta = (obj.metadata as Record<string, string> | null) ?? {};
-      const hints = {
-        metadataUserId: meta.userId ?? meta.user_id ?? null,
-        clientReferenceId: str(obj.client_reference_id),
-        email: str((obj.customer_details as { email?: unknown } | null)?.email),
-      };
-      if (obj.mode === "payment") {
-        return syncLifetime(deps.billing, { paymentStatus: String(obj.payment_status), customerId: idOf(obj.customer), hints });
-      }
-      const subId = idOf(obj.subscription);
-      if (obj.mode !== "subscription" || !subId) return null;
-      const sub = await deps.retrieveSubscription(subId);
-      if (!sub) throw new Error(`subscription ${subId} niet op te halen`);
-      return syncSubscription(deps.billing, sub, hints, { replaceOld: true });
-    }
+    case "checkout.session.async_payment_succeeded":
+      return processCheckoutSession(deps, obj);
     case "customer.subscription.created":
     case "customer.subscription.updated":
     case "customer.subscription.deleted":
