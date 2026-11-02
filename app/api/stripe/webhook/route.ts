@@ -12,6 +12,14 @@ export const maxDuration = 30;
 const log: WebhookDeps["log"] = (message, fields) => console.error(`[stripe-webhook] ${message}`, fields ?? {});
 
 /**
+ * Healthcheck: 200 zonder gevoelige info. Handig om te zien dat dit pad live
+ * bestaat (een 404 hier = het verkeerde pad in Stripe). Stripe zelf gebruikt POST.
+ */
+export function GET() {
+  return Response.json({ ok: true, endpoint: "stripe-webhook", methods: ["POST"] }, { headers: { "Cache-Control": "no-store" } });
+}
+
+/**
  * Stripe → Supabase. De subscription is de bron van waarheid; zie
  * lib/stripe/webhook.ts voor het gedrag per event. Config-fouten (ontbrekende
  * secrets) geven een 500 met duidelijke melding in de logs, nooit stilte.

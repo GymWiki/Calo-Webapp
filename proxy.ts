@@ -114,6 +114,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/|\\.well-known/|sw\\.js|workbox-.*\\.js|manifest\\.json|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|map|woff|woff2|ttf)$).*)",
+    "/((?!_next/|\\.well-known/|api/stripe/webhook|api/stripe/webhooks|api/webhooks/stripe|api/webhook/stripe|api/stripe-webhook|api/revenuecat/webhook|sw\\.js|workbox-.*\\.js|manifest\\.json|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|map|woff|woff2|ttf)$).*)",
   ],
 };

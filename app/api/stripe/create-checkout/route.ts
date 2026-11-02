@@ -156,7 +156,17 @@ export async function POST(request: Request) {
       // wijzigt/dupliceert. De webhook (app/api/stripe/webhook/route.ts)
       // leest dit veld direct.
       metadata: { userId: user.id, user_id: user.id, subscription_type: plan },
-      ...(offerTrial ? { subscription_data: { trial_period_days: TRIAL_DAYS, metadata: { userId: user.id, subscription_type: plan } } } : {}),
+      // Metadata ook op de subscription zelf (altijd, niet alleen bij een proef): zo kan elk
+      // customer.subscription.*/invoice.*-event direct aan de gebruiker gekoppeld worden.
+      // (Lifetime is mode "payment" en heeft geen subscription_data.)
+      ...(plan !== "lifetime"
+        ? {
+            subscription_data: {
+              metadata: { userId: user.id, user_id: user.id, subscription_type: plan },
+              ...(offerTrial ? { trial_period_days: TRIAL_DAYS } : {}),
+            },
+          }
+        : {}),
       success_url: `${origin}/pro?checkout=success&session_id={CHECKOUT_SESSION_ID}${nativeParam}`,
       cancel_url: `${origin}/pro?checkout=cancelled${nativeParam}`,
     });

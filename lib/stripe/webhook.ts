@@ -12,6 +12,7 @@
 
 import { syncLifetime, syncSubscription, type BillingDeps, type SyncResult } from "@/lib/stripe/sync";
 import type { SubscriptionFacts } from "@/lib/stripe/entitlements";
+import { STRIPE_WEBHOOK_EVENTS } from "@/lib/stripe/webhook-path";
 
 /** Minimale Stripe-eventvorm die we gebruiken (los van SDK-types). */
 export interface StripeEventLike {
@@ -38,17 +39,7 @@ export interface WebhookDeps {
   log: (message: string, fields?: Record<string, string | number | boolean | null>) => void;
 }
 
-export const HANDLED_EVENTS = [
-  "checkout.session.completed",
-  "checkout.session.async_payment_succeeded",
-  "customer.subscription.created",
-  "customer.subscription.updated",
-  "customer.subscription.deleted",
-  "customer.subscription.trial_will_end",
-  "invoice.paid",
-  "invoice.payment_succeeded",
-  "invoice.payment_failed",
-] as const;
+export const HANDLED_EVENTS = STRIPE_WEBHOOK_EVENTS;
 
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 const idOf = (v: unknown): string | null => (typeof v === "string" ? v : v && typeof v === "object" ? str((v as { id?: unknown }).id) : null);
