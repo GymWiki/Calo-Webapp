@@ -59,8 +59,14 @@ export async function deleteAccount(confirmation: string): Promise<Result> {
     return { error: "Je abonnement kon niet worden opgezegd. Probeer het opnieuw of neem contact op via info@gymwiki.nl." };
   }
 
-  // Niet-goedgekeurde bijdragen verwijderen; goedgekeurde worden anoniem (migratie).
-  await admin.from("activiteiten").delete().eq("author_id", user.id).neq("status", "approved");
+  // Niet-goedgekeurde bijdragen verwijderen; goedgekeurde worden anoniem. Dat anonimiseren doen we hier
+  // EXPLICIET (author_id = null) zodat het ook veilig is zolang supabase/migrations/account_deletion.sql
+  // (FK naar ON DELETE SET NULL) nog niet is gedraaid: anders zou de bestaande cascade gedeelde bibliotheekactiviteiten
+  // meeverwijderen. Faalt dit, dan stoppen we vóór er iets verwijderd wordt.
+  const removeDrafts = await admin.from("activiteiten").delete().eq("author_id", user.id).neq("status", "approved");
+  if (removeDrafts.error) return { error: "Verwijderen is mislukt. Probeer het opnieuw of neem contact op via info@gymwiki.nl." };
+  const anonymise = await admin.from("activiteiten").update({ author_id: null }).eq("author_id", user.id);
+  if (anonymise.error) return { error: "Verwijderen is mislukt. Probeer het opnieuw of neem contact op via info@gymwiki.nl." };
 
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {
