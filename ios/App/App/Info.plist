@@ -33,6 +33,14 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>GymWiki gebruikt de camera alleen als je zelf een foto maakt voor een activiteit of plattegrond.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>GymWiki gebruikt je fotobibliotheek alleen als je zelf een foto kiest om toe te voegen.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>GymWiki bewaart een afbeelding in je fotobibliotheek alleen als jij dat kiest bij het delen of exporteren.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

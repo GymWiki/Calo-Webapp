@@ -28,6 +28,7 @@ import {
   type TeamPlan,
 } from "@/lib/constants/subscriptionPlans";
 import { openInSystemBrowser } from "@/lib/mobile/capacitor";
+import { useIsNativeApp } from "@/lib/mobile/useIsNativeApp";
 import type { SeatUsage, Team, TeamInvite, TeamMember } from "@/types/team";
 
 const STATUS_LABELS: Record<Team["status"], { label: string; variant: "success" | "destructive" | "secondary" }> = {
@@ -54,6 +55,8 @@ export function TeamOwnerDashboard({
   aiUsage: { used: number; limit: number; remaining: number };
 }) {
   const router = useRouter();
+  // Geen betaal-/facturatiekaart in de app (zie TeamPlanPicker).
+  const isNative = useIsNativeApp();
   const statusInfo = STATUS_LABELS[team.status];
   const pendingInvites = invites.filter((i) => i.status === "pending");
   const seatsFull = seatUsage ? seatUsage.seatsAvailable <= 0 : false;
@@ -117,7 +120,7 @@ export function TeamOwnerDashboard({
 
       <MembersCard members={members} onDone={() => router.refresh()} />
 
-      <BillingCard team={team} />
+      {!isNative && <BillingCard team={team} />}
 
       <SettingsCard team={team} onDone={() => router.refresh()} />
 

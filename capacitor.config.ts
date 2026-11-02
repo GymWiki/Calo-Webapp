@@ -29,6 +29,8 @@ const config: CapacitorConfig = {
     // Capacitor dat als "externe navigatie" behandelt (dat zou anders de
     // systeembrowser openen i.p.v. binnen de app te blijven).
     allowNavigation: ["www.gymwiki.nl", "gymwiki.nl"],
+    // Lokale pagina als de live site niet laadt (offline): zie scripts/app-build.mjs.
+    errorPath: "offline.html",
   },
   ios: {
     // Voorkomt een wit/leeg fragment tussen het native splash-screen en het

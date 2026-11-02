@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import withPWAInit from "@ducanh2912/next-pwa";
+import { STRIPE_WEBHOOK_ALIASES, STRIPE_WEBHOOK_PATH } from "./lib/stripe/webhook-path";
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -51,6 +52,11 @@ const nextConfig: NextConfig = {
         pathname: "/storage/v1/object/public/**",
       },
     ],
+  },
+  // Afwijkende webhook-paden in Stripe (zie lib/stripe/webhook-path.ts) worden TRANSPARANT herschreven naar het echte
+  // pad: geen redirect, want Stripe volgt geen redirects en POST blijft POST.
+  async rewrites() {
+    return STRIPE_WEBHOOK_ALIASES.map((source) => ({ source, destination: STRIPE_WEBHOOK_PATH }));
   },
   // De 2D-plattegrondeditor is verwijderd; de 3D-editor is de enige. De enige oude ingang was de deeplink
   // /les-maken?tab=voorbereiding ("Zaal-Plattegrond Tekenen"): permanent door naar de editor, met behoud van het activiteit-id.

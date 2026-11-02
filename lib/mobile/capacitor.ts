@@ -65,18 +65,14 @@ export async function initializeNativeApp(): Promise<void> {
     }
   });
 
-  // "Terug naar de app"-deeplink vanaf de betaalpagina in de externe
-  // browser (zie components/mobile/NativeUpgradeAction.tsx + het
-  // custom_url_scheme dat `cap add` al registreerde, nu ook toegevoegd aan
-  // ios/App/App/Info.plist en android/.../AndroidManifest.xml). Een volledige
-  // reload (niet client-side navigatie) i.p.v. alleen de app naar de
-  // voorgrond halen: de WebView bevat nog de OUDE server-gerenderde
-  // abonnementsstatus van vóór het bezoek aan de externe browser, en de
-  // backend (Stripe-webhook -> Supabase) is inmiddels de enige bron van
-  // waarheid — een verse laad van /pro plukt die meteen op, zonder aparte
-  // syncstap.
-  CapacitorApp.addListener("appUrlOpen", () => {
-    window.location.href = "https://www.gymwiki.nl/pro";
+  // Deep links: universal/app links naar gymwiki.nl en het eigen URL-schema
+  // openen het juiste scherm in de app (lib/mobile/deepLinks.ts). Alleen
+  // gymwiki.nl-paden worden gevolgd; al het andere wordt genegeerd.
+  CapacitorApp.addListener("appUrlOpen", ({ url }) => {
+    void import("@/lib/mobile/deepLinks").then(({ resolveDeepLink }) => {
+      const path = resolveDeepLink(url);
+      if (path) window.location.assign(path);
+    });
   });
 }
 

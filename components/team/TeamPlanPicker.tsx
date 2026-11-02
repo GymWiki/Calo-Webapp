@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsNativeApp } from "@/lib/mobile/useIsNativeApp";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Mail } from "lucide-react";
@@ -27,6 +28,22 @@ import { cn } from "@/lib/utils";
  * koopbare kaart maar een losse contact-CTA.
  */
 export function TeamPlanPicker() {
+  // In de iOS/Android-app geen teamaankoop (Apple 3.1.1 / Google Payments:
+  // geen betaalflow buiten de store). Bestaande teams en uitnodigingen werken
+  // gewoon; een team afsluiten gebeurt buiten de app.
+  const isNative = useIsNativeApp();
+  if (isNative) {
+    return (
+      <p className="rounded-lg border p-4 text-sm text-muted-foreground">
+        Teamabonnementen kunnen niet in de app worden afgesloten. Heb je een uitnodiging van een team? Open de
+        uitnodigingslink om je aan te sluiten.
+      </p>
+    );
+  }
+  return <TeamPlanPickerForm />;
+}
+
+function TeamPlanPickerForm() {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<TeamPlan>("team_m");
   const [teamName, setTeamName] = useState("");

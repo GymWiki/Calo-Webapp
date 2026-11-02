@@ -59,9 +59,8 @@ jobs:
       # staat (GitHub werkt dit periodiek bij) — pin dit expliciet met
       # maxim-lobanov/setup-xcode@v1 als een toekomstige Xcode-upgrade ooit
       # een build breekt en je een specifieke versie wilt vastzetten.
-      - name: CocoaPods-afhankelijkheden installeren
-        run: cd ios/App && pod install
-
+      # Geen `pod install`: Capacitor 8 gebruikt Swift Package Manager
+      # (ios/App/CapApp-SPM); Xcode lost de packages zelf op tijdens de build.
       - name: Fastlane-lane draaien
         run: bundle exec fastlane ios ${{ inputs.lane }}
 
