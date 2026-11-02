@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Mail } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
+import { SubscriptionSelfHeal, SyncSubscriptionButton } from "@/components/subscription/SyncSubscription";
 import { DeleteAccountCard } from "@/components/profile/DeleteAccountCard";
 import { AvailableForInternshipToggle } from "@/components/profile/AvailableForInternshipToggle";
 import { HolidayRegionSelect } from "@/components/profile/HolidayRegionSelect";
@@ -61,6 +62,17 @@ export default async function ProfielInstellingenPage() {
           <AvailableForInternshipToggle initialValue={profile.available_for_internship} />
           <HolidayRegionSelect initialValue={profile.holiday_region} />
           <ThemeToggle />
+        </CardContent>
+      </Card>
+
+      {profile.subscription_status !== "paid_subscriber" && <SubscriptionSelfHeal />}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Abonnement</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <p>Betaald maar geen volledige toegang? Synchroniseer je abonnement met onze betaalprovider.</p>
+          <SyncSubscriptionButton />
         </CardContent>
       </Card>
 

@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { Check } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
+import { CheckoutActivation } from "@/components/subscription/CheckoutActivation";
+import { SubscriptionSelfHeal, SyncSubscriptionButton } from "@/components/subscription/SyncSubscription";
 import { SubscriptionPlansSection } from "@/components/subscription/SubscriptionPlansSection";
 import { Card, CardContent } from "@/components/ui/card";
 import { MONTHLY_CONTRIBUTION_REQUIRED_COUNT, type SubscriptionPlan } from "@/lib/constants/subscriptionPlans";
@@ -25,7 +27,7 @@ function isSubscriptionPlan(value: string | undefined): value is SubscriptionPla
 export default async function ProPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; plan?: string }>;
+  searchParams: Promise<{ checkout?: string; plan?: string; session_id?: string }>;
 }) {
   const profile = await getCurrentUserProfile();
 
@@ -33,7 +35,7 @@ export default async function ProPage({
     redirect("/login");
   }
 
-  const { plan } = await searchParams;
+  const { plan, checkout, session_id: sessionId } = await searchParams;
   // ?plan= komt van de prijskaarten op de landingspagina (app/page.tsx) via
   // /register — puur visuele nadruk (web), geen automatische checkout.
   const highlightPlan = isSubscriptionPlan(plan) ? plan : undefined;
@@ -81,6 +83,12 @@ export default async function ProPage({
         </Card>
       )}
 
+      {checkout === "success" && (
+        <CheckoutActivation sessionId={sessionId && /^cs_[A-Za-z0-9_]+$/.test(sessionId) ? sessionId : null} />
+      )}
+      {/* Eenmalige stille controle: heeft deze gebruiker bij Stripe betaald maar hier geen pro? */}
+      {!isPaid && checkout !== "success" && <SubscriptionSelfHeal />}
+
       <ul className="flex flex-wrap gap-x-6 gap-y-2">
         {SUBSCRIPTION_FEATURES.map((feature) => (
           <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -96,6 +104,10 @@ export default async function ProPage({
         userId={profile.id}
         entitlement={entitlement}
       />
+
+      <div className="flex justify-center">
+        <SyncSubscriptionButton />
+      </div>
 
       {isPaid && profile.subscription_type !== "lifetime" && entitlement.manage === "stripe-portal" && (
         <p className="text-center text-sm text-muted-foreground">

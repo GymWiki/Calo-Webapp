@@ -1,9 +1,13 @@
 "use server";
 
 import { cookies, headers } from "next/headers";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import type { AuthError } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
+import { healUserSubscription } from "@/lib/stripe/self-heal";
+import { getStripeClient } from "@/lib/stripe/client";
+import { createServiceClient } from "@/utils/supabase/service";
 
 type LoginErrorKind = "invalid_credentials" | "rate_limited" | "generic";
 type ActionError = { error: string; kind?: LoginErrorKind };
@@ -54,10 +58,28 @@ export async function login(input: {
   try {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    const { error } = await supabase.auth.signInWithPassword(input);
+    const { data, error } = await supabase.auth.signInWithPassword(input);
 
     if (error) {
       return mapLoginError(error);
+    }
+
+    // Zelfherstel na inloggen: bestaat er bij Stripe een betaald abonnement voor dit account dat hier
+    // (nog) geen pro-status heeft? Dan herstellen we dat — ná het antwoord, mag nooit het inloggen vertragen of breken.
+    const user = data.user;
+    if (user) {
+      after(async () => {
+        try {
+          await healUserSubscription(
+            createServiceClient(),
+            getStripeClient(),
+            { userId: user.id, email: user.email ?? null, emailVerified: Boolean(user.email_confirmed_at) },
+            (m, f) => console.error(`[login-heal] ${m}`, f ?? {}),
+          );
+        } catch {
+          // Stripe/Supabase niet geconfigureerd of onbereikbaar: niets doen, inloggen blijft werken.
+        }
+      });
     }
 
     return {};
