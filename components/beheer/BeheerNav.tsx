@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/beheer", label: "Activiteiten", exact: true },
   { href: "/beheer/ai-import", label: "AI-import" },
   { href: "/beheer/taalcheck", label: "Taalcheck" },
+  { href: "/beheer/betalingen", label: "Betalingen" },
   { href: "/kennisbank/beheer", label: "Kennisbank" },
 ];
 

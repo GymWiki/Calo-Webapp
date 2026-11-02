@@ -51,7 +51,14 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, ignored: "no-op" });
   }
 
-  const supabase = createServiceClient();
+  let supabase;
+  try {
+    supabase = createServiceClient();
+  } catch (cause) {
+    // Zelfde valkuil als bij Stripe: zonder service-role key kan niets worden weggeschreven.
+    console.error("[revenuecat-webhook] configuratiefout:", cause instanceof Error ? cause.message : "onbekend");
+    return Response.json({ error: "Server niet geconfigureerd." }, { status: 500 });
+  }
 
   // Idempotentie: een herhaald event-id doet niets.
   const { error: dupError } = await supabase
@@ -83,7 +90,7 @@ export async function POST(request: Request) {
   }
 
   const active = hasActiveEntitlement({ ...outcome.patch });
-  await supabase
+  const { error: userError } = await supabase
     .from("users")
     .update({
       subscription_status: active ? "paid_subscriber" : "free_contributor",
@@ -91,6 +98,12 @@ export async function POST(request: Request) {
       ...(outcome.markTrialUsed ? { trial_used: true } : {}),
     })
     .eq("id", userId);
+  if (userError) {
+    // Niet stil slikken: event vrijgeven en 500 geven zodat RevenueCat opnieuw probeert.
+    console.error("[revenuecat-webhook] gebruiker bijwerken mislukt:", userError.message);
+    await supabase.from("billing_events").delete().eq("id", `revenuecat:${event.id}`);
+    return Response.json({ error: "Opslaan mislukt." }, { status: 500 });
+  }
 
   return Response.json({ ok: true });
 }
