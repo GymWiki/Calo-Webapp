@@ -2,6 +2,11 @@
 
 Peildatum 2026-11-02. Onderzoek is alleen-lezen uitgevoerd; er is niets geschreven in productie en niets gewijzigd in Stripe.
 
+## 0. Bijgewerkte conclusie (2 nov, na de 404-melding uit Stripe)
+- **Oorzaak A (zeker aan jouw kant):** het live-endpoint in Stripe wijst naar een pad dat in de app niet bestaat (Next.js-404). Het **echte** pad is `https://www.gymwiki.nl/api/stripe/webhook`. Bewijs: `GET` daarop geeft live **405** (route bestaat, alleen POST); gangbare varianten (`/api/webhooks/stripe`, `/api/stripe/webhooks`, `/api/webhook`, `/api/stripe-webhook`, `/stripe/webhook`) geven live allemaal **404**. De route zit in de productiedeploy `a12a6fb` (en al sinds `0412683`, 2026-09-08, nooit verplaatst of hernoemd; `git log --diff-filter=D` toont geen verwijderde webhook-route). Welk pad er precies in Stripe staat kan ik niet zien; vergelijk het met het pad hierboven.
+- **Oorzaak B (verborgen achter A):** `SUPABASE_SERVICE_ROLE_KEY` ontbreekt in Vercel Production. Zodra het pad klopt zou de oude webhook alsnog 500'en. Zonder deze key blijft herstel dus zinloos: zet hem vóór je opnieuw verstuurt.
+- De fix voegt toe: een GET-healthcheck, transparante rewrites voor afwijkende paden (geen redirect), uitsluiting van het pad in `proxy.ts`, en tests die falen als pad, docs, proxy of rewrites uit de pas lopen. Zie `docs/stripe-webhook.md`.
+
 ## 1. Oorzaak en bewijs
 
 | # | Bevinding | Bewijs |
@@ -30,25 +35,55 @@ Niet de oorzaak (gecontroleerd): handtekeningcontrole gebruikt de ruwe body (`re
 5. Staat de dashboard-modus op **Live** (niet Test) en horen `STRIPE_SECRET_KEY` en de `STRIPE_PRICE_*` in Vercel bij live?
 6. Vercel → Settings → **Deployment Protection**: Production mag niet achter Vercel Authentication staan voor `/api/stripe/webhook` (standaard zijn productiedomeinen vrij; bevestig).
 
-## 4. Productiestappen, in deze volgorde
-1. **Back-up** (voor alles): Supabase Dashboard → Database → Backups (controleer recentheid) en eigen dump van de relevante tabellen:
-   `pg_dump "$SUPABASE_DB_URL" --data-only --table=public.users --table=public.subscriptions --table=public.teams -Fc -f gymwiki-vóór-herstel-$(date +%F).dump`
-2. **Vercel**: voeg `SUPABASE_SERVICE_ROLE_KEY` toe aan **Production** (Supabase → Project Settings → API → `service_role`, markeer als Sensitive). Optioneel `STRIPE_PAST_DUE_GRACE_DAYS`. Controleer het Stripe-endpoint (§3).
-3. **Deploy** deze branch (PR → merge → Vercel). Let op: de branch bevat ook de eerdere app-release-commits (privacy, paywall e.d.); wil je alleen de hotfix, cherry-pick de commits "Stripe: …", "Succespagina…", "Beheer: /beheer/betalingen…" en het bijbehorende `lib/stripe/`.
-4. Open **`/beheer/betalingen`**: alle configuratieregels moeten groen zijn.
-5. **Migratie** `supabase/migrations/stripe_events.sql` (event-log + e-mailopzoek-functie; idempotent): Supabase SQL-editor, of `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/stripe_events.sql`. De webhook werkt ook zonder deze tabel. (De migratie `entitlements_multi_source.sql` uit het app-release-traject is los en optioneel; de code werkt met en zonder.)
-6. **Gemiste events opnieuw laten afspelen**: Stripe → Webhooks → je endpoint → mislukte events → **Resend** (Stripe bewaart events ~30 dagen). Dat herstelt de meeste klanten zonder iets anders.
-7. **Audit (alleen lezen)**: maak een **restricted key** in Stripe (Developers → API keys → Create restricted key) met uitsluitend **Read** op: Customers, Subscriptions, Invoices, Checkout Sessions (optioneel Prices); alle andere rechten *None*. Zet in `.env.local` (nooit committen of delen): `STRIPE_READONLY_KEY=rk_live_…`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Draai: `npm run audit:betalingen` → `data/audit-betalingen.csv` en `data/audit-handmatig.csv`.
-8. **Herstel droog**: `npm run repair:entitlements` (schrijft niets; toont per gebruiker wat er zou veranderen; schrijft `data/repair-entitlements.sql` en `data/repair-handmatig.csv`).
-9. **Herstel toepassen** (kies één):
-   - Script: `npm run repair:entitlements -- --apply --i-have-a-backup`
-   - Of SQL: plak `data/repair-entitlements.sql` in de Supabase SQL-editor (draait in één transactie, idempotent).
-   Klanten die alleen op e-mailadres gekoppeld zijn worden niet automatisch hersteld (voeg `--include-email-matches` toe na handmatige controle). Klanten zonder koppeling staan met een voorstel in `data/repair-handmatig.csv`; koppel die handmatig (gebruiker laten inloggen en op "Abonnement synchroniseren" klikken lukt alleen als hun e-mailadres overeenkomt, anders via support).
-10. **Controle**: `npm run audit:betalingen` opnieuw → "betaald maar geen pro" moet 0 zijn; `/beheer/betalingen` toont geen afwijkingen.
+## 4. Stappenplan voor jou (in deze volgorde)
+
+**Back-up vóór stap 6.** Supabase Dashboard → Database → Backups: controleer dat er een recente dagelijkse back-up is (en maak anders een eigen). Maak daarnaast een dump van de tabellen die het herstel raakt:
+`pg_dump "$SUPABASE_DB_URL" --data-only --table=public.users --table=public.subscriptions --table=public.teams -Fc -f gymwiki-voor-herstel-$(date +%F).dump`
+Terugzetten kan per tabel met `pg_restore`. Het herstel is idempotent (opnieuw draaien geeft hetzelfde resultaat).
+
+1. **Fix deployen.**
+   - Vercel → Settings → Environment Variables → Production: voeg `SUPABASE_SERVICE_ROLE_KEY` toe (Supabase → Project Settings → API → `service_role`, Sensitive). Controleer ook `STRIPE_SECRET_KEY` (live) en `STRIPE_WEBHOOK_SECRET`.
+   - PR → merge → wacht tot de Vercel-productiedeploy `READY` is. (Deze branch bevat ook de app-release-commits; wil je alleen de hotfix, cherry-pick `lib/stripe/*`, `app/api/stripe/*`, `app/api/subscription/*`, `next.config.ts`, `proxy.ts`, de succespagina- en sync-componenten.)
+   - Test: `curl -s https://www.gymwiki.nl/api/stripe/webhook` → `{"ok":true,"endpoint":"stripe-webhook","methods":["POST"]}`. Open daarna `/beheer/betalingen`: alle configuratieregels groen.
+   - Optioneel nu al: migratie `supabase/migrations/stripe_events.sql` (event-log; idempotent). De webhook werkt ook zonder.
+2. **Pad en secret controleren in Stripe** (Developers → Webhooks, **Live** én daarna **Test**):
+   - Endpoint-URL is exact `https://www.gymwiki.nl/api/stripe/webhook` (met `www`, https, zonder slash aan het einde). Past het niet: bewerk de URL.
+   - Events: precies de lijst uit `docs/stripe-webhook.md` (9 stuks, zie onderaan deze doc).
+   - **Signing secret** (Reveal) van dít endpoint = `STRIPE_WEBHOOK_SECRET` in Vercel (live ≠ test). Is het verschillend: zet de juiste in Vercel en redeploy.
+3. **"Send test webhook"** (kies bijvoorbeeld `customer.subscription.updated`): je moet **2xx** zien (200). Een 400 = verkeerde secret; 500 = configuratie ontbreekt (kijk in Vercel Logs / `/beheer/betalingen`); 404 = het pad klopt nog niet.
+4. **Mislukte events opnieuw versturen**: bij het endpoint → *Events* (filter *Failed*) → per event **Resend** (Stripe bewaart events ± 30 dagen). Controleer dat ze nu 2xx geven.
+5. **Audit draaien (alleen lezen)**:
+   - Stripe: Developers → API keys → *Create restricted key*, alleen **Read** op Customers, Subscriptions, Invoices, Checkout Sessions (rest *None*). In `.env.local`: `STRIPE_READONLY_KEY=rk_live_…`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (nooit committen of delen).
+   - `npm run audit:betalingen` → `data/audit-betalingen.csv` en `data/audit-handmatig.csv` (persoonsgegevens; lokaal houden). De audit leest de **Stripe-waarheid** (alle actieve, trialing en recent betaalde abonnementen + betaalde lifetime), dus het maakt niet uit of een event nog opnieuw wordt verstuurd.
+6. **Herstelscript**:
+   - Eerst droog: `npm run repair:entitlements` (schrijft niets; toont per gebruiker wat zou veranderen; maakt `data/repair-entitlements.sql` en `data/repair-handmatig.csv`). Controleer de lijst.
+   - Daarna pas live, **na de back-up**: `npm run repair:entitlements -- --apply --i-have-a-backup`
+   - Of liever zelf in SQL: plak `data/repair-entitlements.sql` in de Supabase SQL-editor (één transactie, idempotent).
+   - Klanten die alleen op e-mailadres gekoppeld zijn: eerst controleren, dan `--include-email-matches`. Klanten zonder koppeling (ander e-mailadres): zie `data/repair-handmatig.csv` met voorstel; koppel die handmatig.
+7. **Controleren**: `npm run audit:betalingen` opnieuw → "betaald maar geen pro" = 0 en elke getroffen klant staat op `ok`. Check `/beheer/betalingen` (geen mislukte events, geen "actief maar niet pro"). Vraag één getroffen klant (of test met je eigen account) of de pro-functies zichtbaar zijn; anders kunnen ze op Profiel → Instellingen op "Abonnement synchroniseren" klikken.
+
+### Events die in het Stripe-endpoint aangevinkt moeten staan
+`checkout.session.completed` · `checkout.session.async_payment_succeeded` · `customer.subscription.created` · `customer.subscription.updated` · `customer.subscription.deleted` · `customer.subscription.trial_will_end` · `invoice.paid` · `invoice.payment_succeeded` · `invoice.payment_failed`
+
+### Conceptbericht voor getroffen klanten (pas aan en verstuur zelf)
+> **Onderwerp:** Je GymWiki-abonnement is geactiveerd
+>
+> Hallo [voornaam],
+>
+> Je hebt een GymWiki-abonnement afgesloten, maar door een technische fout werd je account niet meteen op volledige toegang gezet. Dat is nu hersteld: je hebt volledige toegang tot de bibliotheek en alle functies. Je hoeft niets te doen en er is niets dubbel afgeschreven.
+>
+> Zie je het toch nog niet? Ga in GymWiki naar Profiel → Instellingen en kies "Abonnement synchroniseren", of mail ons op info@gymwiki.nl.
+>
+> Onze excuses voor het ongemak, en bedankt voor je steun.
+>
+> Groet,
+> [naam], GymWiki
+
+Pas de tekst aan als iemand zijn proefperiode of betaaldatum wil laten verrekenen; dat is een beslissing van jou (en gaat via Stripe), niet van het script.
 
 ## 5. Openstaande punten
 - Aantallen getroffen klanten per categorie heb ik niet kunnen bepalen: daarvoor is een Stripe-key nodig die in deze omgeving ontbreekt. In Supabase staan 8 gebruikers: 3 pro (1 `monthly`, 2 `none`), 5 `free_blocked`, en 0 abonnementsrijen. Draai de audit voor de echte aantallen.
-- Het is nog onbekend of oorzaak 3 (apex-endpoint) of alleen oorzaak 1 speelt; Stripe's "Recent deliveries" geeft zekerheid.
+- Welk pad er in Stripe staat is niet door mij te zien; de 404 bevestigt dat het afwijkt van `/api/stripe/webhook`. Als het een van de aliassen is (`/api/webhooks/stripe`, `/api/stripe/webhooks`, `/api/stripe-webhook`, `/api/webhook/stripe`) werkt het na deploy meteen; zet het echte pad er toch in.
 - De 2 gebruikers met `paid_subscriber/none` hebben geen Stripe-koppeling en komen in de audit als "pro zonder Stripe-abonnement" terug: bepaal of dat bewust is.
 - Zelfherstel op e-mail vereist een bevestigd e-mailadres; als "Confirm email" in Supabase uitstaat (zie `register`-actie) werkt die terugval niet en verloopt koppelen via metadata/klant-ID of handmatig.
 - Rate limiting van het zelfherstel is in-memory per serverinstantie (goedkoop, niet strikt); bij veel gebruikers eventueel naar een tabel verplaatsen.
