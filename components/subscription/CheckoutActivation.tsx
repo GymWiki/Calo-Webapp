@@ -71,7 +71,8 @@ export function CheckoutActivation({ sessionId, supportEmail = "info@gymwiki.nl"
 
   useEffect(() => {
     let cancelled = false;
-    void start(() => cancelled);
+    // Asynchroon starten: de eerste setState gebeurt pas na een netwerkaanroep.
+    void Promise.resolve().then(() => start(() => cancelled));
     return () => {
       cancelled = true;
     };
