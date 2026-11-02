@@ -82,3 +82,6 @@ fastlane/*.log
 test-results/
 playwright-report/
 public/dev-students/
+
+# Lokale audit-uitvoer met persoonsgegevens (nooit committen)
+/data/
