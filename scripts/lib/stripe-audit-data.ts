@@ -55,6 +55,14 @@ export async function fetchStripeRecords(stripe: Stripe, opts: { recentDays: num
   const records: StripeRecord[] = [];
   const facts = new Map<string, ReturnType<typeof factsFromStripe>>();
 
+  // Oudere abonnementen hebben de gebruiker alleen op de Checkout Session (client_reference_id), niet op de subscription.
+  const userBySubscription = new Map<string, string>();
+  for await (const s of stripe.checkout.sessions.list({ limit: 100 })) {
+    const subId = typeof s.subscription === "string" ? s.subscription : (s.subscription?.id ?? null);
+    const owner = s.client_reference_id ?? s.metadata?.userId ?? null;
+    if (s.mode === "subscription" && s.status === "complete" && subId && owner) userBySubscription.set(subId, owner);
+  }
+
   for await (const sub of stripe.subscriptions.list({ status: "all", limit: 100, expand: ["data.customer", "data.latest_invoice"] })) {
     const customer = typeof sub.customer === "string" ? null : (sub.customer as Stripe.Customer);
     const invoice = typeof sub.latest_invoice === "string" ? null : (sub.latest_invoice as Stripe.Invoice | null);
@@ -75,7 +83,7 @@ export async function fetchStripeRecords(stripe: Stripe, opts: { recentDays: num
       startedAt: iso(sub.start_date),
       lastPaidAt: lastPaid,
       expectedPaid: ent.paid,
-      metadataUserId: sub.metadata?.userId ?? sub.metadata?.user_id ?? null,
+      metadataUserId: sub.metadata?.userId ?? sub.metadata?.user_id ?? userBySubscription.get(sub.id) ?? null,
     });
   }
 
