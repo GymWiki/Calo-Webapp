@@ -2415,7 +2415,7 @@ export function Floorplan3dEditor({
 
   if (!isDesktop) {
     return (
-      <div className="relative flex h-[100dvh] flex-col overscroll-none" {...plattegrondJson.dragProps}>
+      <div className="editor-shell relative flex flex-col overscroll-none max-md:fixed max-md:inset-x-0 max-md:top-0" {...plattegrondJson.dragProps}>
         {plattegrondJson.elements}
         <header className="flex shrink-0 items-center gap-1 border-b bg-card px-2 pt-[env(safe-area-inset-top)]">
           {guest ? (

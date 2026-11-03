@@ -68,6 +68,7 @@ export function MobileToolbar({
   return (
     <nav
       aria-label="Editor-werkbalk"
+      data-testid="mobiele-werkbalk"
       className="flex shrink-0 items-stretch gap-0.5 border-t bg-card px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
     >
       {buttons.map((button) => {

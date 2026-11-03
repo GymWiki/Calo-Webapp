@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import { logout } from "@/app/(auth)/actions";
 import { GymWikiLogo } from "@/components/GymWikiLogo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { isImmersiveRoute } from "@/lib/editor-ui/immersive";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -60,6 +61,13 @@ function isNavItemActive(pathname: string, href: string): boolean {
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  // Editorroute: schermvullend. Geen onderste navigatiebalk en geen padding daarvoor (op mobiel); html/body scrollen niet.
+  const immersive = isImmersiveRoute(pathname);
+  useEffect(() => {
+    if (!immersive) return;
+    document.documentElement.setAttribute("data-immersive", "true");
+    return () => document.documentElement.removeAttribute("data-immersive");
+  }, [immersive]);
   const navItems = NAV_ITEMS;
   const secondaryNavItems = SECONDARY_NAV_ITEMS;
   const [moreOpen, setMoreOpen] = useState(false);
@@ -141,7 +149,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           inset-bottom) extra hoogte krijgt, moet de content-padding daarin
           meegroeien, anders verdwijnt het laatste stukje content er alsnog
           achter. */}
-      <div className="flex min-w-0 flex-1 flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 print:pb-0">
+      <div className={cn("flex min-w-0 flex-1 flex-col md:pb-0 print:pb-0", immersive ? "pb-0" : "pb-[calc(4rem+env(safe-area-inset-bottom))]")}>
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
@@ -152,7 +160,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           zouden komen te staan). Elke tab krijgt zelf h-16 zodat het
           klikbare oppervlak exact hetzelfde blijft als voorheen — de
           safe-area-ruimte is puur onklikbare buffer eronder. */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex shrink-0 transform-gpu border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden print:hidden">
+      <nav className={cn("fixed inset-x-0 bottom-0 z-50 flex shrink-0 transform-gpu border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden print:hidden", immersive && "hidden")}>
         {navItems.map((item) => {
           const isActive = isNavItemActive(pathname, item.href);
           const Icon = item.icon;

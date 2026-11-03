@@ -1,0 +1,27 @@
+{
+ "vw": 375,
+ "vh": 667,
+ "scrollHeight": 731,
+ "scrollWidth": 375,
+ "header": {
+  "top": 0,
+  "bottom": 45
+ },
+ "toolbar": {
+  "top": 602,
+  "bottom": 667,
+  "left": 0,
+  "right": 375
+ },
+ "globalNav": {
+  "top": 602,
+  "bottom": 667
+ },
+ "canvas": {
+  "width": 375,
+  "height": 557
+ },
+ "area": {
+  "height": 557
+ }
+}

@@ -344,3 +344,15 @@
     animation: none;
   }
 }
+
+/* Schermvullende editor (lib/editor-ui/immersive.ts): geen paginascroll; hoogte = zichtbaar scherm (dvh, met fallbacks). */
+html[data-immersive="true"],
+html[data-immersive="true"] body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.editor-shell {
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+}

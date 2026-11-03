@@ -1,0 +1,27 @@
+{
+ "vw": 820,
+ "vh": 1180,
+ "scrollHeight": 1180,
+ "scrollWidth": 820,
+ "header": {
+  "top": 0,
+  "bottom": 45
+ },
+ "toolbar": {
+  "top": 1115,
+  "bottom": 1180,
+  "left": 240,
+  "right": 820
+ },
+ "globalNav": {
+  "top": 73,
+  "bottom": 1111
+ },
+ "canvas": {
+  "width": 580,
+  "height": 1070
+ },
+ "area": {
+  "height": 1070
+ }
+}
