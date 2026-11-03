@@ -42,6 +42,8 @@ export type GymLayout = {
   wandrekken: EnvironmentPart;
   /** De standaard basketbalinstallaties (baskets) aan de korte wanden; alleen in de losse zaal. Weghalen kan net als een muur. */
   baskets?: EnvironmentPart;
+  /** Vaste bankjes langs de wand (Turnbank_1/2); alleen in de losse zaal. */
+  bankjes?: EnvironmentPart;
   lijnen: (EnvironmentPart & { defaultHidden?: boolean })[];
 };
 
@@ -110,6 +112,7 @@ export const GYM_LAYOUTS: Record<GymLayoutId, GymLayout> = {
     curtains: [],
     wandrekken: { id: "wandrekken", label: "Wandrekken", nodes: ["Wandrek_1", "Wandrek_2"] },
     baskets: { id: "baskets", label: "Basketbalbaskets", nodes: ["Basketbal_Installatie_Links", "Basketbal_Installatie_Rechts"] },
+    bankjes: { id: "bankjes", label: "Vaste bankjes", nodes: ["Turnbank_1", "Turnbank_2"] },
     lijnen: lines(SPORT_LINES.map(({ prefix }) => prefix)),
   },
   "2x2": {
@@ -192,6 +195,34 @@ export function createGymEnvironment(layoutId: GymLayoutId): Floorplan3dEnvironm
     ...layout.lijnen.filter((part) => part.defaultHidden).flatMap((part) => part.nodes),
   ];
   return { type: "gymzaal", layout: layoutId, hidden };
+}
+
+// --- Vaste onderdelen (één systeem: dezelfde `environment.hidden`-lijst als muren, baskets en lijnen) ----------
+
+/** Alle vaste onderdelen van de zaal die je kunt weghalen (wandrekken, baskets, bankjes), als één lijst. */
+export function fixtureParts(layout: GymLayout): EnvironmentPart[] {
+  return [layout.wandrekken, ...(layout.baskets ? [layout.baskets] : []), ...(layout.bankjes ? [layout.bankjes] : [])];
+}
+
+/** Elk afzonderlijk wandrek (Wandrek_1, Wandrek_2, ...) als eigen onderdeel, voor "per positie". */
+export function wandrekParts(layout: GymLayout): EnvironmentPart[] {
+  if (layout.wandrekken.nodes.length < 2) return [];
+  return layout.wandrekken.nodes.map((node, index) => ({ id: `wandrek-${index + 1}`, label: `Wandrek ${index + 1}`, nodes: [node] }));
+}
+
+/** "Alles weghalen" / "Standaardzaal": alle vaste onderdelen uit of aan; muren, gordijnen en lijnen blijven zoals ze zijn. */
+export function setFixturesOn(hidden: string[], layout: GymLayout, on: boolean): string[] {
+  return setPartsOn(hidden, fixtureParts(layout), on);
+}
+
+/** "Lege zaal": alle vaste onderdelen uit en de vloerlijnen uit; alleen vloer en de gekozen muren/gordijnen blijven. */
+export function emptyHallHidden(hidden: string[], layout: GymLayout): string[] {
+  return setPartsOn(setFixturesOn(hidden, layout, false), layout.lijnen, false);
+}
+
+/** "Standaardzaal herstellen": precies de standaardzaal (muren achter/links, lijnen volgens standaard, alle vaste onderdelen aan). */
+export function standardHallHidden(layoutId: GymLayoutId): string[] {
+  return createGymEnvironment(layoutId).hidden;
 }
 
 // --- Aan/uit-logica (puur) ------------------------------------------------

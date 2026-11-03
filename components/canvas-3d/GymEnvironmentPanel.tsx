@@ -9,9 +9,13 @@ import { cn } from "@/lib/utils";
 import {
   GYM_LAYOUT_ORDER,
   GYM_LAYOUTS,
+  emptyHallHidden,
   isPartOn,
+  setFixturesOn,
   setPartOn,
   setPartsOn,
+  standardHallHidden,
+  wandrekParts,
   type EnvironmentPart,
   type GymLayout,
   type GymLayoutId,
@@ -342,7 +346,19 @@ export function GymEnvironmentPanel({
       </div>
 
       <div className="space-y-3">
-        <SectionTitle>Extra&apos;s</SectionTitle>
+        <SectionTitle>Vaste onderdelen</SectionTitle>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" data-testid="vaste-onderdelen-acties">
+          <Button type="button" size="sm" variant="outline" className="min-h-11" data-testid="onderdelen-alles-weg" onClick={() => onHiddenChange(setFixturesOn(hidden, layout, false))}>
+            Alles weghalen
+          </Button>
+          <Button type="button" size="sm" variant="outline" className="min-h-11" data-testid="onderdelen-standaard" onClick={() => onHiddenChange(standardHallHidden(layout.id))}>
+            Standaardzaal herstellen
+          </Button>
+          <Button type="button" size="sm" variant="outline" className="min-h-11" data-testid="onderdelen-leeg" onClick={() => onHiddenChange(emptyHallHidden(hidden, layout))}>
+            Lege zaal
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Wandrekken, baskets en vaste bankjes. Items die erop of ertegenaan staan blijven gewoon staan.</p>
         <ToggleRow
           label="Wandrekken"
           checked={isPartOn(layout.wandrekken, hidden)}
@@ -354,6 +370,28 @@ export function GymEnvironmentPanel({
             checked={isPartOn(layout.baskets, hidden)}
             onCheckedChange={(on) => onHiddenChange(setPartOn(hidden, layout.baskets!, on))}
           />
+        )}
+        {layout.bankjes && (
+          <ToggleRow
+            label="Vaste bankjes"
+            checked={isPartOn(layout.bankjes, hidden)}
+            onCheckedChange={(on) => onHiddenChange(setPartOn(hidden, layout.bankjes!, on))}
+          />
+        )}
+        {wandrekParts(layout).length > 0 && (
+          <div>
+            <p className="mb-1.5 text-sm">Wandrek per positie</p>
+            <div className="flex flex-wrap gap-1.5">
+              {wandrekParts(layout).map((part) => {
+                const on = isPartOn(part, hidden);
+                return (
+                  <Button key={part.id} type="button" size="sm" className="min-h-11" variant={on ? "default" : "outline"} aria-pressed={on} data-testid={`onderdeel-${part.id}`} onClick={() => onHiddenChange(setPartOn(hidden, part, !on))}>
+                    {part.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
         )}
         <div>
           <p className="mb-1.5 text-sm">Sportlijnen op de vloer</p>
