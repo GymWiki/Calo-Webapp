@@ -15,7 +15,7 @@ import {
   Lock,
   LockOpen,
   Redo2,
-  RotateCcw,
+  RotateCcw, ShieldAlert,
   RotateCw,
   Save,
   ClipboardPaste,
@@ -278,6 +278,14 @@ export function Floorplan3dEditor({
   const floorPointRef = useRef<{ x: number; z: number } | null>(null);
   const overCanvasRef = useRef(false);
   const modifierRef = useRef(false);
+  /** Alt ingedrukt tijdens het slepen: snappen en botsing tijdelijk uit. */
+  const altRef = useRef(false);
+  /** Schakelaar "Botsing": aan = waarschuwen bij overlap, uit = negeren. */
+  const [collisionOn, setCollisionOn] = useState(true);
+  /** Items met een botsingswaarschuwing tijdens het slepen (outline). */
+  const [warnIds, setWarnIds] = useState<ReadonlySet<string>>(() => new Set());
+  /** Laatste preview-resultaat van de sleepbeweging: precies dit wordt bij loslaten vastgelegd (geen tweede berekening). */
+  const lastPlacementRef = useRef<{ id: string; placement: ReturnType<typeof resolvePlacement> } | null>(null);
   const pendingCopyRef = useRef<string | null>(null);
   const pendingPasteRef = useRef(false);
   const clipboardActionsRef = useRef<{ pasteText: (text: string | null) => void }>({ pasteText: () => undefined });
@@ -1011,6 +1019,26 @@ export function Floorplan3dEditor({
     setItems((prev) => prev.map((candidate) => (candidate.id === item.id ? { ...candidate, rot_y_deg: target, x: origin.x, z: origin.z } : candidate)));
   }
 
+  /** Zachte botsingswaarschuwing tijdens het slepen: outline + korte melding; de plaatsing blijft zoals hij is. */
+  function showPlacementWarnings(id: string, placement: ReturnType<typeof resolvePlacement>) {
+    const ids = new Set<string>();
+    const messages: string[] = [];
+    for (const warning of placement.warnings) {
+      if (warning.kind === "overlap") {
+        ids.add(id);
+        ids.add(warning.withId);
+        const name = models.find((model) => model.slug === warning.withSlug)?.naam ?? warning.withSlug;
+        if (!messages.includes(`Overlapt met ${name}`)) messages.push(`Overlapt met ${name}`);
+      } else {
+        ids.add(id);
+        messages.push("Past niet in de zaal: het item steekt buiten de zaal uit");
+      }
+    }
+    setWarnIds((previous) => (previous.size === ids.size && [...ids].every((value) => previous.has(value)) ? previous : ids));
+    if (messages.length > 0) toast.warning(messages.join(" · "), { id: "botsing-waarschuwing", duration: 4000 });
+    else toast.dismiss("botsing-waarschuwing");
+  }
+
   function handleFloorPointerMove(event: ThreeEvent<PointerEvent>) {
     floorPointRef.current = { x: event.point.x, z: event.point.z };
     if (ropeDrag.moveOnFloor(event)) return;
@@ -1042,7 +1070,11 @@ export function Floorplan3dEditor({
       room,
       grid: snapGrid,
       lookup,
+      collisions: collisionOn && !altRef.current,
+      snap: !altRef.current,
     });
+    lastPlacementRef.current = { id: draggingId, placement };
+    showPlacementWarnings(draggingId, placement);
     if (debug) setDebugGuides(placement.guides);
     // Subtiele trilling zodra het item aan een lijn/ander item vastklikt (waar ondersteund).
     const snapped = placement.guides.length > 0;
@@ -1110,6 +1142,7 @@ export function Floorplan3dEditor({
     const id = draggingId;
     setDraggingId(null);
     setDebugGuides([]);
+    setWarnIds(new Set());
     lastSnappedRef.current = false;
     haptic(10);
 
@@ -1126,15 +1159,12 @@ export function Floorplan3dEditor({
       const dragged = prev.find((item) => item.id === id);
       if (!dragged) return prev;
 
-      const placement = resolvePlacement({
-        pointer: { x: dragged.x, z: dragged.z },
-        dragged: draggedFields(dragged),
-        others: prev.filter((item) => item.id !== id && !restingIds.has(item.id)),
-        room,
-        grid: snapGrid,
-        lookup,
-        final: true,
-      });
+      // Precies het laatste preview-resultaat; geen tweede berekening (geen opnieuw snappen, geen wegduwen).
+      const last = lastPlacementRef.current;
+      const placement = last && last.id === id ? last.placement : { x: dragged.x, y: dragged.y, z: dragged.z, log: "geen preview", warnings: [] as ReturnType<typeof resolvePlacement>["warnings"] };
+      if (process.env.NODE_ENV !== "production" && (Math.abs(placement.x - dragged.x) > 0.001 || Math.abs(placement.z - dragged.z) > 0.001 || Math.abs(placement.y - dragged.y) > 0.001)) {
+        console.error(`[plaatsing] commit wijkt af van de laatste preview voor ${dragged.slug}`, { preview: placement, staat: { x: dragged.x, y: dragged.y, z: dragged.z } });
+      }
       if (debug) {
         console.info(`[3D-plaatsing] ${dragged.slug}: ${placement.log}`, placement);
       }
@@ -1657,6 +1687,7 @@ export function Floorplan3dEditor({
     };
     const onPointer = (event: PointerEvent) => {
       modifierRef.current = event.shiftKey || event.ctrlKey || event.metaKey;
+      altRef.current = event.altKey;
       overCanvasRef.current = (event.target as HTMLElement | null)?.tagName === "CANVAS";
     };
     document.addEventListener("copy", onCopy);
@@ -2085,6 +2116,13 @@ export function Floorplan3dEditor({
       )}
 
       <div>
+        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Botsing</p>
+        <Button type="button" size="sm" className="min-h-11 w-full" variant={collisionOn ? "default" : "outline"} aria-pressed={collisionOn} data-testid="knop-botsing-instelling" onClick={() => setCollisionOn((value) => !value)}>
+          {collisionOn ? "Botsing: waarschuwen" : "Botsing: negeren"}
+        </Button>
+      </div>
+
+      <div>
         <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Raster</p>
         <div className="grid grid-cols-3 gap-1.5">
           {([0, 0.1, 0.5] as SnapGridSize[]).map((size) => (
@@ -2179,6 +2217,7 @@ export function Floorplan3dEditor({
       showAllAnchors={debugCollision && showAnchors}
       onItemPointerLeave={(id) => setRopeHoverId((current) => (current === id ? null : current))}
       ropeHandles={isDesktop ? "all" : ropeEditMode}
+      warnIds={warnIds}
       onRopePointerDown={(id, event) => {
         handleRopeSelect(id);
         // Desktop: het touw zelf verslepen verplaatst het hele touw; mobiel alleen in de stand "Hele touw verplaatsen" (anders blijft het een tik om te selecteren).
@@ -2572,6 +2611,17 @@ export function Floorplan3dEditor({
             onClick={() => (ropeMode ? stopRopeMode() : startRopeMode())}
           >
             <Cable className="size-4" /> Touw spannen
+          </Button>
+          <Button
+            type="button"
+            variant={collisionOn ? "default" : "outline"}
+            className="mb-3 w-full"
+            aria-pressed={collisionOn}
+            data-testid="knop-botsing"
+            title="Waarschuwen als objecten overlappen. Houd Alt ingedrukt tijdens het slepen om botsing en snappen tijdelijk uit te zetten."
+            onClick={() => setCollisionOn((value) => !value)}
+          >
+            <ShieldAlert className="size-4" /> Botsing: {collisionOn ? "waarschuwen" : "negeren"}
           </Button>
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>

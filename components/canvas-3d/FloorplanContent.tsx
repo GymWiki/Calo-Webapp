@@ -47,6 +47,7 @@ export function FloorplanContent({
   touchUi = false,
   onRotateHandleDown,
   warnOutside = false,
+  warnIds,
   ropes = [],
   hiddenRopeId = null,
   ropeDraft = null,
@@ -84,6 +85,8 @@ export function FloorplanContent({
   showAllAnchors?: boolean;
   /** Editor: gekantelde items die buiten de zaal vallen krijgen een rode outline. */
   warnOutside?: boolean;
+  /** Items met een botsingswaarschuwing tijdens het slepen (subtiele rode outline). */
+  warnIds?: ReadonlySet<string>;
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
   fields: ConeField[];
@@ -145,9 +148,10 @@ export function FloorplanContent({
           anchors={lookup && (showAllAnchors || anchorViews?.[item.id]) ? anchorsForSlug(item.slug, shapeOfDims(dimsOf(item, lookup))) : undefined}
           anchorView={showAllAnchors ? { highlightId: anchorViews?.[item.id]?.highlightId ?? null, labels: true } : (anchorViews?.[item.id] ?? null)}
           outsideRoom={
-            warnOutside && lookup && itemIsTilted(item)
+            warnIds?.has(item.id) === true ||
+            (warnOutside && lookup && itemIsTilted(item)
               ? isOutsideRoom(shapeOfDims(dimsOf(item, lookup)), [item.x, item.y, item.z], rotationOf(item), room)
-              : false
+              : false)
           }
         />
       ))}
