@@ -75,7 +75,7 @@ test("opslaan en herladen: dezelfde stand komt terug", async ({ page }) => {
 
   await page.reload({ waitUntil: "load" });
   await expect(page.getByText("Niet-opgeslagen wijzigingen gevonden")).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("button", { name: "Herstellen" }).click();
+  await page.getByRole("button", { name: "Herstellen", exact: true }).click();
   const after = await readDraft(page, (d) => d.items.length === 1 && d.items[0].rot_z_deg === 30);
   expect(after.items[0]).toMatchObject({
     slug: before.items[0].slug,
@@ -113,7 +113,7 @@ test("undo maakt één kantelstap ongedaan; dupliceren houdt de volledige rotati
   expect(draft.items[1]).toMatchObject({ rot_x_deg: 15, rot_y_deg: 90 });
 });
 
-test("pionnen kunnen niet kantelen en leggen uit waarom", async ({ page }) => {
+test("pionnen kunnen volledig kantelen (omvallen, schuin, op de kop) en blijven bij Y-draaien werken", async ({ page }) => {
   await openEditor(page);
   if (isDesktop(page)) {
     await page.getByRole("button", { name: /^Klein materiaal/ }).first().click();
@@ -123,11 +123,12 @@ test("pionnen kunnen niet kantelen en leggen uit waarom", async ({ page }) => {
     await placeFromLibrary(page, /^Klein materiaal/, /Pion test toevoegen/);
     await page.getByRole("button", { name: "Rotatie en kantelen" }).click();
   }
-  await expect(panel(page).getByRole("note")).toContainText("staan altijd plat op de vloer");
-  await expect(panel(page).getByRole("button", { name: "Kantelen voor/achter +15°" })).toBeDisabled();
-  await expect(panel(page).getByRole("button", { name: "Rechtop (90°)" })).toBeDisabled();
+  await expect(panel(page).getByRole("button", { name: "Kantelen voor/achter +15°" })).toBeEnabled();
+  await expect(panel(page).getByRole("button", { name: "Rechtop (90°)" })).toBeEnabled();
+  await panel(page).getByRole("button", { name: "Kantelen voor/achter +15°" }).click();
+  await readDraft(page, (d) => d.items[0].rot_x_deg === 15);
   await panel(page).getByRole("button", { name: "Draaien +90°" }).click();
-  await readDraft(page, (d) => d.items[0].rot_y_deg === 90 && !d.items[0].rot_x_deg);
+  await readDraft(page, (d) => d.items[0].rot_y_deg === 90 && d.items[0].rot_x_deg === 15);
 });
 
 test("sneltoetsen: R draait, Shift+R terug, T en G kantelen (desktop)", async ({ page }) => {

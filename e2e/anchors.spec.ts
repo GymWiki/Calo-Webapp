@@ -81,7 +81,7 @@ test("een touw tussen twee palen zit aan de paal (anchor), waar je ook sleept, e
   // Herladen en de kladversie herstellen geeft identieke verbindingen (zelfde anchor, hoogte en lokaal punt).
   await page.reload({ waitUntil: "load" });
   await expect(page.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Herstellen" }).click();
+  await page.getByRole("button", { name: "Herstellen", exact: true }).click();
   await page.waitForTimeout(1200);
   const reloaded = await readDraft(page, (d) => (d.ropes?.length ?? 0) === 1);
   expect(reloaded.ropes).toEqual(moved.ropes);
@@ -126,7 +126,7 @@ test("een oud touw (alleen local, op de korfrand) wordt bij het laden naar de pa
   await page.evaluate((payload) => window.localStorage.setItem("gymwiki.floorplan3d.draft.nieuw", JSON.stringify(payload)), legacy);
   await page.reload({ waitUntil: "load" });
   await expect(page.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Herstellen" }).click();
+  await page.getByRole("button", { name: "Herstellen", exact: true }).click();
   await page.waitForTimeout(1500);
   // De verschuiving van de korfrand naar de paal is groter dan de tolerantie: de editor meldt dat in de console.
   expect(warnings.some((w) => /\[anchors\].*touw oud-touw.*"paal_top"/.test(w)), warnings.join(" | ")).toBe(true);
