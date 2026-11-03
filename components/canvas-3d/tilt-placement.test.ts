@@ -95,7 +95,7 @@ test("plaatsing: gekanteld item stapelt niet en komt op de vloer; kamergrens geb
   assert.ok(wall.x <= 10 + 1e-6);
 });
 
-test("3D-botsing: dwars door het klimrek wordt geblokkeerd, schuin ertegenaan kan", () => {
+test("3D-botsing: dwars door het klimrek geeft een waarschuwing (geen verplaatsing), schuin ertegenaan kan", () => {
   const rek = item("rek", 0, 0);
   const through = resolvePlacement({ pointer: { x: 0, z: 0 }, dragged: { slug: "bank", rot_y_deg: 0, rot_z_deg: 45 }, others: [rek], room, grid: 0, lookup });
   assert.equal(through.blocked, true);
@@ -103,9 +103,9 @@ test("3D-botsing: dwars door het klimrek wordt geblokkeerd, schuin ertegenaan ka
   const leaning = resolvePlacement({ pointer: { x: 2.2, z: 0 }, dragged: { slug: "bank", rot_y_deg: 0, rot_z_deg: 45 }, others: [rek], room, grid: 0, lookup });
   assert.equal(leaning.blocked, false);
 
-  // bij loslaten wordt een geblokkeerde plek omgezet naar een vrije plek naast het rek
+  // loslaten geeft exact de preview (geen verplaatsing naar een "vrije plek"); de overlap blijft een waarschuwing
   const final = resolvePlacement({ pointer: { x: 0, z: 0 }, dragged: { slug: "bank", rot_y_deg: 0, rot_z_deg: 45 }, others: [rek], room, grid: 0, lookup, final: true });
-  assert.equal(final.mode, "relocated");
+  assert.deepEqual([final.x, final.y, final.z], [through.x, through.y, through.z]);
   const y = final.y;
   near(rotatedVerticalRange(shapeOfDims(DIMS.bank), y, { x: 0, y: 0, z: 45 })[0], 0, 1e-6);
 });

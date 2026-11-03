@@ -10,7 +10,6 @@ import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import {
   dimsOf,
   extentsFor,
-  findNearestFreeSpot,
   floorY,
   itemPolygons,
   itemVerticalRange,
@@ -31,6 +30,7 @@ import {
 } from "@/components/canvas-3d/floorplan3d-geometry";
 import { footprintCenter, isElevated } from "@/components/canvas-3d/collision-shape";
 import { isTilted, itemIsTilted, rotationOf } from "@/components/canvas-3d/orientation";
+import { layerOf, overlapWarns, staysAtOwnHeight, type CollisionLayer } from "@/lib/constants/collisionRules";
 import {
   EPS_M,
   OVERLAP_IGNORE_M,
@@ -38,7 +38,12 @@ import {
   STACK_OVERLAP_MIN,
 } from "@/components/canvas-3d/placement-config";
 
-export type PlacementMode = "stack" | "edge" | "grid" | "none" | "relocated";
+export type PlacementMode = "stack" | "edge" | "grid" | "none";
+
+/** Zachte waarschuwing bij een plaatsing: de plaatsing zelf blijft zoals de docent hem neerzet. */
+export type PlacementWarning =
+  | { kind: "overlap"; withSlug: string; withId: string }
+  | { kind: "outside" };
 
 /** Eén snaplijn voor de debug-weergave: een rand op `at` (langs `axis`),
  * getekend van `from` tot `to` op de andere as. `targetSlug` is null voor een muur. */
@@ -59,9 +64,13 @@ export type PlacementResult = {
   stackedOn: string[];
   /** Waar naartoe gesnapt is: slug van het item, of null voor een muur. */
   edgeTargets: (string | null)[];
-  /** Er blijft een significante overlap met een item waarop NIET gestapeld
-   * kan worden (bv. niet-stapelbaar). Bij `final` is dat al opgelost. */
+  /** Er is een overlap die volgens de botsingsregels een waarschuwing verdient (lib/constants/collisionRules.ts).
+   * Alleen een waarschuwing: de positie wordt NOOIT aangepast. */
   blocked: boolean;
+  /** Alle waarschuwingen (overlap per item, of: het item past niet in de zaal). */
+  warnings: PlacementWarning[];
+  /** Laag van het gesleepte item (botsingsregels). */
+  layer: CollisionLayer;
   guides: SnapGuide[];
   /** Eén regel voor de debug-log: "stack op <slug>", "rand-snap naar <slug>", "raster". */
   log: string;
@@ -76,9 +85,12 @@ export type PlacementInput = {
   room: Floorplan3dRoom;
   grid: SnapGridSize;
   lookup: DimsLookup;
-  /** true bij loslaten: een geblokkeerde plek wordt vervangen door de
-   * dichtstbijzijnde vrije plek ernaast. Tijdens het slepen false. */
+  /** @deprecated Geen effect meer: preview en commit zijn dezelfde berekening en een plek wordt nooit pas bij loslaten aangepast. */
   final?: boolean;
+  /** Waarschuwen bij overlap (standaard aan). Uit = botsing negeren (schakelaar of Alt tijdens het slepen). */
+  collisions?: boolean;
+  /** Snappen aan raster en randen (standaard aan). Uit = vrij plaatsen (Alt tijdens het slepen). */
+  snap?: boolean;
 };
 
 function round(value: number): number {
@@ -156,7 +168,10 @@ function effectiveAngle(rotDeg: number, yawDeg: number): number {
 }
 
 export function resolvePlacement(input: PlacementInput): PlacementResult {
-  const { pointer, dragged, others, room, grid, lookup } = input;
+  const { pointer, dragged, others, room, lookup } = input;
+  const snapOn = input.snap !== false;
+  const warnOn = input.collisions !== false;
+  const grid: SnapGridSize = snapOn ? input.grid : 0;
   const dims = dimsOf({ slug: dragged.slug, size: dragged.size } as Floorplan3dItem, lookup);
   const shape = shapeOfDims(dims);
   const rot = dragged.rot_y_deg;
@@ -167,7 +182,8 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
   // netten) staat nooit op iets en wordt ook nergens door gedragen. Een gekanteld
   // item rust met zijn laagste punt op de vloer en stapelt niet.
   const collides = shape.kind !== "none";
-  const canStack = collides && !isElevated(shape) && !tilted;
+  const layer = layerOf(dragged.slug, isElevated(shape));
+  const canStack = collides && !isElevated(shape) && !tilted && !staysAtOwnHeight(dragged.slug, layer);
   const draggedRight = !tilted && isRightAngle(effectiveAngle(rot, shape.yaw_deg));
 
   const rawPolygons = polygonsAt(shape, pointer.x, pointer.z, rot3);
@@ -176,7 +192,6 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
 
   // --- 1. Stapelen: op de RUWE positie, vóór enige snap. -----------------
   const stackBases: Floorplan3dItem[] = [];
-  let blockedByUnstackable = false;
   if (canStack) {
     for (const other of others) {
       // Gekantelde items zijn nooit een ondergrond; botsen met ze wordt hieronder in 3D getoetst.
@@ -192,12 +207,13 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
 
       // Hangend materiaal boven de vloer is geen ondergrond én geen obstakel voor de vloer.
       if (isElevated(shapeOfDims(dimsOf(other, lookup)))) continue;
-      if (dimsOf(other, lookup).stackable) stackBases.push(other);
-      else blockedByUnstackable = true;
+      // Klein materiaal (bal, pion, hoepel) ligt op bijna alles; de rest alleen op stapelbare items.
+      // Een niet-stapelbaar item eronder is geen blokkade: de overlap krijgt hieronder hooguit een waarschuwing.
+      if (dimsOf(other, lookup).stackable || (layer === "klein" && layerOf(other.slug) !== "klein" && layerOf(other.slug) !== "vloer")) stackBases.push(other);
     }
   }
 
-  const stacking = stackBases.length > 0 && !blockedByUnstackable;
+  const stacking = stackBases.length > 0;
   // Onderkant van het item op de bovenkant van de hoogste basis.
   const restY = floorY(shape, rot3, lift);
   // Een zittende leerling rust met zijn zitvlak op de ondergrond (nooit onder de vloer: is de bank lager dan het zitvlak, dan staat hij op de vloer).
@@ -224,7 +240,8 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
       ? stackBases.map((base) => ({ base, abut: false }))
       : others.filter(sameHeight).map((base) => ({ base, abut: true }));
 
-  if (draggedRight) {
+  // Hangend/overspannend materiaal (net, touw) snapt alleen aan muren, nooit aan banken of andere items.
+  if (draggedRight && layer !== "overspannend") {
     for (const { base, abut } of candidates) {
       const baseShape = shapeOfDims(dimsOf(base, lookup));
       if (itemIsTilted(base)) continue;
@@ -247,16 +264,23 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
   let x = snapAxis(pointer.x, xCorrection);
   let z = snapAxis(pointer.z, zCorrection);
 
-  // Blijf binnen de kamer, ook na snapping (de voetafdruk kan t.o.v. de pivot verschoven zijn).
+  // Blijf binnen de zaal als het item past; een item dat breder is dan de zaal (net van 10 m in een kleine zaal)
+  // wordt NIET naar binnen geduwd maar krijgt een waarschuwing: het midden blijft in de zaal.
+  const warnings: PlacementWarning[] = [];
   if (collides) {
-    x = Math.min(Math.max(x, -halfRoomX - extent.minX), halfRoomX - extent.maxX);
-    z = Math.min(Math.max(z, -halfRoomZ - extent.minZ), halfRoomZ - extent.maxZ);
+    const fitsX = extent.maxX - extent.minX <= room.width_m + 1e-9;
+    const fitsZ = extent.maxZ - extent.minZ <= room.length_m + 1e-9;
+    if (fitsX) x = Math.min(Math.max(x, -halfRoomX - extent.minX), halfRoomX - extent.maxX);
+    else x = Math.min(Math.max(x + (extent.minX + extent.maxX) / 2, -halfRoomX), halfRoomX) - (extent.minX + extent.maxX) / 2;
+    if (fitsZ) z = Math.min(Math.max(z, -halfRoomZ - extent.minZ), halfRoomZ - extent.maxZ);
+    else z = Math.min(Math.max(z + (extent.minZ + extent.maxZ) / 2, -halfRoomZ), halfRoomZ) - (extent.minZ + extent.maxZ) / 2;
+    if (!fitsX || !fitsZ) warnings.push({ kind: "outside" });
   }
 
   const guides = [xCorrection, zCorrection].flatMap((c) => (c ? [c.guide] : []));
   const edgeTargets = [xCorrection, zCorrection].flatMap((c) => (c ? [c.targetSlug] : []));
 
-  // --- 4. Blijft er een significante overlap die niet mag? ----------------
+  // --- 4. Overlap: alleen een waarschuwing, nooit een verplaatsing. -------
   const finalPolygons = polygonsAt(shape, x, z, rot3);
   const collidesWith = (other: Floorplan3dItem) =>
     tilted || itemIsTilted(other)
@@ -265,24 +289,16 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
           { shape: shapeOfDims(dimsOf(other, lookup)), pos: [other.x, other.y, other.z], rot: rotationOf(other) },
         )
       : polygonsOverlap(finalPolygons, itemPolygons(other, lookup));
-  const blocked =
-    collides &&
-    (blockedByUnstackable || (!stacking && others.some((other) => sameHeight(other) && collidesWith(other))));
-
-  if (blocked && input.final) {
-    const spot = findNearestFreeSpot(x, z, dims, rot, others, room, lookup, { x: rot3.x, z: rot3.z, lift });
-    return {
-      x: round(spot.x),
-      y: round(restY),
-      z: round(spot.z),
-      mode: "relocated",
-      stackedOn: [],
-      edgeTargets: [],
-      blocked: false,
-      guides: [],
-      log: "ernaast gelegd (vrije plek)",
-    };
+  if (collides && warnOn) {
+    for (const other of others) {
+      if (!sameHeight(other) || stackBases.includes(other)) continue;
+      const otherShape = shapeOfDims(dimsOf(other, lookup));
+      if (otherShape.kind === "none") continue;
+      if (!overlapWarns(layer, layerOf(other.slug, isElevated(otherShape)))) continue;
+      if (collidesWith(other)) warnings.push({ kind: "overlap", withSlug: other.slug, withId: other.id });
+    }
   }
+  const blocked = warnings.some((warning) => warning.kind === "overlap");
 
   const parts: string[] = [];
   if (stacking) parts.push(`stack op ${[...new Set(stackBases.map((b) => b.slug))].join(", ")}`);
@@ -305,6 +321,8 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
     stackedOn: stacking ? [...new Set(stackBases.map((base) => base.slug))] : [],
     edgeTargets,
     blocked,
+    warnings,
+    layer,
     guides,
     log: parts.length > 0 ? parts.join(" + ") : "vrij (geen snap)",
   };
