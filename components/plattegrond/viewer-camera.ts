@@ -18,6 +18,8 @@ export type ViewState = {
   zoom: number;
   /** Basisazimut van de schuine weergave (graden); weggelaten = AZIMUTH_3D_DEG. Gekozen door viewer-framing.ts op basis van de inhoud. */
   azimuthBase?: number;
+  /** Basiskantelhoek van de schuine weergave (graden vanaf verticaal); weggelaten = POLAR_3D_DEG. Gekozen door viewer-framing.ts op basis van de inhoud. */
+  polarBase?: number;
   /** Eigen kantelhoek (graden vanaf verticaal); weggelaten = die van de preset. */
   polarDeg?: number;
   /** Verschuiving van het doelpunt (m, wereldcoördinaten). */
@@ -29,9 +31,11 @@ export const DEFAULT_VIEW: ViewState = { preset: "3d", step: 0, offsetDeg: 0, zo
 
 /** Hoek (graden) vanaf verticaal van de schuine weergave: 50° = camera 40° boven de horizon (zicht op de opstelling, niet plat van boven). */
 export const POLAR_3D_DEG = 50;
+/** Standaard kijkhoek van de viewer (één plek): 40° gedraaid, 50° schuin van boven. De kant (links/rechts) en de kanteling kiest viewer-framing.ts per inhoud. */
+export const DEFAULT_VIEW_ANGLES = { azimuth: 40, polar: POLAR_3D_DEG } as const;
 /** Bijna 0 i.p.v. exact 0: bij precies loodrecht omlaag is "boven" op het scherm ongedefinieerd. */
 export const POLAR_TOP_DEG = 0.05;
-export const AZIMUTH_3D_DEG = 45;
+export const AZIMUTH_3D_DEG: number = DEFAULT_VIEW_ANGLES.azimuth;
 export const DRAG_LIMIT_DEG = 40;
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 6;
@@ -57,17 +61,18 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 export function azimuthDegOf(view: Pick<ViewState, "preset" | "step" | "offsetDeg"> & { azimuthBase?: number }): number {
-  const base = view.preset === "3d" ? (view.azimuthBase ?? AZIMUTH_3D_DEG) : 0;
+  // Ook het bovenaanzicht houdt de azimut van de standaard, zodat de oriëntatie niet 90° verspringt.
+  const base = view.azimuthBase ?? AZIMUTH_3D_DEG;
   return base + 90 * view.step + view.offsetDeg;
 }
 
-export function polarDegOf(preset: ViewPreset): number {
-  return preset === "3d" ? POLAR_3D_DEG : POLAR_TOP_DEG;
+export function polarDegOf(preset: ViewPreset, polarBase?: number): number {
+  return preset === "3d" ? (polarBase ?? POLAR_3D_DEG) : POLAR_TOP_DEG;
 }
 
 /** De kantelhoek van een stand: eigen (slepen) of die van de preset. */
-export function currentPolarDeg(view: Pick<ViewState, "preset" | "polarDeg">): number {
-  return view.polarDeg ?? polarDegOf(view.preset);
+export function currentPolarDeg(view: Pick<ViewState, "preset" | "polarDeg"> & { polarBase?: number }): number {
+  return view.polarDeg ?? polarDegOf(view.preset, view.polarBase);
 }
 
 export function withPreset(view: ViewState, preset: ViewPreset): ViewState {
@@ -224,7 +229,7 @@ export function poseFor(
   if (content) {
     // De passende zoom en het doelpunt komen uit de BEGINstand (preset en basisrichting): tijdens draaien en kantelen "pompt" het
     // beeld dus niet, en Reset keert precies terug. De camerarichting volgt wel de huidige stand.
-    const framed = content.framing(azimuthDegOf({ ...view, step: 0, offsetDeg: 0 }), polarDegOf(view.preset), viewport.width / viewport.height);
+    const framed = content.framing(azimuthDegOf({ ...view, step: 0, offsetDeg: 0 }), polarDegOf(view.preset, view.polarBase), viewport.width / viewport.height);
     return {
       azimuthDeg: azimuthDegOf(view),
       polarDeg,

@@ -204,7 +204,7 @@ function ViewerBody({
   const framing = useMemo(() => {
     if (box.width === 0 || box.height === 0) return null;
     const aspect = box.width / Math.max(box.height * 0.5, box.height - CONTROLS_RESERVE_PX);
-    return computeFraming({ items, fields, room, lookup, aspect, mode: view.preset, azimuthDeg: azimuthDegOf({ ...view, step: 0, offsetDeg: 0 }), polarDeg: polarDegOf(view.preset) });
+    return computeFraming({ items, fields, room, lookup, aspect, mode: view.preset, azimuthDeg: azimuthDegOf({ ...view, step: 0, offsetDeg: 0 }), polarDeg: polarDegOf(view.preset, view.polarBase) });
   }, [box, items, fields, room, lookup, view]);
   const framingFillValue = framing && !framing.empty ? framingFill(framing) : null;
   // Hoeveel meter één schermpixel is (voor verschuiven met rechts slepen of twee vingers).

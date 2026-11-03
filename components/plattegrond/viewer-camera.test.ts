@@ -10,6 +10,7 @@ import {
   SNAP_TOP_DEG,
   ZOOM_MAX,
   ZOOM_MIN,
+  AZIMUTH_3D_DEG,
   azimuthDegOf,
   cameraPosition,
   canZoomIn,
@@ -35,7 +36,7 @@ test("draaien is onbeperkt (je kunt rond blijven gaan) en een kwartslag zet het 
   let view = DEFAULT_VIEW;
   view = dragBy(view, 500);
   near(view.offsetDeg, 140);
-  near(azimuthDegOf(view) % 360, (45 + 140) % 360);
+  near(azimuthDegOf(view) % 360, (AZIMUTH_3D_DEG + 140) % 360);
   view = dragBy(view, -1000);
   assert.ok(Math.abs(view.offsetDeg) < 360);
   const rotated = rotateStep(view, 1);
@@ -65,7 +66,7 @@ test("slepen draait (horizontaal) en kantelt (verticaal), in dezelfde richting a
 
 test("verschuiven: de inhoud beweegt met de aanwijzer mee, ook na draaien", () => {
   // Bovenaanzicht zonder draaiing (azimut 0): schermrechts = +x, schermomhoog = -z.
-  const top = { ...DEFAULT_VIEW, preset: "top" as const };
+  const top = { ...DEFAULT_VIEW, preset: "top" as const, azimuthBase: 0 };
   const right = panBy(top, 100, 0, 0.1);
   near(right.panX ?? 0, -10, 1e-6); // inhoud 10 m naar rechts → doelpunt 10 m naar links
   near(right.panZ ?? 0, 0, 1e-6);

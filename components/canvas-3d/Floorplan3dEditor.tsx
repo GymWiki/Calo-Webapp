@@ -1204,7 +1204,7 @@ export function Floorplan3dEditor({
   function applyEnvironment(kind: EnvironmentKind, layoutId: string) {
     pushHistory();
     const environment = createEnvironment(kind, layoutId);
-    const nextRoom: Floorplan3dRoom = { ...roomForEnvironment(environment), environment, ...(room.view ? { view: room.view } : {}) };
+    const nextRoom: Floorplan3dRoom = { ...roomForEnvironment(environment), environment, ...(room.view ? { view: room.view } : {}), ...(room.view_azimuth_deg !== undefined ? { view_azimuth_deg: room.view_azimuth_deg } : {}) };
     const fitted = clampItemsToRoom(items, nextRoom, lookup);
     setRoom(nextRoom);
     setItems(fitted.items);
@@ -1234,7 +1234,7 @@ export function Floorplan3dEditor({
     }
     if (!room.environment) return;
     pushHistory();
-    setRoom({ width_m: room.width_m, length_m: room.length_m, ...(room.view ? { view: room.view } : {}) });
+    setRoom({ width_m: room.width_m, length_m: room.length_m, ...(room.view ? { view: room.view } : {}), ...(room.view_azimuth_deg !== undefined ? { view_azimuth_deg: room.view_azimuth_deg } : {}) });
     scheduleAutosave();
   }
 
@@ -1246,6 +1246,18 @@ export function Floorplan3dEditor({
       const { view: _previous, ...rest } = prev;
       void _previous;
       return view === "auto" ? rest : { ...rest, view };
+    });
+    scheduleAutosave();
+  }
+
+  /** Kijkrichting van de viewer bij de activiteit: automatisch (±40°, kant op basis van de inhoud), vast links of vast rechts. */
+  function setRoomAzimuth(azimuth: number | null) {
+    if ((room.view_azimuth_deg ?? null) === azimuth) return;
+    pushHistory();
+    setRoom((prev) => {
+      const { view_azimuth_deg: _previous, ...rest } = prev;
+      void _previous;
+      return azimuth === null ? rest : { ...rest, view_azimuth_deg: azimuth };
     });
     scheduleAutosave();
   }
@@ -2042,6 +2054,18 @@ export function Floorplan3dEditor({
             ["top", "Boven"],
           ] as const).map(([id, label]) => (
             <Button key={id} type="button" size="sm" variant={(room.view ?? "auto") === id ? "default" : "outline"} aria-pressed={(room.view ?? "auto") === id} data-testid={`weergave-${id}`} onClick={() => setRoomView(id)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+        <p className="mt-3 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Kijkrichting</p>
+        <div role="group" aria-label="Kijkrichting bij de activiteit" className="grid grid-cols-3 gap-1.5">
+          {([
+            [null, "Automatisch"],
+            [-40, "Linksvoor"],
+            [40, "Rechtsvoor"],
+          ] as const).map(([value, label]) => (
+            <Button key={label} type="button" size="sm" variant={(room.view_azimuth_deg ?? null) === value ? "default" : "outline"} aria-pressed={(room.view_azimuth_deg ?? null) === value} data-testid={`kijkrichting-${value ?? "auto"}`} onClick={() => setRoomAzimuth(value)}>
               {label}
             </Button>
           ))}
