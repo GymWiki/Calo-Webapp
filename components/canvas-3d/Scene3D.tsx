@@ -1,5 +1,6 @@
 "use client";
 
+import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
 import { Line, PerformanceMonitor } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
@@ -110,6 +111,9 @@ export function Scene3D({
   onRopeHandlePointerDown,
   onItemPointerMove,
   onItemPointerUp,
+  onItemPointerLeave,
+  anchorViews,
+  showAllAnchors = false,
 }: {
   /** Touwen en het touw dat nu gespannen of verplaatst wordt (zie FloorplanContent). */
   ropes?: Rope[];
@@ -121,6 +125,9 @@ export function Scene3D({
   onRopeHandlePointerDown?: (id: string, end: "a" | "b", event: ThreeEvent<PointerEvent>) => void;
   onItemPointerMove?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerUp?: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  onItemPointerLeave?: (id: string) => void;
+  anchorViews?: Record<string, AnchorView>;
+  showAllAnchors?: boolean;
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
   modelBySlug: (slug: string) => MaterialModel | undefined;
@@ -233,6 +240,9 @@ export function Scene3D({
         onRopeHandlePointerDown={onRopeHandlePointerDown}
         onItemPointerMove={onItemPointerMove}
         onItemPointerUp={onItemPointerUp}
+        onItemPointerLeave={onItemPointerLeave}
+        anchorViews={anchorViews}
+        showAllAnchors={showAllAnchors}
       />
       {gizmo && <RotationGizmo {...gizmo} />}
       {draftField && <ConeFieldMesh field={draftField} preview interactive={false} />}

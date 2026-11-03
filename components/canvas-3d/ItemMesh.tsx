@@ -1,5 +1,7 @@
 "use client";
 
+import { AnchorMarkers, type AnchorView } from "@/components/canvas-3d/AnchorMarkers";
+import type { AnchorDef } from "@/components/canvas-3d/anchors";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Line, useGLTF } from "@react-three/drei";
@@ -130,6 +132,9 @@ export function ItemMesh({
   ropeTarget = false,
   onPointerMoveItem,
   onPointerUpItem,
+  onPointerLeaveItem,
+  anchors,
+  anchorView = null,
 }: {
   /** "Touw spannen" actief: een vinger/muis op het item start een touw (ook op touch, ook niet-geselecteerd) en loslaten maakt het vast. */
   ropeTool?: boolean;
@@ -137,6 +142,11 @@ export function ItemMesh({
   ropeTarget?: boolean;
   onPointerMoveItem?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onPointerUpItem?: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  /** De cursor verlaat dit item (touw spannen: markeringen weghalen). */
+  onPointerLeaveItem?: (id: string) => void;
+  /** Bevestigingspunten van dit item, en welke je nu toont (touw spannen of debug "Toon anchors"). */
+  anchors?: AnchorDef[];
+  anchorView?: AnchorView | null;
   /** Een gekanteld item steekt buiten de zaal: subtiele rode outline (waarschuwing, geen blokkade). */
   outsideRoom?: boolean;
   item: Floorplan3dItem;
@@ -209,10 +219,11 @@ export function ItemMesh({
           : undefined
       }
       onPointerOut={
-        onHover || debugCollision
+        onHover || debugCollision || (ropeTool && onPointerLeaveItem)
           ? () => {
               if (onHover) onHover(null);
               if (debugCollision) setHovered(false);
+              if (ropeTool && onPointerLeaveItem) onPointerLeaveItem(item.id);
             }
           : undefined
       }
@@ -235,6 +246,7 @@ export function ItemMesh({
         ) : (
           <UnknownItemBox />
         )}
+        {anchorView && anchors && <AnchorMarkers anchors={anchors} view={anchorView} />}
         {selected && !debugCollision && <SelectionOutline dims={dims} outside={outsideRoom} />}
         {grouped && !selected && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={GROUP_COLOR} />}
         {ropeTarget && !selected && !debugCollision && <ShapeWireframe shape={shapeOfDims(dims)} color={GROUP_COLOR} />}
