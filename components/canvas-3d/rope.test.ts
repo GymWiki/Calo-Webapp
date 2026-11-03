@@ -22,25 +22,26 @@ test("wereld → lokaal is het omgekeerde van lokaal → wereld, ook gedraaid en
   }
 });
 
-test("het uiteinde blijft op zijn punt van het item zitten als het item verplaatst en gedraaid wordt", () => {
+test("het uiteinde zit op het bevestigingspunt van het item (niet op het geklikte punt) en volgt bij verplaatsen en draaien", () => {
+  // Onbekend asset ("paal"): noodoplossing = het midden van de bovenkant van de collision-vorm (hier 2 m hoog).
   const paal = item("p1", 2, 3);
   const anchor = anchorAt(paal, [2.2, 1.5, 3.1], lookup);
   assert.equal(anchor.item, "p1");
+  assert.equal(anchor.anchor, "fallback_top");
   const first = anchorWorld(anchor, [paal], lookup)!;
-  near(first[0], 2.2);
-  near(first[1], 1.5);
-  near(first[2], 3.1);
+  near(first[0], 2);
+  near(first[1], 2);
+  near(first[2], 3);
 
   // 4 m verder: het uiteinde schuift 4 m mee.
   const moved = anchorWorld(anchor, [{ ...paal, x: 6 }], lookup)!;
-  near(moved[0], 6.2);
-  near(moved[1], 1.5);
-  // 90° gedraaid: het punt draait mee om de pivot van het item.
-  // (lokaal 0,2 / 1,5 / 0,1 t.o.v. de pivot; heading 90° draait x naar −z en z naar +x)
+  near(moved[0], 6);
+  near(moved[1], 2);
+  // 90° gedraaid om de pivot: het punt boven het midden blijft boven het midden.
   const turned = anchorWorld(anchor, [{ ...paal, rot_y_deg: 90 }], lookup)!;
-  near(turned[0], 2 + 0.1);
-  near(turned[1], 1.5);
-  near(turned[2], 3 - 0.2);
+  near(turned[0], 2);
+  near(turned[1], 2);
+  near(turned[2], 3);
 });
 
 test("een touw loopt tussen twee items en volgt ze allebei", () => {

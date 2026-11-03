@@ -1,5 +1,7 @@
 "use client";
 
+import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
+import { anchorsForSlug } from "@/components/canvas-3d/anchors";
 import { Suspense } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
@@ -54,6 +56,9 @@ export function FloorplanContent({
   onRopeHandlePointerDown,
   onItemPointerMove,
   onItemPointerUp,
+  onItemPointerLeave,
+  anchorViews,
+  showAllAnchors = false,
 }: {
   /** Touwen tussen items (alleen te zien als de lookup de items kan meten). */
   ropes?: Rope[];
@@ -69,6 +74,11 @@ export function FloorplanContent({
   onRopeHandlePointerDown?: (id: string, end: "a" | "b", event: ThreeEvent<PointerEvent>) => void;
   onItemPointerMove?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerUp?: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  onItemPointerLeave?: (id: string) => void;
+  /** Items waarvan de bevestigingspunten getoond worden (touw spannen), met het gekozen punt. */
+  anchorViews?: Record<string, AnchorView>;
+  /** Debug (`?debug=collision` → "Toon anchors"): alle bevestigingspunten van alle items, met label. */
+  showAllAnchors?: boolean;
   /** Editor: gekantelde items die buiten de zaal vallen krijgen een rode outline. */
   warnOutside?: boolean;
   room: Floorplan3dRoom;
@@ -128,6 +138,9 @@ export function FloorplanContent({
           ropeTarget={ropeTargetId === item.id}
           onPointerMoveItem={onItemPointerMove}
           onPointerUpItem={onItemPointerUp}
+          onPointerLeaveItem={onItemPointerLeave}
+          anchors={lookup && (showAllAnchors || anchorViews?.[item.id]) ? anchorsForSlug(item.slug, shapeOfDims(dimsOf(item, lookup))) : undefined}
+          anchorView={showAllAnchors ? { highlightId: anchorViews?.[item.id]?.highlightId ?? null, labels: true } : (anchorViews?.[item.id] ?? null)}
           outsideRoom={
             warnOutside && lookup && itemIsTilted(item)
               ? isOutsideRoom(shapeOfDims(dimsOf(item, lookup)), [item.x, item.y, item.z], rotationOf(item), room)

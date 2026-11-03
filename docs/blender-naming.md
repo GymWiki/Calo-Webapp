@@ -60,3 +60,47 @@ Na elke import of wijziging van een GLB: `npm run audit:collision -- --write`
 en de gewijzigde `collision-profiles.generated.ts` committen. In de editor toont
 `/plattegrond-3d?debug=collision` de vorm (blauw) naast de mesh-bounds (groen);
 met `?debug=collision-legacy` zie je de oude gecentreerde box ter vergelijking.
+
+## Bevestigingspunten (anchors) voor touwen, linten en netten
+
+Een touw, lint of net hecht aan een **bevestigingspunt** van het object (de top van een paal, een haak, het oog van een ring), niet aan de
+rand van het model of de box. De editor leest die punten in deze volgorde (zie `components/canvas-3d/anchors.ts`):
+
+1. **Lege nodes in het GLB** met de naam `anchor_<type>_<naam>` (voorkeur, hier regel je het in Blender),
+2. een override in `components/canvas-3d/anchor-overrides.ts` (alleen met een reden, tot het GLB zelf een node heeft),
+3. punten afgeleid uit de echte geometrie (`anchors.generated.ts`, gemaakt door `npm run audit:anchors -- --write`: palen, pionnen, netten),
+4. als er niets is: het hoogste punt in het midden van de zichtbare geometrie, met een waarschuwing in de console.
+
+### Naamconventie
+
+`anchor_<type>_<naam>` met type `touw`, `lint`, `net` of `haak`, en een naam uit kleine letters, cijfers en `_`.
+Voorbeelden: `anchor_lint_top`, `anchor_net_links`, `anchor_haak_boven`, `anchor_touw_paal_2`. Een extra volgnummer (`_1`, `_2`) mag.
+Het type bepaalt waar het punt voor te gebruiken is: een `touw`- of `haak`-punt is ook voor een lint bruikbaar; een net hecht alleen aan `net`-punten.
+Three.js verwijdert de tekens `[ ] . : /` uit nodenamen; gebruik die dus niet. Verander de naam van een bestaande anchor niet: de naam wordt in
+plattegronden opgeslagen.
+
+### Hoe zet je het in Blender
+
+- Voeg een **Empty** toe (Add → Empty → Plain Axes), geef hem de naam hierboven en zet hem **precies op het punt** waar het touw aan vast hoort te zitten:
+  op het oppervlak of in het materiaal (maximaal 2 cm ernaast), niet in de lucht en niet op de rand van de omhullende box.
+  Een paal: op de paal zelf (de as), vlak onder wat er bovenop zit (korf, bord). Een haak of oog: op de haak.
+- Draai de Empty zo dat zijn **groene Y-as** wijst in de richting waarin het touw het object verlaat (optioneel).
+- De Empty hoort bij het object (kind van de root), met Apply Rotation/Scale zoals voor elk onderdeel (zie boven). Exporteer de lege nodes mee.
+- Na de export: `npm run audit:anchors -- --write` en de gewijzigde `anchors.generated.ts` en `docs/anchor-audit.md` committen.
+
+### Hoogteverstelbaar
+
+Een paal waar je een net of lint op verschillende hoogtes aan kunt hangen is een **verstelbare** anchor (verticale lijn). Dat stel je in via
+`anchor-overrides.ts` (`adjustable: { min, max }`, in meters vanaf de pivot); het touw bewaart de gekozen hoogte en klemt die tussen min en max.
+
+### Controleren
+
+```
+npm run audit:anchors                    # rapport in de console
+npm run audit:anchors -- --write --sheet # profielen, docs/anchor-audit.md en de contactsheet bijwerken
+npm run audit:anchors -- --check         # faalt als een anchor de controle niet haalt of het profiel verouderd is
+```
+
+Controles per anchor: ligt op of in de echte geometrie (≤ 2 cm van het oppervlak), is niet de rand of hoek van de bounding box, heeft een logische
+hoogte, blijft op zijn plek na draaien (90°, 45°, 30°) en een verstelbaar bereik klopt. In de editor toont `?debug=collision` met de schakelaar
+**Toon anchors** alle bevestigingspunten met label, naast de collision-box (blauw) en de mesh-bounds (groen).

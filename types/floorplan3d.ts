@@ -82,15 +82,23 @@ export type ConeDistribution = ConeField["distribution"];
 // Touw: een rood koord dat tussen twee objecten gespannen is. Beide uiteinden zitten vast aan een punt op een item (`local` = het
 // punt in de lokale ruimte van het item, in meters: het reist dus mee bij verplaatsen, draaien en kantelen). Een touw is geen item:
 // het heeft geen maten, botst nergens mee en stapelt dus ook niet. Zie components/canvas-3d/rope.ts.
+// Sinds de anchors (components/canvas-3d/anchors.ts) zit een uiteinde vast aan een BENOEMD bevestigingspunt van het item: `anchor` is de id
+// ervan en `height` (alleen bij een hoogteverstelbare anchor, zoals een paal) de gekozen hoogte in de item-ruimte. `local` blijft bewaard
+// als de berekende positie (voor oudere plattegronden en andere lezers) en is de terugval als de anchor niet (meer) bestaat.
 export const ropeAnchorSchema = z.object({
   item: z.string().min(1),
   local: z.tuple([z.number(), z.number(), z.number()]),
+  anchor: z.string().min(1).max(64).optional(),
+  height: z.number().finite().optional(),
 });
 export type RopeAnchor = z.infer<typeof ropeAnchorSchema>;
+/** Soort verbinding: touw (lichte doorhang), lint (strak) of net. Ontbreekt = touw. */
+export const ropeKindSchema = z.enum(["touw", "lint", "net"]);
 export const ropeSchema = z.object({
   id: z.string().min(1),
   a: ropeAnchorSchema,
   b: ropeAnchorSchema,
+  kind: ropeKindSchema.optional(),
 });
 export type Rope = z.infer<typeof ropeSchema>;
 

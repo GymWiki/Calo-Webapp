@@ -4,6 +4,7 @@
 export type Deviation =
   | "ok"
   | "betaald maar geen pro"
+  | "pro maar niet gekoppeld"
   | "geen account gevonden"
   | "e-mail komt niet overeen"
   | "dubbele klant"
@@ -112,6 +113,9 @@ export function auditRecords(records: StripeRecord[], users: SupaUser[], links: 
     let deviation: Deviation = "ok";
     if (!user) deviation = "geen account gevonden";
     else if (record.expectedPaid && !userPaid) deviation = "betaald maar geen pro";
+    // Wel pro, maar zonder koppeling in `subscriptions` of met een afwijkend type (bv. handmatig op pro gezet):
+    // verlengen, opzeggen en het plan kloppen dan niet.
+    else if (record.expectedPaid && userPaid && (linkedBy !== "koppeling-tabel" || (record.plan && user.type !== record.plan))) deviation = "pro maar niet gekoppeld";
     else if (notes.some((n) => n.startsWith("e-mailadres bij Stripe"))) deviation = "e-mail komt niet overeen";
     else if (duplicate) deviation = "dubbele klant";
 
@@ -148,7 +152,7 @@ export function auditRecords(records: StripeRecord[], users: SupaUser[], links: 
 
 export function summarize(rows: AuditRow[]): Record<Deviation, number> {
   const out: Record<Deviation, number> = {
-    ok: 0, "betaald maar geen pro": 0, "geen account gevonden": 0, "e-mail komt niet overeen": 0, "dubbele klant": 0, "pro zonder Stripe-abonnement": 0,
+    ok: 0, "betaald maar geen pro": 0, "pro maar niet gekoppeld": 0, "geen account gevonden": 0, "e-mail komt niet overeen": 0, "dubbele klant": 0, "pro zonder Stripe-abonnement": 0,
   };
   rows.forEach((r) => (out[r.deviation] += 1));
   return out;

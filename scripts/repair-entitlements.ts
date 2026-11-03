@@ -56,8 +56,9 @@ async function main() {
   const [{ records, facts }, { users, links }] = await Promise.all([fetchStripeRecords(stripe, { recentDays: days }), fetchSupabase(supabase)]);
   const rows: AuditRow[] = auditRecords(records, users, links);
 
-  const eligible = rows.filter((r) => r.deviation === "betaald maar geen pro" && r.userId && (r.linkedBy !== "e-mail" || includeEmail));
-  const emailOnly = rows.filter((r) => r.deviation === "betaald maar geen pro" && r.linkedBy === "e-mail" && !includeEmail);
+  const needsFix = (r: AuditRow) => r.deviation === "betaald maar geen pro" || r.deviation === "pro maar niet gekoppeld";
+  const eligible = rows.filter((r) => needsFix(r) && r.userId && (r.linkedBy !== "e-mail" || includeEmail));
+  const emailOnly = rows.filter((r) => needsFix(r) && r.linkedBy === "e-mail" && !includeEmail);
   const manual = rows.filter((r) => r.deviation === "geen account gevonden" || (r.deviation === "e-mail komt niet overeen" && r.record.expectedPaid && !r.userPaid));
 
   // Schrijfacties verzamelen i.p.v. uitvoeren (dry-run/sql); bij --apply echt schrijven.

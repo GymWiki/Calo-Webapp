@@ -14,9 +14,14 @@ test("betaald maar geen pro (gekoppeld op e-mail)", () => {
   assert.equal(row.deviation, "betaald maar geen pro");
   assert.equal(row.linkedBy, "e-mail");
 });
-test("ok als gebruiker al pro is", () => {
-  const [row] = auditRecords([rec()], [user({ status: "paid_subscriber", type: "monthly" })], []);
+test("ok als gebruiker pro is, gekoppeld in de tabel en het type klopt", () => {
+  const [row] = auditRecords([rec()], [user({ status: "paid_subscriber", type: "monthly" })], [{ userId: "u1", customerId: "cus_aaaaaaaaaa", subscriptionId: "sub_1" }]);
   assert.equal(row.deviation, "ok");
+});
+test("pro maar niet gekoppeld: handmatig op pro gezet, type 'none' en geen abonnementsrij", () => {
+  const [row] = auditRecords([rec({ plan: "yearly", metadataUserId: "u1" })], [user({ status: "paid_subscriber", type: "none" })], []);
+  assert.equal(row.deviation, "pro maar niet gekoppeld");
+  assert.equal(row.userId, "u1");
 });
 test("geen account gevonden + voorstel op naam", () => {
   const [row] = auditRecords([rec({ email: "ander@voorbeeld.nl" })], [user({ email: "anna@school.nl" })], []);
@@ -30,7 +35,7 @@ test("voorstel op e-mail-lokaal-deel, geen voorstel bij twijfel", () => {
   assert.equal(b.proposal, null);
 });
 test("koppeling via tabel met afwijkend e-mailadres", () => {
-  const [row] = auditRecords([rec({ email: "privé@gmail.com" })], [user({ status: "paid_subscriber" })], [{ userId: "u1", customerId: "cus_aaaaaaaaaa", subscriptionId: null }]);
+  const [row] = auditRecords([rec({ email: "privé@gmail.com" })], [user({ status: "paid_subscriber", type: "monthly" })], [{ userId: "u1", customerId: "cus_aaaaaaaaaa", subscriptionId: null }]);
   assert.equal(row.deviation, "e-mail komt niet overeen");
   assert.equal(row.linkedBy, "koppeling-tabel");
 });
@@ -40,7 +45,7 @@ test("metadata-koppeling wint van e-mail; betaald maar geen pro blijft zichtbaar
   assert.equal(row.deviation, "betaald maar geen pro");
 });
 test("dubbele klant: twee Stripe-klanten, één e-mailadres", () => {
-  const rows = auditRecords([rec(), rec({ customerId: "cus_bbbbbbbbbb", subscriptionId: "sub_2" })], [user({ status: "paid_subscriber" })], []);
+  const rows = auditRecords([rec(), rec({ customerId: "cus_bbbbbbbbbb", subscriptionId: "sub_2" })], [user({ status: "paid_subscriber", type: "monthly" })], [{ userId: "u1", customerId: "cus_aaaaaaaaaa", subscriptionId: "sub_1" }, { userId: "u1", customerId: "cus_bbbbbbbbbb", subscriptionId: "sub_2" }]);
   assert.ok(rows.every((r) => r.deviation === "dubbele klant"));
 });
 test("niet-verwacht-betaald (geannuleerd) is ok, ook zonder pro", () => {

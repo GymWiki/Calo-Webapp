@@ -64,7 +64,8 @@ import {
   type Rope,
   type RopeAnchor,
 } from "@/types/floorplan3d";
-import { anchorAt, anchorWorld, canConnect, createRope, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems, withAnchor } from "@/components/canvas-3d/rope";
+import { anchorAt, anchorWorld, canConnect, createRope, migrateRopesWithReport, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems, snapToAnchor, withAnchor } from "@/components/canvas-3d/rope";
+import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
 import type { Vec3 } from "@/components/canvas-3d/orientation";
 import type { MaterialModel } from "@/types/materialModel";
 import { type CameraMode } from "@/components/canvas-3d/CameraRig";
@@ -259,7 +260,7 @@ export function Floorplan3dEditor({
   // Oudere plattegronden hebben geen `coneFields` (de server geeft de jsonb ongeparsed terug).
   const [coneFields, setConeFields] = useState<ConeField[]>(seed?.data.coneFields ?? []);
   // Touwen tussen items (oudere plattegronden hebben er geen); een touw zonder een van zijn items vervalt.
-  const [ropes, setRopes] = useState<Rope[]>(() => (seed ? ropesWithItems(seed.data.ropes ?? [], seed.data.items) : []));
+  const [ropes, setRopes] = useState<Rope[]>(() => (seed ? migrateRopesWithReport(ropesWithItems(seed.data.ropes ?? [], seed.data.items), seed.data.items, lookup, "plattegrond laden") : []));
   const [floorplanId, setFloorplanId] = useState<string | null>(seed?.id ?? null);
   const [floorplanName, setFloorplanName] = useState(seed?.naam ?? "Nieuwe plattegrond");
   const [floorplans, setFloorplans] = useState<Floorplan3dSummary[]>(initialFloorplans);
@@ -565,7 +566,7 @@ export function Floorplan3dEditor({
           setRoom(found.room as Floorplan3dRoom);
           setItems(found.items as Floorplan3dItem[]);
           setConeFields(found.coneFields as ConeField[]);
-          setRopes(ropesWithItems((found.ropes ?? []) as Rope[], found.items as Floorplan3dItem[]));
+          setRopes(migrateRopesWithReport(ropesWithItems((found.ropes ?? []) as Rope[], found.items as Floorplan3dItem[]), found.items as Floorplan3dItem[], lookup, "plattegrond laden"));
           setFloorplanName(found.naam);
           scheduleAutosave();
         },
@@ -864,6 +865,9 @@ export function Floorplan3dEditor({
   };
   const [ropeMode, setRopeMode] = useState(false);
   const [ropeDraft, setRopeDraftState] = useState<RopeDraft | null>(null);
+  /** Item onder de cursor terwijl je nog niet sleept (touw spannen): zijn bevestigingspunten worden getoond. */
+  const [ropeHoverId, setRopeHoverId] = useState<string | null>(null);
+  const [showAnchors, setShowAnchors] = useState(true);
   const ropeDraftRef = useRef<RopeDraft | null>(null);
   const ropeMoveStampRef = useRef(0);
   const ropeSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
@@ -885,6 +889,7 @@ export function Floorplan3dEditor({
 
   function stopRopeMode() {
     setRopeMode(false);
+    setRopeHoverId(null);
     updateRopeDraft(null);
   }
 
@@ -913,7 +918,10 @@ export function Floorplan3dEditor({
   /** Cursor boven een item: het touw zou daar (op het geraakte punt) vastzitten. */
   function handleItemPointerMove(id: string, event: ThreeEvent<PointerEvent>) {
     const current = ropeDraftRef.current;
-    if (!current) return;
+    if (!current) {
+      if (ropeMode) setRopeHoverId(id);
+      return;
+    }
     ropeMoveStampRef.current = event.nativeEvent.timeStamp;
     const targetId = id === current.fixed.item ? null : id;
     updateRopeDraft({ ...current, cursor: [event.point.x, event.point.y, event.point.z], targetId });
@@ -2162,7 +2170,20 @@ export function Floorplan3dEditor({
 
   // Het touw dat je nu sleept: van het vaste punt naar de cursor.
   const ropeFixedWorld = ropeDraft ? anchorWorld(ropeDraft.fixed, items, lookup) : null;
-  const ropePreview = ropeDraft && ropeFixedWorld ? { from: ropeFixedWorld, to: ropeDraft.cursor } : null;
+  // Boven een ander item springt het uiteinde naar zijn bevestigingspunt (niet naar waar de cursor het model raakt): zo zie je vooraf
+  // waar het touw vast gaat zitten.
+  const ropeTargetItem = ropeDraft?.targetId ? items.find((candidate) => candidate.id === ropeDraft.targetId) ?? null : null;
+  const ropeSnap = ropeDraft && ropeTargetItem ? snapToAnchor(ropeTargetItem, ropeDraft.cursor, lookup) : null;
+  const ropePreview = ropeDraft && ropeFixedWorld ? { from: ropeFixedWorld, to: ropeSnap ? ropeSnap.world : ropeDraft.cursor } : null;
+  const anchorViews: Record<string, AnchorView> = {};
+  if (ropeMode) {
+    if (ropeDraft) {
+      anchorViews[ropeDraft.fixed.item] = { highlightId: ropeDraft.fixed.anchor ?? null, labels: false };
+      if (ropeTargetItem && ropeSnap) anchorViews[ropeTargetItem.id] = { highlightId: ropeSnap.anchorId || null, labels: false };
+    } else if (ropeHoverId) {
+      anchorViews[ropeHoverId] = { highlightId: null, labels: false };
+    }
+  }
 
   const scene = (
     <Scene3D
@@ -2180,6 +2201,9 @@ export function Floorplan3dEditor({
       ropeDraft={ropePreview}
       ropeTool={ropeMode}
       ropeTargetId={ropeDraft?.targetId ?? null}
+      anchorViews={anchorViews}
+      showAllAnchors={debugCollision && showAnchors}
+      onItemPointerLeave={(id) => setRopeHoverId((current) => (current === id ? null : current))}
       onRopePointerDown={(id) => handleRopeSelect(id)}
       onRopeHandlePointerDown={(id, end) => handleRopeHandleDown(id, end)}
       onItemPointerMove={handleItemPointerMove}
@@ -2237,6 +2261,13 @@ export function Floorplan3dEditor({
         </button>
       </div>
     </div>
+  ) : null;
+  // Debug (?debug=collision): schakelaar "Toon anchors" — bolletjes met label op elk bevestigingspunt, naast de collision-box en mesh-bounds.
+  const anchorToggle = debugCollision ? (
+    <label className="absolute top-2 left-2 z-20 flex cursor-pointer items-center gap-1.5 rounded-md bg-slate-900/90 px-2 py-1 text-xs text-white shadow" data-testid="toon-anchors">
+      <input type="checkbox" checked={showAnchors} onChange={(event) => setShowAnchors(event.target.checked)} className="size-3.5 accent-orange-500" />
+      Toon anchors
+    </label>
   ) : null;
   const ropeHud =
     !isDesktop && !ropeMode && selectedRope ? (
@@ -2364,6 +2395,7 @@ export function Floorplan3dEditor({
           {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
           {drawChip}
           {ropeChip}
+          {anchorToggle}
           {fieldHud}
           {ropeHud}
           {cameraMenuOpen && (
@@ -2542,6 +2574,7 @@ export function Floorplan3dEditor({
 
           {drawChip}
           {ropeChip}
+          {anchorToggle}
 
         </div>
 
