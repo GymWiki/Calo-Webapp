@@ -1,6 +1,6 @@
 "use client";
 
-import { Grid3x3, Home, Layers, Move3d, RotateCcw, ShieldAlert, ShieldOff, SlidersHorizontal, Eye, EyeOff, PanelTopClose, PanelBottomClose } from "lucide-react";
+import { Cable, Cone, Grid3x3, Home, Layers, MousePointer2, ZoomIn, ZoomOut, Move3d, RotateCcw, ShieldAlert, ShieldOff, SlidersHorizontal, Eye, EyeOff, PanelTopClose, PanelBottomClose } from "lucide-react";
 
 import type { CameraMode } from "@/components/canvas-3d/CameraRig";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,9 @@ export function CanvasToolbar({
   cameraMode,
   onCameraMode,
   onResetCamera,
+  onZoom,
+  tool,
+  onTool,
   snapGrid,
   onSnapGrid,
   collisionOn,
@@ -33,6 +36,11 @@ export function CanvasToolbar({
   cameraMode: CameraMode;
   onCameraMode: (mode: CameraMode) => void;
   onResetCamera: () => void;
+  /** Zoomknoppen: factor > 1 = inzoomen. */
+  onZoom: (factor: number) => void;
+  /** Actieve tool: selecteren (standaard), veld afzetten of touw spannen. */
+  tool: "selecteren" | "veld" | "touw";
+  onTool: (tool: "selecteren" | "veld" | "touw") => void;
   snapGrid: SnapGridSize;
   onSnapGrid: (size: SnapGridSize) => void;
   collisionOn: boolean;
@@ -52,6 +60,18 @@ export function CanvasToolbar({
   return (
     <div className={cn("pointer-events-none absolute inset-x-0 z-10 flex justify-center px-3", edge)}>
       <div role="toolbar" aria-label="Canvaswerkbalk" data-testid="canvas-werkbalk" className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-xl border bg-card/95 p-1 shadow-lg ring-1 ring-black/5 backdrop-blur-sm">
+        <div role="group" aria-label="Gereedschap" className="flex items-center gap-1">
+          <ToolButton label="Selecteren" title="Selecteren en slepen (Esc)" pressed={tool === "selecteren"} testid="werkbalk-selecteren" onClick={() => onTool("selecteren")}>
+            <MousePointer2 className="size-4" aria-hidden="true" />
+          </ToolButton>
+          <ToolButton label="Veld" title="Veld afzetten met pionnen" pressed={tool === "veld"} testid="werkbalk-veld" onClick={() => onTool("veld")}>
+            <Cone className="size-4" aria-hidden="true" />
+          </ToolButton>
+          <ToolButton label="Touw" title="Een touw, lint of net spannen tussen twee objecten" pressed={tool === "touw"} testid="werkbalk-touw" onClick={() => onTool("touw")}>
+            <Cable className="size-4" aria-hidden="true" />
+          </ToolButton>
+        </div>
+        <span className="mx-0.5 h-6 w-px bg-border" aria-hidden="true" />
         <div role="group" aria-label="Camera" className="flex items-center gap-1">
           <ToolButton label="Standaard" title="Schuine 3D-weergave" pressed={cameraMode === "angled"} testid="werkbalk-camera-standaard" onClick={() => onCameraMode("angled")}>
             <Layers className="size-4" aria-hidden="true" />
@@ -61,6 +81,12 @@ export function CanvasToolbar({
           </ToolButton>
           <ToolButton label="Vrij" title="Vrij draaien" pressed={cameraMode === "free"} testid="werkbalk-camera-vrij" onClick={() => onCameraMode("free")}>
             <Move3d className="size-4" aria-hidden="true" />
+          </ToolButton>
+          <ToolButton label="Uitzoomen" title="Uitzoomen (ook: scrollen)" iconOnly testid="werkbalk-zoom-uit" onClick={() => onZoom(1 / 1.25)}>
+            <ZoomOut className="size-4" aria-hidden="true" />
+          </ToolButton>
+          <ToolButton label="Inzoomen" title="Inzoomen (ook: scrollen)" iconOnly testid="werkbalk-zoom-in" onClick={() => onZoom(1.25)}>
+            <ZoomIn className="size-4" aria-hidden="true" />
           </ToolButton>
           <ToolButton label="Reset" title="Camera terug naar het midden" testid="werkbalk-camera-reset" onClick={onResetCamera}>
             <RotateCcw className="size-4" aria-hidden="true" />

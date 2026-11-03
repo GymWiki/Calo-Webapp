@@ -2,7 +2,7 @@
 
 import { OrbitControls, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { TOUCH } from "three";
 import type { Floorplan3dRoom } from "@/types/floorplan3d";
 
@@ -30,6 +30,30 @@ function ViewCenterReporter({ onViewCenter }: { onViewCenter: (center: { x: numb
   return null;
 }
 
+/** Zoomknoppen van de werkbalk: orthografisch = zoomfactor, perspectief = dichterbij/verder weg langs de kijklijn. */
+function ZoomController({ request }: { request?: { factor: number; nonce: number } }) {
+  const get = useThree((state) => state.get);
+  const handled = useRef(request?.nonce ?? 0);
+  useEffect(() => {
+    if (!request || request.nonce === handled.current) return;
+    handled.current = request.nonce;
+    const { camera } = get();
+    const controls = get().controls as { target: { x: number; y: number; z: number }; update: () => void } | null;
+    if ("isOrthographicCamera" in camera && camera.isOrthographicCamera) {
+      camera.zoom = Math.min(Math.max(camera.zoom * request.factor, 5), 2000);
+      camera.updateProjectionMatrix();
+    } else if (controls) {
+      camera.position.set(
+        controls.target.x + (camera.position.x - controls.target.x) / request.factor,
+        controls.target.y + (camera.position.y - controls.target.y) / request.factor,
+        controls.target.z + (camera.position.z - controls.target.z) / request.factor,
+      );
+    }
+    controls?.update();
+  }, [request, get]);
+  return null;
+}
+
 export function CameraRig({
   mode,
   room,
@@ -37,6 +61,7 @@ export function CameraRig({
   drawMode = false,
   resetKey = 0,
   onViewCenter,
+  zoomRequest,
 }: {
   mode: CameraMode;
   room: Floorplan3dRoom;
@@ -46,6 +71,8 @@ export function CameraRig({
   /** Verhogen = camera terug naar de beginstand van de huidige modus (dubbeltik / Reset). */
   resetKey?: number;
   onViewCenter?: (center: { x: number; z: number }) => void;
+  /** Zoomknoppen: factor > 1 = inzoomen. Een nieuwe `nonce` voert de zoom één keer uit. */
+  zoomRequest?: { factor: number; nonce: number };
 }) {
   const span = Math.max(room.width_m, room.length_m);
   const orthoZoom = 380 / span;
@@ -81,6 +108,7 @@ export function CameraRig({
         touches={{ ONE: mode === "free" && !drawMode ? TOUCH.ROTATE : TOUCH.PAN, TWO: TOUCH.DOLLY_PAN }}
       />
       {onViewCenter && <ViewCenterReporter onViewCenter={onViewCenter} />}
+      <ZoomController request={zoomRequest} />
     </group>
   );
 }

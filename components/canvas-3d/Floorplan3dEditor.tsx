@@ -311,6 +311,7 @@ export function Floorplan3dEditor({
   const [autoFactor, setAutoFactor] = useState(1);
   const [cameraMenuOpen, setCameraMenuOpen] = useState(false);
   const [cameraResetKey, setCameraResetKey] = useState(0);
+  const [zoomRequest, setZoomRequest] = useState<{ factor: number; nonce: number }>({ factor: 1, nonce: 0 });
   const [onboarding, setOnboarding] = useState(() => window.matchMedia("(pointer: coarse)").matches && !hasSeenOnboarding());
   const [rotatingId, setRotatingId] = useState<string | null>(null);
   // Rotatie over alle assen: snapping, wereld/lokale assen en de 3D-ringen (desktop).
@@ -2271,6 +2272,7 @@ export function Floorplan3dEditor({
       onPerformanceChange={settings.quality === "auto" ? setAutoFactor : undefined}
       onViewCenter={handleViewCenter}
       cameraResetKey={cameraResetKey}
+      zoomRequest={zoomRequest}
       onResetCamera={resetCamera}
       touchUi={coarsePointer}
       onRotateHandleDown={handleRotateHandleDown}
@@ -2663,6 +2665,18 @@ export function Floorplan3dEditor({
               cameraMode={cameraMode}
               onCameraMode={setCameraMode}
               onResetCamera={resetCamera}
+              onZoom={(factor) => setZoomRequest((previous) => ({ factor, nonce: previous.nonce + 1 }))}
+              tool={drawMode ? "veld" : ropeMode ? "touw" : "selecteren"}
+              onTool={(tool) => {
+                if (tool === "selecteren") {
+                  if (drawMode) stopDrawing();
+                  if (ropeMode) stopRopeMode();
+                } else if (tool === "veld") {
+                  if (drawMode) stopDrawing();
+                  else startDrawing();
+                } else if (ropeMode) stopRopeMode();
+                else startRopeMode();
+              }}
               snapGrid={snapGrid}
               onSnapGrid={setSnapGrid}
               collisionOn={collisionOn}

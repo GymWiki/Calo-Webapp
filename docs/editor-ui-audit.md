@@ -62,5 +62,5 @@ Audit-spec en rapport; canvaswerkbalk (camera, raster, botsing, positie, verberg
 Bovenbalk-statuslabel ("Opgeslagen/Niet opgeslagen"), titel direct bewerkbaar op desktop, vaste kop/voet in het rechterpaneel, accordeons met onthouden staat, inklapbare en verbreedbare panelen (breedte onthouden), sticky categorieën en snelsprong, virtualisatie van de bibliotheeklijst, zwevende contextbalk bij het item op desktop, Focus-modus, command palette (Ctrl+K), sneltoetsenoverzicht (`?`), startkaart voor een lege plattegrond, tikdoelen 44 px op tablet, telefoon-bottom-sheet met drie standen, taaktests met klikteller, axe-check, voor/na-video, CLS/INP-metingen en vergelijkende voor/na-screenshots (alleen de "voor"-screenshots staan in `docs/editor-ui-audit/`).
 
 ## Beslissingen voor jou
-* Standaardpositie van de werkbalk: onder (nu) of boven? Figma kreeg kritiek op "onder"; hier is hij daarom verplaatsbaar.
-* Moet de werkbalk ook Selecteren/Veld/Touw bevatten (nu staan die in de linkerzijbalk) en zoomknoppen?
+* ~~Standaardpositie werkbalk~~ — besloten: standaard onder, verplaatsbaar (boven/verborgen) en onthouden.
+* ~~Gereedschap en zoom in de werkbalk~~ — besloten en gebouwd: Selecteren, Veld, Touw, uit-/inzoomen staan nu in de werkbalk (de linkerzijbalk houdt Veld en Touw ook; zelfde state).

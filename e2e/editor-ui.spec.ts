@@ -86,3 +86,33 @@ test("telefoon: alle knoppen van de selectiebalk liggen binnen het scherm en zij
   await inViewport(page, page.getByRole("button", { name: "Opslaan" }));
   await inViewport(page, page.getByRole("button", { name: "Ongedaan maken" }));
 });
+
+test("desktop: Selecteren, Veld, Touw en zoom staan in de werkbalk en werken", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  const errors: string[] = [];
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  await openEditor(page);
+  for (const id of ["werkbalk-selecteren", "werkbalk-veld", "werkbalk-touw", "werkbalk-zoom-in", "werkbalk-zoom-uit"]) await inViewport(page, page.getByTestId(id));
+  const selecteren = page.getByTestId("werkbalk-selecteren");
+  await expect(selecteren).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("werkbalk-veld").click();
+  await expect(page.getByTestId("werkbalk-veld")).toHaveAttribute("aria-pressed", "true");
+  await expect(selecteren).toHaveAttribute("aria-pressed", "false");
+  await page.getByTestId("werkbalk-touw").click();
+  await expect(page.getByTestId("werkbalk-touw")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("werkbalk-veld")).toHaveAttribute("aria-pressed", "false");
+  await selecteren.click();
+  await expect(selecteren).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("werkbalk-touw")).toHaveAttribute("aria-pressed", "false");
+
+  const canvas = page.locator("canvas").first();
+  const before = await canvas.screenshot();
+  await page.getByTestId("werkbalk-zoom-in").click();
+  await page.getByTestId("werkbalk-zoom-in").click();
+  await page.waitForTimeout(500);
+  const zoomed = await canvas.screenshot();
+  expect(Buffer.compare(before, zoomed)).not.toBe(0);
+  await page.getByTestId("werkbalk-camera-boven").click();
+  await page.getByTestId("werkbalk-zoom-uit").click();
+  expect(errors.filter((e) => !/favicon|WebGL|swiftshader|GPU stall|Failed to load resource/i.test(e))).toEqual([]);
+});
