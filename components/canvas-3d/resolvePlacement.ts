@@ -252,8 +252,8 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
     }
   }
 
-  const xCorrection = bestCorrection(axisCorrections("x", own, snapTargets, room));
-  const zCorrection = bestCorrection(axisCorrections("z", own, snapTargets, room));
+  const xCorrection = snapOn ? bestCorrection(axisCorrections("x", own, snapTargets, room)) : null;
+  const zCorrection = snapOn ? bestCorrection(axisCorrections("z", own, snapTargets, room)) : null;
 
   // --- 3. Raster: alleen op assen zonder rand-snap. -----------------------
   const snapAxis = (value: number, correction: Correction | null) =>
