@@ -135,9 +135,9 @@ describe("touwen in het klembord", () => {
     const result = pasteClipboard(buildClipboard([a, b], [], [ab]), { room: { width_m: 30, length_m: 30 }, lookup, createId: () => `n${++n}`, offset: { x: 1, z: 1 } });
     assert.equal(result.ropes.length, 1);
     const ids = new Set(result.items.map((item) => item.id));
-    assert.ok(ids.has(result.ropes[0].a.item) && ids.has(result.ropes[0].b.item));
-    assert.notEqual(result.ropes[0].a.item, "a");
-    assert.deepEqual(result.ropes[0].a.local, [0, 1.5, 0]);
+    assert.ok(ids.has((result.ropes[0].a as { item: string }).item) && ids.has((result.ropes[0].b as { item: string }).item));
+    assert.notEqual((result.ropes[0].a as { item: string }).item, "a");
+    assert.deepEqual((result.ropes[0].a as { local: number[] }).local, [0, 1.5, 0]);
     assert.notEqual(result.ropes[0].id, "t1");
   });
 

@@ -62,11 +62,10 @@ import {
   type Floorplan3dRoom,
   type Floorplan3dSummary,
   type Rope,
-  type RopeAnchor,
 } from "@/types/floorplan3d";
-import { anchorAt, anchorWorld, canConnect, createRope, migrateRopesWithReport, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems, snapToAnchor, withAnchor } from "@/components/canvas-3d/rope";
+import { migrateRopesWithReport, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems } from "@/components/canvas-3d/rope";
+import { useRopeDrag } from "@/components/canvas-3d/useRopeDrag";
 import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
-import type { Vec3 } from "@/components/canvas-3d/orientation";
 import type { MaterialModel } from "@/types/materialModel";
 import { type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldOverview, ConeFieldPanel } from "@/components/canvas-3d/ConeFieldPanel";
@@ -852,30 +851,24 @@ export function Floorplan3dEditor({
   // Touw spannen — van een punt op het ene object naar een punt op een ander object.
   // ---------------------------------------------------------------------
   // Een touw is geen item: het stapelt niet, botst nergens mee en volgt zijn twee items vanzelf (components/canvas-3d/rope.ts).
-  type RopeDraft = {
-    /** Bestaand touw waarvan een uiteinde wordt verplaatst; `null` = een nieuw touw. */
-    ropeId: string | null;
-    /** Het uiteinde dat blijft zitten. */
-    fixed: RopeAnchor;
-    /** Welk uiteinde van het bestaande touw je sleept (bij een nieuw touw altijd "b"). */
-    moving: "a" | "b";
-    cursor: Vec3;
-    /** Item onder de cursor (het touw zou daar vastzitten). */
-    targetId: string | null;
-  };
   const [ropeMode, setRopeMode] = useState(false);
-  const [ropeDraft, setRopeDraftState] = useState<RopeDraft | null>(null);
   /** Item onder de cursor terwijl je nog niet sleept (touw spannen): zijn bevestigingspunten worden getoond. */
   const [ropeHoverId, setRopeHoverId] = useState<string | null>(null);
   const [showAnchors, setShowAnchors] = useState(true);
-  const ropeDraftRef = useRef<RopeDraft | null>(null);
-  const ropeMoveStampRef = useRef(0);
-  const ropeSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
 
-  function updateRopeDraft(next: RopeDraft | null) {
-    ropeDraftRef.current = next;
-    setRopeDraftState(next);
-  }
+  // Het sleepmodel voor touwen (nieuw touw, eindpunt, hele touw): components/canvas-3d/useRopeDrag.ts. Eén commit per sleepbeweging = één undo-stap.
+  const ropeDrag = useRopeDrag({
+    items,
+    ropes,
+    lookup,
+    room,
+    getSnapshot: () => ({ room, items, coneFields, ropes }),
+    pushHistory: (snapshot) => history.push(snapshot),
+    setRopes,
+    onCommitted: () => scheduleAutosave(),
+    undo: () => handleUndoRef.current(),
+    createId: createItemId,
+  });
 
   function startRopeMode() {
     setDrawMode(false);
@@ -890,23 +883,7 @@ export function Floorplan3dEditor({
   function stopRopeMode() {
     setRopeMode(false);
     setRopeHoverId(null);
-    updateRopeDraft(null);
-  }
-
-  function beginRope(itemId: string, point: Vec3) {
-    const item = items.find((candidate) => candidate.id === itemId);
-    if (!item) return;
-    ropeSnapshotRef.current = { room, items, coneFields, ropes };
-    updateRopeDraft({ ropeId: null, fixed: anchorAt(item, point, lookup), moving: "b", cursor: point, targetId: null });
-  }
-
-  function handleRopeHandleDown(ropeId: string, end: "a" | "b") {
-    const rope = ropes.find((candidate) => candidate.id === ropeId);
-    if (!rope) return;
-    const cursor = anchorWorld(rope[end], items, lookup);
-    if (!cursor) return;
-    ropeSnapshotRef.current = { room, items, coneFields, ropes };
-    updateRopeDraft({ ropeId, fixed: end === "a" ? rope.b : rope.a, moving: end, cursor, targetId: null });
+    ropeDrag.cancel();
   }
 
   function handleRopeSelect(ropeId: string) {
@@ -915,78 +892,14 @@ export function Floorplan3dEditor({
     setSideTab("item");
   }
 
-  /** Cursor boven een item: het touw zou daar (op het geraakte punt) vastzitten. */
+  /** Cursor boven een item: tijdens het slepen volgt de preview; anders tonen we in "Touw spannen" zijn bevestigingspunten. */
   function handleItemPointerMove(id: string, event: ThreeEvent<PointerEvent>) {
-    const current = ropeDraftRef.current;
-    if (!current) {
-      if (ropeMode) setRopeHoverId(id);
+    if (ropeDrag.activeRef.current) {
+      ropeDrag.moveOnItem(id, event);
       return;
     }
-    ropeMoveStampRef.current = event.nativeEvent.timeStamp;
-    const targetId = id === current.fixed.item ? null : id;
-    updateRopeDraft({ ...current, cursor: [event.point.x, event.point.y, event.point.z], targetId });
+    if (ropeMode) setRopeHoverId(id);
   }
-
-  /** Cursor op de vloer: het losse uiteinde volgt de vinger op dezelfde hoogte als het vaste punt. */
-  function moveRopeOnFloor(event: ThreeEvent<PointerEvent>): boolean {
-    const current = ropeDraftRef.current;
-    if (!current) return false;
-    // Zelfde pointer-event dat al door een item is afgehandeld (het item ligt voor de vloer): de itemcursor wint.
-    if (ropeMoveStampRef.current === event.nativeEvent.timeStamp) return true;
-    const fixed = anchorWorld(current.fixed, items, lookup);
-    updateRopeDraft({ ...current, cursor: [event.point.x, fixed ? fixed[1] : 0.5, event.point.z], targetId: null });
-    return true;
-  }
-
-  /** Loslaten: op een ander item = vastmaken, anders niets (het touw springt terug of verdwijnt). */
-  function finishRope(targetId: string | null, point: Vec3 | null) {
-    const current = ropeDraftRef.current;
-    updateRopeDraft(null);
-    if (!current) return;
-    const snapshot = ropeSnapshotRef.current;
-    ropeSnapshotRef.current = null;
-    const target = targetId ? items.find((item) => item.id === targetId) : null;
-    if (!target || !point) {
-      if (!current.ropeId) toast.info("Laat het touw los op een ander object om het vast te maken.");
-      return;
-    }
-    const anchor = anchorAt(target, point, lookup);
-    if (!canConnect(current.fixed, anchor)) {
-      toast.info("Een touw loopt tussen twee verschillende objecten.");
-      return;
-    }
-    if (snapshot) history.push(snapshot);
-    if (current.ropeId) {
-      setRopes((prev) => prev.map((rope) => (rope.id === current.ropeId ? withAnchor(rope, current.moving, anchor) : rope)));
-    } else {
-      setRopes((prev) => [...prev, createRope(createItemId(), current.fixed, anchor)]);
-    }
-    haptic(10);
-    scheduleAutosave();
-  }
-
-  function handleItemPointerUp(id: string, event: ThreeEvent<PointerEvent>) {
-    if (!ropeDraftRef.current) return;
-    event.stopPropagation();
-    finishRope(id, [event.point.x, event.point.y, event.point.z]);
-  }
-
-  // Loslaten buiten het canvas of op een plek zonder object: het slepen stopt altijd.
-  useEffect(() => {
-    if (!ropeDraft) return;
-    function onUp() {
-      window.setTimeout(() => {
-        if (ropeDraftRef.current) finishRope(null, null);
-      }, 0);
-    }
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return () => {
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ropeDraft !== null]);
 
   function deleteSelectedRope() {
     if (!selectedRope) return;
@@ -1044,7 +957,7 @@ export function Floorplan3dEditor({
 
   function handleFloorPointerMove(event: ThreeEvent<PointerEvent>) {
     floorPointRef.current = { x: event.point.x, z: event.point.z };
-    if (moveRopeOnFloor(event)) return;
+    if (ropeDrag.moveOnFloor(event)) return;
     if (rotatingId) {
       rotateByHandle({ x: event.point.x, z: event.point.z });
       return;
@@ -1108,10 +1021,7 @@ export function Floorplan3dEditor({
   }
 
   function handleFloorPointerUp(event: ThreeEvent<PointerEvent>) {
-    if (ropeDraftRef.current) {
-      finishRope(null, null);
-      return;
-    }
+    if (ropeDrag.upOnFloor()) return;
     if (rotatingId) {
       setRotatingId(null);
       scheduleAutosave();
@@ -1575,9 +1485,9 @@ export function Floorplan3dEditor({
       const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
 
-      if (event.key === "Escape" && (ropeMode || ropeDraftRef.current)) {
+      if (event.key === "Escape" && (ropeMode || ropeDrag.activeRef.current)) {
         event.preventDefault();
-        if (ropeDraftRef.current) updateRopeDraft(null);
+        if (ropeDrag.activeRef.current) ropeDrag.cancel();
         else stopRopeMode();
         return;
       }
@@ -2168,22 +2078,10 @@ export function Floorplan3dEditor({
     };
   })();
 
-  // Het touw dat je nu sleept: van het vaste punt naar de cursor.
-  const ropeFixedWorld = ropeDraft ? anchorWorld(ropeDraft.fixed, items, lookup) : null;
-  // Boven een ander item springt het uiteinde naar zijn bevestigingspunt (niet naar waar de cursor het model raakt): zo zie je vooraf
-  // waar het touw vast gaat zitten.
-  const ropeTargetItem = ropeDraft?.targetId ? items.find((candidate) => candidate.id === ropeDraft.targetId) ?? null : null;
-  const ropeSnap = ropeDraft && ropeTargetItem ? snapToAnchor(ropeTargetItem, ropeDraft.cursor, lookup) : null;
-  const ropePreview = ropeDraft && ropeFixedWorld ? { from: ropeFixedWorld, to: ropeSnap ? ropeSnap.world : ropeDraft.cursor } : null;
-  const anchorViews: Record<string, AnchorView> = {};
-  if (ropeMode) {
-    if (ropeDraft) {
-      anchorViews[ropeDraft.fixed.item] = { highlightId: ropeDraft.fixed.anchor ?? null, labels: false };
-      if (ropeTargetItem && ropeSnap) anchorViews[ropeTargetItem.id] = { highlightId: ropeSnap.anchorId || null, labels: false };
-    } else if (ropeHoverId) {
-      anchorViews[ropeHoverId] = { highlightId: null, labels: false };
-    }
-  }
+  // Het touw dat je nu sleept: de preview (met lengte), de anchors in de buurt en het object waaraan het zou vastzitten.
+  const dragView = ropeDrag.view;
+  const anchorViews: Record<string, AnchorView> = { ...(dragView?.anchorViews ?? {}) };
+  if (ropeMode && !ropeDrag.active && ropeHoverId) anchorViews[ropeHoverId] = { highlightId: null, labels: false };
 
   const scene = (
     <Scene3D
@@ -2192,22 +2090,25 @@ export function Floorplan3dEditor({
       modelBySlug={modelBySlug}
       selectedId={selectedId}
       groupIds={isMultiSelection ? groupIdSet : undefined}
-      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDraft !== null}
+      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDrag.active}
       gizmo={gizmoProps}
       cameraMode={cameraMode}
-      onItemPointerDown={(id, event) => (ropeMode ? beginRope(id, [event.point.x, event.point.y, event.point.z]) : handleItemPointerDown(id))}
+      onItemPointerDown={(id, event) => (ropeMode ? ropeDrag.beginNew(id, [event.point.x, event.point.y, event.point.z], event) : handleItemPointerDown(id))}
       ropes={ropes}
-      hiddenRopeId={ropeDraft?.ropeId ?? null}
-      ropeDraft={ropePreview}
+      hiddenRopeId={dragView?.hiddenRopeId ?? null}
+      ropeDraft={dragView?.preview ?? null}
       ropeTool={ropeMode}
-      ropeTargetId={ropeDraft?.targetId ?? null}
+      ropeTargetId={dragView?.targetId ?? null}
       anchorViews={anchorViews}
       showAllAnchors={debugCollision && showAnchors}
       onItemPointerLeave={(id) => setRopeHoverId((current) => (current === id ? null : current))}
-      onRopePointerDown={(id) => handleRopeSelect(id)}
-      onRopeHandlePointerDown={(id, end) => handleRopeHandleDown(id, end)}
+      onRopePointerDown={(id, event) => {
+        handleRopeSelect(id);
+        ropeDrag.beginWhole(id, event);
+      }}
+      onRopeHandlePointerDown={(id, end, event) => (end === "mid" ? ropeDrag.beginWhole(id, event) : ropeDrag.beginEnd(id, end, event))}
       onItemPointerMove={handleItemPointerMove}
-      onItemPointerUp={handleItemPointerUp}
+      onItemPointerUp={ropeDrag.upOnItem}
       fields={coneFields}
       draftField={draftField}
       drawMode={drawMode}
@@ -2255,7 +2156,7 @@ export function Floorplan3dEditor({
     <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
       <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl bg-slate-900/90 px-3 py-1.5 text-xs text-white shadow" data-testid="touw-hint">
         <Cable className="size-3.5 shrink-0" aria-hidden="true" />
-        <span>{ropeDraft ? "Laat los op een ander object" : "Sleep van het ene object naar het andere"}</span>
+        <span>{ropeDrag.active ? "Laat los op een bevestigingspunt of op de vloer" : "Sleep van het ene object naar het andere"}</span>
         <button type="button" onClick={stopRopeMode} className="min-h-8 rounded-full bg-white/15 px-3 py-0.5 font-medium hover:bg-white/25">
           Stoppen{isDesktop ? " (Esc)" : ""}
         </button>

@@ -118,11 +118,11 @@ export function Scene3D({
   /** Touwen en het touw dat nu gespannen of verplaatst wordt (zie FloorplanContent). */
   ropes?: Rope[];
   hiddenRopeId?: string | null;
-  ropeDraft?: { from: Vec3; to: Vec3 } | null;
+  ropeDraft?: { from: Vec3; to: Vec3; label?: string; invalid?: boolean } | null;
   ropeTool?: boolean;
   ropeTargetId?: string | null;
   onRopePointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
-  onRopeHandlePointerDown?: (id: string, end: "a" | "b", event: ThreeEvent<PointerEvent>) => void;
+  onRopeHandlePointerDown?: (id: string, end: "a" | "b" | "mid", event: ThreeEvent<PointerEvent>) => void;
   onItemPointerMove?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerUp?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerLeave?: (id: string) => void;

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import { Html } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { ROPE_COLOR, ROPE_RADIUS_M, ropeCurvePoints, ropeLength } from "@/components/canvas-3d/rope";
 import type { Vec3 } from "@/components/canvas-3d/orientation";
@@ -39,6 +40,9 @@ export function RopeMesh({
   selected = false,
   preview = false,
   interactive = false,
+  touchUi = false,
+  label,
+  invalid = false,
   onSelect,
   onHandleDown,
 }: {
@@ -49,18 +53,27 @@ export function RopeMesh({
   preview?: boolean;
   interactive?: boolean;
   onSelect?: (event: ThreeEvent<PointerEvent>) => void;
-  /** Handvat ("a" = begin, "b" = einde) van het geselecteerde touw ingedrukt. */
-  onHandleDown?: (end: "a" | "b", event: ThreeEvent<PointerEvent>) => void;
+  /** Handvat van het geselecteerde touw ingedrukt: "a" = begin, "b" = einde (eindpunt verslepen), "mid" = het hele touw verplaatsen. */
+  onHandleDown?: (end: "a" | "b" | "mid", event: ThreeEvent<PointerEvent>) => void;
+  /** Touch-bediening: grotere handvatten (tikdoel ≥ 44 px). */
+  touchUi?: boolean;
+  /** Zwevend label bij het touw (bijv. de lengte tijdens het slepen). */
+  label?: string;
+  /** Het label en het touw zijn rood: de huidige plek is ongeldig. */
+  invalid?: boolean;
 }) {
   const length = ropeLength(from, to);
   const points = useMemo(() => ropeCurvePoints(from, to, SEGMENTS), [from, to]);
   const radius = selected ? ROPE_RADIUS_M * 1.5 : ROPE_RADIUS_M;
   const body = useMemo(() => (length < 1e-4 ? null : tube(points, radius, 8)), [points, radius, length]);
-  const pick = useMemo(() => (length >= 1e-4 && interactive && onSelect ? tube(pickPoints(points, length), 0.2, 6) : null), [points, length, interactive, onSelect]);
+  const pick = useMemo(() => (length >= 1e-4 && interactive && onSelect ? tube(pickPoints(points, length), touchUi ? 0.35 : 0.2, 6) : null), [points, length, interactive, onSelect, touchUi]);
   useEffect(() => () => body?.dispose(), [body]);
   useEffect(() => () => pick?.dispose(), [pick]);
   if (!body) return null;
-  const color = selected ? SELECTED_COLOR : ROPE_COLOR;
+  const color = invalid ? "#f97316" : selected ? SELECTED_COLOR : ROPE_COLOR;
+  const mid = points[Math.floor(points.length / 2)];
+  const visibleHandle = touchUi ? 0.2 : 0.13;
+  const hitHandle = touchUi ? 0.8 : 0.4;
   const opacity = preview ? 0.7 : 1;
 
   return (
@@ -81,16 +94,27 @@ export function RopeMesh({
           <meshBasicMaterial side={THREE.DoubleSide} />
         </mesh>
       )}
+      {label && (
+        <Html position={[mid[0], mid[1] + 0.25, mid[2]]} center zIndexRange={[24, 0]} style={{ pointerEvents: "none" }}>
+          <div
+            className={`rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-white shadow ${invalid ? "bg-orange-600" : "bg-slate-900/90"}`}
+            data-testid="touw-lengte"
+          >
+            {label}
+          </div>
+        </Html>
+      )}
       {interactive && selected && onHandleDown && (
         <>
-          {([["a", from], ["b", to]] as const).map(([end, point]) => (
-            <group key={end} position={point}>
-              <mesh renderOrder={10} onPointerDown={(event) => onHandleDown(end, event)}>
-                <sphereGeometry args={[0.13, 16, 12]} />
-                <meshBasicMaterial color={HANDLE_COLOR} depthTest={false} />
+          {([["a", from], ["b", to], ["mid", mid as Vec3]] as const).map(([end, point]) => (
+            // userData.ropeHandle: een object dat ervoor ligt geeft de pointerdown door aan het handvat (zie ItemMesh), want het touw heeft voorrang.
+            <group key={end} position={point} userData={{ ropeHandle: true }}>
+              <mesh renderOrder={10} userData={{ ropeHandle: true }} onPointerDown={(event) => onHandleDown(end, event)}>
+                <sphereGeometry args={[end === "mid" ? visibleHandle * 0.8 : visibleHandle, 16, 12]} />
+                <meshBasicMaterial color={end === "mid" ? "#2563eb" : HANDLE_COLOR} depthTest={false} />
               </mesh>
-              <mesh visible={false} onPointerDown={(event) => onHandleDown(end, event)}>
-                <sphereGeometry args={[0.4, 8, 6]} />
+              <mesh visible={false} userData={{ ropeHandle: true }} onPointerDown={(event) => onHandleDown(end, event)}>
+                <sphereGeometry args={[hitHandle, 8, 6]} />
               </mesh>
             </group>
           ))}

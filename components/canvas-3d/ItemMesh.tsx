@@ -183,6 +183,8 @@ export function ItemMesh({
       position={[item.x, item.y, item.z]}
       rotation={[0, THREE.MathUtils.degToRad(item.rot_y_deg), 0]}
       onPointerDown={(event) => {
+        // Een touw-handvat onder de cursor heeft voorrang (ook als dit item ervoor ligt): het touw pakken wint van het item pakken.
+        if (!ropeTool && event.intersections.some((hit) => hit.object.userData?.ropeHandle)) return;
         if (!interactive) {
           // Alleen-lezen: tik/klik toont alleen de naam (geen selectie of slepen).
           if (onHover) onHover(item);

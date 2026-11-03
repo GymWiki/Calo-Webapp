@@ -5,10 +5,11 @@
 import { anchorPosition, anchorsFor, nearestAnchor, type RopeKind } from "@/components/canvas-3d/anchors";
 import { dimsOf, shapeOfDims, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
 import { localToWorld, rotationOf, worldToLocal, type Vec3 } from "@/components/canvas-3d/orientation";
-import type { Floorplan3dItem, Rope, RopeAnchor } from "@/types/floorplan3d";
+import { endItemId, isFreeEnd, type Floorplan3dItem, type Rope, type RopeAnchor, type RopeEnd } from "@/types/floorplan3d";
 
 export { removeRopesOfItems, ropesWithItems } from "@/lib/plattegrond/ropes";
-export type { Rope, RopeAnchor };
+export type { Rope, RopeAnchor, RopeEnd };
+export { endItemId, isFreeEnd };
 
 /** Kleur van het touw (toverkoord). */
 export const ROPE_COLOR = "#dc2626";
@@ -48,7 +49,9 @@ export function anchorLocal(anchor: RopeAnchor, item: Floorplan3dItem, lookup: D
 }
 
 /** Het punt van een uiteinde in de wereld, of `null` als het item er niet meer is. */
-export function anchorWorld(anchor: RopeAnchor, items: readonly Floorplan3dItem[], lookup: DimsLookup, kind: RopeKind = "touw"): Vec3 | null {
+export function anchorWorld(anchor: RopeEnd, items: readonly Floorplan3dItem[], lookup: DimsLookup, kind: RopeKind = "touw"): Vec3 | null {
+  // Een vrij uiteinde ligt vast in de wereld: de ENIGE bron van waarheid is zijn opgeslagen punt (wordt nergens opnieuw afgeleid).
+  if (isFreeEnd(anchor)) return anchor.free;
   const item = items.find((candidate) => candidate.id === anchor.item);
   if (!item) return null;
   return localToWorld(shapeOf(item, lookup), [item.x, item.y, item.z], rotationOf(item), anchorLocal(anchor, item, lookup, kind));
@@ -98,17 +101,19 @@ export function ropeLength(a: Vec3, b: Vec3): number {
   return Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
 }
 
-/** Een touw mag niet aan hetzelfde item vastzitten aan beide kanten. */
-export function canConnect(a: RopeAnchor, b: RopeAnchor): boolean {
-  return a.item !== b.item;
+/** Een touw mag niet aan hetzelfde item vastzitten aan beide kanten (vrije uiteinden mogen altijd). */
+export function canConnect(a: RopeEnd, b: RopeEnd): boolean {
+  const itemA = endItemId(a);
+  const itemB = endItemId(b);
+  return itemA === null || itemB === null || itemA !== itemB;
 }
 
-export function createRope(id: string, a: RopeAnchor, b: RopeAnchor, kind: RopeKind = "touw"): Rope {
+export function createRope(id: string, a: RopeEnd, b: RopeEnd, kind: RopeKind = "touw"): Rope {
   return kind === "touw" ? { id, a, b } : { id, a, b, kind };
 }
 
 /** Zet één uiteinde van een touw op een ander punt. */
-export function withAnchor(rope: Rope, end: "a" | "b", anchor: RopeAnchor): Rope {
+export function withAnchor(rope: Rope, end: "a" | "b", anchor: RopeEnd): Rope {
   return { ...rope, [end]: anchor };
 }
 
@@ -159,7 +164,7 @@ export function migrateRopes(
     const next: Rope = { ...rope };
     for (const end of ["a", "b"] as const) {
       const anchor = rope[end];
-      if (anchor.anchor) continue;
+      if (isFreeEnd(anchor) || anchor.anchor) continue;
       const item = items.find((candidate) => candidate.id === anchor.item);
       if (!item) continue;
       const defs = anchorsFor(item, lookup);

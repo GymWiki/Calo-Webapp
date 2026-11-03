@@ -92,12 +92,26 @@ export const ropeAnchorSchema = z.object({
   height: z.number().finite().optional(),
 });
 export type RopeAnchor = z.infer<typeof ropeAnchorSchema>;
+/**
+ * Een VRIJ uiteinde: een punt in de wereld (meters; x/z op de vloer, y de hoogte), niet vastgemaakt aan een object. Ontstaat als je een
+ * eindpunt of het hele touw los van de anchors op de vloer legt. Het blijft staan waar het ligt (verplaatst dus niet mee met objecten).
+ */
+export const ropeFreeSchema = z.object({
+  free: z.tuple([z.number().finite(), z.number().finite(), z.number().finite()]),
+});
+export type RopeFree = z.infer<typeof ropeFreeSchema>;
+/** Een uiteinde: vast aan een anchor van een object, of een vrij punt. Oude plattegronden (alleen anchors) blijven geldig. */
+export const ropeEndSchema = z.union([ropeAnchorSchema, ropeFreeSchema]);
+export type RopeEnd = RopeAnchor | RopeFree;
+export const isFreeEnd = (end: RopeEnd): end is RopeFree => "free" in end;
+/** Het item waaraan een uiteinde vastzit, of `null` voor een vrij uiteinde. */
+export const endItemId = (end: RopeEnd): string | null => (isFreeEnd(end) ? null : end.item);
 /** Soort verbinding: touw (lichte doorhang), lint (strak) of net. Ontbreekt = touw. */
 export const ropeKindSchema = z.enum(["touw", "lint", "net"]);
 export const ropeSchema = z.object({
   id: z.string().min(1),
-  a: ropeAnchorSchema,
-  b: ropeAnchorSchema,
+  a: ropeEndSchema,
+  b: ropeEndSchema,
   kind: ropeKindSchema.optional(),
 });
 export type Rope = z.infer<typeof ropeSchema>;

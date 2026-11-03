@@ -65,13 +65,13 @@ export function FloorplanContent({
   /** Het touw waarvan je een uiteinde sleept: het echte touw is dan even weg, de `ropeDraft` toont de nieuwe stand. */
   hiddenRopeId?: string | null;
   /** Het touw dat je nu spant of verplaatst: van het vaste punt naar de cursor. */
-  ropeDraft?: { from: Vec3; to: Vec3 } | null;
+  ropeDraft?: { from: Vec3; to: Vec3; label?: string; invalid?: boolean } | null;
   /** "Touw spannen" actief (editor). */
   ropeTool?: boolean;
   /** Het item onder de cursor tijdens het spannen (oranje omlijning). */
   ropeTargetId?: string | null;
   onRopePointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
-  onRopeHandlePointerDown?: (id: string, end: "a" | "b", event: ThreeEvent<PointerEvent>) => void;
+  onRopeHandlePointerDown?: (id: string, end: "a" | "b" | "mid", event: ThreeEvent<PointerEvent>) => void;
   onItemPointerMove?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerUp?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerLeave?: (id: string) => void;
@@ -161,12 +161,13 @@ export function FloorplanContent({
               to={ends.b}
               selected={rope.id === selectedId}
               interactive={interactive && !ropeTool}
+              touchUi={touchUi}
               onSelect={onRopePointerDown ? (event) => { event.stopPropagation(); onRopePointerDown(rope.id, event); } : undefined}
               onHandleDown={onRopeHandlePointerDown ? (end, event) => { event.stopPropagation(); onRopeHandlePointerDown(rope.id, end, event); } : undefined}
             />
           );
         })}
-      {ropeDraft && <RopeMesh from={ropeDraft.from} to={ropeDraft.to} preview />}
+      {ropeDraft && <RopeMesh from={ropeDraft.from} to={ropeDraft.to} preview label={ropeDraft.label} invalid={ropeDraft.invalid} />}
       {fields.map((field) => (
         <ConeFieldMesh
           key={field.id}
