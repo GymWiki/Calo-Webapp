@@ -49,12 +49,13 @@ async function ropeSelected(page: Page) {
   await (isDesktop(page) ? page.keyboard.press("Escape") : page.getByTestId("toolbar-touw").click());
   let hit = { x: (left.x + middle.x) / 2, y: left.y };
   // Selecteer het touw: tik op het midden van de lijn (het touw hangt boven/tussen de matten; probeer enkele punten).
-  search: for (const dy of [0, -8, 8, -16, -24, 16]) {
+  const offsets = isDesktop(page) ? [0, -8, 8, -16, -24, 16] : [0, -6, 6, -12, 12, -18, 18, -24, 24, -30, 30, -40, 40];
+  search: for (const dy of offsets) {
     for (let step = 3; step <= 9; step++) {
       const point = { x: left.x + ((middle.x - left.x) * step) / 12, y: left.y + dy };
       if (isDesktop(page)) await page.mouse.click(point.x, point.y);
       else await page.touchscreen.tap(point.x, point.y);
-      if (await page.getByTestId("touw-paneel").isVisible().catch(() => false)) {
+      if (await page.getByTestId("touw-paneel").or(page.getByTestId("touw-hud")).isVisible().catch(() => false)) {
         hit = point;
         break search;
       }
@@ -67,11 +68,12 @@ const rope = (d: { ropes?: DraftRope[] }) => d.ropes![0];
 const endWorldPoint = (end: DraftRope["a"]) => ("free" in end ? (end as unknown as { free: number[] }).free : null);
 
 test("eindpunt naar een vrij punt op de vloer slepen: het blijft staan (ook na herladen), geen terugspringen, één undo-stap", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "muis; telefoon: zie het mobiele scenario");
+  test.skip(testInfo.project.name === "ipad", "desktop en telefoon volstaan");
   const errors: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   const { middle, draft } = await ropeSelected(page);
-  await expect(page.getByTestId("touw-paneel")).toBeVisible();
+  await expect(page.getByTestId("touw-paneel").or(page.getByTestId("touw-hud"))).toBeVisible();
+  if (!isDesktop(page)) await page.getByTestId("touw-modus-eind").click();
   const before = rope(draft);
 
   // Pak het uiteinde op de rechter mat en laat het los op een leeg stuk vloer (rechtsonder).
@@ -89,7 +91,12 @@ test("eindpunt naar een vrij punt op de vloer slepen: het blijft staan (ook na h
   await page.waitForTimeout(1200);
   expect(rope(await readDraft(page)).b).toEqual(rope(after).b);
 
-  // Eén undo-stap zet het uiteinde terug naar het object.
+  // Eén undo-stap zet het uiteinde terug naar het object (toetsenbord: alleen desktop).
+  if (!isDesktop(page)) {
+    await page.waitForTimeout(1200);
+    expect(rope(await readDraft(page)).b).toEqual(rope(after).b);
+    return;
+  }
   await page.keyboard.press("Control+z");
   const undone = await readDraft(page, (d) => rope(d).b !== undefined && !("free" in rope(d).b));
   expect(rope(undone).b).toEqual(before.b);
