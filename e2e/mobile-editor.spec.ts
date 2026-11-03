@@ -46,30 +46,36 @@ test("bibliotheek: openen, sluiten met Esc en met een tik buiten het paneel", as
   }
 });
 
-test("drawer (telefoon): slepen aan de handle geeft drie standen: half, vol, dicht", async ({ page }) => {
+test("drawer (telefoon): opent vol; slepen aan de handle geeft drie standen: vol, half, dicht", async ({ page }) => {
   test.skip(!isPhone(page), "alleen telefoon");
   await openEditor(page);
   await page.getByTestId("toolbar-bibliotheek").click();
   const sheet = library(page);
   await expect(sheet).toBeVisible();
   await page.waitForTimeout(500); // intree-animatie
-  const half = (await sheet.boundingBox())!.height;
+  const full = (await sheet.boundingBox())!.height;
   const handle = (await sheet.locator(".touch-none").boundingBox())!;
   const grip = { x: handle.x + handle.width / 2, y: handle.y + 12 };
 
-  await touchDrag(page, grip, { x: grip.x, y: grip.y - 200 });
+  // Omlaag slepen: van vol naar half.
+  await touchDrag(page, grip, { x: grip.x, y: grip.y + 250 });
+  await expect.poll(async () => (await sheet.boundingBox())!.height).toBeLessThan(full - 100);
+  await page.waitForTimeout(400);
+  const half = (await sheet.boundingBox())!.height;
+
+  // Omhoog slepen: terug naar vol.
+  const halfHandle = (await sheet.locator(".touch-none").boundingBox())!;
+  const halfGrip = { x: halfHandle.x + halfHandle.width / 2, y: halfHandle.y + 12 };
+  await touchDrag(page, halfGrip, { x: halfGrip.x, y: halfGrip.y - 200 });
   await expect.poll(async () => (await sheet.boundingBox())!.height).toBeGreaterThan(half + 100);
   await page.waitForTimeout(400);
 
-  const fullHandle = (await sheet.locator(".touch-none").boundingBox())!;
-  const fullGrip = { x: fullHandle.x + fullHandle.width / 2, y: fullHandle.y + 12 };
-  await touchDrag(page, fullGrip, { x: fullGrip.x, y: fullGrip.y + 250 });
-  await expect.poll(async () => (await sheet.boundingBox())!.height).toBeLessThan(half + 20);
-  await page.waitForTimeout(400);
-
-  const halfHandle = (await sheet.locator(".touch-none").boundingBox())!;
-  const halfGrip = { x: halfHandle.x + halfHandle.width / 2, y: halfHandle.y + 12 };
-  await touchDrag(page, halfGrip, { x: halfGrip.x, y: halfGrip.y + 250 });
+  // Twee keer omlaag: half en dan dicht.
+  for (let i = 0; i < 2; i++) {
+    const h = (await sheet.locator(".touch-none").boundingBox())!;
+    await touchDrag(page, { x: h.x + h.width / 2, y: h.y + 12 }, { x: h.x + h.width / 2, y: h.y + 262 });
+    await page.waitForTimeout(500);
+  }
   await expect(sheet).toBeHidden();
 });
 
