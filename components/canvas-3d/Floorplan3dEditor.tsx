@@ -15,6 +15,8 @@ import {
   Lock,
   LockOpen,
   Redo2,
+  RotateCcw,
+  RotateCw,
   Save,
   ClipboardPaste,
   Scissors,
@@ -65,6 +67,7 @@ import {
 } from "@/types/floorplan3d";
 import { migrateRopesWithReport, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems } from "@/components/canvas-3d/rope";
 import { useRopeDrag } from "@/components/canvas-3d/useRopeDrag";
+import { formatLength, freeEndHeight, insideRoom, rotateRopeAboutMid, withFreeHeight, worldEnds } from "@/components/canvas-3d/rope-drag";
 import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
 import type { MaterialModel } from "@/types/materialModel";
 import { type CameraMode } from "@/components/canvas-3d/CameraRig";
@@ -855,6 +858,8 @@ export function Floorplan3dEditor({
   /** Item onder de cursor terwijl je nog niet sleept (touw spannen): zijn bevestigingspunten worden getoond. */
   const [ropeHoverId, setRopeHoverId] = useState<string | null>(null);
   const [showAnchors, setShowAnchors] = useState(true);
+  /** Mobiel: wat een vinger op het geselecteerde touw doet — een eindpunt verplaatsen of het hele touw. Desktop toont alle handvatten. */
+  const [ropeEditMode, setRopeEditMode] = useState<"end" | "whole">("end");
 
   // Het sleepmodel voor touwen (nieuw touw, eindpunt, hele touw): components/canvas-3d/useRopeDrag.ts. Eén commit per sleepbeweging = één undo-stap.
   const ropeDrag = useRopeDrag({
@@ -867,7 +872,7 @@ export function Floorplan3dEditor({
     setRopes,
     onCommitted: () => scheduleAutosave(),
     undo: () => handleUndoRef.current(),
-    createId: createItemId,
+    createId: () => createItemId(),
   });
 
   function startRopeMode() {
@@ -908,6 +913,57 @@ export function Floorplan3dEditor({
     setSelectedId(null);
     scheduleAutosave();
     toast("Touw verwijderd", { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 6000 });
+  }
+
+
+  /** Past het geselecteerde touw aan als één undo-stap. */
+  function updateSelectedRope(change: (rope: Rope) => Rope) {
+    if (!selectedRope) return;
+    pushHistory();
+    setRopes((prev) => prev.map((rope) => (rope.id === selectedRope.id ? change(rope) : rope)));
+    scheduleAutosave();
+  }
+
+  /** Hoogte (m) van de vrije uiteinden van het geselecteerde touw: ±5 cm per stap. Vastgemaakte uiteinden volgen hun bevestigingspunt. */
+  function changeRopeHeight(deltaM: number) {
+    const selectedFreeHeight = selectedRope ? freeEndHeight(selectedRope) : null;
+    if (selectedFreeHeight === null) {
+      toast.info("Alleen vrije uiteinden hebben een eigen hoogte; een vastgemaakt uiteinde volgt zijn bevestigingspunt.");
+      return;
+    }
+    updateSelectedRope((rope) => withFreeHeight(rope, selectedFreeHeight + deltaM));
+  }
+
+  /** Draait het touw om zijn midden (stappen van 15°); beide uiteinden worden vrije punten. */
+  function rotateSelectedRope(deg: number) {
+    if (!selectedRope) return;
+    const ends = worldEnds(selectedRope, items, lookup);
+    const turned = ends ? rotateRopeAboutMid(ends.a, ends.b, deg, room) : null;
+    if (!turned) {
+      toast.error("Geen geldig punt: het gedraaide touw past niet in de zaal");
+      return;
+    }
+    updateSelectedRope((rope) => ({ ...rope, a: turned.a, b: turned.b }));
+  }
+
+  /** Dupliceren: een kopie als vrij touw, 50 cm opzij verschoven, direct geselecteerd. */
+  function duplicateSelectedRope() {
+    if (!selectedRope) return;
+    const ends = worldEnds(selectedRope, items, lookup);
+    if (!ends) return;
+    const shift = (point: [number, number, number]): [number, number, number] => [point[0] + 0.5, point[1], point[2] + 0.5];
+    const a = shift(ends.a);
+    const b = shift(ends.b);
+    if (!insideRoom(a, room) || !insideRoom(b, room)) {
+      toast.error("Geen geldig punt: de kopie past niet in de zaal");
+      return;
+    }
+    pushHistory();
+    const id = createItemId();
+    setRopes((prev) => [...prev, { ...selectedRope, id, a: { free: a }, b: { free: b } }]);
+    setSelectedId(id);
+    scheduleAutosave();
+    toast(`Touw gedupliceerd (${formatLength(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]))})`, { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 6000 });
   }
 
   function handleItemPointerDown(id: string) {
@@ -1869,13 +1925,33 @@ export function Floorplan3dEditor({
   );
 
   const selectedRopeEnds = selectedRope ? ropeEndpoints(selectedRope, items, lookup) : null;
+  const selectedFreeHeight = selectedRope ? freeEndHeight(selectedRope) : null;
   const ropePanel = selectedRope ? (
     <div className="space-y-3" data-testid="touw-paneel">
-      <p className="text-sm font-medium">Touw</p>
+      <p className="text-sm font-medium">{selectedRope.kind === "lint" ? "Lint" : selectedRope.kind === "net" ? "Net" : "Touw"}</p>
       <p className="text-sm text-muted-foreground">
-        {selectedRopeEnds ? `Lengte ${ropeLength(selectedRopeEnds.a, selectedRopeEnds.b).toLocaleString("nl-NL", { maximumFractionDigits: 1 })} m. ` : ""}
-        Sleep een oranje uiteinde naar een ander object om het touw te verplaatsen. Het touw blijft vastzitten aan zijn punt als je een object verschuift of draait.
+        {selectedRopeEnds ? `Lengte ${formatLength(ropeLength(selectedRopeEnds.a, selectedRopeEnds.b))}. ` : ""}
+        Sleep een <strong>oranje</strong> bolletje om een eindpunt te verplaatsen: naar een bevestigingspunt van een object, of naar een vrij punt op de vloer.
+        Sleep het touw zelf of het <strong>blauwe</strong> bolletje om het hele touw te verplaatsen. Houd Shift ingedrukt om zonder raster en zonder snap te bewegen. Esc annuleert.
       </p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" variant="outline" size="sm" data-testid="touw-hoogte-omlaag" onClick={() => changeRopeHeight(-0.05)} disabled={selectedFreeHeight === null}>
+          Hoogte − 5 cm
+        </Button>
+        <Button type="button" variant="outline" size="sm" data-testid="touw-hoogte-omhoog" onClick={() => changeRopeHeight(0.05)} disabled={selectedFreeHeight === null}>
+          Hoogte + 5 cm
+        </Button>
+        <Button type="button" variant="outline" size="sm" data-testid="touw-draai-links" onClick={() => rotateSelectedRope(-15)}>
+          <RotateCcw className="size-4" /> Draai 15°
+        </Button>
+        <Button type="button" variant="outline" size="sm" data-testid="touw-draai-rechts" onClick={() => rotateSelectedRope(15)}>
+          <RotateCw className="size-4" /> Draai 15°
+        </Button>
+      </div>
+      {selectedFreeHeight !== null && <p className="text-xs text-muted-foreground">Hoogte vrije uiteinden: {formatLength(selectedFreeHeight)}</p>}
+      <Button type="button" variant="outline" className="w-full" data-testid="touw-dupliceren" onClick={duplicateSelectedRope}>
+        <Copy className="size-4" /> Touw dupliceren
+      </Button>
       <Button type="button" variant="outline" className="w-full text-destructive" data-testid="touw-verwijderen" onClick={deleteSelectedRope}>
         <Trash2 className="size-4" /> Touw verwijderen (Delete)
       </Button>
@@ -2102,9 +2178,11 @@ export function Floorplan3dEditor({
       anchorViews={anchorViews}
       showAllAnchors={debugCollision && showAnchors}
       onItemPointerLeave={(id) => setRopeHoverId((current) => (current === id ? null : current))}
+      ropeHandles={isDesktop ? "all" : ropeEditMode}
       onRopePointerDown={(id, event) => {
         handleRopeSelect(id);
-        ropeDrag.beginWhole(id, event);
+        // Desktop: het touw zelf verslepen verplaatst het hele touw; mobiel alleen in de stand "Hele touw verplaatsen" (anders blijft het een tik om te selecteren).
+        if (isDesktop || ropeEditMode === "whole") ropeDrag.beginWhole(id, event);
       }}
       onRopeHandlePointerDown={(id, end, event) => (end === "mid" ? ropeDrag.beginWhole(id, event) : ropeDrag.beginEnd(id, end, event))}
       onItemPointerMove={handleItemPointerMove}
@@ -2172,14 +2250,43 @@ export function Floorplan3dEditor({
   ) : null;
   const ropeHud =
     !isDesktop && !ropeMode && selectedRope ? (
-      <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
-        <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-2xl bg-slate-900/90 py-1 pr-1 pl-3 text-xs text-white shadow">
-          <Cable className="size-3.5 shrink-0" aria-hidden="true" />
-          <strong className="truncate">Touw</strong>
-          <button type="button" onClick={deleteSelectedRope} className="min-h-9 rounded-xl bg-white/15 px-3 font-medium">
+      <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2" data-testid="touw-hud">
+        <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl bg-slate-900/90 p-1.5 text-xs text-white shadow">
+          <span className="flex items-center gap-1.5 px-2">
+            <Cable className="size-3.5 shrink-0" aria-hidden="true" />
+            <strong>{selectedRopeEnds ? formatLength(ropeLength(selectedRopeEnds.a, selectedRopeEnds.b)) : "Touw"}</strong>
+          </span>
+          <button
+            type="button"
+            data-testid="touw-modus-eind"
+            aria-pressed={ropeEditMode === "end"}
+            onClick={() => setRopeEditMode("end")}
+            className={`min-h-11 rounded-xl px-3 font-medium ${ropeEditMode === "end" ? "bg-primary text-primary-foreground" : "bg-white/15"}`}
+          >
+            Eindpunt verplaatsen
+          </button>
+          <button
+            type="button"
+            data-testid="touw-modus-geheel"
+            aria-pressed={ropeEditMode === "whole"}
+            onClick={() => setRopeEditMode("whole")}
+            className={`min-h-11 rounded-xl px-3 font-medium ${ropeEditMode === "whole" ? "bg-primary text-primary-foreground" : "bg-white/15"}`}
+          >
+            Hele touw verplaatsen
+          </button>
+          <button type="button" data-testid="touw-hoogte-omlaag" onClick={() => changeRopeHeight(-0.05)} className="min-h-11 min-w-11 rounded-xl bg-white/15 px-3 font-medium" aria-label="Hoogte 5 cm lager">
+            Hoogte −
+          </button>
+          <button type="button" data-testid="touw-hoogte-omhoog" onClick={() => changeRopeHeight(0.05)} className="min-h-11 min-w-11 rounded-xl bg-white/15 px-3 font-medium" aria-label="Hoogte 5 cm hoger">
+            Hoogte +
+          </button>
+          <button type="button" data-testid="touw-dupliceren" onClick={duplicateSelectedRope} className="min-h-11 rounded-xl bg-white/15 px-3 font-medium">
+            Dupliceren
+          </button>
+          <button type="button" onClick={deleteSelectedRope} className="min-h-11 rounded-xl bg-white/15 px-3 font-medium">
             Verwijderen
           </button>
-          <button type="button" onClick={() => setSelectedId(null)} className="min-h-9 rounded-xl bg-primary px-4 font-semibold text-primary-foreground">
+          <button type="button" onClick={() => setSelectedId(null)} className="min-h-11 rounded-xl bg-primary px-4 font-semibold text-primary-foreground">
             Klaar
           </button>
         </div>

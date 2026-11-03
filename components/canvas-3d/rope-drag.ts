@@ -200,6 +200,12 @@ export function hasFreeEnd(rope: Rope): boolean {
   return isFreeEnd(rope.a) || isFreeEnd(rope.b);
 }
 
+/** De hoogte (m) van het eerste vrije uiteinde van een touw, of null als beide uiteinden vastzitten. */
+export function freeEndHeight(rope: Rope): number | null {
+  const free = [rope.a, rope.b].find(isFreeEnd);
+  return free && isFreeEnd(free) ? free.free[1] : null;
+}
+
 /** De wereldpunten van beide uiteinden (of null als een item ontbreekt). */
 export function worldEnds(rope: Rope, items: readonly Floorplan3dItem[], lookup: DimsLookup): { a: Vec3; b: Vec3 } | null {
   const kind = rope.kind ?? "touw";

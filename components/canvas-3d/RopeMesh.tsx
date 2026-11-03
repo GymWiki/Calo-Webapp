@@ -41,6 +41,7 @@ export function RopeMesh({
   preview = false,
   interactive = false,
   touchUi = false,
+  handles = "all",
   label,
   invalid = false,
   onSelect,
@@ -57,6 +58,8 @@ export function RopeMesh({
   onHandleDown?: (end: "a" | "b" | "mid", event: ThreeEvent<PointerEvent>) => void;
   /** Touch-bediening: grotere handvatten (tikdoel ≥ 44 px). */
   touchUi?: boolean;
+  /** Welke handvatten: "end" = alleen de twee uiteinden, "whole" = alleen het middelste (hele touw), "all" = alle drie (desktop). */
+  handles?: "all" | "end" | "whole";
   /** Zwevend label bij het touw (bijv. de lengte tijdens het slepen). */
   label?: string;
   /** Het label en het touw zijn rood: de huidige plek is ongeldig. */
@@ -106,7 +109,9 @@ export function RopeMesh({
       )}
       {interactive && selected && onHandleDown && (
         <>
-          {([["a", from], ["b", to], ["mid", mid as Vec3]] as const).map(([end, point]) => (
+          {([["a", from], ["b", to], ["mid", mid as Vec3]] as const)
+            .filter(([end]) => (handles === "all" ? true : handles === "end" ? end !== "mid" : end === "mid"))
+            .map(([end, point]) => (
             // userData.ropeHandle: een object dat ervoor ligt geeft de pointerdown door aan het handvat (zie ItemMesh), want het touw heeft voorrang.
             <group key={end} position={point} userData={{ ropeHandle: true }}>
               <mesh renderOrder={10} userData={{ ropeHandle: true }} onPointerDown={(event) => onHandleDown(end, event)}>

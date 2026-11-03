@@ -109,6 +109,7 @@ export function Scene3D({
   ropeTargetId = null,
   onRopePointerDown,
   onRopeHandlePointerDown,
+  ropeHandles = "all",
   onItemPointerMove,
   onItemPointerUp,
   onItemPointerLeave,
@@ -123,6 +124,7 @@ export function Scene3D({
   ropeTargetId?: string | null;
   onRopePointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onRopeHandlePointerDown?: (id: string, end: "a" | "b" | "mid", event: ThreeEvent<PointerEvent>) => void;
+  ropeHandles?: "all" | "end" | "whole";
   onItemPointerMove?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerUp?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerLeave?: (id: string) => void;
@@ -238,6 +240,7 @@ export function Scene3D({
         ropeTargetId={ropeTargetId}
         onRopePointerDown={onRopePointerDown}
         onRopeHandlePointerDown={onRopeHandlePointerDown}
+        ropeHandles={ropeHandles}
         onItemPointerMove={onItemPointerMove}
         onItemPointerUp={onItemPointerUp}
         onItemPointerLeave={onItemPointerLeave}

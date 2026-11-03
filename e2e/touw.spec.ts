@@ -77,14 +77,14 @@ test("een touw spannen van het ene object naar het andere, en het blijft aan zij
   expect(moved.ropes![0].b.local).toEqual(rope.b.local);
 });
 
-test("loslaten op de lege vloer maakt geen touw; een touw selecteren en verwijderen is ongedaan te maken", async ({ page }, testInfo) => {
+test("loslaten op een ongeldige plek (buiten de zaal) maakt geen touw en geeft een melding; een touw selecteren en verwijderen is ongedaan te maken", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "muis volstaat");
   await openEditor(page);
   const { left, middle } = await placeTwoMats(page);
 
   await startRope(page);
   await drag(page, left, { x: left.x, y: left.y + 160 });
-  await page.waitForTimeout(800);
+  await expect(page.getByText(/Geen geldig punt/)).toBeVisible();
   expect(((await readDraft(page)).ropes ?? []).length).toBe(0);
 
   await drag(page, left, middle);

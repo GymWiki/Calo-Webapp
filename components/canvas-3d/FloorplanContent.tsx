@@ -54,6 +54,7 @@ export function FloorplanContent({
   ropeTargetId = null,
   onRopePointerDown,
   onRopeHandlePointerDown,
+  ropeHandles = "all",
   onItemPointerMove,
   onItemPointerUp,
   onItemPointerLeave,
@@ -72,6 +73,8 @@ export function FloorplanContent({
   ropeTargetId?: string | null;
   onRopePointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onRopeHandlePointerDown?: (id: string, end: "a" | "b" | "mid", event: ThreeEvent<PointerEvent>) => void;
+  /** Welke handvatten het geselecteerde touw toont (mobiel: eerst kiezen tussen eindpunt en hele touw). */
+  ropeHandles?: "all" | "end" | "whole";
   onItemPointerMove?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerUp?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerLeave?: (id: string) => void;
@@ -162,6 +165,7 @@ export function FloorplanContent({
               selected={rope.id === selectedId}
               interactive={interactive && !ropeTool}
               touchUi={touchUi}
+              handles={ropeHandles}
               onSelect={onRopePointerDown ? (event) => { event.stopPropagation(); onRopePointerDown(rope.id, event); } : undefined}
               onHandleDown={onRopeHandlePointerDown ? (end, event) => { event.stopPropagation(); onRopeHandlePointerDown(rope.id, end, event); } : undefined}
             />
