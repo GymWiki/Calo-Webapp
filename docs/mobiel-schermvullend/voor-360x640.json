@@ -1,0 +1,24 @@
+{
+ "vw": 360,
+ "vh": 640,
+ "scrollHeight": 640,
+ "scrollWidth": 360,
+ "header": {
+  "top": 0,
+  "bottom": 45
+ },
+ "toolbar": {
+  "top": 575,
+  "bottom": 640,
+  "left": 0,
+  "right": 360
+ },
+ "globalNav": null,
+ "canvas": {
+  "width": 360,
+  "height": 530
+ },
+ "area": {
+  "height": 530
+ }
+}

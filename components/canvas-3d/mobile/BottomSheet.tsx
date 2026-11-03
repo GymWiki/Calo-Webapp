@@ -10,6 +10,8 @@ import { SHEET_TAP_PX, decideSheetSnap, type SheetSnap } from "@/components/canv
  * Onderste drawer voor telefoons met drie standen: dicht, half, vol. Slepen aan de
  * handle (Pointer Events, geen bibliotheek), tik op de handle wisselt half/vol, tik
  * buiten sluit, Esc sluit. Eén drawer tegelijk (de aanroeper rendert er maar één).
+ * Staat BINNEN het canvasgebied (tussen de vaste bovenbalk en de vaste onderwerkbalk): de werkbalk blijft zichtbaar en de hoogtes zijn
+ * percentages van dat gebied, dus de balken schuiven nooit en het sheet kan er niet achter vallen.
  * Wordt alleen gemonteerd als hij open is, dus elke keer begint hij in de halve stand.
  */
 export function BottomSheet({
@@ -17,16 +19,30 @@ export function BottomSheet({
   onClose,
   children,
   peek = false,
+  onInset,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   /** Compacte drawer zonder donkere achtergrond: het canvas erboven blijft zichtbaar en bruikbaar (rotatie). */
   peek?: boolean;
+  /** Meldt de hoogte (px) van het sheet (0 bij sluiten): de camera schuift het beeld mee omhoog. */
+  onInset?: (px: number) => void;
 }) {
   const [snap, setSnap] = useState<SheetSnap>("half");
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; dy: number; pointerId: number } | null>(null);
+
+  useEffect(() => {
+    const element = sheetRef.current;
+    if (!element || !onInset || peek || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => onInset(element.getBoundingClientRect().height));
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      onInset(0);
+    };
+  }, [onInset, peek]);
 
   useEffect(() => {
     sheetRef.current?.focus({ preventScroll: true });
@@ -66,7 +82,7 @@ export function BottomSheet({
   }
 
   return (
-    <div className={cn("fixed inset-0 z-40", peek && "pointer-events-none")}>
+    <div className={cn("absolute inset-0 z-40", peek && "pointer-events-none")} data-testid="bottom-sheet-laag">
       {!peek && <div className="absolute inset-0 bg-black/30" onPointerDown={onClose} aria-hidden="true" />}
       <div
         ref={sheetRef}
@@ -81,9 +97,9 @@ export function BottomSheet({
           height:
             snap === "half"
               ? peek
-                ? "min(42dvh, 22rem)"
-                : "min(62dvh, 36rem)"
-              : "calc(100dvh - env(safe-area-inset-top) - 2.5rem)",
+                ? "min(42%, 22rem)"
+                : "min(62%, 36rem)"
+              : "calc(100% - 0.5rem)",
         }}
       >
         <div
@@ -108,7 +124,7 @@ export function BottomSheet({
             </button>
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
       </div>
     </div>
   );
