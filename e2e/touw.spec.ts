@@ -9,7 +9,7 @@ const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1024;
 /** Twee matten: de eerste 150 px naar links geschoven, de tweede in het midden. Geeft hun schermposities terug. */
 async function placeTwoMats(page: Page) {
   const { x, y } = await canvasCenter(page);
-  const left = { x: x - 150, y };
+  const left = { x: x - (isDesktop(page) ? 230 : 150), y };
   const middle = { x, y };
   if (isDesktop(page)) {
     await page.getByRole("button", { name: /^Matten/ }).first().click();
@@ -57,6 +57,9 @@ test("een touw spannen van het ene object naar het andere, en het blijft aan zij
   const withRope = await readDraft(page, (d) => (d.ropes?.length ?? 0) === 1);
   const rope = withRope.ropes![0];
   expect(rope.a.item).not.toBe(rope.b.item);
+  // Het uiteinde zit aan het bevestigingspunt van de mat (midden van de bovenkant, noodoplossing), niet aan waar je sleepte.
+  expect(rope.a.anchor).toBe("fallback_top");
+  expect(rope.b.anchor).toBe("fallback_top");
   expect(new Set(withRope.items.map((item) => item.id))).toEqual(new Set([rope.a.item, rope.b.item]));
   // Een touw is geen item: de hoogtes van de matten blijven gelijk (niets stapelt erop of eronder).
   expect(withRope.items.map((item) => item.y)).toEqual(before.items.map((item) => item.y));
@@ -90,7 +93,7 @@ test("loslaten op de lege vloer maakt geen touw; een touw selecteren en verwijde
 
   // Klik op het touw. Waar precies hangt af van de camera en de doorhang (en het midden ligt vaak op een mat, die dichterbij is): probeer
   // een rij punten langs de lijn tussen de twee uiteinden tot het touw geraakt wordt.
-  search: for (const dy of [0, 8, -8]) {
+  search: for (const dy of [0, 8, -8, -16, -24, 16, -32]) {
     for (let step = 1; step <= 11; step++) {
       await page.mouse.click(left.x + ((middle.x - left.x) * step) / 12, left.y + dy);
       if (await page.getByTestId("touw-paneel").isVisible()) break search;
