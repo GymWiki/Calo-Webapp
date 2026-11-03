@@ -23,15 +23,15 @@ export const DEFAULT_MAX_TILT_DEG = 180;
 /** Waarom iets niet kan kantelen — getoond in het itempaneel. */
 type FlatRule = { test: (subject: OrientationSubject) => boolean; reason: string };
 
+// Echt vlakke markeringen (lijnen, vakjes, pijlen, tape) blijven op de vloer. Pionnen, dopjes, hoepels, stokken, hesjes, bekers, speedladders,
+// hordes en ander afzetmateriaal mogen wél omvallen, op de kop staan of schuin liggen (volledig draaibaar om elke as).
+const FLAT_MARKING = /(^|_)(vloermarkering|vloermarkeringen|lijn|lijnen|tape|vakje|vakjes|pijl|pijlen|markeringsvlak|belijning)(_|$)/;
+
 const FLAT_ONLY: FlatRule[] = [
   { test: (m) => m.categorie === "personen", reason: "Personen staan altijd rechtop op de vloer." },
   {
-    test: (m) => m.categorie === "klein_materiaal" && m.subgroep === "afzetten",
-    reason: "Pionnen, dopjes, slalompalen en markeringen staan altijd plat op de vloer.",
-  },
-  {
-    test: (m) => /^(pion|dopje|vloermarkering|slalompalen|hoekvlag|cornervlag|grensrechter|partijhesjes)/.test(m.slug),
-    reason: "Pionnen, dopjes, vlaggen en markeringen staan altijd plat op de vloer.",
+    test: (m) => FLAT_MARKING.test(m.slug),
+    reason: "Vlakke vloermarkeringen (lijnen, vakjes, pijlen, tape) liggen altijd plat op de vloer.",
   },
 ];
 

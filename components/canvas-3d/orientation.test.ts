@@ -246,9 +246,10 @@ test("opslag: oude items (alleen rot_y_deg) laden ongewijzigd; kanteling wordt a
   assert.throws(() => floorplan3dItemSchema.parse({ ...old, rot_x_deg: 400 }));
 });
 
-test("asset-config: pionnen, personen en hangend materiaal kantelen niet; de rest wel", () => {
-  assert.equal(orientationFor({ slug: "pion_effen_kleurenset", categorie: "klein_materiaal", subgroep: "afzetten" }).allowTilt, false);
-  assert.equal(orientationFor({ slug: "dopje_blauw_los", categorie: "klein_materiaal", subgroep: "afzetten" }).allowTilt, false);
+test("asset-config: vlakke markeringen, personen en hangend materiaal kantelen niet; pionnen en de rest wel", () => {
+  assert.equal(orientationFor({ slug: "pion_effen_kleurenset", categorie: "klein_materiaal", subgroep: "afzetten" }).allowTilt, true);
+  assert.equal(orientationFor({ slug: "vloermarkering_pijl", categorie: "klein_materiaal", subgroep: "afzetten" }).allowTilt, false);
+  assert.equal(orientationFor({ slug: "dopje_blauw_los", categorie: "klein_materiaal", subgroep: "afzetten" }).allowTilt, true);
   assert.equal(orientationFor({ slug: "vloermarkering_rubber_set", categorie: "klein_materiaal", subgroep: "afzetten" }).allowTilt, false);
   assert.equal(orientationFor({ slug: "leerling_blauw", categorie: "personen" }).allowTilt, false);
   const hanging = orientationFor({ slug: "klimtouwen_set_2_hangend", categorie: "toestellen", subgroep: "klimmen" }, true);
@@ -261,9 +262,9 @@ test("asset-config: pionnen, personen en hangend materiaal kantelen niet; de res
   }
 
   // clamp en normalisatie
-  const flat = orientationFor({ slug: "pion_x", categorie: "klein_materiaal", subgroep: "afzetten" });
+  const flat = orientationFor({ slug: "vloermarkering_x", categorie: "klein_materiaal", subgroep: "afzetten" });
   assert.deepEqual(clampRotation({ x: 40, y: 10, z: 20 }, flat), { x: 0, y: 10, z: 0 });
-  const stripped = normalizeItemRotation({ id: "p", slug: "pion_x", x: 0, y: 0, z: 0, rot_y_deg: 10, rot_x_deg: 40 }, flat);
+  const stripped = normalizeItemRotation({ id: "p", slug: "vloermarkering_x", x: 0, y: 0, z: 0, rot_y_deg: 10, rot_x_deg: 40 }, flat);
   assert.equal("rot_x_deg" in stripped, false);
   const limited = clampRotation({ x: 120, y: 0, z: -120 }, { allowTilt: true, maxTiltDeg: 45 });
   assert.deepEqual(limited, { x: 45, y: 0, z: -45 });
