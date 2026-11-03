@@ -233,7 +233,7 @@ test("herstel na per ongeluk sluiten: kladversie wordt aangeboden", async ({ pag
   await readDraft(page, (d) => d.items.length === 1);
   await page.reload({ waitUntil: "load" });
   await expect(page.getByText("Niet-opgeslagen wijzigingen gevonden")).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("button", { name: "Herstellen" }).click();
+  await page.getByRole("button", { name: "Herstellen", exact: true }).click();
   await expect(page.getByText("Niet-opgeslagen wijzigingen gevonden")).toBeHidden();
   await page.getByTestId("toolbar-undo").waitFor();
 });

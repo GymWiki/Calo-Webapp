@@ -98,6 +98,7 @@ export function Scene3D({
   onPerformanceChange,
   onViewCenter,
   cameraResetKey = 0,
+  zoomRequest,
   onResetCamera,
   touchUi = false,
   onRotateHandleDown,
@@ -165,6 +166,7 @@ export function Scene3D({
   /** Het punt op de vloer waar de camera naar kijkt (voor plaatsen in het midden van het beeld). */
   onViewCenter?: (center: { x: number; z: number }) => void;
   cameraResetKey?: number;
+  zoomRequest?: { factor: number; nonce: number };
   /** Dubbeltik op een leeg stuk (touch) = camera terug naar de beginstand. */
   onResetCamera?: () => void;
   touchUi?: boolean;
@@ -205,7 +207,7 @@ export function Scene3D({
       {onPerformanceChange && <PerformanceMonitor factor={1} bounds={() => [28, 50]} onChange={({ factor }) => onPerformanceChange(factor)} />}
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
-      <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} drawMode={drawMode} resetKey={cameraResetKey} onViewCenter={onViewCenter} />
+      <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} drawMode={drawMode} resetKey={cameraResetKey} onViewCenter={onViewCenter} zoomRequest={zoomRequest} />
       {/* Onzichtbaar sleepvlak — ruim boven kamerformaat zodat de
           raycast tijdens het slepen vrijwel altijd raak is, ook als de
           cursor net buiten de kamer komt. */}

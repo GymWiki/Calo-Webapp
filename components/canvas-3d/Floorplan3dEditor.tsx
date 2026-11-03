@@ -48,6 +48,8 @@ import { buildShareLink, encodeFloorplan } from "@/lib/guest/share-codec";
 import { DEFAULT_VIEW, type ViewState } from "@/components/plattegrond/viewer-camera";
 import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
+import { CanvasToolbar } from "@/components/canvas-3d/CanvasToolbar";
+import { useEditorUiPrefs } from "@/lib/editor-ui/useEditorUiPrefs";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -277,6 +279,7 @@ export function Floorplan3dEditor({
   const pasteCountRef = useRef(0);
   const floorPointRef = useRef<{ x: number; z: number } | null>(null);
   const overCanvasRef = useRef(false);
+  const uiPrefs = useEditorUiPrefs();
   const modifierRef = useRef(false);
   /** Alt ingedrukt tijdens het slepen: snappen en botsing tijdelijk uit. */
   const altRef = useRef(false);
@@ -308,6 +311,7 @@ export function Floorplan3dEditor({
   const [autoFactor, setAutoFactor] = useState(1);
   const [cameraMenuOpen, setCameraMenuOpen] = useState(false);
   const [cameraResetKey, setCameraResetKey] = useState(0);
+  const [zoomRequest, setZoomRequest] = useState<{ factor: number; nonce: number }>({ factor: 1, nonce: 0 });
   const [onboarding, setOnboarding] = useState(() => window.matchMedia("(pointer: coarse)").matches && !hasSeenOnboarding());
   const [rotatingId, setRotatingId] = useState<string | null>(null);
   // Rotatie over alle assen: snapping, wereld/lokale assen en de 3D-ringen (desktop).
@@ -2268,6 +2272,7 @@ export function Floorplan3dEditor({
       onPerformanceChange={settings.quality === "auto" ? setAutoFactor : undefined}
       onViewCenter={handleViewCenter}
       cameraResetKey={cameraResetKey}
+      zoomRequest={zoomRequest}
       onResetCamera={resetCamera}
       touchUi={coarsePointer}
       onRotateHandleDown={handleRotateHandleDown}
@@ -2652,6 +2657,32 @@ export function Floorplan3dEditor({
 
         <div className="relative min-w-0 flex-1">
           {scene}
+          {isDesktop && uiPrefs.prefs.flags.canvasToolbar && (
+            <CanvasToolbar
+              position={uiPrefs.prefs.toolbar}
+              onPosition={(toolbar) => uiPrefs.update((previous) => ({ ...previous, toolbar }))}
+              onResetLayout={uiPrefs.reset}
+              cameraMode={cameraMode}
+              onCameraMode={setCameraMode}
+              onResetCamera={resetCamera}
+              onZoom={(factor) => setZoomRequest((previous) => ({ factor, nonce: previous.nonce + 1 }))}
+              tool={drawMode ? "veld" : ropeMode ? "touw" : "selecteren"}
+              onTool={(tool) => {
+                if (tool === "selecteren") {
+                  if (drawMode) stopDrawing();
+                  if (ropeMode) stopRopeMode();
+                } else if (tool === "veld") {
+                  if (drawMode) stopDrawing();
+                  else startDrawing();
+                } else if (ropeMode) stopRopeMode();
+                else startRopeMode();
+              }}
+              snapGrid={snapGrid}
+              onSnapGrid={setSnapGrid}
+              collisionOn={collisionOn}
+              onToggleCollision={() => setCollisionOn((value) => !value)}
+            />
+          )}
           {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
 
           {drawChip}

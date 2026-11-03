@@ -106,7 +106,7 @@ test("eindpunt naar een vrij punt op de vloer slepen: het blijft staan (ook na h
   // Herladen en de kladversie herstellen: hetzelfde vrije punt.
   await page.reload({ waitUntil: "load" });
   await expect(page.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Herstellen" }).click();
+  await page.getByRole("button", { name: "Herstellen", exact: true }).click();
   await page.waitForTimeout(1200);
   const reloaded = await readDraft(page, (d) => (d.ropes?.length ?? 0) === 1);
   expect(rope(reloaded).b).toEqual(rope(after).b);
