@@ -311,6 +311,7 @@ export function Floorplan3dEditor({
   const [autoFactor, setAutoFactor] = useState(1);
   const [cameraMenuOpen, setCameraMenuOpen] = useState(false);
   const [cameraResetKey, setCameraResetKey] = useState(0);
+  const [sheetInsetPx, setSheetInsetPx] = useState(0);
   const [zoomRequest, setZoomRequest] = useState<{ factor: number; nonce: number }>({ factor: 1, nonce: 0 });
   const [onboarding, setOnboarding] = useState(() => window.matchMedia("(pointer: coarse)").matches && !hasSeenOnboarding());
   const [rotatingId, setRotatingId] = useState<string | null>(null);
@@ -2273,6 +2274,7 @@ export function Floorplan3dEditor({
       onViewCenter={handleViewCenter}
       cameraResetKey={cameraResetKey}
       zoomRequest={zoomRequest}
+      bottomInsetPx={sheetInsetPx}
       onResetCamera={resetCamera}
       touchUi={coarsePointer}
       onRotateHandleDown={handleRotateHandleDown}
@@ -2430,18 +2432,27 @@ export function Floorplan3dEditor({
           ) : (
             <BackButton fallbackHref={activiteitId ? `/activiteit/${activiteitId}` : "/dashboard"} fallbackLabel="Terug" className="-ml-1 h-11" />
           )}
-          <input
-            value={floorplanName}
-            onChange={(event) => {
-              setFloorplanName(event.target.value);
-              scheduleAutosave();
-            }}
-            aria-label="Naam van de plattegrond"
-            className="h-11 min-w-0 flex-1 truncate rounded-md bg-transparent px-2 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          />
-          <span role="status" aria-label={saveStatusLabel[saveStatus]} className="flex size-6 shrink-0 items-center justify-center">
-            {saveIcon}
-          </span>
+          <div className="relative flex min-w-0 flex-1">
+            <input
+              value={floorplanName}
+              onChange={(event) => {
+                setFloorplanName(event.target.value);
+                scheduleAutosave();
+              }}
+              aria-label="Naam van de plattegrond"
+              className="h-11 min-w-0 flex-1 truncate rounded-md bg-transparent px-2 pb-2.5 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            />
+            <span role="status" aria-label={saveStatusLabel[saveStatus] || undefined} data-testid="opslaan-status" className="pointer-events-none absolute inset-x-2 bottom-0.5 flex items-center gap-1 text-[11px] leading-none text-muted-foreground">
+              {saveIcon && <span className="[&>svg]:size-3">{saveIcon}</span>}
+              {saveStatus === "idle" ? (history.canUndo && !guest ? "Niet opgeslagen" : "") : saveStatusLabel[saveStatus]}
+            </span>
+          </div>
+          <button type="button" aria-label="Ongedaan maken" data-testid="toolbar-undo" disabled={!history.canUndo} onClick={handleUndo} className="flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 disabled:opacity-40">
+            <Undo2 className="size-5" aria-hidden="true" />
+          </button>
+          <button type="button" aria-label="Opnieuw" data-testid="toolbar-redo" disabled={!history.canRedo} onClick={handleRedo} className="flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 disabled:opacity-40">
+            <Redo2 className="size-5" aria-hidden="true" />
+          </button>
           {adminInfo && <AdminBadge info={adminInfo} onRestored={() => window.location.reload()} />}
           {guest ? (
             <GuestExportMenu compact onAction={(action) => void runGuestExport(action)} busy={guestBusy} />
@@ -2500,6 +2511,11 @@ export function Floorplan3dEditor({
               onDeselect={() => setSelectedId(null)}
             />
           )}
+          {layout === "phone" && activePanel && (
+            <BottomSheet key={activePanel} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} peek={activePanel === "rotatie"} onInset={setSheetInsetPx}>
+              {panelContent(activePanel)}
+            </BottomSheet>
+          )}
           {layout === "tablet" && activePanel && (
             <SidePanel side={activePanel === "materiaal" ? "left" : "right"} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)}>
               {panelContent(activePanel)}
@@ -2521,18 +2537,8 @@ export function Floorplan3dEditor({
           onToggleRope={() => (ropeMode ? stopRopeMode() : startRopeMode())}
           cameraMenuOpen={cameraMenuOpen}
           onToggleCameraMenu={() => setCameraMenuOpen((open) => !open)}
-          canUndo={history.canUndo}
-          canRedo={history.canRedo}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
           compact={shortViewport}
         />
-
-        {layout === "phone" && activePanel && (
-          <BottomSheet key={activePanel} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} peek={activePanel === "rotatie"}>
-            {panelContent(activePanel)}
-          </BottomSheet>
-        )}
 
         {thumbnailJob && (
           <FloorplanThumbnailCapture

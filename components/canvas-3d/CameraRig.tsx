@@ -1,10 +1,34 @@
 "use client";
 
 import { OrbitControls, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
-import { useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import { TOUCH } from "three";
+import { cameraPosition } from "@/components/plattegrond/viewer-camera";
+import { fitOrthoZoom, fitPerspectiveDistance } from "@/components/canvas-3d/camera-fit";
 import type { Floorplan3dRoom } from "@/types/floorplan3d";
+
+/** Azimut van de schuine editorcamera (de camera staat op +x/+z). */
+const ANGLED_AZIMUTH_DEG = 45;
+/** Telefoon in portret: steiler kijken (de langste zijde van de zaal benut de breedte) en kleinere marge. */
+const PORTRAIT_POLAR_DEG = 38;
+const DEFAULT_POLAR_DEG = 46;
+
+/** Verschuift het beeld omhoog als er onderin een sheet staat, zodat de zaal in het zichtbare deel blijft (geanimeerd, niet bij reduced motion). */
+function ViewInset({ insetPx }: { insetPx: number }) {
+  const current = useRef(0);
+  useFrame((state, delta) => {
+    const { camera, size } = state;
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const next = reduce ? insetPx : current.current + (insetPx - current.current) * Math.min(1, delta * 9);
+    if (Math.abs(next - current.current) < 0.05 && next === current.current) return;
+    current.current = Math.abs(next - insetPx) < 0.5 ? insetPx : next;
+    const cam = camera as unknown as { setViewOffset?: (...args: number[]) => void; clearViewOffset?: () => void };
+    if (current.current === 0) cam.clearViewOffset?.();
+    else cam.setViewOffset?.(size.width, size.height, 0, current.current / 2, size.width, size.height);
+  });
+  return null;
+}
 
 export type CameraMode = "angled" | "top" | "free";
 
@@ -62,6 +86,7 @@ export function CameraRig({
   resetKey = 0,
   onViewCenter,
   zoomRequest,
+  bottomInsetPx = 0,
 }: {
   mode: CameraMode;
   room: Floorplan3dRoom;
@@ -73,15 +98,31 @@ export function CameraRig({
   onViewCenter?: (center: { x: number; z: number }) => void;
   /** Zoomknoppen: factor > 1 = inzoomen. Een nieuwe `nonce` voert de zoom één keer uit. */
   zoomRequest?: { factor: number; nonce: number };
+  /** Hoogte (px) van een sheet onderin het canvas; het beeld schuift mee omhoog. */
+  bottomInsetPx?: number;
 }) {
   const span = Math.max(room.width_m, room.length_m);
-  const orthoZoom = 380 / span;
-  const angledPosition: [number, number, number] = [span * 0.55, span * 0.75, span * 0.55];
+  const size = useThree((state) => state.size);
+  const portraitPhone = size.width < size.height && size.width < 768;
+  const margin = portraitPhone ? 1.05 : 1.12;
+  const angledPolar = portraitPhone ? PORTRAIT_POLAR_DEG : DEFAULT_POLAR_DEG;
+  const orthoZoom =
+    size.width > 0 && size.height > 0
+      ? fitOrthoZoom(room, mode === "top" ? 0 : ANGLED_AZIMUTH_DEG, mode === "top" ? 0.05 : angledPolar, size, margin)
+      : 380 / span;
+  const angledOffset = cameraPosition(ANGLED_AZIMUTH_DEG, angledPolar, span * 1.3);
+  const angledPosition: [number, number, number] = [angledOffset[0], angledOffset[1], angledOffset[2]];
   // Y net niet exact op de as (anders verliest OrbitControls zijn
   // referentie-op-vector bij recht-naar-onder-kijken — gimbal-lock-achtig
   // probleem).
   const topPosition: [number, number, number] = [0, span * 1.4, 0.001];
-  const freePosition: [number, number, number] = [span * 0.95, span * 0.75, span * 1.2];
+  // Vrij draaien (perspectief): dezelfde diagonale blik, afstand zo dat de zaal het canvas vult (portret: steiler en dichterbij).
+  const freeAzimuth = 40;
+  const freePolar = portraitPhone ? PORTRAIT_POLAR_DEG : 52;
+  const aspect = size.width > 0 && size.height > 0 ? size.width / size.height : 1.6;
+  const freeDistance = size.width > 0 ? fitPerspectiveDistance(room, freeAzimuth, freePolar, aspect, 50, portraitPhone ? 1.12 : 1.2) : span * 1.6;
+  const freeOffset = cameraPosition(freeAzimuth, freePolar, freeDistance);
+  const freePosition: [number, number, number] = [freeOffset[0], freeOffset[1], freeOffset[2]];
 
   return (
     <group key={`${mode}-${resetKey}`}>
@@ -102,6 +143,8 @@ export function CameraRig({
         enableRotate={mode === "free" && !drawMode}
         enablePan={!drawMode}
         enableZoom
+        minZoom={mode !== "free" ? orthoZoom * 0.5 : undefined}
+        maxZoom={mode !== "free" ? orthoZoom * 8 : undefined}
         target={[0, 0, 0]}
         // Touch: in "Vrij draaien" draait één vinger de camera; in schuin/bovenaanzicht (waar draaien
         // uit staat) verschuift één vinger het beeld. Twee vingers = knijpen (zoom) + verschuiven.
@@ -109,6 +152,7 @@ export function CameraRig({
       />
       {onViewCenter && <ViewCenterReporter onViewCenter={onViewCenter} />}
       <ZoomController request={zoomRequest} />
+      <ViewInset insetPx={bottomInsetPx} />
     </group>
   );
 }

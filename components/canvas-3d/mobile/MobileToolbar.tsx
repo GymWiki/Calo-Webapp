@@ -1,6 +1,6 @@
 "use client";
 
-import { Cable, Camera, Cone, LayoutGrid, Redo2, SlidersHorizontal, Home, Undo2, type LucideIcon } from "lucide-react";
+import { Cable, Camera, Cone, LayoutGrid, SlidersHorizontal, Home, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { MobilePanel } from "@/components/canvas-3d/mobile/mobile-logic";
@@ -31,10 +31,6 @@ export function MobileToolbar({
   onToggleRope,
   cameraMenuOpen,
   onToggleCameraMenu,
-  canUndo,
-  canRedo,
-  onUndo,
-  onRedo,
   compact,
 }: {
   panel: MobilePanel;
@@ -47,10 +43,6 @@ export function MobileToolbar({
   onToggleRope?: () => void;
   cameraMenuOpen: boolean;
   onToggleCameraMenu: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
-  onUndo: () => void;
-  onRedo: () => void;
   /** Alleen iconen (weinig schermhoogte). */
   compact: boolean;
 }) {
@@ -61,8 +53,6 @@ export function MobileToolbar({
     { id: "veld", label: "Veld", icon: Cone, active: drawMode, onClick: onToggleDraw },
     ...(onToggleRope ? [{ id: "touw", label: "Touw spannen", short: "Touw", icon: Cable, active: ropeMode, onClick: onToggleRope }] : []),
     { id: "camera", label: "Camera", icon: Camera, active: cameraMenuOpen, onClick: onToggleCameraMenu },
-    { id: "undo", label: "Ongedaan maken", short: "Ongedaan", icon: Undo2, disabled: !canUndo, onClick: onUndo },
-    { id: "redo", label: "Opnieuw", icon: Redo2, disabled: !canRedo, onClick: onRedo },
   ];
 
   return (
@@ -78,7 +68,7 @@ export function MobileToolbar({
             key={button.id}
             type="button"
             aria-label={button.label}
-            aria-pressed={button.id === "undo" || button.id === "redo" ? undefined : button.active}
+            aria-pressed={button.active}
             disabled={button.disabled}
             onClick={button.onClick}
             data-testid={`toolbar-${button.id}`}

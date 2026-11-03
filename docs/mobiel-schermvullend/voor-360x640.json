@@ -1,8 +1,8 @@
 {
- "vw": 370,
- "vh": 658,
- "scrollHeight": 704,
- "scrollWidth": 370,
+ "vw": 360,
+ "vh": 640,
+ "scrollHeight": 640,
+ "scrollWidth": 360,
  "header": {
   "top": 0,
   "bottom": 45
@@ -13,10 +13,7 @@
   "left": 0,
   "right": 360
  },
- "globalNav": {
-  "top": 593,
-  "bottom": 658
- },
+ "globalNav": null,
  "canvas": {
   "width": 360,
   "height": 530
