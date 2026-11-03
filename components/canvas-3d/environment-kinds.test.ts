@@ -11,7 +11,7 @@ import {
   roomForEnvironment,
   upgradeEnvironment,
 } from "@/components/canvas-3d/environment-kinds";
-import { ALWAYS_HIDDEN_NODES, GYM_LAYOUTS, environmentModelUrl, isPartOn } from "@/components/canvas-3d/environments";
+import { ALWAYS_HIDDEN_NODES, GYM_LAYOUTS, createGymEnvironment, environmentModelUrl, isPartOn, setPartOn } from "@/components/canvas-3d/environments";
 
 test("alle vier de soorten staan in de keuzelijst, gymzaal eerst", () => {
   assert.deepEqual(
@@ -125,7 +125,7 @@ test("oude plattegronden: gesplitste zaalvoetbal/handbal en de nieuwe extra beli
 test("elke belijning in een GLB is in de editor aan/uit te zetten (nieuwe lijnen uit de Drive worden niet vergeten)", () => {
   const covered = new Set<string>();
   for (const layout of Object.values(GYM_LAYOUTS)) {
-    for (const part of [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken]) part.nodes.forEach((node) => covered.add(`${layout.glb}/${node}`));
+    for (const part of [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken, ...(layout.baskets ? [layout.baskets] : [])]) part.nodes.forEach((node) => covered.add(`${layout.glb}/${node}`));
   }
   for (const kind of OTHER_ENVIRONMENTS) {
     for (const layout of kind.layouts) {
@@ -145,7 +145,7 @@ test("de gymzaal-onderdelen die de editor kent bestaan echt in de GLB's", () => 
   for (const layout of Object.values(GYM_LAYOUTS)) {
     const names = new Set(ENVIRONMENT_NODES[layout.glb]);
     assert.ok(names.size > 0, `${layout.glb} staat in environment-nodes.ts`);
-    for (const part of [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken]) {
+    for (const part of [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken, ...(layout.baskets ? [layout.baskets] : [])]) {
       assert.ok(part.nodes.length > 0, `${layout.id}/${part.id} heeft nodes`);
       for (const node of part.nodes) assert.ok(names.has(node), `${layout.glb} mist ${node}`);
     }
@@ -163,7 +163,16 @@ test("plafond en turnringen/klimtouwen worden nooit getoond en zijn geen schakel
   const gymNodes = new Set(ENVIRONMENT_NODES.gymzaal_standaard);
   for (const node of ALWAYS_HIDDEN_NODES) assert.ok(gymNodes.has(node), `${node} zit in het GLB`);
   for (const layout of Object.values(GYM_LAYOUTS)) {
-    const used = [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken].flatMap((part) => part.nodes);
+    const used = [...layout.lijnen, ...layout.walls, ...layout.curtains, layout.wandrekken, ...(layout.baskets ? [layout.baskets] : [])].flatMap((part) => part.nodes);
     for (const node of ALWAYS_HIDDEN_NODES) assert.ok(!used.includes(node));
   }
+});
+
+test("de standaard baskets in de gymzaal zijn weg te halen en terug te zetten (net als muren), en staan standaard aan", () => {
+  const baskets = GYM_LAYOUTS.standaard.baskets!;
+  assert.deepEqual(baskets.nodes, ["Basketbal_Installatie_Links", "Basketbal_Installatie_Rechts"]);
+  assert.equal(isPartOn(baskets, createGymEnvironment("standaard").hidden), true);
+  const off = setPartOn([], baskets, false);
+  assert.deepEqual(off.sort(), [...baskets.nodes].sort());
+  assert.deepEqual(setPartOn(off, baskets, true), []);
 });

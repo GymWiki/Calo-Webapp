@@ -40,6 +40,8 @@ export type GymLayout = {
   walls: (EnvironmentPart & { side: WallSide })[];
   curtains: CurtainPart[];
   wandrekken: EnvironmentPart;
+  /** De standaard basketbalinstallaties (baskets) aan de korte wanden; alleen in de losse zaal. Weghalen kan net als een muur. */
+  baskets?: EnvironmentPart;
   lijnen: (EnvironmentPart & { defaultHidden?: boolean })[];
 };
 
@@ -107,6 +109,7 @@ export const GYM_LAYOUTS: Record<GymLayoutId, GymLayout> = {
     walls: wallParts("Muur"),
     curtains: [],
     wandrekken: { id: "wandrekken", label: "Wandrekken", nodes: ["Wandrek_1", "Wandrek_2"] },
+    baskets: { id: "baskets", label: "Basketbalbaskets", nodes: ["Basketbal_Installatie_Links", "Basketbal_Installatie_Rechts"] },
     lijnen: lines(SPORT_LINES.map(({ prefix }) => prefix)),
   },
   "2x2": {

@@ -348,6 +348,13 @@ export function GymEnvironmentPanel({
           checked={isPartOn(layout.wandrekken, hidden)}
           onCheckedChange={(on) => onHiddenChange(setPartOn(hidden, layout.wandrekken, on))}
         />
+        {layout.baskets && (
+          <ToggleRow
+            label="Basketbalbaskets"
+            checked={isPartOn(layout.baskets, hidden)}
+            onCheckedChange={(on) => onHiddenChange(setPartOn(hidden, layout.baskets!, on))}
+          />
+        )}
         <div>
           <p className="mb-1.5 text-sm">Sportlijnen op de vloer</p>
           <div className="flex flex-wrap gap-1.5">
