@@ -48,6 +48,8 @@ import { buildShareLink, encodeFloorplan } from "@/lib/guest/share-codec";
 import { DEFAULT_VIEW, type ViewState } from "@/components/plattegrond/viewer-camera";
 import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
+import { CanvasToolbar } from "@/components/canvas-3d/CanvasToolbar";
+import { useEditorUiPrefs } from "@/lib/editor-ui/useEditorUiPrefs";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -277,6 +279,7 @@ export function Floorplan3dEditor({
   const pasteCountRef = useRef(0);
   const floorPointRef = useRef<{ x: number; z: number } | null>(null);
   const overCanvasRef = useRef(false);
+  const uiPrefs = useEditorUiPrefs();
   const modifierRef = useRef(false);
   /** Alt ingedrukt tijdens het slepen: snappen en botsing tijdelijk uit. */
   const altRef = useRef(false);
@@ -2652,6 +2655,20 @@ export function Floorplan3dEditor({
 
         <div className="relative min-w-0 flex-1">
           {scene}
+          {isDesktop && uiPrefs.prefs.flags.canvasToolbar && (
+            <CanvasToolbar
+              position={uiPrefs.prefs.toolbar}
+              onPosition={(toolbar) => uiPrefs.update((previous) => ({ ...previous, toolbar }))}
+              onResetLayout={uiPrefs.reset}
+              cameraMode={cameraMode}
+              onCameraMode={setCameraMode}
+              onResetCamera={resetCamera}
+              snapGrid={snapGrid}
+              onSnapGrid={setSnapGrid}
+              collisionOn={collisionOn}
+              onToggleCollision={() => setCollisionOn((value) => !value)}
+            />
+          )}
           {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
 
           {drawChip}

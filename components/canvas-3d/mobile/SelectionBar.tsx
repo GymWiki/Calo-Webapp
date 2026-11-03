@@ -53,7 +53,7 @@ export function SelectionBar({
             {title}
           </p>
         )}
-        <div className="flex items-center justify-center gap-0.5 overflow-x-auto">
+        <div className="flex flex-wrap items-center justify-center gap-0.5">
           <BarButton label="Links draaien (−15°)" disabled={locked} onClick={() => onRotate(-15)}>
             <RotateCcw className="size-5" aria-hidden="true" />
             <span className={compact ? "sr-only" : undefined}>15°</span>
