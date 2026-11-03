@@ -30,7 +30,7 @@ const SHEET_PATH = path.join(ROOT, "docs", "anchor-contactsheet.svg");
 const TOL_M = 0.02;
 const ROTATIONS = [0, 30, 45, 90];
 /** Assets waaraan iets kan worden bevestigd of die iets dragen: hier is een echt (Blender-)anchor-punt gewenst. */
-const ATTACHMENT_RELEVANT = /(paal|palen|doel|net|rek|klim|ring|touw|hoepel|basket|horde|bok|brug|vlag|statief|haak|lint|slalom|pion|dopje|hek|tribune|spanbrug|balk)/i;
+const ATTACHMENT_RELEVANT = /(paal|palen|doel|^volleybalnet|^badmintonnet|klimrek|klimnet|klimtouw|touwladder|zwaairing|hoepel|horde|rekstok|wandrek|basketbal_muur|basketbaltoren|statief|vlag|slalom|spanbrug|springtouw|hek|kunstgras|tribune)/i;
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(name);

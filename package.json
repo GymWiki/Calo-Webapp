@@ -15,6 +15,7 @@
     "library:csv": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/library-taxonomy-csv.mts",
     "migrate:categories": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/migrate-categories.mts",
     "audit:anchors": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs scripts/audit-anchors.ts",
+    "migrate:anchors": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/migrate-anchors.ts",
     "audit:collision": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs scripts/audit-collision.mts",
     "audit:betalingen": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/audit-stripe-vs-supabase.ts",
     "repair:entitlements": "node --experimental-strip-types --experimental-loader=./scripts/lib/path-alias-loader.mjs --env-file-if-exists=.env.local scripts/repair-entitlements.ts",

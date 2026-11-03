@@ -12,22 +12,6 @@ Deze assets zijn bedoeld om iets aan vast te maken, maar hebben geen herkenbare 
 
 | Asset | Aanbevolen node | Positie (m, vanaf pivot) | Richting |
 |---|---|---|---|
-| `ballenrek_breed_3laags` | `anchor_touw_top_1` | [-0.374, 1.092, -0.001] | omhoog (+Y) |
-| `ballenrek_breed_3laags` | `anchor_touw_top_2` | [-0.124, 1.092, -0.001] | omhoog (+Y) |
-| `ballenrek_breed_3laags` | `anchor_touw_top_3` | [0.126, 1.092, -0.001] | omhoog (+Y) |
-| `ballenrek_breed_3laags` | `anchor_touw_top_4` | [0.376, 1.092, -0.001] | omhoog (+Y) |
-| `basketbal_maat_5` | `anchor_touw_top` | [0, 0.22, 0] | omhoog (+Y) |
-| `basketbal_maat_7` | `anchor_touw_top` | [0, 0.239, 0] | omhoog (+Y) |
-| `dopjes_op_houder_set` | `anchor_touw_top` | [0, 0.356, -0.001] | omhoog (+Y) |
-| `dumbbellrek_compleet` | `anchor_touw_top_1` | [-0.626, 0.755, -0.104] | omhoog (+Y) |
-| `dumbbellrek_compleet` | `anchor_touw_top_2` | [0.626, 0.755, -0.104] | omhoog (+Y) |
-| `ehbo_sportkoffer_en_bidonrek` | `anchor_touw_top_1` | [-0.19, 0.298, 0] | omhoog (+Y) |
-| `ehbo_sportkoffer_en_bidonrek` | `anchor_touw_top_2` | [0.19, 0.307, 0.001] | omhoog (+Y) |
-| `evenwichtsbalk_laag_vloermodel_30` | `anchor_touw_top_1` | [-2.505, 0.302, 0] | omhoog (+Y) |
-| `evenwichtsbalk_laag_vloermodel_30` | `anchor_touw_top_2` | [0, 0.3, 0] | omhoog (+Y) |
-| `evenwichtsbalk_laag_vloermodel_30` | `anchor_touw_top_3` | [2.505, 0.302, 0] | omhoog (+Y) |
-| `floorball_ring_blauw` | `anchor_touw_top` | [-0.023, 0.017, 0.067] | omhoog (+Y) |
-| `floorball_ring_geel` | `anchor_touw_top` | [-0.023, 0.017, 0.067] | omhoog (+Y) |
 | `grensrechter_vlaggen_paar` | `anchor_touw_top_1` | [-0.175, 0.034, 0.179] | omhoog (+Y) |
 | `grensrechter_vlaggen_paar` | `anchor_touw_top_2` | [-0.157, 0.035, 0.251] | omhoog (+Y) |
 | `grensrechter_vlaggen_paar` | `anchor_touw_top_3` | [0.166, 0.035, 0.253] | omhoog (+Y) |
@@ -36,40 +20,14 @@ Deze assets zijn bedoeld om iets aan vast te maken, maar hebben geen herkenbare 
 | `groot_klimnet_stalen_frame_4x3m` | `anchor_touw_top_2` | [0, 3.376, -0.001] | omhoog (+Y) |
 | `groot_klimnet_stalen_frame_4x3m` | `anchor_touw_top_3` | [0.25, 3.35, 0] | omhoog (+Y) |
 | `groot_klimnet_stalen_frame_4x3m` | `anchor_touw_top_4` | [0.5, 3.35, 0] | omhoog (+Y) |
-| `honkbalknuppel_aluminium` | `anchor_touw_top_1` | [0, 0.815, 0] | omhoog (+Y) |
-| `honkbalknuppel_aluminium` | `anchor_touw_top_2` | [0, 0.815, 0] | omhoog (+Y) |
-| `honkbalknuppel_hout` | `anchor_touw_top` | [0, 0.826, 0] | omhoog (+Y) |
-| `honkbalknuppel_veiligheidsschuim` | `anchor_touw_top` | [0.001, 0.68, 0] | omhoog (+Y) |
 | `klimtouwen_set_2_hangend` | `anchor_touw_top_1` | [-0.3, 5.375, 0] | omhoog (+Y) |
 | `klimtouwen_set_2_hangend` | `anchor_touw_top_2` | [0.3, 5.375, 0] | omhoog (+Y) |
 | `klimtouwen_set_4_hangend` | `anchor_touw_top_1` | [-0.8, 5.375, 0] | omhoog (+Y) |
 | `klimtouwen_set_4_hangend` | `anchor_touw_top_2` | [0.8, 5.375, 0] | omhoog (+Y) |
-| `opbergkratjes_en_ballennet_set` | `anchor_touw_top_1` | [-0.225, 0.5, -0.158] | omhoog (+Y) |
-| `opbergkratjes_en_ballennet_set` | `anchor_touw_top_2` | [0.24, 0.488, 0] | omhoog (+Y) |
-| `opbergkratjes_en_ballennet_set` | `anchor_touw_top_3` | [0.266, 0.48, 0.048] | omhoog (+Y) |
-| `opbergkratjes_en_ballennet_set` | `anchor_touw_top_4` | [0.239, 0.492, 0] | omhoog (+Y) |
-| `partijhesjes_teamlintjes_set` | `anchor_touw_top_1` | [-0.42, 0.042, 0.16] | omhoog (+Y) |
-| `partijhesjes_teamlintjes_set` | `anchor_touw_top_2` | [-0.14, 0.042, 0.16] | omhoog (+Y) |
-| `partijhesjes_teamlintjes_set` | `anchor_touw_top_3` | [0.14, 0.042, 0.16] | omhoog (+Y) |
-| `partijhesjes_teamlintjes_set` | `anchor_touw_top_4` | [0.42, 0.042, 0.16] | omhoog (+Y) |
-| `springbok_laag_jeugd_80cm` | `anchor_touw_top_1` | [-0.287, 0.77, -0.14] | omhoog (+Y) |
-| `springbok_laag_jeugd_80cm` | `anchor_touw_top_2` | [-0.289, 0.785, 0] | omhoog (+Y) |
-| `springbok_laag_jeugd_80cm` | `anchor_touw_top_3` | [0, 0.8, 0] | omhoog (+Y) |
-| `springbok_laag_jeugd_80cm` | `anchor_touw_top_4` | [0.285, 0.785, 0] | omhoog (+Y) |
-| `springbok_standaard_105cm` | `anchor_touw_top_1` | [-0.29, 1.036, 0] | omhoog (+Y) |
-| `springbok_standaard_105cm` | `anchor_touw_top_2` | [-0.287, 1.02, -0.14] | omhoog (+Y) |
-| `springbok_standaard_105cm` | `anchor_touw_top_3` | [0, 1.05, 0] | omhoog (+Y) |
-| `springbok_standaard_105cm` | `anchor_touw_top_4` | [0.284, 1.036, 0] | omhoog (+Y) |
-| `springpaard_klassiek_160` | `anchor_touw_top` | [0, 1.25, 0] | omhoog (+Y) |
-| `springplank_senior_4veers` | `anchor_touw_top` | [0.424, 0.257, 0] | omhoog (+Y) |
 | `springtouw_speedrope` | `anchor_touw_top_1` | [-0.203, 0.044, 0.193] | omhoog (+Y) |
 | `springtouw_speedrope` | `anchor_touw_top_2` | [0.162, 0.044, 0.194] | omhoog (+Y) |
 | `start_finish_vlag_en_klepper` | `anchor_touw_top_1` | [0.25, 0.096, 0.02] | omhoog (+Y) |
 | `start_finish_vlag_en_klepper` | `anchor_touw_top_2` | [0.31, 0.096, 0.02] | omhoog (+Y) |
-| `vloermarkering_rubber_set` | `anchor_touw_top_1` | [-0.36, 0.004, -0.18] | omhoog (+Y) |
-| `vloermarkering_rubber_set` | `anchor_touw_top_2` | [-0.12, 0.004, -0.18] | omhoog (+Y) |
-| `vloermarkering_rubber_set` | `anchor_touw_top_3` | [0.12, 0.004, -0.18] | omhoog (+Y) |
-| `vloermarkering_rubber_set` | `anchor_touw_top_4` | [0.36, 0.004, -0.18] | omhoog (+Y) |
 | `wandrek_dubbel_veld` | `anchor_touw_top_1` | [-1.025, 2.6, 0.065] | omhoog (+Y) |
 | `wandrek_dubbel_veld` | `anchor_touw_top_2` | [0, 2.6, 0.065] | omhoog (+Y) |
 | `wandrek_dubbel_veld` | `anchor_touw_top_3` | [1.025, 2.6, 0.065] | omhoog (+Y) |
@@ -77,9 +35,6 @@ Deze assets zijn bedoeld om iets aan vast te maken, maar hebben geen herkenbare 
 | `wandrek_enkel_veld` | `anchor_touw_top_2` | [0.5, 2.6, 0.065] | omhoog (+Y) |
 | `wandrek_uitklapbaar_zwenk` | `anchor_touw_top_1` | [0, 2.6, 1.115] | omhoog (+Y) |
 | `wandrek_uitklapbaar_zwenk` | `anchor_touw_top_2` | [0, 2.6, 0.065] | omhoog (+Y) |
-| `zaalhockeybalk_los_2m` | `anchor_touw_top` | [1, 0.105, -0.015] | omhoog (+Y) |
-| `zaalhockeybalk_los_4m` | `anchor_touw_top` | [2, 0.105, -0.015] | omhoog (+Y) |
-| `zaalhockeybalken_gekoppeld_rij` | `anchor_touw_top` | [6, 0.105, -0.015] | omhoog (+Y) |
 | `zaalvoetbal_handbaldoel_3x2` | `anchor_touw_top` | [0, 2.08, 0] | omhoog (+Y) |
 | `zwaairingen_gymzaal_laag` | `anchor_touw_top` | [0, 5.05, 0] | omhoog (+Y) |
 
@@ -109,11 +64,11 @@ _Geen._
 | `badmintonracket_senior` | bovenpunt | top_1, top_2 | fallback | PASS |  |
 | `ballenkar_metaal_open_gevuld` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
 | `ballenpomp_en_drukmeter_set` | bovenpunt | top_1, top_2 | fallback | PASS |  |
-| `ballenrek_breed_3laags` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS | Blender-node aanbevolen |
+| `ballenrek_breed_3laags` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
 | `barbell_compleet_geladen` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
 | `barbell_ez_curl_geladen` | bovenpunt | top_1, top_2 | fallback | PASS |  |
-| `basketbal_maat_5` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
-| `basketbal_maat_7` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
+| `basketbal_maat_5` | bovenpunt | top | fallback | PASS |  |
+| `basketbal_maat_7` | bovenpunt | top | fallback | PASS |  |
 | `basketbal_muur_vast` | paal | ophang_1, ophang_2, ophang_3, ophang_4 | afgeleid | PASS |  |
 | `basketbal_muur_wegdraaibaar` | paal | ophang_top | afgeleid | PASS |  |
 | `basketbaltoren_mobiel_jeugd` | paal | ophang_1, ophang_2 | afgeleid | PASS |  |
@@ -131,21 +86,21 @@ _Geen._
 | `dodgeball_vinyl_rood` | bovenpunt | top | fallback | PASS |  |
 | `dopje_blauw_los` | kegel | top | afgeleid | PASS |  |
 | `dopjes_kleurenset_4stuks` | kegel | top_1, top_2, top_3, top_4 | afgeleid | PASS |  |
-| `dopjes_op_houder_set` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
+| `dopjes_op_houder_set` | bovenpunt | top | fallback | PASS |  |
 | `dumbbell_hex_los` | bovenpunt | top | fallback | PASS |  |
 | `dumbbell_neopreen_set` | bovenpunt | top_1, top_2 | fallback | PASS |  |
-| `dumbbellrek_compleet` | bovenpunt | top_1, top_2 | fallback | PASS | Blender-node aanbevolen |
-| `ehbo_sportkoffer_en_bidonrek` | bovenpunt | top_1, top_2 | fallback | PASS | Blender-node aanbevolen |
+| `dumbbellrek_compleet` | bovenpunt | top_1, top_2 | fallback | PASS |  |
+| `ehbo_sportkoffer_en_bidonrek` | bovenpunt | top_1, top_2 | fallback | PASS |  |
 | `evenwichtsbalk_hoog_fig_125` | paal | paal_1↕, paal_2↕ | afgeleid | PASS |  |
-| `evenwichtsbalk_laag_vloermodel_30` | bovenpunt | top_1, top_2, top_3 | fallback | PASS | Blender-node aanbevolen |
+| `evenwichtsbalk_laag_vloermodel_30` | bovenpunt | top_1, top_2, top_3 | fallback | PASS |  |
 | `fitness_elastiek_set` | bovenpunt | top_1, top_2 | fallback | PASS |  |
 | `fitness_schijf_los_20kg` | bovenpunt | top_1, top_2, top_3 | fallback | PASS |  |
 | `fitnessbank_verstelbaar_incline` | bovenpunt | top_1, top_2 | fallback | PASS |  |
 | `fitnessmat_blauw_uitgerold` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
 | `fitnessmat_rek_gevuld` | paal | paal_1↕, paal_2↕ | afgeleid | PASS | paal 1: aanhechting onder "MatRek_TopBalk" (1.76 m); paal 2: aanhechting onder "MatRek_TopBalk" (1.76 m) |
 | `floorball_puck` | bovenpunt | top_1, top_2 | fallback | PASS |  |
-| `floorball_ring_blauw` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
-| `floorball_ring_geel` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
+| `floorball_ring_blauw` | bovenpunt | top | fallback | PASS |  |
+| `floorball_ring_geel` | bovenpunt | top | fallback | PASS |  |
 | `floorballbal_geperforeerd` | bovenpunt | top | fallback | PASS |  |
 | `floorballstick_unihockey` | bovenpunt | top_1, top_2, top_3 | fallback | PASS |  |
 | `fluitje_met_koord_en_kaarten` | bovenpunt | top | fallback | PASS |  |
@@ -171,9 +126,9 @@ _Geen._
 | `honkbal_veldhonk_kussen` | bovenpunt | top | fallback | PASS |  |
 | `honkbal_werpersplaat_pitchers_plate` | bovenpunt | top | fallback | PASS |  |
 | `honkbal_zaalhonken_rubber_set` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
-| `honkbalknuppel_aluminium` | bovenpunt | top_1, top_2 | fallback | PASS | Blender-node aanbevolen |
-| `honkbalknuppel_hout` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
-| `honkbalknuppel_veiligheidsschuim` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
+| `honkbalknuppel_aluminium` | bovenpunt | top_1, top_2 | fallback | PASS |  |
+| `honkbalknuppel_hout` | bovenpunt | top | fallback | PASS |  |
+| `honkbalknuppel_veiligheidsschuim` | bovenpunt | top | fallback | PASS |  |
 | `judomat_los_200x100x4_groen` | bovenpunt | top | fallback | PASS |  |
 | `judomat_los_200x100x4_rood` | bovenpunt | top | fallback | PASS |  |
 | `judomatten_halve_gymzaal_10x10m` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
@@ -208,9 +163,9 @@ _Geen._
 | `medicijnbal_slambal_wallball_set` | bovenpunt | top_1, top_2, top_3 | fallback | PASS |  |
 | `megafoon_en_luchthoorn` | bovenpunt | top_1, top_2 | fallback | PASS |  |
 | `minitrampoline` | bovenpunt | top_1, top_2 | fallback | PASS |  |
-| `opbergkratjes_en_ballennet_set` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS | Blender-node aanbevolen |
+| `opbergkratjes_en_ballennet_set` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
 | `padelracket_carbon` | bovenpunt | top | fallback | PASS |  |
-| `partijhesjes_teamlintjes_set` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS | Blender-node aanbevolen |
+| `partijhesjes_teamlintjes_set` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
 | `petanque_boule_staal` | bovenpunt | top | fallback | PASS |  |
 | `petanque_butje` | bovenpunt | top | fallback | PASS |  |
 | `pickleball_paddle` | bovenpunt | top | fallback | PASS |  |
@@ -238,10 +193,10 @@ _Geen._
 | `softbal_veiligheidshonk_dubbelhonk` | bovenpunt | top_1, top_2 | fallback | PASS |  |
 | `spanbrug_ongelijke_leggers_school_training` | paal | paal_1↕, paal_2↕ | afgeleid | PASS | paal 1: aanhechting onder "High_Bar_240" (2.21 m); paal 2: aanhechting onder "High_Bar_240" (2.21 m) |
 | `speedbadminton_crossminton_racket` | bovenpunt | top_1, top_2 | fallback | PASS |  |
-| `springbok_laag_jeugd_80cm` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS | Blender-node aanbevolen |
-| `springbok_standaard_105cm` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS | Blender-node aanbevolen |
-| `springpaard_klassiek_160` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
-| `springplank_senior_4veers` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
+| `springbok_laag_jeugd_80cm` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
+| `springbok_standaard_105cm` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
+| `springpaard_klassiek_160` | bovenpunt | top | fallback | PASS |  |
+| `springplank_senior_4veers` | bovenpunt | top | fallback | PASS |  |
 | `springtouw_speedrope` | bovenpunt | top_1, top_2 | fallback | PASS | Blender-node aanbevolen |
 | `squashbal_dubbel_geel` | bovenpunt | top | fallback | PASS |  |
 | `squashracket_teardrop` | bovenpunt | top_1, top_2 | fallback | PASS |  |
@@ -273,7 +228,7 @@ _Geen._
 | `veldhockeystick` | bovenpunt | top_1, top_2 | fallback | PASS |  |
 | `veldvoetbaldoel_500x200_verplaatsbaar` | paal | paal_1↕, paal_2↕ | afgeleid | PASS | paal 1: aanhechting onder "Dwarslat" (1.93 m); paal 2: aanhechting onder "Dwarslat" (1.93 m) |
 | `veldvoetbaldoel_732x244_verplaatsbaar` | paal | paal_1↕, paal_2↕ | afgeleid | PASS | paal 1: aanhechting onder "Dwarslat" (2.37 m); paal 2: aanhechting onder "Dwarslat" (2.37 m) |
-| `vloermarkering_rubber_set` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS | Blender-node aanbevolen |
+| `vloermarkering_rubber_set` | bovenpunt | top_1, top_2, top_3, top_4 | fallback | PASS |  |
 | `voetbal_veld_maat_5` | bovenpunt | top | fallback | PASS |  |
 | `volleybal_beach_softtouch` | bovenpunt | top | fallback | PASS |  |
 | `volleybal_veldopstelling_bodemnet_grond_100cm` | paal | paal_1↕, paal_2↕ | afgeleid | PASS |  |
@@ -292,9 +247,9 @@ _Geen._
 | `waterpolobal` | bovenpunt | top | fallback | PASS |  |
 | `whiteboard_verrijdbaar_dubbelzijdig` | paal | paal_1↕, paal_2↕ | afgeleid | PASS | paal 1: aanhechting onder "Cube.008" (1.59 m); paal 2: aanhechting onder "Cube.008" (1.59 m) |
 | `yogamat_opgerold_set` | paal | paal_top↕ | afgeleid | PASS |  |
-| `zaalhockeybalk_los_2m` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
-| `zaalhockeybalk_los_4m` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
-| `zaalhockeybalken_gekoppeld_rij` | bovenpunt | top | fallback | PASS | Blender-node aanbevolen |
+| `zaalhockeybalk_los_2m` | bovenpunt | top | fallback | PASS |  |
+| `zaalhockeybalk_los_4m` | bovenpunt | top | fallback | PASS |  |
+| `zaalhockeybalken_gekoppeld_rij` | bovenpunt | top | fallback | PASS |  |
 | `zaalhockeybalken_transportwagen` | paal | paal_1↕, paal_2↕, paal_3↕, paal_4↕ | afgeleid | PASS | paal 1: aanhechting onder "Staander_Boven_-0.55" (1.18 m); paal 2: aanhechting onder "Staander_Boven_-0.55" (1.18 m); paal 3: aanhechting onder "Staander_Boven_0.55" (1.18 m); paal 4: aanhechting onder "Staander_Boven_0.55" (1.18 m) |
 | `zaalhockeydoel_300x200_wit` | paal | paal_1↕, paal_2↕ | afgeleid | PASS | paal 1: aanhechting onder "Dwarslat" (1.95 m); paal 2: aanhechting onder "Dwarslat" (1.95 m) |
 | `zaaltimer_intervalklok_digitaal` | bovenpunt | top | fallback | PASS |  |
