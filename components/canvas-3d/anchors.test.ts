@@ -28,7 +28,9 @@ import {
   ropeEndpoints,
   snapToAnchor,
 } from "@/components/canvas-3d/rope";
-import { floorplan3dDataSchema, type Floorplan3dItem, type Rope } from "@/types/floorplan3d";
+import { floorplan3dDataSchema, type Floorplan3dItem, type Rope, type RopeAnchor } from "@/types/floorplan3d";
+
+const anchored = (end: unknown) => end as RopeAnchor;
 import { shapeOfDims } from "@/components/canvas-3d/floorplan3d-geometry";
 
 const near = (a: number, b: number, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
@@ -115,10 +117,10 @@ test("schemaformaat: anchor, hoogte en soort blijven bewaard; oude uiteinden (al
   const base = { version: 1, room: { width_m: 10, length_m: 10 }, items: [], coneFields: [] };
   const rope: Rope = { id: "t", kind: "lint", a: { item: "a", local: [0, 1, 0], anchor: "paal_1", height: 1.2 }, b: { item: "b", local: [0, 1, 0] } };
   const parsed = floorplan3dDataSchema.parse({ ...base, ropes: [rope] }).ropes[0];
-  assert.equal(parsed.a.anchor, "paal_1");
-  assert.equal(parsed.a.height, 1.2);
+  assert.equal(anchored(parsed.a).anchor, "paal_1");
+  assert.equal(anchored(parsed.a).height, 1.2);
   assert.equal(parsed.kind, "lint");
-  assert.equal(parsed.b.anchor, undefined);
+  assert.equal(anchored(parsed.b).anchor, undefined);
 });
 
 test("migratie: een oud uiteinde op de korfrand gaat naar de paal; melding bij een verschuiving boven de tolerantie; idempotent", () => {
@@ -126,8 +128,8 @@ test("migratie: een oud uiteinde op de korfrand gaat naar de paal; melding bij e
   const other = item("o1", "pion_oranje_wit_gestreept", 5, 0);
   const legacy: Rope = { id: "r1", a: { item: "k1", local: [0.5, 2.45, 0.1] }, b: { item: "o1", local: [0.1, 0.2, 0] } };
   const { ropes, changes } = migrateRopes([legacy], [paal, other], lookup);
-  assert.equal(ropes[0].a.anchor, "paal_top");
-  assert.equal(ropes[0].b.anchor, "top");
+  assert.equal(anchored(ropes[0].a).anchor, "paal_top");
+  assert.equal(anchored(ropes[0].b).anchor, "top");
   const first = changes.find((c) => c.end === "a")!;
   assert.ok(first.exceeded, "ruim meer dan de tolerantie verschoven");
   assert.ok(first.shiftM > MIGRATION_TOLERANCE_M);

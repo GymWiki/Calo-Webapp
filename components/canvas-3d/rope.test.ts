@@ -74,8 +74,8 @@ test("een uiteinde omzetten naar een ander item laat het andere uiteinde staan",
   const c = item("c", 9, 0);
   const rope = createRope("t", anchorAt(a, [0, 1, 0], lookup), anchorAt(b, [5, 1, 0], lookup));
   const next = withAnchor(rope, "b", anchorAt(c, [9, 1, 0], lookup));
-  assert.equal(next.a.item, "a");
-  assert.equal(next.b.item, "c");
+  assert.equal((next.a as { item: string }).item, "a");
+  assert.equal((next.b as { item: string }).item, "c");
 });
 
 test("het dataformaat: touwen zijn optioneel (oude plattegronden) en worden gevalideerd", () => {

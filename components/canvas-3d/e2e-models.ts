@@ -45,6 +45,8 @@ export const E2E_MODELS: MaterialModel[] = [
   // Zelfde slug als het echte asset (bevestigingspunten komen uit anchors.generated.ts: een paal met een gele korf, touwpunt op de paal onder de korf).
   // Grote testmaten, zodat een sleepbeweging het item altijd raakt; de anchor hangt alleen van de slug af.
   model("korfbalpaal_compleet_250", "Paal met korf (anchor-test)", "doelen_netten", null, ["korfbal"], [5, 4, 2.5], "#eab308"),
+  // Zelfde slug als het echte asset (botsingsregels en vorm komen van de slug): net met palen, 10,85 m breed.
+  model("volleybal_veldopstelling_compleet_dames", "Volleybalopstelling (test)", "doelen_netten", null, ["volleybal"], [10.85, 0.16, 3.04], "#0ea5e9"),
   model("pion_test", "Pion test", "klein_materiaal", "afzetten", ["algemeen"], [0.3, 0.3, 0.3], "#f97316"),
   model("kettlebell_test", "Kettlebell test", "fitness", null, ["fitness"], [0.25, 0.2, 0.3], "#0891b2"),
   model("ballenkar_test", "Ballenkar test", "opslag_karren", null, ["algemeen"], [1, 0.7, 1], "#64748b"),

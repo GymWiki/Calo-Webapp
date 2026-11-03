@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { fieldBounds } from "@/components/canvas-3d/cone-field";
 import { itemPolygons, type DimsLookup } from "@/components/canvas-3d/floorplan3d-geometry";
-import { coneFieldSchema, floorplan3dItemSchema, ropeSchema, type ConeField, type Floorplan3dItem, type Floorplan3dRoom, type Rope } from "@/types/floorplan3d";
+import { coneFieldSchema, endItemId, floorplan3dItemSchema, isFreeEnd, ropeSchema, type ConeField, type RopeEnd, type Floorplan3dItem, type Floorplan3dRoom, type Rope } from "@/types/floorplan3d";
 
 export const CLIPBOARD_FORMAT = "gymwiki-clipboard";
 export const CLIPBOARD_VERSION = 1;
@@ -37,8 +37,15 @@ export function buildClipboard(items: readonly Floorplan3dItem[], coneFields: re
     version: CLIPBOARD_VERSION,
     items: items.map((item) => ({ ...item })),
     coneFields: coneFields.map((field) => ({ ...field })),
-    // Een touw gaat alleen mee als allebei zijn items meegaan.
-    ropes: ropes.filter((rope) => ids.has(rope.a.item) && ids.has(rope.b.item)).map((rope) => ({ ...rope, a: { ...rope.a }, b: { ...rope.b } })),
+    // Een touw gaat alleen mee als al zijn vastgemaakte uiteinden meegaan (en er minstens één vastzit): vrije uiteinden schuiven met de groep mee.
+    ropes: ropes
+      .filter((rope) => {
+        const a = endItemId(rope.a);
+        const b = endItemId(rope.b);
+        if (a === null && b === null) return false;
+        return (a === null || ids.has(a)) && (b === null || ids.has(b));
+      })
+      .map((rope) => ({ ...rope, a: { ...rope.a }, b: { ...rope.b } })),
   };
 }
 
@@ -152,10 +159,15 @@ export function pasteClipboard(payload: ClipboardPayload, options: PasteOptions)
   const newIds = new Map(payload.items.map((item) => [item.id, createId()]));
   // Touwen volgen hun items: de kopie van een touw hangt aan de kopieën van de items (niet aan de originelen).
   const ropes: Rope[] = [];
+  const remap = (end: RopeEnd): RopeEnd | null => {
+    if (isFreeEnd(end)) return { free: [end.free[0] + delta.x, end.free[1], end.free[2] + delta.z] };
+    const id = newIds.get(end.item);
+    return id ? { ...end, item: id } : null;
+  };
   for (const rope of payload.ropes) {
-    const a = newIds.get(rope.a.item);
-    const b = newIds.get(rope.b.item);
-    if (a && b) ropes.push({ id: createId(), a: { ...rope.a, item: a }, b: { ...rope.b, item: b } });
+    const a = remap(rope.a);
+    const b = remap(rope.b);
+    if (a && b) ropes.push({ ...rope, id: createId(), a, b });
   }
 
   return {

@@ -42,6 +42,11 @@ for (const scenario of SCENARIOS) {
     expect(fill, `vulling ${fill}`).toBeGreaterThanOrEqual(0.7);
     expect(fill, `vulling ${fill}`).toBeLessThanOrEqual(0.9);
     await expect(viewer).toHaveAttribute("data-framing-mode", scenario.mode);
+    // Standaard diagonale blik: azimut 40° (rechtsvoor) of 320° (linksvoor, = −40°); kanteling 38–57°.
+    const azimuth = await num(viewer, "azimuth");
+    expect([40, 320], `azimut ${azimuth}`).toContain(azimuth);
+    expect(await num(viewer, "polar")).toBeGreaterThanOrEqual(38);
+    expect(await num(viewer, "polar")).toBeLessThanOrEqual(57);
     // Vaste hoogte (geen layout shift): mobiel ±320 px, desktop ±480 px.
     const box = (await viewer.boundingBox())!;
     const [minHeight, maxHeight] = isPhone(page) ? [300, 340] : [420, 520];

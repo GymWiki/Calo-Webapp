@@ -47,6 +47,7 @@ export function FloorplanContent({
   touchUi = false,
   onRotateHandleDown,
   warnOutside = false,
+  warnIds,
   ropes = [],
   hiddenRopeId = null,
   ropeDraft = null,
@@ -54,6 +55,7 @@ export function FloorplanContent({
   ropeTargetId = null,
   onRopePointerDown,
   onRopeHandlePointerDown,
+  ropeHandles = "all",
   onItemPointerMove,
   onItemPointerUp,
   onItemPointerLeave,
@@ -65,13 +67,15 @@ export function FloorplanContent({
   /** Het touw waarvan je een uiteinde sleept: het echte touw is dan even weg, de `ropeDraft` toont de nieuwe stand. */
   hiddenRopeId?: string | null;
   /** Het touw dat je nu spant of verplaatst: van het vaste punt naar de cursor. */
-  ropeDraft?: { from: Vec3; to: Vec3 } | null;
+  ropeDraft?: { from: Vec3; to: Vec3; label?: string; invalid?: boolean } | null;
   /** "Touw spannen" actief (editor). */
   ropeTool?: boolean;
   /** Het item onder de cursor tijdens het spannen (oranje omlijning). */
   ropeTargetId?: string | null;
   onRopePointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
-  onRopeHandlePointerDown?: (id: string, end: "a" | "b", event: ThreeEvent<PointerEvent>) => void;
+  onRopeHandlePointerDown?: (id: string, end: "a" | "b" | "mid", event: ThreeEvent<PointerEvent>) => void;
+  /** Welke handvatten het geselecteerde touw toont (mobiel: eerst kiezen tussen eindpunt en hele touw). */
+  ropeHandles?: "all" | "end" | "whole";
   onItemPointerMove?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerUp?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onItemPointerLeave?: (id: string) => void;
@@ -81,6 +85,8 @@ export function FloorplanContent({
   showAllAnchors?: boolean;
   /** Editor: gekantelde items die buiten de zaal vallen krijgen een rode outline. */
   warnOutside?: boolean;
+  /** Items met een botsingswaarschuwing tijdens het slepen (subtiele rode outline). */
+  warnIds?: ReadonlySet<string>;
   room: Floorplan3dRoom;
   items: Floorplan3dItem[];
   fields: ConeField[];
@@ -142,9 +148,10 @@ export function FloorplanContent({
           anchors={lookup && (showAllAnchors || anchorViews?.[item.id]) ? anchorsForSlug(item.slug, shapeOfDims(dimsOf(item, lookup))) : undefined}
           anchorView={showAllAnchors ? { highlightId: anchorViews?.[item.id]?.highlightId ?? null, labels: true } : (anchorViews?.[item.id] ?? null)}
           outsideRoom={
-            warnOutside && lookup && itemIsTilted(item)
+            warnIds?.has(item.id) === true ||
+            (warnOutside && lookup && itemIsTilted(item)
               ? isOutsideRoom(shapeOfDims(dimsOf(item, lookup)), [item.x, item.y, item.z], rotationOf(item), room)
-              : false
+              : false)
           }
         />
       ))}
@@ -161,12 +168,14 @@ export function FloorplanContent({
               to={ends.b}
               selected={rope.id === selectedId}
               interactive={interactive && !ropeTool}
+              touchUi={touchUi}
+              handles={ropeHandles}
               onSelect={onRopePointerDown ? (event) => { event.stopPropagation(); onRopePointerDown(rope.id, event); } : undefined}
               onHandleDown={onRopeHandlePointerDown ? (end, event) => { event.stopPropagation(); onRopeHandlePointerDown(rope.id, end, event); } : undefined}
             />
           );
         })}
-      {ropeDraft && <RopeMesh from={ropeDraft.from} to={ropeDraft.to} preview />}
+      {ropeDraft && <RopeMesh from={ropeDraft.from} to={ropeDraft.to} preview label={ropeDraft.label} invalid={ropeDraft.invalid} />}
       {fields.map((field) => (
         <ConeFieldMesh
           key={field.id}

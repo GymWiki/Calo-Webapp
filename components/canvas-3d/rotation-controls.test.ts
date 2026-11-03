@@ -14,7 +14,7 @@ import {
 } from "@/components/canvas-3d/rotation-controls";
 
 const FREE = orientationFor({ slug: "bank", categorie: "toestellen" });
-const FLAT = orientationFor({ slug: "pion_oranje", categorie: "klein_materiaal", subgroep: "afzetten" });
+const FLAT = orientationFor({ slug: "vloermarkering_pijl", categorie: "klein_materiaal", subgroep: "afzetten" });
 
 describe("rotation-controls", () => {
   it("snapt op het raster en laat vrij draaien met 0", () => {
@@ -97,4 +97,14 @@ describe("rotation-controls", () => {
     assert.equal(angleDelta(10, 350), -20);
     assert.equal(angleDelta(0, 180), 180);
   });
+});
+
+it("pionnen, dopjes, hoepels en ander afzetmateriaal zijn volledig kantelbaar; vlakke markeringen en personen niet", () => {
+  for (const slug of ["pion_oranje_wit_gestreept", "dopje_rood", "hoepel_90", "estafettestok", "springtouw", "hesje_geel", "pittenzakje", "beker_rood", "speedladder", "horde_laag", "slalompaal"]) {
+    const config = orientationFor({ slug, categorie: "klein_materiaal", subgroep: "afzetten" });
+    assert.equal(config.allowTilt, true, slug);
+    assert.equal(config.maxTiltDeg, 180, slug);
+  }
+  for (const slug of ["vloermarkering_pijl", "tape_geel", "lijn_wit", "vakje_blauw"]) assert.equal(orientationFor({ slug, categorie: "klein_materiaal", subgroep: "afzetten" }).allowTilt, false, slug);
+  assert.equal(orientationFor({ slug: "leerling_pose_staand", categorie: "personen" }).allowTilt, false);
 });

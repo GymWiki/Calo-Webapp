@@ -15,6 +15,8 @@ import {
   Lock,
   LockOpen,
   Redo2,
+  RotateCcw, ShieldAlert,
+  RotateCw,
   Save,
   ClipboardPaste,
   Scissors,
@@ -62,11 +64,11 @@ import {
   type Floorplan3dRoom,
   type Floorplan3dSummary,
   type Rope,
-  type RopeAnchor,
 } from "@/types/floorplan3d";
-import { anchorAt, anchorWorld, canConnect, createRope, migrateRopesWithReport, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems, snapToAnchor, withAnchor } from "@/components/canvas-3d/rope";
+import { migrateRopesWithReport, removeRopesOfItems, ropeEndpoints, ropeLength, ropesWithItems } from "@/components/canvas-3d/rope";
+import { useRopeDrag } from "@/components/canvas-3d/useRopeDrag";
+import { formatLength, freeEndHeight, insideRoom, rotateRopeAboutMid, withFreeHeight, worldEnds } from "@/components/canvas-3d/rope-drag";
 import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
-import type { Vec3 } from "@/components/canvas-3d/orientation";
 import type { MaterialModel } from "@/types/materialModel";
 import { type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldOverview, ConeFieldPanel } from "@/components/canvas-3d/ConeFieldPanel";
@@ -276,6 +278,14 @@ export function Floorplan3dEditor({
   const floorPointRef = useRef<{ x: number; z: number } | null>(null);
   const overCanvasRef = useRef(false);
   const modifierRef = useRef(false);
+  /** Alt ingedrukt tijdens het slepen: snappen en botsing tijdelijk uit. */
+  const altRef = useRef(false);
+  /** Schakelaar "Botsing": aan = waarschuwen bij overlap, uit = negeren. */
+  const [collisionOn, setCollisionOn] = useState(true);
+  /** Items met een botsingswaarschuwing tijdens het slepen (outline). */
+  const [warnIds, setWarnIds] = useState<ReadonlySet<string>>(() => new Set());
+  /** Laatste preview-resultaat van de sleepbeweging: precies dit wordt bij loslaten vastgelegd (geen tweede berekening). */
+  const lastPlacementRef = useRef<{ id: string; placement: ReturnType<typeof resolvePlacement> } | null>(null);
   const pendingCopyRef = useRef<string | null>(null);
   const pendingPasteRef = useRef(false);
   const clipboardActionsRef = useRef<{ pasteText: (text: string | null) => void }>({ pasteText: () => undefined });
@@ -852,30 +862,26 @@ export function Floorplan3dEditor({
   // Touw spannen — van een punt op het ene object naar een punt op een ander object.
   // ---------------------------------------------------------------------
   // Een touw is geen item: het stapelt niet, botst nergens mee en volgt zijn twee items vanzelf (components/canvas-3d/rope.ts).
-  type RopeDraft = {
-    /** Bestaand touw waarvan een uiteinde wordt verplaatst; `null` = een nieuw touw. */
-    ropeId: string | null;
-    /** Het uiteinde dat blijft zitten. */
-    fixed: RopeAnchor;
-    /** Welk uiteinde van het bestaande touw je sleept (bij een nieuw touw altijd "b"). */
-    moving: "a" | "b";
-    cursor: Vec3;
-    /** Item onder de cursor (het touw zou daar vastzitten). */
-    targetId: string | null;
-  };
   const [ropeMode, setRopeMode] = useState(false);
-  const [ropeDraft, setRopeDraftState] = useState<RopeDraft | null>(null);
   /** Item onder de cursor terwijl je nog niet sleept (touw spannen): zijn bevestigingspunten worden getoond. */
   const [ropeHoverId, setRopeHoverId] = useState<string | null>(null);
   const [showAnchors, setShowAnchors] = useState(true);
-  const ropeDraftRef = useRef<RopeDraft | null>(null);
-  const ropeMoveStampRef = useRef(0);
-  const ropeSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
+  /** Mobiel: wat een vinger op het geselecteerde touw doet — een eindpunt verplaatsen of het hele touw. Desktop toont alle handvatten. */
+  const [ropeEditMode, setRopeEditMode] = useState<"end" | "whole">("end");
 
-  function updateRopeDraft(next: RopeDraft | null) {
-    ropeDraftRef.current = next;
-    setRopeDraftState(next);
-  }
+  // Het sleepmodel voor touwen (nieuw touw, eindpunt, hele touw): components/canvas-3d/useRopeDrag.ts. Eén commit per sleepbeweging = één undo-stap.
+  const ropeDrag = useRopeDrag({
+    items,
+    ropes,
+    lookup,
+    room,
+    getSnapshot: () => ({ room, items, coneFields, ropes }),
+    pushHistory: (snapshot) => history.push(snapshot),
+    setRopes,
+    onCommitted: () => scheduleAutosave(),
+    undo: () => handleUndoRef.current(),
+    createId: () => createItemId(),
+  });
 
   function startRopeMode() {
     setDrawMode(false);
@@ -890,23 +896,7 @@ export function Floorplan3dEditor({
   function stopRopeMode() {
     setRopeMode(false);
     setRopeHoverId(null);
-    updateRopeDraft(null);
-  }
-
-  function beginRope(itemId: string, point: Vec3) {
-    const item = items.find((candidate) => candidate.id === itemId);
-    if (!item) return;
-    ropeSnapshotRef.current = { room, items, coneFields, ropes };
-    updateRopeDraft({ ropeId: null, fixed: anchorAt(item, point, lookup), moving: "b", cursor: point, targetId: null });
-  }
-
-  function handleRopeHandleDown(ropeId: string, end: "a" | "b") {
-    const rope = ropes.find((candidate) => candidate.id === ropeId);
-    if (!rope) return;
-    const cursor = anchorWorld(rope[end], items, lookup);
-    if (!cursor) return;
-    ropeSnapshotRef.current = { room, items, coneFields, ropes };
-    updateRopeDraft({ ropeId, fixed: end === "a" ? rope.b : rope.a, moving: end, cursor, targetId: null });
+    ropeDrag.cancel();
   }
 
   function handleRopeSelect(ropeId: string) {
@@ -915,78 +905,14 @@ export function Floorplan3dEditor({
     setSideTab("item");
   }
 
-  /** Cursor boven een item: het touw zou daar (op het geraakte punt) vastzitten. */
+  /** Cursor boven een item: tijdens het slepen volgt de preview; anders tonen we in "Touw spannen" zijn bevestigingspunten. */
   function handleItemPointerMove(id: string, event: ThreeEvent<PointerEvent>) {
-    const current = ropeDraftRef.current;
-    if (!current) {
-      if (ropeMode) setRopeHoverId(id);
+    if (ropeDrag.activeRef.current) {
+      ropeDrag.moveOnItem(id, event);
       return;
     }
-    ropeMoveStampRef.current = event.nativeEvent.timeStamp;
-    const targetId = id === current.fixed.item ? null : id;
-    updateRopeDraft({ ...current, cursor: [event.point.x, event.point.y, event.point.z], targetId });
+    if (ropeMode) setRopeHoverId(id);
   }
-
-  /** Cursor op de vloer: het losse uiteinde volgt de vinger op dezelfde hoogte als het vaste punt. */
-  function moveRopeOnFloor(event: ThreeEvent<PointerEvent>): boolean {
-    const current = ropeDraftRef.current;
-    if (!current) return false;
-    // Zelfde pointer-event dat al door een item is afgehandeld (het item ligt voor de vloer): de itemcursor wint.
-    if (ropeMoveStampRef.current === event.nativeEvent.timeStamp) return true;
-    const fixed = anchorWorld(current.fixed, items, lookup);
-    updateRopeDraft({ ...current, cursor: [event.point.x, fixed ? fixed[1] : 0.5, event.point.z], targetId: null });
-    return true;
-  }
-
-  /** Loslaten: op een ander item = vastmaken, anders niets (het touw springt terug of verdwijnt). */
-  function finishRope(targetId: string | null, point: Vec3 | null) {
-    const current = ropeDraftRef.current;
-    updateRopeDraft(null);
-    if (!current) return;
-    const snapshot = ropeSnapshotRef.current;
-    ropeSnapshotRef.current = null;
-    const target = targetId ? items.find((item) => item.id === targetId) : null;
-    if (!target || !point) {
-      if (!current.ropeId) toast.info("Laat het touw los op een ander object om het vast te maken.");
-      return;
-    }
-    const anchor = anchorAt(target, point, lookup);
-    if (!canConnect(current.fixed, anchor)) {
-      toast.info("Een touw loopt tussen twee verschillende objecten.");
-      return;
-    }
-    if (snapshot) history.push(snapshot);
-    if (current.ropeId) {
-      setRopes((prev) => prev.map((rope) => (rope.id === current.ropeId ? withAnchor(rope, current.moving, anchor) : rope)));
-    } else {
-      setRopes((prev) => [...prev, createRope(createItemId(), current.fixed, anchor)]);
-    }
-    haptic(10);
-    scheduleAutosave();
-  }
-
-  function handleItemPointerUp(id: string, event: ThreeEvent<PointerEvent>) {
-    if (!ropeDraftRef.current) return;
-    event.stopPropagation();
-    finishRope(id, [event.point.x, event.point.y, event.point.z]);
-  }
-
-  // Loslaten buiten het canvas of op een plek zonder object: het slepen stopt altijd.
-  useEffect(() => {
-    if (!ropeDraft) return;
-    function onUp() {
-      window.setTimeout(() => {
-        if (ropeDraftRef.current) finishRope(null, null);
-      }, 0);
-    }
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return () => {
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ropeDraft !== null]);
 
   function deleteSelectedRope() {
     if (!selectedRope) return;
@@ -995,6 +921,57 @@ export function Floorplan3dEditor({
     setSelectedId(null);
     scheduleAutosave();
     toast("Touw verwijderd", { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 6000 });
+  }
+
+
+  /** Past het geselecteerde touw aan als één undo-stap. */
+  function updateSelectedRope(change: (rope: Rope) => Rope) {
+    if (!selectedRope) return;
+    pushHistory();
+    setRopes((prev) => prev.map((rope) => (rope.id === selectedRope.id ? change(rope) : rope)));
+    scheduleAutosave();
+  }
+
+  /** Hoogte (m) van de vrije uiteinden van het geselecteerde touw: ±5 cm per stap. Vastgemaakte uiteinden volgen hun bevestigingspunt. */
+  function changeRopeHeight(deltaM: number) {
+    const selectedFreeHeight = selectedRope ? freeEndHeight(selectedRope) : null;
+    if (selectedFreeHeight === null) {
+      toast.info("Alleen vrije uiteinden hebben een eigen hoogte; een vastgemaakt uiteinde volgt zijn bevestigingspunt.");
+      return;
+    }
+    updateSelectedRope((rope) => withFreeHeight(rope, selectedFreeHeight + deltaM));
+  }
+
+  /** Draait het touw om zijn midden (stappen van 15°); beide uiteinden worden vrije punten. */
+  function rotateSelectedRope(deg: number) {
+    if (!selectedRope) return;
+    const ends = worldEnds(selectedRope, items, lookup);
+    const turned = ends ? rotateRopeAboutMid(ends.a, ends.b, deg, room) : null;
+    if (!turned) {
+      toast.error("Geen geldig punt: het gedraaide touw past niet in de zaal");
+      return;
+    }
+    updateSelectedRope((rope) => ({ ...rope, a: turned.a, b: turned.b }));
+  }
+
+  /** Dupliceren: een kopie als vrij touw, 50 cm opzij verschoven, direct geselecteerd. */
+  function duplicateSelectedRope() {
+    if (!selectedRope) return;
+    const ends = worldEnds(selectedRope, items, lookup);
+    if (!ends) return;
+    const shift = (point: [number, number, number]): [number, number, number] => [point[0] + 0.5, point[1], point[2] + 0.5];
+    const a = shift(ends.a);
+    const b = shift(ends.b);
+    if (!insideRoom(a, room) || !insideRoom(b, room)) {
+      toast.error("Geen geldig punt: de kopie past niet in de zaal");
+      return;
+    }
+    pushHistory();
+    const id = createItemId();
+    setRopes((prev) => [...prev, { ...selectedRope, id, a: { free: a }, b: { free: b } }]);
+    setSelectedId(id);
+    scheduleAutosave();
+    toast(`Touw gedupliceerd (${formatLength(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]))})`, { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 6000 });
   }
 
   function handleItemPointerDown(id: string) {
@@ -1042,9 +1019,29 @@ export function Floorplan3dEditor({
     setItems((prev) => prev.map((candidate) => (candidate.id === item.id ? { ...candidate, rot_y_deg: target, x: origin.x, z: origin.z } : candidate)));
   }
 
+  /** Zachte botsingswaarschuwing tijdens het slepen: outline + korte melding; de plaatsing blijft zoals hij is. */
+  function showPlacementWarnings(id: string, placement: ReturnType<typeof resolvePlacement>) {
+    const ids = new Set<string>();
+    const messages: string[] = [];
+    for (const warning of placement.warnings) {
+      if (warning.kind === "overlap") {
+        ids.add(id);
+        ids.add(warning.withId);
+        const name = models.find((model) => model.slug === warning.withSlug)?.naam ?? warning.withSlug;
+        if (!messages.includes(`Overlapt met ${name}`)) messages.push(`Overlapt met ${name}`);
+      } else {
+        ids.add(id);
+        messages.push("Past niet in de zaal: het item steekt buiten de zaal uit");
+      }
+    }
+    setWarnIds((previous) => (previous.size === ids.size && [...ids].every((value) => previous.has(value)) ? previous : ids));
+    if (messages.length > 0) toast.warning(messages.join(" · "), { id: "botsing-waarschuwing", duration: 4000 });
+    else toast.dismiss("botsing-waarschuwing");
+  }
+
   function handleFloorPointerMove(event: ThreeEvent<PointerEvent>) {
     floorPointRef.current = { x: event.point.x, z: event.point.z };
-    if (moveRopeOnFloor(event)) return;
+    if (ropeDrag.moveOnFloor(event)) return;
     if (rotatingId) {
       rotateByHandle({ x: event.point.x, z: event.point.z });
       return;
@@ -1073,7 +1070,11 @@ export function Floorplan3dEditor({
       room,
       grid: snapGrid,
       lookup,
+      collisions: collisionOn && !altRef.current,
+      snap: !altRef.current,
     });
+    lastPlacementRef.current = { id: draggingId, placement };
+    showPlacementWarnings(draggingId, placement);
     if (debug) setDebugGuides(placement.guides);
     // Subtiele trilling zodra het item aan een lijn/ander item vastklikt (waar ondersteund).
     const snapped = placement.guides.length > 0;
@@ -1108,10 +1109,7 @@ export function Floorplan3dEditor({
   }
 
   function handleFloorPointerUp(event: ThreeEvent<PointerEvent>) {
-    if (ropeDraftRef.current) {
-      finishRope(null, null);
-      return;
-    }
+    if (ropeDrag.upOnFloor()) return;
     if (rotatingId) {
       setRotatingId(null);
       scheduleAutosave();
@@ -1144,6 +1142,7 @@ export function Floorplan3dEditor({
     const id = draggingId;
     setDraggingId(null);
     setDebugGuides([]);
+    setWarnIds(new Set());
     lastSnappedRef.current = false;
     haptic(10);
 
@@ -1160,15 +1159,12 @@ export function Floorplan3dEditor({
       const dragged = prev.find((item) => item.id === id);
       if (!dragged) return prev;
 
-      const placement = resolvePlacement({
-        pointer: { x: dragged.x, z: dragged.z },
-        dragged: draggedFields(dragged),
-        others: prev.filter((item) => item.id !== id && !restingIds.has(item.id)),
-        room,
-        grid: snapGrid,
-        lookup,
-        final: true,
-      });
+      // Precies het laatste preview-resultaat; geen tweede berekening (geen opnieuw snappen, geen wegduwen).
+      const last = lastPlacementRef.current;
+      const placement = last && last.id === id ? last.placement : { x: dragged.x, y: dragged.y, z: dragged.z, log: "geen preview", warnings: [] as ReturnType<typeof resolvePlacement>["warnings"] };
+      if (process.env.NODE_ENV !== "production" && (Math.abs(placement.x - dragged.x) > 0.001 || Math.abs(placement.z - dragged.z) > 0.001 || Math.abs(placement.y - dragged.y) > 0.001)) {
+        console.error(`[plaatsing] commit wijkt af van de laatste preview voor ${dragged.slug}`, { preview: placement, staat: { x: dragged.x, y: dragged.y, z: dragged.z } });
+      }
       if (debug) {
         console.info(`[3D-plaatsing] ${dragged.slug}: ${placement.log}`, placement);
       }
@@ -1208,7 +1204,7 @@ export function Floorplan3dEditor({
   function applyEnvironment(kind: EnvironmentKind, layoutId: string) {
     pushHistory();
     const environment = createEnvironment(kind, layoutId);
-    const nextRoom: Floorplan3dRoom = { ...roomForEnvironment(environment), environment, ...(room.view ? { view: room.view } : {}) };
+    const nextRoom: Floorplan3dRoom = { ...roomForEnvironment(environment), environment, ...(room.view ? { view: room.view } : {}), ...(room.view_azimuth_deg !== undefined ? { view_azimuth_deg: room.view_azimuth_deg } : {}) };
     const fitted = clampItemsToRoom(items, nextRoom, lookup);
     setRoom(nextRoom);
     setItems(fitted.items);
@@ -1238,7 +1234,7 @@ export function Floorplan3dEditor({
     }
     if (!room.environment) return;
     pushHistory();
-    setRoom({ width_m: room.width_m, length_m: room.length_m, ...(room.view ? { view: room.view } : {}) });
+    setRoom({ width_m: room.width_m, length_m: room.length_m, ...(room.view ? { view: room.view } : {}), ...(room.view_azimuth_deg !== undefined ? { view_azimuth_deg: room.view_azimuth_deg } : {}) });
     scheduleAutosave();
   }
 
@@ -1250,6 +1246,18 @@ export function Floorplan3dEditor({
       const { view: _previous, ...rest } = prev;
       void _previous;
       return view === "auto" ? rest : { ...rest, view };
+    });
+    scheduleAutosave();
+  }
+
+  /** Kijkrichting van de viewer bij de activiteit: automatisch (±40°, kant op basis van de inhoud), vast links of vast rechts. */
+  function setRoomAzimuth(azimuth: number | null) {
+    if ((room.view_azimuth_deg ?? null) === azimuth) return;
+    pushHistory();
+    setRoom((prev) => {
+      const { view_azimuth_deg: _previous, ...rest } = prev;
+      void _previous;
+      return azimuth === null ? rest : { ...rest, view_azimuth_deg: azimuth };
     });
     scheduleAutosave();
   }
@@ -1575,9 +1583,9 @@ export function Floorplan3dEditor({
       const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
 
-      if (event.key === "Escape" && (ropeMode || ropeDraftRef.current)) {
+      if (event.key === "Escape" && (ropeMode || ropeDrag.activeRef.current)) {
         event.preventDefault();
-        if (ropeDraftRef.current) updateRopeDraft(null);
+        if (ropeDrag.activeRef.current) ropeDrag.cancel();
         else stopRopeMode();
         return;
       }
@@ -1691,6 +1699,7 @@ export function Floorplan3dEditor({
     };
     const onPointer = (event: PointerEvent) => {
       modifierRef.current = event.shiftKey || event.ctrlKey || event.metaKey;
+      altRef.current = event.altKey;
       overCanvasRef.current = (event.target as HTMLElement | null)?.tagName === "CANVAS";
     };
     document.addEventListener("copy", onCopy);
@@ -1959,13 +1968,33 @@ export function Floorplan3dEditor({
   );
 
   const selectedRopeEnds = selectedRope ? ropeEndpoints(selectedRope, items, lookup) : null;
+  const selectedFreeHeight = selectedRope ? freeEndHeight(selectedRope) : null;
   const ropePanel = selectedRope ? (
     <div className="space-y-3" data-testid="touw-paneel">
-      <p className="text-sm font-medium">Touw</p>
+      <p className="text-sm font-medium">{selectedRope.kind === "lint" ? "Lint" : selectedRope.kind === "net" ? "Net" : "Touw"}</p>
       <p className="text-sm text-muted-foreground">
-        {selectedRopeEnds ? `Lengte ${ropeLength(selectedRopeEnds.a, selectedRopeEnds.b).toLocaleString("nl-NL", { maximumFractionDigits: 1 })} m. ` : ""}
-        Sleep een oranje uiteinde naar een ander object om het touw te verplaatsen. Het touw blijft vastzitten aan zijn punt als je een object verschuift of draait.
+        {selectedRopeEnds ? `Lengte ${formatLength(ropeLength(selectedRopeEnds.a, selectedRopeEnds.b))}. ` : ""}
+        Sleep een <strong>oranje</strong> bolletje om een eindpunt te verplaatsen: naar een bevestigingspunt van een object, of naar een vrij punt op de vloer.
+        Sleep het touw zelf of het <strong>blauwe</strong> bolletje om het hele touw te verplaatsen. Houd Shift ingedrukt om zonder raster en zonder snap te bewegen. Esc annuleert.
       </p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" variant="outline" size="sm" data-testid="touw-hoogte-omlaag" onClick={() => changeRopeHeight(-0.05)} disabled={selectedFreeHeight === null}>
+          Hoogte − 5 cm
+        </Button>
+        <Button type="button" variant="outline" size="sm" data-testid="touw-hoogte-omhoog" onClick={() => changeRopeHeight(0.05)} disabled={selectedFreeHeight === null}>
+          Hoogte + 5 cm
+        </Button>
+        <Button type="button" variant="outline" size="sm" data-testid="touw-draai-links" onClick={() => rotateSelectedRope(-15)}>
+          <RotateCcw className="size-4" /> Draai 15°
+        </Button>
+        <Button type="button" variant="outline" size="sm" data-testid="touw-draai-rechts" onClick={() => rotateSelectedRope(15)}>
+          <RotateCw className="size-4" /> Draai 15°
+        </Button>
+      </div>
+      {selectedFreeHeight !== null && <p className="text-xs text-muted-foreground">Hoogte vrije uiteinden: {formatLength(selectedFreeHeight)}</p>}
+      <Button type="button" variant="outline" className="w-full" data-testid="touw-dupliceren" onClick={duplicateSelectedRope}>
+        <Copy className="size-4" /> Touw dupliceren
+      </Button>
       <Button type="button" variant="outline" className="w-full text-destructive" data-testid="touw-verwijderen" onClick={deleteSelectedRope}>
         <Trash2 className="size-4" /> Touw verwijderen (Delete)
       </Button>
@@ -2025,6 +2054,18 @@ export function Floorplan3dEditor({
             ["top", "Boven"],
           ] as const).map(([id, label]) => (
             <Button key={id} type="button" size="sm" variant={(room.view ?? "auto") === id ? "default" : "outline"} aria-pressed={(room.view ?? "auto") === id} data-testid={`weergave-${id}`} onClick={() => setRoomView(id)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+        <p className="mt-3 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Kijkrichting</p>
+        <div role="group" aria-label="Kijkrichting bij de activiteit" className="grid grid-cols-3 gap-1.5">
+          {([
+            [null, "Automatisch"],
+            [-40, "Linksvoor"],
+            [40, "Rechtsvoor"],
+          ] as const).map(([value, label]) => (
+            <Button key={label} type="button" size="sm" variant={(room.view_azimuth_deg ?? null) === value ? "default" : "outline"} aria-pressed={(room.view_azimuth_deg ?? null) === value} data-testid={`kijkrichting-${value ?? "auto"}`} onClick={() => setRoomAzimuth(value)}>
               {label}
             </Button>
           ))}
@@ -2099,6 +2140,13 @@ export function Floorplan3dEditor({
       )}
 
       <div>
+        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Botsing</p>
+        <Button type="button" size="sm" className="min-h-11 w-full" variant={collisionOn ? "default" : "outline"} aria-pressed={collisionOn} data-testid="knop-botsing-instelling" onClick={() => setCollisionOn((value) => !value)}>
+          {collisionOn ? "Botsing: waarschuwen" : "Botsing: negeren"}
+        </Button>
+      </div>
+
+      <div>
         <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Raster</p>
         <div className="grid grid-cols-3 gap-1.5">
           {([0, 0.1, 0.5] as SnapGridSize[]).map((size) => (
@@ -2168,22 +2216,10 @@ export function Floorplan3dEditor({
     };
   })();
 
-  // Het touw dat je nu sleept: van het vaste punt naar de cursor.
-  const ropeFixedWorld = ropeDraft ? anchorWorld(ropeDraft.fixed, items, lookup) : null;
-  // Boven een ander item springt het uiteinde naar zijn bevestigingspunt (niet naar waar de cursor het model raakt): zo zie je vooraf
-  // waar het touw vast gaat zitten.
-  const ropeTargetItem = ropeDraft?.targetId ? items.find((candidate) => candidate.id === ropeDraft.targetId) ?? null : null;
-  const ropeSnap = ropeDraft && ropeTargetItem ? snapToAnchor(ropeTargetItem, ropeDraft.cursor, lookup) : null;
-  const ropePreview = ropeDraft && ropeFixedWorld ? { from: ropeFixedWorld, to: ropeSnap ? ropeSnap.world : ropeDraft.cursor } : null;
-  const anchorViews: Record<string, AnchorView> = {};
-  if (ropeMode) {
-    if (ropeDraft) {
-      anchorViews[ropeDraft.fixed.item] = { highlightId: ropeDraft.fixed.anchor ?? null, labels: false };
-      if (ropeTargetItem && ropeSnap) anchorViews[ropeTargetItem.id] = { highlightId: ropeSnap.anchorId || null, labels: false };
-    } else if (ropeHoverId) {
-      anchorViews[ropeHoverId] = { highlightId: null, labels: false };
-    }
-  }
+  // Het touw dat je nu sleept: de preview (met lengte), de anchors in de buurt en het object waaraan het zou vastzitten.
+  const dragView = ropeDrag.view;
+  const anchorViews: Record<string, AnchorView> = { ...(dragView?.anchorViews ?? {}) };
+  if (ropeMode && !ropeDrag.active && ropeHoverId) anchorViews[ropeHoverId] = { highlightId: null, labels: false };
 
   const scene = (
     <Scene3D
@@ -2192,22 +2228,28 @@ export function Floorplan3dEditor({
       modelBySlug={modelBySlug}
       selectedId={selectedId}
       groupIds={isMultiSelection ? groupIdSet : undefined}
-      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDraft !== null}
+      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDrag.active}
       gizmo={gizmoProps}
       cameraMode={cameraMode}
-      onItemPointerDown={(id, event) => (ropeMode ? beginRope(id, [event.point.x, event.point.y, event.point.z]) : handleItemPointerDown(id))}
+      onItemPointerDown={(id, event) => (ropeMode ? ropeDrag.beginNew(id, [event.point.x, event.point.y, event.point.z], event) : handleItemPointerDown(id))}
       ropes={ropes}
-      hiddenRopeId={ropeDraft?.ropeId ?? null}
-      ropeDraft={ropePreview}
+      hiddenRopeId={dragView?.hiddenRopeId ?? null}
+      ropeDraft={dragView?.preview ?? null}
       ropeTool={ropeMode}
-      ropeTargetId={ropeDraft?.targetId ?? null}
+      ropeTargetId={dragView?.targetId ?? null}
       anchorViews={anchorViews}
       showAllAnchors={debugCollision && showAnchors}
       onItemPointerLeave={(id) => setRopeHoverId((current) => (current === id ? null : current))}
-      onRopePointerDown={(id) => handleRopeSelect(id)}
-      onRopeHandlePointerDown={(id, end) => handleRopeHandleDown(id, end)}
+      ropeHandles={isDesktop ? "all" : ropeEditMode}
+      warnIds={warnIds}
+      onRopePointerDown={(id, event) => {
+        handleRopeSelect(id);
+        // Desktop: het touw zelf verslepen verplaatst het hele touw; mobiel alleen in de stand "Hele touw verplaatsen" (anders blijft het een tik om te selecteren).
+        if (isDesktop || ropeEditMode === "whole") ropeDrag.beginWhole(id, event);
+      }}
+      onRopeHandlePointerDown={(id, end, event) => (end === "mid" ? ropeDrag.beginWhole(id, event) : ropeDrag.beginEnd(id, end, event))}
       onItemPointerMove={handleItemPointerMove}
-      onItemPointerUp={handleItemPointerUp}
+      onItemPointerUp={ropeDrag.upOnItem}
       fields={coneFields}
       draftField={draftField}
       drawMode={drawMode}
@@ -2255,7 +2297,7 @@ export function Floorplan3dEditor({
     <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
       <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl bg-slate-900/90 px-3 py-1.5 text-xs text-white shadow" data-testid="touw-hint">
         <Cable className="size-3.5 shrink-0" aria-hidden="true" />
-        <span>{ropeDraft ? "Laat los op een ander object" : "Sleep van het ene object naar het andere"}</span>
+        <span>{ropeDrag.active ? "Laat los op een bevestigingspunt of op de vloer" : "Sleep van het ene object naar het andere"}</span>
         <button type="button" onClick={stopRopeMode} className="min-h-8 rounded-full bg-white/15 px-3 py-0.5 font-medium hover:bg-white/25">
           Stoppen{isDesktop ? " (Esc)" : ""}
         </button>
@@ -2271,14 +2313,43 @@ export function Floorplan3dEditor({
   ) : null;
   const ropeHud =
     !isDesktop && !ropeMode && selectedRope ? (
-      <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2">
-        <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-2xl bg-slate-900/90 py-1 pr-1 pl-3 text-xs text-white shadow">
-          <Cable className="size-3.5 shrink-0" aria-hidden="true" />
-          <strong className="truncate">Touw</strong>
-          <button type="button" onClick={deleteSelectedRope} className="min-h-9 rounded-xl bg-white/15 px-3 font-medium">
+      <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2" data-testid="touw-hud">
+        <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl bg-slate-900/90 p-1.5 text-xs text-white shadow">
+          <span className="flex items-center gap-1.5 px-2">
+            <Cable className="size-3.5 shrink-0" aria-hidden="true" />
+            <strong>{selectedRopeEnds ? formatLength(ropeLength(selectedRopeEnds.a, selectedRopeEnds.b)) : "Touw"}</strong>
+          </span>
+          <button
+            type="button"
+            data-testid="touw-modus-eind"
+            aria-pressed={ropeEditMode === "end"}
+            onClick={() => setRopeEditMode("end")}
+            className={`min-h-11 rounded-xl px-3 font-medium ${ropeEditMode === "end" ? "bg-primary text-primary-foreground" : "bg-white/15"}`}
+          >
+            Eindpunt verplaatsen
+          </button>
+          <button
+            type="button"
+            data-testid="touw-modus-geheel"
+            aria-pressed={ropeEditMode === "whole"}
+            onClick={() => setRopeEditMode("whole")}
+            className={`min-h-11 rounded-xl px-3 font-medium ${ropeEditMode === "whole" ? "bg-primary text-primary-foreground" : "bg-white/15"}`}
+          >
+            Hele touw verplaatsen
+          </button>
+          <button type="button" data-testid="touw-hoogte-omlaag" onClick={() => changeRopeHeight(-0.05)} className="min-h-11 min-w-11 rounded-xl bg-white/15 px-3 font-medium" aria-label="Hoogte 5 cm lager">
+            Hoogte −
+          </button>
+          <button type="button" data-testid="touw-hoogte-omhoog" onClick={() => changeRopeHeight(0.05)} className="min-h-11 min-w-11 rounded-xl bg-white/15 px-3 font-medium" aria-label="Hoogte 5 cm hoger">
+            Hoogte +
+          </button>
+          <button type="button" data-testid="touw-dupliceren" onClick={duplicateSelectedRope} className="min-h-11 rounded-xl bg-white/15 px-3 font-medium">
+            Dupliceren
+          </button>
+          <button type="button" onClick={deleteSelectedRope} className="min-h-11 rounded-xl bg-white/15 px-3 font-medium">
             Verwijderen
           </button>
-          <button type="button" onClick={() => setSelectedId(null)} className="min-h-9 rounded-xl bg-primary px-4 font-semibold text-primary-foreground">
+          <button type="button" onClick={() => setSelectedId(null)} className="min-h-11 rounded-xl bg-primary px-4 font-semibold text-primary-foreground">
             Klaar
           </button>
         </div>
@@ -2564,6 +2635,17 @@ export function Floorplan3dEditor({
             onClick={() => (ropeMode ? stopRopeMode() : startRopeMode())}
           >
             <Cable className="size-4" /> Touw spannen
+          </Button>
+          <Button
+            type="button"
+            variant={collisionOn ? "default" : "outline"}
+            className="mb-3 w-full"
+            aria-pressed={collisionOn}
+            data-testid="knop-botsing"
+            title="Waarschuwen als objecten overlappen. Houd Alt ingedrukt tijdens het slepen om botsing en snappen tijdelijk uit te zetten."
+            onClick={() => setCollisionOn((value) => !value)}
+          >
+            <ShieldAlert className="size-4" /> Botsing: {collisionOn ? "waarschuwen" : "negeren"}
           </Button>
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>

@@ -39,9 +39,6 @@ export const MIN_SPAN_Z_M = 4;
 const MAX_FRAMED_HEIGHT_M = 4;
 /** De zoom houdt rekening met een beetje slepen (graden), zodat de inhoud niet meteen uit beeld draait. */
 const DRAG_SPREAD_3D_DEG = 12;
-const AZIMUTH_CANDIDATES_DEG = [AZIMUTH_3D_DEG, 20, 0];
-/** Een andere kijkrichting dan de standaard (45°) moet minstens zoveel kleiner kader geven om gekozen te worden. */
-const AZIMUTH_GAIN = 0.92;
 
 export type ContentBounds = { minX: number; maxX: number; minZ: number; maxZ: number; maxY: number };
 type Vec3 = [number, number, number];
@@ -49,7 +46,7 @@ type Vec3 = [number, number, number];
 export type FramingInput = {
   items: readonly Floorplan3dItem[];
   fields?: readonly ConeField[];
-  room: { width_m: number; length_m: number };
+  room: { width_m: number; length_m: number; view_azimuth_deg?: number };
   /** Breedte / hoogte van het zichtbare kader. */
   aspect: number;
   mode?: ViewMode;
@@ -110,6 +107,34 @@ export function suggestViewMode(_items: readonly Floorplan3dItem[], _fields: rea
   return "3d";
 }
 
+/**
+ * Kant van de diagonale blik: +40° (camera rechtsvoor) of −40° (linksvoor). Kies de kant waar de meeste inhoud staat: die groep staat
+ * dan voorin en verdwijnt niet achter andere items. Symmetrisch, leeg of twijfel → rechts (positief). Een eigen kijkrichting van de
+ * plattegrond (`room.view_azimuth_deg`) gaat altijd voor.
+ */
+export function chooseDefaultAzimuth(
+  items: readonly Floorplan3dItem[],
+  room: { width_m: number; length_m: number; view_azimuth_deg?: number },
+  fields: readonly ConeField[] = [],
+): number {
+  if (typeof room.view_azimuth_deg === "number") return room.view_azimuth_deg;
+  const xs = [...items.map((item) => item.x), ...fields.map((field) => field.x)];
+  if (xs.length === 0) return AZIMUTH_3D_DEG;
+  const mid = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const centroid = xs.reduce((sum, x) => sum + x, 0) / xs.length;
+  const span = Math.max(Math.max(...xs) - Math.min(...xs), 1);
+  // Meer dan 5% van de breedte naar links: linkerkant. Anders (ook bij gelijkspel) rechts.
+  return centroid - mid < -0.05 * span ? -AZIMUTH_3D_DEG : AZIMUTH_3D_DEG;
+}
+
+/** Kanteling: vlakke indelingen (veld afzetten, circuit, matten) wat steiler, hoge opstellingen (toestellen, netten) wat lager. */
+export function chooseDefaultPolar(content: ContentBounds | null): number {
+  if (!content) return POLAR_3D_DEG;
+  if (content.maxY <= 0.6) return 38;
+  if (content.maxY >= 2) return 57;
+  return POLAR_3D_DEG;
+}
+
 export function resolveViewMode(mode: ViewMode | undefined, items: readonly Floorplan3dItem[], fields: readonly ConeField[] = [], lookup?: DimsLookup): ViewPreset {
   return mode === "3d" || mode === "top" ? mode : suggestViewMode(items, fields, lookup);
 }
@@ -156,21 +181,12 @@ export function computeFraming(input: FramingInput): Framing {
   // Lege zaal: val terug op de hele zaal.
   const bounds = padBounds(content ?? { minX: -room.width_m / 2, maxX: room.width_m / 2, minZ: -room.length_m / 2, maxZ: room.length_m / 2, maxY: 0.5 });
   const preset = resolveViewMode(mode, items, fields, lookup);
-  const polarDeg = input.polarDeg ?? (preset === "top" ? POLAR_TOP_DEG : POLAR_3D_DEG);
+  const polarDeg = input.polarDeg ?? (preset === "top" ? POLAR_TOP_DEG : chooseDefaultPolar(content));
   const spread = preset === "3d" ? DRAG_SPREAD_3D_DEG : 0;
 
-  let azimuthDeg = input.azimuthDeg ?? (preset === "top" ? 0 : AZIMUTH_3D_DEG);
-  let visibleWidthM = visibleWidthFor(bounds, azimuthDeg, polarDeg, aspect, margin, spread);
-  if (input.azimuthDeg === undefined && preset === "3d") {
-    // Een langgerekte opstelling vult het kader beter onder een rechtere kijkhoek; de standaard (45°) blijft tenzij het merkbaar wint.
-    for (const candidate of AZIMUTH_CANDIDATES_DEG.slice(1)) {
-      const width = visibleWidthFor(bounds, candidate, polarDeg, aspect, margin, spread);
-      if (width < visibleWidthM * AZIMUTH_GAIN) {
-        azimuthDeg = candidate;
-        visibleWidthM = width;
-      }
-    }
-  }
+  // Eén diagonale standaardrichting voor alles (ook het bovenaanzicht), met de kant gekozen op basis van de inhoud.
+  const azimuthDeg = input.azimuthDeg ?? chooseDefaultAzimuth(items, room, fields);
+  const visibleWidthM = visibleWidthFor(bounds, azimuthDeg, polarDeg, aspect, margin, spread);
 
   const target: Vec3 = [(bounds.minX + bounds.maxX) / 2, preset === "top" ? 0 : bounds.maxY / 2, (bounds.minZ + bounds.maxZ) / 2];
   clampToRoom(target, azimuthDeg, visibleWidthM, visibleWidthM / aspect, room);
@@ -211,7 +227,9 @@ export function framingFill(framing: Pick<Framing, "bounds" | "azimuthDeg" | "po
 /** De begin-ViewState van een plattegrond: gekozen weergave en kijkrichting; "Reset" keert hiernaar terug. */
 export function initialViewFor(input: Omit<FramingInput, "azimuthDeg">): ViewState {
   const framing = computeFraming(input);
-  return framing.mode === "3d" ? { ...DEFAULT_VIEW, preset: "3d", azimuthBase: framing.azimuthDeg } : { ...DEFAULT_VIEW, preset: "top" };
+  // Dezelfde basis (richting en kanteling) voor 3D en bovenaanzicht: de knoppen "3D", "Reset" en dubbelklik komen overal op dezelfde stand uit.
+  const polarBase = framing.mode === "3d" ? framing.polarDeg : chooseDefaultPolar(contentBounds(input.items, input.fields ?? [], input.lookup));
+  return { ...DEFAULT_VIEW, preset: framing.mode, azimuthBase: framing.azimuthDeg, polarBase };
 }
 
 /** Voor `poseFor`: de stand bij een vaste richting (de viewer bepaalt azimut/polar via de ViewState). */
