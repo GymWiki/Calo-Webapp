@@ -388,3 +388,42 @@ test("bovenbalk: Opslaan is de primaire knop; undo/redo zijn 44 px; Veld afzette
   const secondary = await page.getByRole("button", { name: /Mijn plattegronden/ }).evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(primary).not.toBe(secondary);
 });
+
+test("vloermarkeringen: alleen wat in de deelzaal past is te kiezen (3 volleybalvelden niet), met reden; een oude plattegrond met een ongeldige combinatie toont een waarschuwing en Herstel", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  const errors: string[] = [];
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  // Oude plattegrond: gymzaal 24 × 14 m waarin de lijnen "Volleybal (3 dwarsvelden)" aanstaan (bestaat niet in de werkelijkheid).
+  await page.addInitScript(() => {
+    if (window.sessionStorage.getItem("seeded")) return;
+    window.sessionStorage.setItem("seeded", "1");
+    window.localStorage.setItem(
+      "gymwiki.floorplan3d.draft.nieuw",
+      JSON.stringify({
+        savedAt: Date.now(),
+        naam: "Oude plattegrond",
+        room: { width_m: 24, length_m: 14, environment: { type: "gymzaal", layout: "standaard", hidden: ["Muur_Voor", "Muur_Rechts"] } },
+        items: [{ id: "x1", slug: "turnbank_test", x: 0, y: 0, z: 0, rot_y_deg: 0 }],
+        coneFields: [],
+      }),
+    );
+  });
+  await openEditor(page);
+  await page.getByRole("button", { name: "Herstellen", exact: true }).click();
+  await page.getByRole("tab", { name: "Omgeving" }).click();
+  await page.getByTestId("sectie-kop-vloermarkeringen").click();
+  await expect(page.getByTestId("zaal-hint")).toContainText("Deze zaal past:");
+  // De ongeldige combinatie blijft zoals hij is, met waarschuwing; Herstel zet hem uit (één undo-stap).
+  await expect(page.getByTestId("markering-waarschuwing")).toContainText("Volleybal (3 dwarsvelden)");
+  await expect(page.getByTestId("markering-volleybal-dwars")).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("markering-herstel").click();
+  await expect(page.getByTestId("markering-waarschuwing")).toHaveCount(0);
+  // Nu uit én niet meer aan te zetten: gedimd met reden.
+  const dwars = page.getByTestId("markering-volleybal-dwars");
+  await expect(dwars).toBeDisabled();
+  await expect(page.getByTestId("markering-redenen")).toContainText("Past niet in 24 × 14 m");
+  // Wat wel past blijft te kiezen.
+  await expect(page.getByTestId("markering-volleybal")).toBeEnabled();
+  await expect(page.getByTestId("markering-badminton-dwars")).toBeEnabled();
+  expect(errors.filter((e) => !/favicon|WebGL|swiftshader|GPU stall|Failed to load resource/i.test(e))).toEqual([]);
+});
