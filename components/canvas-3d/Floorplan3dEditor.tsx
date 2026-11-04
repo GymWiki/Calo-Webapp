@@ -1125,7 +1125,7 @@ export function Floorplan3dEditor({
       if (moved < 5) {
         setSelectedId(null);
         // Dubbelklik of dubbeltik op de lege vloer: camera terug naar de beginstand.
-        const tap = { time: performance.now(), x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+        const tap = { time: event.nativeEvent.timeStamp, x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
         if (isDoubleTap(lastBackgroundTapRef.current, tap)) {
           lastBackgroundTapRef.current = null;
           resetCamera();
