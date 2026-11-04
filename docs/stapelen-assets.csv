@@ -1,0 +1,212 @@
+slug;naam;categorie;laag;is_ondergrond;mag_erop_stapelen;db_stackable
+ab_roller_en_pushup_steunen;Ab roller en pushup steunen;fitness_losse_materialen;toestel;ja;ja;true
+aerobic_step;;fitness_losse_materialen;toestel;ja;ja;
+airblock_200x140_20cm;Airblock 200x140 20cm;airtrack;toestel;ja;ja;false
+airtrack_p2_12m;Airtrack p2 12m;airtrack;toestel;ja;ja;false
+airtrack_p2_6m;Airtrack p2 6m;airtrack;toestel;ja;ja;false
+american_football;American football;ballen;klein;nee;ja;false
+badminton_veldopstelling_bodemnet_grond_76cm;Badmintonveld 76 cm (bodemnet);doelen_netten;overspannend;nee;nee;false
+badminton_veldopstelling_compleet_mobiel;Badmintonveld 155 cm (mobiele palen);doelen_netten;overspannend;nee;nee;false
+badminton_veldopstelling_compleet_vloerbus;Badminton veldopstelling compleet vloerbus;badminton;overspannend;nee;nee;false
+badminton_veldopstelling_hoog_180cm;Badmintonveld 180 cm;doelen_netten;overspannend;nee;nee;false
+badmintonnet_bodemnet_grond_76cm_los;Badmintonnet 76 cm (bodemnet);doelen_netten;overspannend;nee;nee;false
+badmintonnet_hoog_180cm_los;Badmintonnet 180 cm;doelen_netten;overspannend;nee;nee;false
+badmintonnet_los_610;Badmintonnet 155 cm;doelen_netten;overspannend;nee;nee;false
+badmintonpalen_mobiel_set;Badmintonpalen mobiel (set);doelen_netten;staand;nee;ja;false
+badmintonpalen_vloerbus_set;Badmintonpalen voor vloerbus (set);doelen_netten;staand;nee;ja;false
+badmintonracket_senior;Badmintonracket senior;sticks_rackets;klein;nee;ja;false
+ballenkar_metaal_open_gevuld;Ballenkar metaal open gevuld;organisatiemateriaal;toestel;ja;ja;true
+ballenpomp_en_drukmeter_set;Ballenpomp en drukmeter set;organisatiemateriaal;toestel;ja;ja;true
+ballenrek_breed_3laags;Ballenrek breed 3laags;organisatiemateriaal;toestel;ja;ja;true
+barbell_compleet_geladen;Barbell compleet geladen;fitness_losse_materialen;klein;nee;ja;true
+barbell_ez_curl_geladen;Barbell ez curl geladen;fitness_losse_materialen;klein;nee;ja;true
+basketbal_maat_5;Basketbal maat 5;ballen;klein;nee;ja;false
+basketbal_maat_7;Basketbal maat 7;ballen;klein;nee;ja;false
+basketbal_muur_vast;Basketbalbord muur (vast);basketbal;decor;nee;nee;false
+basketbal_muur_wegdraaibaar;Basketbalbord muur (wegdraaibaar);basketbal;decor;nee;nee;false
+basketbaltoren_mobiel_jeugd;Basketbaltoren mobiel (jeugd);basketbal;staand;nee;ja;false
+basketbaltoren_mobiel_senior;Basketbaltoren mobiel (senior);basketbal;staand;nee;ja;false
+batting_tee_slagbalstatief;Batting tee slagbalstatief;accessoires_doelobjecten;toestel;ja;ja;false
+battle_rope_met_anker;Battle rope met anker;fitness_losse_materialen;toestel;ja;ja;true
+boccia_bal;;ballen;klein;nee;ja;
+bodypump_halterset;Bodypump halterset;fitness_losse_materialen;toestel;ja;ja;true
+bosu_balanstrainer_en_foamroller;Bosu balanstrainer en foamroller;fitness_losse_materialen;toestel;ja;ja;true
+brug_gelijke_leggers_school_laag;Brug gelijke leggers school laag;brug;toestel;ja;ja;false
+bumper_plates_set_opbergrek;Bumper plates set opbergrek;fitness_losse_materialen;toestel;ja;ja;true
+cricketbat;;sticks_rackets;klein;nee;ja;
+dikke_mat_300x200x30;Dikke mat 300x200x30;matten;vloer;ja;nee;true
+dodgeball_vinyl_blauw;Dodgeball vinyl blauw;ballen;klein;nee;ja;false
+dodgeball_vinyl_rood;Dodgeball vinyl rood;ballen;klein;nee;ja;false
+dopje_blauw_los;Dopje blauw los;signaleringsmateriaal;klein;nee;ja;true
+dopjes_kleurenset_4stuks;Dopjes kleurenset 4stuks;signaleringsmateriaal;klein;nee;ja;true
+dopjes_op_houder_set;Dopjes op houder set;signaleringsmateriaal;klein;nee;ja;true
+dumbbell_hex_los;;fitness_losse_materialen;klein;nee;ja;
+dumbbell_neopreen_set;Dumbbell neopreen set;fitness_losse_materialen;klein;nee;ja;true
+dumbbellrek_compleet;Dumbbellrek compleet;fitness_losse_materialen;toestel;ja;ja;true
+ehbo_sportkoffer_en_bidonrek;Ehbo sportkoffer en bidonrek;organisatiemateriaal;toestel;ja;ja;true
+evenwichtsbalk_hoog_fig_125;Evenwichtsbalk hoog fig 125;evenwichtsbalk;toestel;ja;ja;false
+evenwichtsbalk_laag_vloermodel_30;;evenwichtsbalk;toestel;ja;ja;
+fitness_elastiek_set;;fitness_losse_materialen;overspannend;nee;nee;
+fitness_schijf_los_20kg;Fitness schijf los 20kg;fitness_losse_materialen;klein;nee;ja;true
+fitnessbank_verstelbaar_incline;;fitness_losse_materialen;toestel;ja;ja;
+fitnessmat_blauw_uitgerold;Fitnessmat blauw uitgerold;fitness_losse_materialen;vloer;ja;nee;true
+fitnessmat_rek_gevuld;Fitnessmat rek gevuld;fitness_losse_materialen;vloer;ja;nee;true
+floorball_puck;Floorball puck;accessoires_doelobjecten;klein;nee;ja;false
+floorball_ring_blauw;Floorball ring blauw;accessoires_doelobjecten;klein;nee;ja;false
+floorball_ring_geel;Floorball ring geel;accessoires_doelobjecten;klein;nee;ja;false
+floorballbal_geperforeerd;Floorballbal geperforeerd;ballen;klein;nee;ja;false
+floorballstick_unihockey;Floorballstick unihockey;sticks_rackets;klein;nee;ja;false
+fluitje_met_koord_en_kaarten;Fluitje met koord en kaarten;signaleringsmateriaal;overspannend;nee;nee;true
+foambal_groot_20cm;Foambal groot 20cm;ballen;klein;nee;ja;false
+foambal_klein_7cm;Foambal klein 7cm;ballen;klein;nee;ja;false
+foambal_middel_16cm;Foambal middel 16cm;ballen;klein;nee;ja;false
+foambal_olifantenhuid_geel;Foambal olifantenhuid geel;ballen;klein;nee;ja;false
+foambal_olifantenhuid_rood;Foambal olifantenhuid rood;ballen;klein;nee;ja;false
+foamturnkast_4delig;Foamturnkast 4delig;turnkast;toestel;ja;ja;true
+foamturnkast_topdeel_los;;turnkast;toestel;ja;ja;
+grensrechter_vlaggen_paar;Grensrechter vlaggen paar;signaleringsmateriaal;klein;nee;ja;true
+groot_klimnet_stalen_frame_4x3m;Groot klimnet stalen frame 4x3m;klimmen;overspannend;nee;nee;false
+grote_trampoline_ingeklapt_rolstandaard;Grote trampoline ingeklapt rolstandaard;trampoline;toestel;ja;ja;false
+grote_trampoline_verzonken_vloermodel;;trampoline;toestel;ja;ja;false
+grote_trampoline_vrijstaand_uitgeklapt;Grote trampoline vrijstaand uitgeklapt;trampoline;toestel;ja;ja;false
+handbal_maat_2;Handbal maat 2;ballen;klein;nee;ja;false
+handfluit_knijpfluit_hygienisch;Handfluit knijpfluit hygienisch;organisatiemateriaal;klein;nee;ja;true
+hoekvlag_cornervlag_met_voet;Hoekvlag cornervlag met voet;signaleringsmateriaal;klein;nee;ja;true
+hoepel_en_springtouw_opbergrek;Hoepel en springtouw opbergrek;organisatiemateriaal;klein;nee;ja;true
+honkbal_harde_kern;Honkbal harde kern;ballen;klein;nee;ja;false
+honkbal_softbal_honkenset_compleet;Honkenset compleet;klein_materiaal;klein;nee;ja;false
+honkbal_thuishonk_home_plate;Thuishonk (home plate);klein_materiaal;klein;nee;ja;false
+honkbal_veldhonk_kussen;Veldhonk (kussen);klein_materiaal;klein;nee;ja;false
+honkbal_werpersplaat_pitchers_plate;Werpersplaat (pitcher's plate);klein_materiaal;klein;nee;ja;false
+honkbal_zaalhonken_rubber_set;Zaalhonken rubber (set);klein_materiaal;klein;nee;ja;false
+honkbalknuppel_aluminium;Honkbalknuppel aluminium;sticks_rackets;klein;nee;ja;false
+honkbalknuppel_hout;Honkbalknuppel hout;sticks_rackets;klein;nee;ja;false
+honkbalknuppel_veiligheidsschuim;Honkbalknuppel veiligheidsschuim;sticks_rackets;klein;nee;ja;false
+judomat_los_200x100x4_groen;Judomat los 200 × 100 cm (groen);matten;vloer;ja;nee;true
+judomat_los_200x100x4_rood;Judomat los 200 × 100 cm (rood);matten;vloer;ja;nee;true
+judomatten_halve_gymzaal_10x10m;Judomatten 10 × 10 m (groen met rode rand);matten;vloer;ja;nee;true
+judomatten_halve_gymzaal_10x12m;Judomatten 10 × 12 m (groen met rode rand);matten;vloer;ja;nee;true
+judomatten_halve_gymzaal_10x12m_blauw_rood;Judomatten 10 × 12 m (blauw met rode rand);matten;vloer;ja;nee;true
+judomatten_halve_gymzaal_10x12m_groen;Judomatten 10 × 12 m (groen);matten;vloer;ja;nee;true
+kettlebell_rood_16kg;Kettlebell rood 16kg;fitness_losse_materialen;klein;nee;ja;true
+kin_ball_reuzenbal;Kin ball reuzenbal;ballen;klein;nee;ja;false
+klembord_en_kijkwijzer_kaarten_set;Klembord en kijkwijzer kaarten set;organisatiemateriaal;klein;nee;ja;true
+klimnet_schuin_gymzaalframe;Klimnet schuin gymzaalframe;klimmen;overspannend;nee;nee;false
+klimtouwen_set_2_hangend;Klimtouwen set 2 hangend;klimmen;overspannend;nee;nee;false
+klimtouwen_set_4_hangend;Klimtouwen set 4 hangend;klimmen;overspannend;nee;nee;false
+korfbal_maat_5;Korfbal maat 5;ballen;klein;nee;ja;false
+korfbalmand_kunststof_geel_los;Korfbalmand kunststof geel los;korfbal;klein;nee;ja;false
+korfbalpaal_compleet_250;Korfbalpaal compleet 250;korfbal;staand;nee;ja;false
+korfbalpaal_compleet_350;Korfbalpaal compleet 350;korfbal;staand;nee;ja;false
+lacrossestick_crosse;Lacrossestick crosse;sticks_rackets;klein;nee;ja;false
+lange_mat_oprolbaar_12m_uitgerold;;matten;vloer;ja;nee;
+lange_mat_oprolbaar_6m_uitgerold;;matten;vloer;ja;nee;
+leerling_blauw;Leerling blauw;leerlingen;persoon;nee;ja;false
+leerling_geel;Leerling geel;leerlingen;persoon;nee;ja;false
+leerling_groen;Leerling groen;leerlingen;persoon;nee;ja;false
+leerling_oranje;Leerling oranje;leerlingen;persoon;nee;ja;false
+leerling_paars;Leerling paars;leerlingen;persoon;nee;ja;false
+leerling_rennen;Leerling rennend;personen;persoon;nee;ja;false
+leerling_rood;Leerling rood;leerlingen;persoon;nee;ja;false
+leerling_staand_rust;Leerling staand (rust);personen;persoon;nee;ja;false
+leerling_wandelen;Leerling wandelend;personen;persoon;nee;ja;false
+leerling_zittend_turnbank;Leerling zittend op turnbank;personen;persoon;nee;ja;false
+materialenkar_gymzaal_multifunctioneel;Materialenkar gymzaal multifunctioneel;organisatiemateriaal;toestel;ja;ja;true
+mattenkar_compleet;Mattenkar met matten;opslag;toestel;ja;ja;false
+medicijnbal_slambal_wallball_set;Medicijnbal slambal wallball set;fitness_losse_materialen;klein;nee;ja;true
+megafoon_en_luchthoorn;Megafoon en luchthoorn;organisatiemateriaal;klein;nee;ja;true
+minitrampoline;Minitrampoline;springen;toestel;ja;ja;false
+opbergkratjes_en_ballennet_set;Opbergkratjes en ballennet set;organisatiemateriaal;overspannend;nee;nee;true
+padelracket_carbon;Padelracket carbon;sticks_rackets;klein;nee;ja;false
+partijhesjes_teamlintjes_set;Partijhesjes teamlintjes set;signaleringsmateriaal;klein;nee;ja;true
+petanque_boule_staal;Petanque boule staal;ballen;klein;nee;ja;false
+petanque_butje;Petanque butje;ballen;klein;nee;ja;false
+pickleball_paddle;Pickleball paddle;sticks_rackets;klein;nee;ja;false
+pion_effen_kleurenset;Pion effen kleurenset;signaleringsmateriaal;klein;nee;ja;true
+pion_gatenpion_set_met_stok;Pion gatenpion set met stok;signaleringsmateriaal;klein;nee;ja;true
+pion_opbergstapel;Pion opbergstapel;signaleringsmateriaal;klein;nee;ja;true
+pion_oranje_wit_gestreept;Pion oranje wit gestreept;signaleringsmateriaal;klein;nee;ja;true
+plankoline_modern_staalframe;Plankoline modern staalframe;plankoline;toestel;ja;ja;false
+plyobox_hout_3in1;;fitness_losse_materialen;toestel;ja;ja;
+plyobox_soft_foam_set;Plyobox soft foam set;fitness_losse_materialen;toestel;ja;ja;true
+powerbag_sandbag;Powerbag sandbag;fitness_losse_materialen;klein;nee;ja;true
+reactiebal_noppen;Reactiebal noppen;ballen;klein;nee;ja;false
+rekstok_laag_school;Rekstok laag school;rekstok;toestel;ja;ja;false
+rekstok_wand_uitklapbaar;Rekstok wand uitklapbaar;rekstok;decor;nee;nee;false
+rugbybal;Rugbybal;ballen;klein;nee;ja;false
+scorebord_op_verrijdbaar_statief;Scorebord op verrijdbaar statief;organisatiemateriaal;toestel;ja;ja;true
+scorebord_tafelmodel;Scorebord tafelmodel;signaleringsmateriaal;toestel;ja;ja;true
+shuttle_nylon;Shuttle nylon;accessoires_doelobjecten;klein;nee;ja;false
+skippybal;Skippybal;ballen;klein;nee;ja;false
+slagbal_massief_rubber;Slagbal massief rubber;ballen;klein;nee;ja;false
+slagballatje_slagplankje;Slagballatje slagplankje;sticks_rackets;toestel;ja;ja;false
+slalompalen_set_met_voet;Slalompalen set met voet;signaleringsmateriaal;klein;nee;ja;true
+slow_motion_bal;Slow motion bal;ballen;klein;nee;ja;false
+softbal_12_inch;Softbal 12 inch;ballen;klein;nee;ja;false
+softbal_veiligheidshonk_dubbelhonk;Veiligheidshonk (dubbelhonk);klein_materiaal;klein;nee;ja;false
+spanbrug_ongelijke_leggers_school_training;Spanbrug ongelijke leggers school training;brug;toestel;ja;ja;false
+speedbadminton_crossminton_racket;Speedbadminton crossminton racket;sticks_rackets;klein;nee;ja;false
+springbok_laag_jeugd_80cm;Springbok laag jeugd 80cm;springbok;toestel;ja;ja;false
+springbok_standaard_105cm;Springbok standaard 105cm;springbok;staand;nee;ja;false
+springpaard_klassiek_160;Springpaard klassiek 160;springpaard_voltigepaard;toestel;ja;ja;false
+springplank_senior_4veers;Springplank senior 4veers;trampoline;toestel;ja;ja;false
+springtouw_speedrope;Springtouw speedrope;fitness_losse_materialen;klein;nee;ja;true
+squashbal_dubbel_geel;Squashbal dubbel geel;ballen;klein;nee;ja;false
+squashracket_teardrop;Squashracket teardrop;sticks_rackets;klein;nee;ja;false
+squatrek_half_rack;Squatrek half rack;fitness_losse_materialen;toestel;ja;ja;true
+start_finish_vlag_en_klepper;Start finish vlag en klepper;signaleringsmateriaal;klein;nee;ja;true
+stopwatch_digitaal;Stopwatch digitaal;signaleringsmateriaal;klein;nee;ja;true
+strandbal_opblaasbaar;Strandbal opblaasbaar;ballen;klein;nee;ja;false
+tactiekbord_coachbord_veld;Tactiekbord coachbord veld;organisatiemateriaal;toestel;ja;ja;true
+tafeltennisbal_wit;Tafeltennisbal wit;accessoires_doelobjecten;klein;nee;ja;false
+tafeltennisbatje;Tafeltennisbatje;sticks_rackets;klein;nee;ja;false
+tennisbal_standaard;Tennisbal standaard;ballen;klein;nee;ja;false
+tennisracket_standaard;Tennisracket standaard;sticks_rackets;klein;nee;ja;false
+touwladder_hangend_5m;Touwladder hangend 5m;klimmen;overspannend;nee;nee;false
+trefbal_zacht_rubber;Trefbal zacht rubber;ballen;klein;nee;ja;false
+turnbank_1_los;Turnbank (1 los);banken;toestel;ja;ja;true
+turnbank_4_stapel;Turnbanken (4 gestapeld);banken;toestel;ja;ja;true
+turnkast_140x83x114;Turnkast 140x83x114;turnkast;toestel;ja;ja;true
+turnkast_1_delig_kastkop;Turnkast 1 delig kastkop;turnkast;toestel;ja;ja;true
+turnkast_2_delig;Turnkast 2 delig;turnkast;toestel;ja;ja;true
+turnkast_3_delig;Turnkast 3 delig;turnkast;toestel;ja;ja;true
+turnkast_4_delig;Turnkast 4 delig;turnkast;toestel;ja;ja;true
+turnkast_5_delig;Turnkast 5 delig;turnkast;toestel;ja;ja;true
+turnkast_6_delig_1_recht;Turnkast 6 delig 1 recht;turnkast;toestel;ja;ja;true
+turnkast_7_delig_2_recht;Turnkast 7 delig 2 recht;turnkast;toestel;ja;ja;true
+turnmat_200x100x6;Turnmat 200x100x6;matten;vloer;ja;nee;true
+veldhockeybal_glad;Veldhockeybal glad;ballen;klein;nee;ja;false
+veldhockeydoel_180x120_jeugd;Veldhockeydoel 180x120 jeugd;doelen;staand;nee;ja;false
+veldhockeydoel_366x214_verplaatsbaar;Veldhockeydoel 366x214 verplaatsbaar;doelen;staand;nee;ja;false
+veldhockeystick;Veldhockeystick;sticks_rackets;klein;nee;ja;false
+veldvoetbaldoel_500x200_verplaatsbaar;Veldvoetbaldoel 500x200 verplaatsbaar;doelen;staand;nee;ja;false
+veldvoetbaldoel_732x244_verplaatsbaar;Veldvoetbaldoel 732x244 verplaatsbaar;doelen;staand;nee;ja;false
+vloermarkering_rubber_set;Vloermarkering rubber set;signaleringsmateriaal;vloer;ja;nee;true
+voetbal_veld_maat_5;Voetbal veld maat 5;ballen;klein;nee;ja;false
+volleybal_beach_softtouch;Volleybal beach softtouch;ballen;klein;nee;ja;false
+volleybal_veldopstelling_bodemnet_grond_100cm;Volleybalveld 100 cm (bodemnet);doelen_netten;overspannend;nee;nee;false
+volleybal_veldopstelling_compleet_dames;Volleybal veldopstelling compleet dames;volleybal;overspannend;nee;nee;false
+volleybal_veldopstelling_compleet_heren;Volleybalveld 243 cm (heren);doelen_netten;overspannend;nee;nee;false
+volleybal_veldopstelling_middelhoog_180cm;Volleybalveld 180 cm;doelen_netten;overspannend;nee;nee;false
+volleybal_zaal;Volleybal zaal;ballen;klein;nee;ja;false
+volleybalnet_bodemnet_grond_100cm_los;Volleybalnet 100 cm (bodemnet);doelen_netten;overspannend;nee;nee;false
+volleybalnet_compleet_antennes_los;Volleybalnet 243 cm met antennes;doelen_netten;overspannend;nee;nee;false
+volleybalnet_middelhoog_180cm_los;Volleybalnet 180 cm;doelen_netten;overspannend;nee;nee;false
+volleybalpalen_mobiel_set;Volleybalpalen mobiel (set);doelen_netten;staand;nee;ja;false
+volleybalpalen_vloerbus_set;Volleybalpalen voor vloerbus (set);doelen_netten;staand;nee;ja;false
+wandrek_dubbel_veld;Wandrek dubbel veld;klimmen;decor;nee;nee;false
+wandrek_enkel_veld;Wandrek enkel veld;klimmen;decor;nee;nee;false
+wandrek_uitklapbaar_zwenk;Wandrek uitklapbaar zwenk;klimmen;decor;nee;nee;false
+waterpolobal;Waterpolobal;ballen;klein;nee;ja;false
+whiteboard_verrijdbaar_dubbelzijdig;Whiteboard verrijdbaar dubbelzijdig;organisatiemateriaal;toestel;ja;ja;true
+yogamat_opgerold_set;Yogamat opgerold set;fitness_losse_materialen;vloer;ja;nee;true
+zaalhockeybalk_los_2m;;doelen;toestel;ja;ja;false
+zaalhockeybalk_los_4m;;doelen;toestel;ja;ja;false
+zaalhockeybalken_gekoppeld_rij;Zaalhockeybalken gekoppeld rij;doelen;toestel;ja;ja;false
+zaalhockeybalken_transportwagen;Zaalhockeybalken transportwagen;doelen;toestel;ja;ja;false
+zaalhockeydoel_300x200_wit;Zaalhockeydoel 300x200 wit;doelen;staand;nee;ja;false
+zaaltimer_intervalklok_digitaal;Zaaltimer intervalklok digitaal;organisatiemateriaal;toestel;ja;ja;true
+zaalvoetbal_futsalbal_plofbal;Zaalvoetbal futsalbal plofbal;ballen;klein;nee;ja;false
+zaalvoetbal_handbaldoel_3x2;Zaalvoetbal handbaldoel 3x2;doelen;klein;nee;ja;false
+zandlopers_tijdset;Zandlopers tijdset;organisatiemateriaal;klein;nee;ja;true
+zwaairingen_gymzaal_laag;Zwaairingen gymzaal laag;ringenstel;overspannend;nee;nee;false

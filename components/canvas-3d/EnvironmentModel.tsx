@@ -6,6 +6,7 @@ import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { ALWAYS_HIDDEN_NODES, environmentModelUrl } from "@/components/canvas-3d/environments";
 import { resolveEnvironment } from "@/components/canvas-3d/environment-kinds";
+import { WALL_MOUNT_NODE, WALL_RACK_FRONT_SHIFT_M } from "@/components/canvas-3d/wall-mount";
 import type { Floorplan3dEnvironment } from "@/types/floorplan3d";
 
 /**
@@ -23,6 +24,11 @@ export function EnvironmentModel({ environment, extraHidden = [] }: { environmen
     const cloned = gltf.scene.clone(true);
     cloned.traverse((object) => {
       if ((object as THREE.Mesh).isMesh) object.raycast = () => {};
+      // Wandrekken staan in de GLB's 180° verkeerd om (console de zaal in, ribben tegen de muur): omdraaien en tegen de wand zetten (zie wall-mount.ts).
+      if (object.name && WALL_MOUNT_NODE.test(object.name)) {
+        object.rotateY(Math.PI);
+        object.translateZ(WALL_RACK_FRONT_SHIFT_M);
+      }
     });
     return cloned;
   }, [gltf.scene]);

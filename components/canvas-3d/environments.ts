@@ -144,7 +144,7 @@ export const GYM_LAYOUTS: Record<GymLayoutId, GymLayout> = {
   },
   "4x1": {
     id: "4x1",
-    label: "4 zalen naast elkaar",
+    label: "4 zalen achter elkaar",
     description: "Vier zalen achter elkaar, 24 × 56 m",
     width_m: HALL_L,
     length_m: HALL_W * 4,

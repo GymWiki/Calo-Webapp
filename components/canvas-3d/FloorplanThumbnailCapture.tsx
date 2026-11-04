@@ -85,7 +85,7 @@ export function FloorplanThumbnailCapture({
   // Dezelfde kadrering als de viewer (zie viewer-framing.ts): de kaartjes zijn zo meteen helder.
   const lookup = dimsLookupFromModels(models);
   const content = framingContent({ items, fields, room, lookup });
-  const view = viewProp ?? initialViewFor({ items, fields, room, lookup, aspect: width / height, mode: room.view });
+  const view = viewProp ?? initialViewFor({ items, fields, room, lookup, aspect: width / height });
   const hiddenWalls = wallNodes(room.environment, wallsToHide(azimuthDegOf({ ...view, offsetDeg: 0 }), view.preset));
 
   return (

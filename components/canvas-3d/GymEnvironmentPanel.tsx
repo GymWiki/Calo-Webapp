@@ -5,6 +5,9 @@ import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { ALWAYS_OPEN, PanelSection, type PanelSections } from "@/components/canvas-3d/PanelSection";
+import { COURT_MARKINGS_BY_ID } from "@/lib/constants/courtMarkings";
+import { hallHint, misfitReason } from "@/lib/plattegrond/courtFit";
 import { cn } from "@/lib/utils";
 import {
   GYM_LAYOUT_ORDER,
@@ -106,7 +109,7 @@ function PlanToggles({
   return (
     <svg
       viewBox={`${-w / 2 - pad} ${-l / 2 - pad} ${w + pad * 2} ${l + pad * 2}`}
-      className="mx-auto max-h-72 w-full touch-manipulation select-none"
+      className="mx-auto max-h-44 w-full touch-manipulation select-none"
       role="group"
       aria-label="Plattegrond van de zaal: kies welke muren en gordijnen er staan"
     >
@@ -219,10 +222,6 @@ function PlanToggles({
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{children}</p>;
-}
-
 function ToggleRow({
   label,
   checked,
@@ -243,6 +242,9 @@ function ToggleRow({
   );
 }
 
+/** Eén deelzaal (alle indelingen bestaan uit zalen van 24 × 14 m). */
+const DEELZAAL = { width_m: 24, length_m: 14 };
+
 /**
  * Keuzepaneel voor de gymzaal-omgeving: indeling (1 of meer zalen), muren en
  * scheidingsgordijnen aan/uit op een klikbare plattegrond, en extra's
@@ -252,21 +254,27 @@ export function GymEnvironmentPanel({
   environment,
   onLayoutChange,
   onHiddenChange,
+  sections = ALWAYS_OPEN,
 }: {
   environment: Floorplan3dEnvironment;
   onLayoutChange: (layout: GymLayoutId) => void;
   onHiddenChange: (hidden: string[]) => void;
+  /** Open/dicht-staat van Indeling, Muren en Vaste onderdelen (weggelaten = alles open). */
+  sections?: PanelSections;
 }) {
   const layout = GYM_LAYOUTS[environment.layout as GymLayoutId] ?? GYM_LAYOUTS.standaard;
   const { hidden } = environment;
+  // Markeringen horen bij één deelzaal: de maat van een deelzaal (24 × 14 m) bepaalt wat past.
+  const invalidOn = layout.lijnen
+    .map((part) => ({ part, marking: COURT_MARKINGS_BY_ID.get(part.id.replace(/^lijnen-/, "")) }))
+    .filter((entry) => entry.marking && isPartOn(entry.part, hidden) && misfitReason(entry.marking, DEELZAAL, entry.marking.glb_copies ?? 1) !== null);
 
   const wallsOn = layout.walls.filter((wall) => isPartOn(wall, hidden)).length;
   const curtainsOn = layout.curtains.filter((curtain) => isPartOn(curtain, hidden)).length;
 
   return (
     <div className="space-y-5">
-      <div>
-        <SectionTitle>Indeling</SectionTitle>
+      <PanelSection id="indeling" title="Indeling" defaultOpen sections={sections}>
         <div className="grid grid-cols-3 gap-2">
           {GYM_LAYOUT_ORDER.map((id) => {
             const option = GYM_LAYOUTS[id];
@@ -296,10 +304,9 @@ export function GymEnvironmentPanel({
             );
           })}
         </div>
-      </div>
+      </PanelSection>
 
-      <div>
-        <SectionTitle>Muren{layout.curtains.length > 0 ? " en gordijnen" : ""}</SectionTitle>
+      <PanelSection id="muren" title={`Muren${layout.curtains.length > 0 ? " en gordijnen" : ""}`} sections={sections}>
         <p className="mb-2 text-xs text-muted-foreground">
           Tik op een muur
           {layout.curtains.length > 0 ? " of gordijn" : ""} in de plattegrond om hem weg te halen of terug te zetten.
@@ -340,10 +347,10 @@ export function GymEnvironmentPanel({
             </Button>
           )}
         </div>
-      </div>
+      </PanelSection>
 
-      <div className="space-y-3">
-        <SectionTitle>Vaste onderdelen</SectionTitle>
+      <PanelSection id="vaste-onderdelen" title="Vaste onderdelen" sections={sections}>
+       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">Wandrekken, baskets en vaste bankjes. Items die erop of ertegenaan staan blijven gewoon staan.</p>
         <ToggleRow
           label="Wandrekken"
@@ -379,11 +386,26 @@ export function GymEnvironmentPanel({
             </div>
           </div>
         )}
-        <div>
-          <p className="mb-1.5 text-sm">Sportlijnen op de vloer</p>
+       </div>
+      </PanelSection>
+
+      <PanelSection id="vloermarkeringen" title="Vloermarkeringen" sections={sections} info="Per sport de officiële maat; alleen wat in de deelzaal past is te kiezen. Verschillende sporten mogen over elkaar (andere kleuren), twee velden van dezelfde sport niet.">
+        <div className="space-y-3" data-testid="vloermarkeringen">
+          <p className="text-xs text-muted-foreground" data-testid="zaal-hint">{hallHint(DEELZAAL)}</p>
+          {invalidOn.length > 0 && (
+            <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-xs" data-testid="markering-waarschuwing">
+              <p>Deze markering past niet in de zaal: {invalidOn.map((entry) => entry.part.label).join(", ")}.</p>
+              <Button type="button" size="sm" variant="outline" className="min-h-9" data-testid="markering-herstel" onClick={() => onHiddenChange(setPartsOn(hidden, invalidOn.map((entry) => entry.part), false))}>
+                Herstel
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap gap-1.5">
             {layout.lijnen.map((part) => {
+              const marking = COURT_MARKINGS_BY_ID.get(part.id.replace(/^lijnen-/, ""));
+              const reason = marking ? misfitReason(marking, DEELZAAL, marking.glb_copies ?? 1) : null;
               const on = isPartOn(part, hidden);
+              const blocked = reason !== null && !on; // een aanstaande markering die niet past kun je altijd uitzetten
               return (
                 <Button
                   key={part.id}
@@ -391,15 +413,32 @@ export function GymEnvironmentPanel({
                   size="sm"
                   variant={on ? "default" : "outline"}
                   aria-pressed={on}
+                  disabled={blocked}
+                  title={reason ?? marking?.source}
+                  data-testid={`markering-${part.id.replace(/^lijnen-/, "")}`}
+                  className={cn("min-h-9", blocked && "opacity-50")}
                   onClick={() => onHiddenChange(setPartOn(hidden, part, !on))}
                 >
+                  {marking && <span className="mr-1.5 inline-block size-2 rounded-full" style={{ backgroundColor: marking.color }} aria-hidden="true" />}
                   {part.label}
                 </Button>
               );
             })}
           </div>
+          {layout.lijnen.some((part) => {
+            const marking = COURT_MARKINGS_BY_ID.get(part.id.replace(/^lijnen-/, ""));
+            return marking && !isPartOn(part, hidden) && misfitReason(marking, DEELZAAL, marking.glb_copies ?? 1);
+          }) && (
+            <ul className="space-y-0.5 text-xs text-muted-foreground" data-testid="markering-redenen">
+              {layout.lijnen.map((part) => {
+                const marking = COURT_MARKINGS_BY_ID.get(part.id.replace(/^lijnen-/, ""));
+                const reason = marking ? misfitReason(marking, DEELZAAL, marking.glb_copies ?? 1) : null;
+                return reason && !isPartOn(part, hidden) ? <li key={part.id}>{part.label}: {reason}</li> : null;
+              })}
+            </ul>
+          )}
         </div>
-      </div>
+      </PanelSection>
     </div>
   );
 }

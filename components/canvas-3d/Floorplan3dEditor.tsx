@@ -11,14 +11,21 @@ import {
   Cable,
   Cone,
   Copy,
+  Layers,
   Loader2,
   LocateFixed,
   Lock,
   LockOpen,
   Redo2,
-  RotateCcw, ShieldAlert,
+  RotateCcw,
   RotateCw,
   Save,
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   ClipboardPaste,
   Scissors,
   Trash2,
@@ -49,7 +56,8 @@ import { buildShareLink, encodeFloorplan } from "@/lib/guest/share-codec";
 import { DEFAULT_VIEW, type ViewState } from "@/components/plattegrond/viewer-camera";
 import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
-import { CanvasToolbar } from "@/components/canvas-3d/CanvasToolbar";
+import { CanvasToolbar, ToolbarShowButton } from "@/components/canvas-3d/CanvasToolbar";
+import { PanelSection, type PanelSections } from "@/components/canvas-3d/PanelSection";
 import { useEditorUiPrefs } from "@/lib/editor-ui/useEditorUiPrefs";
 import { Input } from "@/components/ui/input";
 import {
@@ -280,12 +288,24 @@ export function Floorplan3dEditor({
   const floorPointRef = useRef<{ x: number; z: number } | null>(null);
   const overCanvasRef = useRef(false);
   const uiPrefs = useEditorUiPrefs();
+  const panelsState = uiPrefs.prefs.panels;
+  const leftHidden = panelsState.left || panelsState.focus;
+  const rightHidden = panelsState.right || panelsState.focus;
+  const setPanels = uiPrefs.update;
+  /** Tabblad rechts: zonder selectie "Omgeving", tenzij de gebruiker zelf een tab heeft vastgezet. */
+  const [tabPinned, setTabPinned] = useState(false);
+  /** Accordeons in het Kamer-paneel: open/dicht wordt onthouden. */
+  const panelSections: PanelSections = {
+    isOpen: (id, defaultOpen) => uiPrefs.prefs.sections[id] ?? defaultOpen,
+    toggle: (id, defaultOpen) => uiPrefs.update((previous) => ({ ...previous, sections: { ...previous.sections, [id]: !(previous.sections[id] ?? defaultOpen) } })),
+  };
   const modifierRef = useRef(false);
-  /** Alt ingedrukt tijdens het slepen: snappen en botsing tijdelijk uit. */
+  /** Alt ingedrukt tijdens het slepen: stapelen tijdelijk omgekeerd en snappen uit. */
   const altRef = useRef(false);
-  /** Schakelaar "Botsing": aan = waarschuwen bij overlap, uit = negeren. */
-  const [collisionOn, setCollisionOn] = useState(true);
-  /** Items met een botsingswaarschuwing tijdens het slepen (outline). */
+  /** Schakelaar "Stapelen" (per gebruiker bewaard): aan = een object komt boven op het object eronder, uit = vrij op de vloer, ook in andere objecten. */
+  const stackingOn = uiPrefs.prefs.stacking;
+  const toggleStacking = () => uiPrefs.update((previous) => ({ ...previous, stacking: !previous.stacking }));
+  /** Items die buiten de zaal steken tijdens het slepen (outline). */
   const [warnIds, setWarnIds] = useState<ReadonlySet<string>>(() => new Set());
   /** Laatste preview-resultaat van de sleepbeweging: precies dit wordt bij loslaten vastgelegd (geen tweede berekening). */
   const lastPlacementRef = useRef<{ id: string; placement: ReturnType<typeof resolvePlacement> } | null>(null);
@@ -1022,23 +1042,12 @@ export function Floorplan3dEditor({
     setItems((prev) => prev.map((candidate) => (candidate.id === item.id ? { ...candidate, rot_y_deg: target, x: origin.x, z: origin.z } : candidate)));
   }
 
-  /** Zachte botsingswaarschuwing tijdens het slepen: outline + korte melding; de plaatsing blijft zoals hij is. */
+  /** Zachte melding tijdens het slepen: alleen als een item buiten de zaal uitsteekt (overlap met andere objecten geeft geen melding meer). */
   function showPlacementWarnings(id: string, placement: ReturnType<typeof resolvePlacement>) {
-    const ids = new Set<string>();
-    const messages: string[] = [];
-    for (const warning of placement.warnings) {
-      if (warning.kind === "overlap") {
-        ids.add(id);
-        ids.add(warning.withId);
-        const name = models.find((model) => model.slug === warning.withSlug)?.naam ?? warning.withSlug;
-        if (!messages.includes(`Overlapt met ${name}`)) messages.push(`Overlapt met ${name}`);
-      } else {
-        ids.add(id);
-        messages.push("Past niet in de zaal: het item steekt buiten de zaal uit");
-      }
-    }
+    const outside = placement.warnings.some((warning) => warning.kind === "outside");
+    const ids = new Set<string>(outside ? [id] : []);
     setWarnIds((previous) => (previous.size === ids.size && [...ids].every((value) => previous.has(value)) ? previous : ids));
-    if (messages.length > 0) toast.warning(messages.join(" · "), { id: "botsing-waarschuwing", duration: 4000 });
+    if (outside) toast.warning("Past niet in de zaal: het item steekt buiten de zaal uit", { id: "botsing-waarschuwing", duration: 4000 });
     else toast.dismiss("botsing-waarschuwing");
   }
 
@@ -1073,7 +1082,8 @@ export function Floorplan3dEditor({
       room,
       grid: snapGrid,
       lookup,
-      collisions: collisionOn && !altRef.current,
+      // Alt draait stapelen tijdelijk om en zet snappen uit.
+      stacking: altRef.current ? !stackingOn : stackingOn,
       snap: !altRef.current,
     });
     lastPlacementRef.current = { id: draggingId, placement };
@@ -1251,18 +1261,6 @@ export function Floorplan3dEditor({
     scheduleAutosave();
   }
 
-  /** Weergave van de viewer bij de activiteit: automatisch (standaard), schuin 3D of bovenaanzicht. */
-  function setRoomView(view: "auto" | "3d" | "top") {
-    if ((room.view ?? "auto") === view) return;
-    pushHistory();
-    setRoom((prev) => {
-      const { view: _previous, ...rest } = prev;
-      void _previous;
-      return view === "auto" ? rest : { ...rest, view };
-    });
-    scheduleAutosave();
-  }
-
   /** Kijkrichting van de viewer bij de activiteit: automatisch (±40°, kant op basis van de inhoud), vast links of vast rechts. */
   function setRoomAzimuth(azimuth: number | null) {
     if ((room.view_azimuth_deg ?? null) === azimuth) return;
@@ -1317,7 +1315,14 @@ export function Floorplan3dEditor({
     pushHistory();
     const removedItemIds = new Set(removableItems.map((item) => item.id));
     const removedFieldIds = new Set(groupFields.map((field) => field.id));
-    if (removedItemIds.size > 0) setItems((prev) => prev.filter((item) => !removedItemIds.has(item.id)));
+    // Items die op een verwijderd item rustten vallen naar de volgende ondergrond of de vloer (zichtbaar gemeld, terug te halen met ongedaan maken).
+    let fallen = 0;
+    if (removedItemIds.size > 0) {
+      const remaining = items.filter((item) => !removedItemIds.has(item.id));
+      const settled = recomputeStackedYs(remaining, lookup);
+      fallen = settled.filter((item, index) => Math.abs(item.y - remaining[index].y) > 0.005).length;
+      setItems(settled);
+    }
     if (removedFieldIds.size > 0) setConeFields((prev) => prev.filter((field) => !removedFieldIds.has(field.id)));
     // Touwen die aan een verwijderd item hangen verdwijnen mee (terug te halen met ongedaan maken).
     if (removedItemIds.size > 0) setRopes((prev) => removeRopesOfItems(prev, removedItemIds));
@@ -1327,6 +1332,7 @@ export function Floorplan3dEditor({
     const removed = removedItemIds.size + removedFieldIds.size;
     const message = removed > 1 ? `${removed} objecten verwijderd` : removedFieldIds.size === 1 ? "Veld verwijderd" : "Item verwijderd";
     toast(message, { action: undoAction, duration: 6000 });
+    if (fallen > 0) toast.info(`${fallen} ${fallen === 1 ? "object valt" : "objecten vallen"} naar beneden`, { duration: 5000 });
   }
 
   function toggleLockSelected() {
@@ -1519,6 +1525,31 @@ export function Floorplan3dEditor({
     else toast.info("Er staat niets in het klembord.");
   }
 
+  /** "Op ondergrond zetten": brengt het geselecteerde item op de hoogte van de ondergrond onder zijn voetafdruk (of de vloer); één undo-stap. */
+  function settleSelectedOnSupport() {
+    if (!selectedItem || selectedItem.locked) return;
+    const resting = new Set(findItemsResting(selectedItem.id, items, lookup));
+    const placement = resolvePlacement({
+      pointer: { x: selectedItem.x, z: selectedItem.z },
+      dragged: draggedFields(selectedItem),
+      others: items.filter((item) => item.id !== selectedItem.id && !resting.has(item.id)),
+      room,
+      grid: 0,
+      lookup,
+      stacking: true,
+      snap: false,
+    });
+    if (Math.abs(placement.y - selectedItem.y) < 0.005) {
+      toast.info("Dit item staat al op zijn ondergrond");
+      return;
+    }
+    pushHistory();
+    const dy = placement.y - selectedItem.y;
+    setItems((prev) => prev.map((item) => (item.id === selectedItem.id ? { ...item, y: placement.y } : resting.has(item.id) ? { ...item, y: item.y + dy } : item)));
+    scheduleAutosave();
+    toast(placement.stackedOn.length > 0 ? "Item op zijn ondergrond gezet" : "Item op de vloer gezet", { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 5000 });
+  }
+
   function duplicateSelected() {
     if (selectionCount === 0) return;
     pasteObjects(buildClipboard(groupItems, groupFields, ropes), "dupliceer");
@@ -1688,6 +1719,22 @@ export function Floorplan3dEditor({
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selectedItem, selectedField, selectedRope, items, coneFields, ropes, room, drawMode, ropeMode, draft, snapDeg, group, snapGrid, hasClipboard]);
+
+  // Paneel-sneltoetsen (desktop): [ = linkerpaneel, ] = rechterpaneel, F = focusmodus (alle panelen weg), Esc verlaat de focusmodus.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
+      const toggle = (change: Partial<typeof panelsState>) => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, ...change } }));
+      if (event.key === "[") toggle({ left: !panelsState.left });
+      else if (event.key === "]") toggle({ right: !panelsState.right });
+      else if (event.key.toLowerCase() === "f" && !event.shiftKey) toggle({ focus: !panelsState.focus });
+      else if (event.key === "Escape" && panelsState.focus) toggle({ focus: false });
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setPanels, panelsState]);
 
   // Klembord-events van de browser, en de aanwijzer: boven het canvas? Shift/Ctrl/Cmd ingedrukt bij een klik?
   useEffect(() => {
@@ -2034,6 +2081,9 @@ export function Floorplan3dEditor({
           <Button type="button" variant={selectedItem.locked ? "default" : "outline"} className="w-full" aria-pressed={Boolean(selectedItem.locked)} onClick={toggleLockSelected}>
             {selectedItem.locked ? <LockOpen className="size-4" /> : <Lock className="size-4" />} {selectedItem.locked ? "Ontgrendelen" : "Vergrendelen"}
           </Button>
+          <Button type="button" variant="outline" className="w-full" data-testid="op-ondergrond-zetten" title="Brengt dit item op de hoogte van de ondergrond onder zijn voetafdruk (of de vloer)" disabled={Boolean(selectedItem.locked)} onClick={settleSelectedOnSupport}>
+            <Layers className="size-4" /> Op ondergrond zetten
+          </Button>
           {clipboardButtons}
           <Button type="button" variant="outline" className="w-full" title="Dupliceren (Ctrl+D)" onClick={duplicateSelected}>
             <Copy className="size-4" /> Dupliceren (Ctrl+D)
@@ -2058,37 +2108,20 @@ export function Floorplan3dEditor({
 
   const roomPanel = (
     <div className="space-y-5">
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Weergave bij de activiteit</p>
-        <div role="group" aria-label="Weergave bij de activiteit" className="grid grid-cols-3 gap-1.5">
-          {([
-            ["auto", "Automatisch"],
-            ["3d", "3D"],
-            ["top", "Boven"],
-          ] as const).map(([id, label]) => (
-            <Button key={id} type="button" size="sm" variant={(room.view ?? "auto") === id ? "default" : "outline"} aria-pressed={(room.view ?? "auto") === id} data-testid={`weergave-${id}`} onClick={() => setRoomView(id)}>
-              {label}
-            </Button>
-          ))}
-        </div>
-        <p className="mt-3 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Kijkrichting</p>
+      <PanelSection id="kijkrichting" title="Kijkrichting" sections={panelSections} info="De weergave is altijd schuin (diagonaal, op twee assen). Hier kies je aan welke kant van de diagonaal de camera staat; automatisch kiest de kant met de meeste inhoud.">
         <div role="group" aria-label="Kijkrichting bij de activiteit" className="grid grid-cols-3 gap-1.5">
           {([
             [null, "Automatisch"],
             [-40, "Linksvoor"],
             [40, "Rechtsvoor"],
           ] as const).map(([value, label]) => (
-            <Button key={label} type="button" size="sm" variant={(room.view_azimuth_deg ?? null) === value ? "default" : "outline"} aria-pressed={(room.view_azimuth_deg ?? null) === value} data-testid={`kijkrichting-${value ?? "auto"}`} onClick={() => setRoomAzimuth(value)}>
+            <Button key={label} type="button" size="sm" className="px-1.5 text-xs" variant={(room.view_azimuth_deg ?? null) === value ? "default" : "outline"} aria-pressed={(room.view_azimuth_deg ?? null) === value} data-testid={`kijkrichting-${value ?? "auto"}`} onClick={() => setRoomAzimuth(value)}>
               {label}
             </Button>
           ))}
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Zo ziet een docent de plattegrond op de activiteitpagina. Automatisch: vlakke indelingen (veld afzetten, circuit) van boven, opstellingen met netten, doelen of leerlingen schuin.
-        </p>
-      </div>
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Omgeving</p>
+      </PanelSection>
+      <PanelSection id="omgeving" title="Omgeving" defaultOpen sections={panelSections}>
         <div className="grid grid-cols-2 gap-1.5">
           {ENVIRONMENT_KIND_ORDER.map(({ id, label }) => {
             const active = room.environment?.type === id;
@@ -2113,13 +2146,14 @@ export function Floorplan3dEditor({
             Lege ruimte
           </Button>
         </div>
-      </div>
+      </PanelSection>
 
       {room.environment?.type === "gymzaal" ? (
         <GymEnvironmentPanel
           environment={room.environment}
           onLayoutChange={applyGymLayout}
           onHiddenChange={setEnvironmentHidden}
+          sections={panelSections}
         />
       ) : room.environment ? (
         <EnvironmentPanel
@@ -2128,6 +2162,7 @@ export function Floorplan3dEditor({
           onHiddenChange={setEnvironmentHidden}
         />
       ) : (
+        <PanelSection id="afmetingen" title="Afmetingen" defaultOpen sections={panelSections}>
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Breedte (m)
@@ -2150,31 +2185,30 @@ export function Floorplan3dEditor({
             />
           </label>
         </div>
+        </PanelSection>
       )}
 
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Botsing</p>
-        <Button type="button" size="sm" className="min-h-11 w-full" variant={collisionOn ? "default" : "outline"} aria-pressed={collisionOn} data-testid="knop-botsing-instelling" onClick={() => setCollisionOn((value) => !value)}>
-          {collisionOn ? "Botsing: waarschuwen" : "Botsing: negeren"}
-        </Button>
-      </div>
-
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Raster</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          {([0, 0.1, 0.5] as SnapGridSize[]).map((size) => (
-            <Button
-              key={size}
-              type="button"
-              size="sm"
-              variant={snapGrid === size ? "default" : "outline"}
-              onClick={() => setSnapGrid(size)}
-            >
-              {size === 0 ? "Uit" : `${size} m`}
-            </Button>
-          ))}
+      {/* Het raster staat op desktop in de werkbalk; telefoon en tablet hebben hier hun enige plek. */}
+      {layout !== "desktop" && (
+        <>
+        <div>
+          <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Raster</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {([0, 0.1, 0.5] as SnapGridSize[]).map((size) => (
+              <Button
+                key={size}
+                type="button"
+                size="sm"
+                variant={snapGrid === size ? "default" : "outline"}
+                onClick={() => setSnapGrid(size)}
+              >
+                {size === 0 ? "Uit" : `${String(size).replace(".", ",")}\u00a0m`}
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
+        </>
+      )}
 
       {fieldOverview}
     </div>
@@ -2505,6 +2539,17 @@ export function Floorplan3dEditor({
           {onboarding && <GestureOnboarding onClose={() => setOnboarding(false)} />}
           <button
             type="button"
+            aria-label={stackingOn ? "Stapelen: aan (objecten komen boven op elkaar te staan)" : "Stapelen: uit (objecten kunnen in elkaar staan)"}
+            title={stackingOn ? "Stapelen: aan. Tik om uit te zetten" : "Stapelen: uit. Tik om aan te zetten"}
+            aria-pressed={stackingOn}
+            data-testid="stapelen-schakelaar"
+            onClick={toggleStacking}
+            className={cn("absolute top-2 left-2 z-20 flex size-11 items-center justify-center rounded-xl border shadow-md backdrop-blur-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95", stackingOn ? "bg-primary/10 text-primary ring-1 ring-primary/30" : "bg-card/95 text-muted-foreground opacity-80")}
+          >
+            <Layers className="size-5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
             aria-label="Camera herstellen"
             title="Camera herstellen (ook: dubbeltik op een leeg stuk)"
             data-testid="camera-herstellen"
@@ -2544,6 +2589,31 @@ export function Floorplan3dEditor({
     );
   }
 
+  const desktopToolbar = isDesktop && uiPrefs.prefs.flags.canvasToolbar;
+  const toolbarEl = (
+    <CanvasToolbar
+              position={uiPrefs.prefs.toolbar === "top" ? "top" : "bottom"}
+              onPosition={(toolbar) => uiPrefs.update((previous) => ({ ...previous, toolbar }))}
+              onResetLayout={uiPrefs.reset}
+              onResetCamera={resetCamera}
+              tool={drawMode ? "veld" : ropeMode ? "touw" : "selecteren"}
+              onTool={(tool) => {
+                if (tool === "selecteren") {
+                  if (drawMode) stopDrawing();
+                  if (ropeMode) stopRopeMode();
+                } else if (tool === "veld") {
+                  if (drawMode) stopDrawing();
+                  else startDrawing();
+                } else if (ropeMode) stopRopeMode();
+                else startRopeMode();
+              }}
+              snapGrid={snapGrid}
+              onSnapGrid={setSnapGrid}
+              stackingOn={stackingOn}
+              onToggleStacking={toggleStacking}
+            />
+  );
+
   return (
     <div className="relative flex h-[100dvh] flex-col overscroll-none" {...plattegrondJson.dragProps}>
       {plattegrondJson.elements}
@@ -2573,22 +2643,22 @@ export function Floorplan3dEditor({
         </span>
         {adminInfo && <AdminBadge info={adminInfo} onRestored={() => window.location.reload()} />}
         <div className="ml-auto flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant={drawMode ? "default" : "outline"}
-            size="sm"
-            aria-pressed={drawMode}
-            onClick={() => (drawMode ? stopDrawing() : startDrawing())}
-            title="Veld afzetten met pionnen of dopjes"
-          >
-            <Cone className="size-4" />
-            <span className="hidden sm:inline">Veld afzetten</span>
+          <div className="hidden items-center gap-0.5 lg:flex" role="group" aria-label="Panelen">
+            <Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={!leftHidden} data-testid="paneel-links" title="Linkerpaneel verbergen of tonen ([)" aria-label="Linkerpaneel verbergen of tonen" onClick={() => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, left: !previous.panels.left, focus: false } }))}>
+              {leftHidden ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={!rightHidden} data-testid="paneel-rechts" title="Rechterpaneel verbergen of tonen (])" aria-label="Rechterpaneel verbergen of tonen" onClick={() => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, right: !previous.panels.right, focus: false } }))}>
+              {rightHidden ? <PanelRightOpen className="size-5" /> : <PanelRightClose className="size-5" />}
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={panelsState.focus} data-testid="focusmodus" title="Focusmodus: alle panelen verbergen voor een schoon canvas (F, Esc om te verlaten)" aria-label="Focusmodus" onClick={() => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, focus: !previous.panels.focus } }))}>
+              {panelsState.focus ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
+            </Button>
+          </div>
+          <Button type="button" variant="ghost" size="icon" className="size-11" aria-label="Ongedaan maken" disabled={!history.canUndo} onClick={handleUndo} title="Ongedaan maken (Ctrl+Z)">
+            <Undo2 className="size-5" />
           </Button>
-          <Button type="button" variant="ghost" size="icon" disabled={!history.canUndo} onClick={handleUndo} title="Ongedaan maken (Ctrl+Z)">
-            <Undo2 className="size-4" />
-          </Button>
-          <Button type="button" variant="ghost" size="icon" disabled={!history.canRedo} onClick={handleRedo} title="Opnieuw (Ctrl+Shift+Z)">
-            <Redo2 className="size-4" />
+          <Button type="button" variant="ghost" size="icon" className="size-11" aria-label="Opnieuw" disabled={!history.canRedo} onClick={handleRedo} title="Opnieuw (Ctrl+Shift+Z)">
+            <Redo2 className="size-5" />
           </Button>
           <PlattegrondJsonMenu onAction={plattegrondJson.run} />
           {guest ? (
@@ -2601,7 +2671,7 @@ export function Floorplan3dEditor({
             </>
           ) : (
             <>
-              <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setMobilePanel("lijst")}>
+              <Button type="button" variant="ghost" size="sm" className="hidden text-muted-foreground sm:inline-flex" onClick={() => setMobilePanel("lijst")}>
                 Mijn plattegronden
               </Button>
               <Button type="button" size="sm" onClick={() => void handleSaveNow()} disabled={saveStatus === "saving"}>
@@ -2614,88 +2684,52 @@ export function Floorplan3dEditor({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block xl:w-72">
-          <Button
-            type="button"
-            variant={drawMode ? "default" : "outline"}
-            className="mb-2 w-full"
-            aria-pressed={drawMode}
-            onClick={() => (drawMode ? stopDrawing() : startDrawing())}
-          >
-            <Cone className="size-4" /> Veld afzetten
-          </Button>
-          <Button
-            type="button"
-            variant={ropeMode ? "default" : "outline"}
-            className="mb-3 w-full"
-            aria-pressed={ropeMode}
-            data-testid="knop-touw"
-            title="Een rood touw spannen tussen twee objecten"
-            onClick={() => (ropeMode ? stopRopeMode() : startRopeMode())}
-          >
-            <Cable className="size-4" /> Touw spannen
-          </Button>
-          <Button
-            type="button"
-            variant={collisionOn ? "default" : "outline"}
-            className="mb-3 w-full"
-            aria-pressed={collisionOn}
-            data-testid="knop-botsing"
-            title="Waarschuwen als objecten overlappen. Houd Alt ingedrukt tijdens het slepen om botsing en snappen tijdelijk uit te zetten."
-            onClick={() => setCollisionOn((value) => !value)}
-          >
-            <ShieldAlert className="size-4" /> Botsing: {collisionOn ? "waarschuwen" : "negeren"}
-          </Button>
+        {!leftHidden && <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block xl:w-72">
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
-        </aside>
+        </aside>}
 
-        <div className="relative min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col">
+          {desktopToolbar && uiPrefs.prefs.toolbar === "top" && toolbarEl}
+          <div className="relative min-h-0 flex-1">
           {scene}
-          {isDesktop && uiPrefs.prefs.flags.canvasToolbar && (
-            <CanvasToolbar
-              position={uiPrefs.prefs.toolbar}
-              onPosition={(toolbar) => uiPrefs.update((previous) => ({ ...previous, toolbar }))}
-              onResetLayout={uiPrefs.reset}
-              onResetCamera={resetCamera}
-              tool={drawMode ? "veld" : ropeMode ? "touw" : "selecteren"}
-              onTool={(tool) => {
-                if (tool === "selecteren") {
-                  if (drawMode) stopDrawing();
-                  if (ropeMode) stopRopeMode();
-                } else if (tool === "veld") {
-                  if (drawMode) stopDrawing();
-                  else startDrawing();
-                } else if (ropeMode) stopRopeMode();
-                else startRopeMode();
-              }}
-              snapGrid={snapGrid}
-              onSnapGrid={setSnapGrid}
-              collisionOn={collisionOn}
-              onToggleCollision={() => setCollisionOn((value) => !value)}
-            />
+          {panelsState.focus && (
+            <button type="button" aria-label="Focusmodus verlaten" title="Focusmodus verlaten (Esc)" data-testid="focusmodus-verlaten" onClick={() => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, focus: false } }))} className="absolute top-3 left-3 z-10 flex size-11 items-center justify-center rounded-xl border bg-card shadow-md hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
+              <Minimize2 className="size-5" aria-hidden="true" />
+            </button>
           )}
+          {desktopToolbar && uiPrefs.prefs.toolbar === "hidden" && <ToolbarShowButton onClick={() => uiPrefs.update((previous) => ({ ...previous, toolbar: "bottom" }))} />}
           {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
 
           {drawChip}
           {ropeChip}
           {anchorToggle}
-
+          </div>
+          {desktopToolbar && uiPrefs.prefs.toolbar === "bottom" && toolbarEl}
         </div>
 
-        <aside ref={sidePanelRef} className="hidden w-72 shrink-0 overflow-y-auto border-l bg-card p-3 lg:block xl:w-80">
-          <Tabs value={sideTab} onValueChange={(value) => setSideTab(value as "item" | "omgeving")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="item">Item</TabsTrigger>
-              <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
-            </TabsList>
-            <TabsContent value="item" className="pt-3">
-              {itemPanel}
-            </TabsContent>
-            <TabsContent value="omgeving" className="pt-3">
-              {roomPanel}
-            </TabsContent>
-          </Tabs>
-        </aside>
+        {!rightHidden && (
+          <aside ref={sidePanelRef} className="hidden w-72 shrink-0 flex-col overflow-hidden border-l bg-card lg:flex xl:w-80">
+            <Tabs
+              value={tabPinned ? sideTab : hasSelection ? "item" : "omgeving"}
+              onValueChange={(value) => {
+                setSideTab(value as "item" | "omgeving");
+                setTabPinned(true);
+              }}
+              className="min-h-0 flex-1 gap-0"
+            >
+              <TabsList className="mx-3 mt-3 grid shrink-0 grid-cols-2">
+                <TabsTrigger value="item">Item</TabsTrigger>
+                <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
+              </TabsList>
+              <TabsContent value="item" className="min-h-0 flex-1 overflow-y-auto p-3">
+                {itemPanel}
+              </TabsContent>
+              <TabsContent value="omgeving" className="min-h-0 flex-1 overflow-y-auto p-3">
+                {roomPanel}
+              </TabsContent>
+            </Tabs>
+          </aside>
+        )}
       </div>
 
       {thumbnailJob && (

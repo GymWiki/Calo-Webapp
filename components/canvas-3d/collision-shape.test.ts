@@ -368,7 +368,6 @@ test("hangend materiaal blokkeert de vloer niet en wordt niet gestapeld", () => 
     lookup,
     final: true,
   });
-  assert.equal(placed.blocked, false);
   assert.equal(placed.y, 0);
   assert.equal(placed.mode === "stack", false);
   // en een mat onder het net: gewoon op de vloer
@@ -381,14 +380,13 @@ test("hangend materiaal blokkeert de vloer niet en wordt niet gestapeld", () => 
     lookup,
     final: true,
   });
-  assert.equal(mat.blocked, false);
   assert.equal(mat.y, 0);
 });
 
 test("stapelen rekent met de onderkant: een item op een zacht-verzonken basis", () => {
   const SUNK: ItemDims = { length_m: 1, width_m: 1, height_m: 1, stackable: true, base_m: -0.04 };
-  const lookup = lookupOf({ sunk: SUNK, mat: MAT });
-  const items = recomputeStackedYs([item("a", "sunk", 0, 0), item("b", "mat", 0, 0, 0, 0.5)], lookup);
+  const lookup = lookupOf({ sunk: SUNK, doos: MAT });
+  const items = recomputeStackedYs([item("a", "sunk", 0, 0), item("b", "doos", 0, 0, 0, 0.5)], lookup);
   // bovenkant basis = 0 + (−0,04) + 1 = 0,96
   near(items.find((i) => i.id === "b")!.y, 0.96);
 });

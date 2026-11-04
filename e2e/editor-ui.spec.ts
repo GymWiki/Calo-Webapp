@@ -38,14 +38,15 @@ async function diffRatio(page: Page, a: Buffer, b: Buffer): Promise<number> {
   );
 }
 
-const TOOLBAR_IDS = ["werkbalk-selecteren", "werkbalk-veld", "werkbalk-touw", "werkbalk-raster", "werkbalk-raster-stap", "werkbalk-botsing", "werkbalk-verbergen", "werkbalk-positie", "werkbalk-reset-indeling", "werkbalk-camera-reset"];
+const ALWAYS_IDS = ["werkbalk-selecteren", "werkbalk-veld", "werkbalk-touw", "werkbalk-raster", "werkbalk-raster-stap", "werkbalk-stapelen", "werkbalk-camera-reset"];
+const SETTINGS_IDS = ["werkbalk-verbergen", "werkbalk-positie", "werkbalk-reset-indeling"];
 
 for (const size of [
   { width: 1366, height: 768 },
   { width: 1920, height: 1080 },
   { width: 1024, height: 768 },
 ]) {
-  test(`desktop ${size.width}x${size.height}: opslaan, undo/redo en de werkbalk (één rij, alleen iconen) staan zonder scrollen in beeld`, async ({ page }, testInfo) => {
+  test(`desktop ${size.width}x${size.height}: opslaan en undo/redo in beeld; werkbalk over de volle breedte van het canvas, onder het canvas, zonder overlap`, async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "desktop-viewports");
     await page.setViewportSize(size);
     await openEditor(page);
@@ -54,52 +55,92 @@ for (const size of [
     await inViewport(page, page.getByRole("button", { name: /Opnieuw/ }).first());
     await inViewport(page, page.getByPlaceholder(/Zoek materiaal/));
 
-    // Eén rij: alle knoppen op dezelfde hoogte, ≥ 40 px, zonder tekstlabel, elk met tooltip en aria-label.
+    // Volle breedte van het canvasgebied, direct onder het canvas (de zaal verdwijnt er nooit achter), geen horizontale scroll.
+    const bar = await inViewport(page, page.getByTestId("canvas-werkbalk"));
+    const canvas = (await page.locator("canvas").first().boundingBox())!;
+    expect(Math.abs(bar.x - canvas.x), "werkbalk begint waar het canvas begint").toBeLessThanOrEqual(2);
+    expect(Math.abs(bar.width - canvas.width), "werkbalk is net zo breed als het canvas").toBeLessThanOrEqual(2);
+    expect(canvas.y + canvas.height, "canvas eindigt boven de werkbalk").toBeLessThanOrEqual(bar.y + 1);
+    expect(bar.height).toBeGreaterThanOrEqual(52);
+    expect(bar.height).toBeLessThanOrEqual(66);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await page.getByTestId("canvas-werkbalk").evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+
+    // Knoppen: ≥ 44 px, zonder overlap, één regel; labels alleen bij een brede werkbalk.
+    const wide = bar.width >= 640;
+    const ids = [...ALWAYS_IDS, ...(wide ? SETTINGS_IDS : ["werkbalk-meer"])];
     const boxes = [];
-    for (const id of TOOLBAR_IDS) {
+    for (const id of ids) {
       const button = page.getByTestId(id);
-      boxes.push(await inViewport(page, button));
+      boxes.push({ id, box: await inViewport(page, button) });
       await expect(button).toHaveAttribute("aria-label", /.+/);
       await expect(button).toHaveAttribute("title", /.+/);
-      expect((await button.innerText()).trim(), `${id} heeft geen tekstlabel`).toBe("");
+      expect((await button.boundingBox())!.height, id).toBeGreaterThanOrEqual(43.5);
     }
-    const tops = boxes.map((box) => Math.round(box.y + box.height / 2));
-    expect(Math.max(...tops) - Math.min(...tops), "alle iconen staan op één rij").toBeLessThanOrEqual(2);
-    for (const [index, id] of TOOLBAR_IDS.entries()) if (id !== "werkbalk-raster-stap") expect(boxes[index].width, id).toBeGreaterThanOrEqual(39.5);
+    if (!wide) for (const id of SETTINGS_IDS) await expect(page.getByTestId(id)).toBeHidden();
+    const sorted = [...boxes].sort((first, second) => first.box.x - second.box.x);
+    for (let i = 1; i < sorted.length; i++) expect(sorted[i].box.x, `${sorted[i].id} overlapt niet met ${sorted[i - 1].id}`).toBeGreaterThanOrEqual(sorted[i - 1].box.x + sorted[i - 1].box.width - 0.5);
+    const label = (await page.getByTestId("werkbalk-selecteren").innerText()).trim();
+    if (bar.width >= 1100) expect(label).toBe("Selecteren");
+    else expect(label).toBe("");
 
-    // Geen camerastanden of zoomknoppen meer.
-    for (const id of ["werkbalk-camera-standaard", "werkbalk-camera-boven", "werkbalk-camera-vrij", "werkbalk-zoom-in", "werkbalk-zoom-uit"]) await expect(page.getByTestId(id)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /^(Standaard|Bovenaanzicht|Vrij draaien)$/ })).toHaveCount(0);
-
-    // De werkbalk verschuift het canvas niet.
-    const before = await page.locator("canvas").first().boundingBox();
-    await page.getByTestId("werkbalk-positie").click();
-    const after = await page.locator("canvas").first().boundingBox();
-    expect(after!.width).toBe(before!.width);
-    expect(after!.height).toBe(before!.height);
+    // Geen camerastanden of zoomknoppen en geen dubbele knoppen buiten de werkbalk.
+    for (const id of ["werkbalk-camera-standaard", "werkbalk-camera-boven", "werkbalk-camera-vrij", "werkbalk-zoom-in", "werkbalk-zoom-uit", "knop-touw", "knop-botsing"]) await expect(page.getByTestId(id)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Veld afzetten/ })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /^Touw/ })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /^Stapelen/ })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /Botsing/ })).toHaveCount(0);
   });
 }
 
-test("desktop: raster (aan/uit en stap), botsing en gereedschappen werken vanaf de werkbalk; positie wordt onthouden; Reset zet terug", async ({ page }, testInfo) => {
+test("desktop: raster (aan/uit en stap in één regel), botsing en gereedschappen werken vanaf de werkbalk; positie wordt onthouden; Reset zet terug", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "desktop");
   const errors: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   await openEditor(page);
   const raster = page.getByTestId("werkbalk-raster");
-  await expect(raster).toHaveAttribute("aria-label", /Raster aan \(0,1 m\)/);
+  await expect(raster).toHaveAttribute("aria-label", /Raster: aan \(0,1\sm\)/);
   await raster.click();
-  await expect(raster).toHaveAttribute("aria-label", /Raster uit/);
+  await expect(raster).toHaveAttribute("aria-label", /Raster: uit/);
   await raster.click();
-  await expect(raster).toHaveAttribute("aria-label", /Raster aan \(0,1 m\)/);
-  await page.getByTestId("werkbalk-raster-stap").click();
-  await page.getByTestId("raster-stap-0.5").click();
-  await expect(raster).toHaveAttribute("aria-label", /Raster aan \(0,5 m\)/);
-  await expect(page.getByTestId("raster-stap-menu")).toHaveCount(0);
+  await expect(raster).toHaveAttribute("aria-label", /Raster: aan \(0,1\sm\)/);
 
-  const botsing = page.getByTestId("werkbalk-botsing");
-  await botsing.click();
-  await expect(botsing).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByTestId("knop-botsing")).toHaveAttribute("aria-pressed", "false"); // zijbalk deelt dezelfde state
+  // Rastermenu: segmentknoppen op één regel, "0,1 m" met niet-brekende spatie; kiezen sluit het menu.
+  await page.getByTestId("werkbalk-raster-stap").click();
+  const menu = page.getByTestId("raster-stap-menu");
+  await expect(menu).toBeVisible();
+  for (const step of ["0", "0.1", "0.5"]) {
+    const option = page.getByTestId(`raster-stap-${step}`);
+    expect((await option.boundingBox())!.height, `stap ${step} staat op één regel`).toBeLessThanOrEqual(44);
+  }
+  expect(await page.getByTestId("raster-stap-0.1").innerText()).toBe("0,1\u00a0m");
+  // Pijltjestoetsen kiezen de stap.
+  await page.getByTestId("raster-stap-0.1").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(raster).toHaveAttribute("aria-label", /Raster: aan \(0,5\sm\)/);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await page.getByTestId("werkbalk-raster-stap").click();
+  await page.getByTestId("raster-stap-0.1").click();
+  await expect(raster).toHaveAttribute("aria-label", /Raster: aan \(0,1\sm\)/);
+  await expect(menu).toHaveCount(0);
+  // Klik buiten sluit het menu.
+  await page.getByTestId("werkbalk-raster-stap").click();
+  await expect(menu).toBeVisible();
+  await page.locator("canvas").first().click({ position: { x: 40, y: 40 } });
+  await expect(menu).toHaveCount(0);
+
+  // Stapelen: standaard aan; één klik zet het uit; de keuze wordt per gebruiker onthouden (ook na herladen).
+  const stapelen = page.getByTestId("werkbalk-stapelen");
+  await expect(stapelen).toHaveAttribute("aria-pressed", "true");
+  await expect(stapelen).toHaveAttribute("aria-label", /Stapelen: aan \(objecten komen boven op elkaar te staan\)/);
+  await stapelen.click();
+  await expect(stapelen).toHaveAttribute("aria-pressed", "false");
+  await expect(stapelen).toHaveAttribute("aria-label", /Stapelen: uit \(objecten kunnen in elkaar staan\)/);
+  await page.reload({ waitUntil: "load" });
+  await expect(page.getByTestId("werkbalk-stapelen")).toHaveAttribute("aria-pressed", "false");
+  await page.getByTestId("werkbalk-stapelen").click();
+  await expect(page.getByTestId("werkbalk-stapelen")).toHaveAttribute("aria-pressed", "true");
 
   const selecteren = page.getByTestId("werkbalk-selecteren");
   await expect(selecteren).toHaveAttribute("aria-pressed", "true");
@@ -116,19 +157,32 @@ test("desktop: raster (aan/uit en stap), botsing en gereedschappen werken vanaf 
   await page.keyboard.press("ArrowRight");
   await expect(page.getByTestId("werkbalk-veld")).toBeFocused();
 
-  // Positie: boven, verbergen, herladen = onthouden, Reset indeling.
+  // Positie: boven (canvas eronder), verbergen, herladen = onthouden, Reset indeling.
   await page.getByTestId("werkbalk-positie").click();
   const top = await page.getByTestId("canvas-werkbalk").boundingBox();
-  expect(top!.y).toBeLessThan(200);
+  const canvasBox = await page.locator("canvas").first().boundingBox();
+  expect(top!.y + top!.height).toBeLessThanOrEqual(canvasBox!.y + 1);
   await page.getByTestId("werkbalk-verbergen").click();
   await expect(page.getByTestId("canvas-werkbalk")).toHaveCount(0);
   await page.reload({ waitUntil: "load" });
   await expect(page.getByTestId("werkbalk-tonen")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("werkbalk-tonen").click();
-  await page.getByTestId("werkbalk-reset-indeling").click();
-  const bottom = await page.getByTestId("canvas-werkbalk").boundingBox();
-  expect(bottom!.y).toBeGreaterThan(400);
+  await expect(page.getByTestId("canvas-werkbalk")).toBeVisible();
+  const bottomBar = await page.getByTestId("canvas-werkbalk").boundingBox();
+  expect(bottomBar!.y).toBeGreaterThan(400);
   expect(errors.filter((e) => !/favicon|WebGL|swiftshader|GPU stall|Failed to load resource/i.test(e))).toEqual([]);
+});
+
+test("smalle werkbalk (1024 px): de werkbalkinstellingen zitten in het Meer-menu", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await openEditor(page);
+  await page.getByTestId("werkbalk-meer").click();
+  await expect(page.getByTestId("werkbalk-meer-menu")).toBeVisible();
+  await page.getByTestId("werkbalk-meer-positie").click();
+  const bar = await page.getByTestId("canvas-werkbalk").boundingBox();
+  const canvas = await page.locator("canvas").first().boundingBox();
+  expect(bar!.y + bar!.height).toBeLessThanOrEqual(canvas!.y + 1); // nu boven het canvas
 });
 
 test("desktop: de camera is altijd vrij: slepen draait, scrollen zoomt, dubbelklik en het herstelicoon zetten terug", async ({ page }, testInfo) => {
@@ -176,7 +230,13 @@ test("Kamer-paneel: Vaste onderdelen toont alleen de uitleg en de switches; een 
   // Een kladversie wordt pas aangeboden als er iets staat: plaats eerst een item.
   await page.getByRole("button", { name: /^Toestellen/ }).first().click();
   await page.getByRole("button", { name: /Turnbank test toevoegen/ }).click();
+  await page.getByRole("tab", { name: "Omgeving" }).click(); // het paneel volgt de selectie; kies Omgeving zelf
   await expect(page.getByRole("button", { name: /Alles weghalen|Standaardzaal herstellen|Lege zaal/ })).toHaveCount(0);
+  // Accordeon: standaard dicht; openen toont de uitleg en de switches.
+  const kop = page.getByTestId("sectie-kop-vaste-onderdelen");
+  await expect(kop).toHaveAttribute("aria-expanded", "false");
+  await kop.click();
+  await expect(kop).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText(/Wandrekken, baskets en vaste bankjes/)).toBeVisible();
   const hiddenNodes = () => page.evaluate(() => (JSON.parse(window.localStorage.getItem("gymwiki.floorplan3d.draft.nieuw") ?? "{}").room?.environment?.hidden ?? []) as string[]);
   const wandrekken = page.getByRole("switch", { name: "Wandrekken" });
@@ -241,4 +301,129 @@ test("telefoon: de selectiebalk past in beeld en alle knoppen zijn minstens 44 p
   }
   await inViewport(page, page.getByRole("button", { name: "Opslaan" }));
   await inViewport(page, page.getByRole("button", { name: "Ongedaan maken" }));
+});
+
+test("rechterpaneel: accordeons (Omgeving en Indeling standaard open) onthouden hun staat; tabs blijven vast; tab volgt de selectie", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await openEditor(page);
+  await expect(page.getByTestId("sectie-kop-omgeving")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("sectie-kop-indeling")).toHaveAttribute("aria-expanded", "true");
+  // "Weergave bij de activiteit" bestaat niet meer; alleen de kijkrichting (kant van de diagonaal).
+  await expect(page.getByText("Weergave bij de activiteit")).toHaveCount(0);
+  await expect(page.getByTestId("weergave-top")).toHaveCount(0);
+  for (const id of ["kijkrichting", "muren", "vaste-onderdelen"]) await expect(page.getByTestId(`sectie-kop-${id}`)).toHaveAttribute("aria-expanded", "false");
+  // De tabs staan vast bovenaan het paneel, ook als de inhoud scrolt.
+  const tabsBefore = await page.getByRole("tab", { name: "Omgeving" }).boundingBox();
+  await page.getByTestId("sectie-kop-muren").click();
+  await page.getByTestId("sectie-kop-vaste-onderdelen").click();
+  await page.getByTestId("sectie-kop-vaste-onderdelen").scrollIntoViewIfNeeded();
+  const tabsAfter = await page.getByRole("tab", { name: "Omgeving" }).boundingBox();
+  expect(tabsAfter!.y).toBe(tabsBefore!.y);
+  // Staat blijft na herladen.
+  await page.reload({ waitUntil: "load" });
+  await expect(page.getByTestId("sectie-kop-muren")).toHaveAttribute("aria-expanded", "true");
+  await page.getByTestId("sectie-kop-omgeving").click();
+  await expect(page.getByTestId("sectie-kop-omgeving")).toHaveAttribute("aria-expanded", "false");
+
+  // Tab volgt de selectie: een item plaatsen schakelt naar Item; deselecteren terug naar Omgeving.
+  await page.getByRole("button", { name: /^Toestellen/ }).first().click();
+  await page.getByRole("button", { name: /Turnbank test toevoegen/ }).click();
+  await expect(page.getByRole("tab", { name: "Item" })).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Escape");
+  await page.locator("canvas").first().click({ position: { x: 30, y: 30 } });
+  await expect(page.getByRole("tab", { name: "Omgeving" })).toHaveAttribute("aria-selected", "true");
+});
+
+test("panelen: links en rechts inklapbaar, focusmodus (F) verbergt alles; keuze blijft na herladen", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await openEditor(page);
+  const left = page.getByPlaceholder(/Zoek materiaal/);
+  await expect(left).toBeVisible();
+  const before = await page.locator("canvas").first().boundingBox();
+  await page.getByTestId("paneel-links").click();
+  await expect(left).toHaveCount(0);
+  await expect.poll(async () => (await page.locator("canvas").first().boundingBox())!.width).toBeGreaterThan(before!.width + 200);
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator("canvas").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("paneel-links")).toBeVisible();
+  await expect(page.getByPlaceholder(/Zoek materiaal/)).toHaveCount(0); // onthouden
+  await page.keyboard.press("[");
+  await expect(page.getByPlaceholder(/Zoek materiaal/)).toBeVisible();
+  // Focusmodus: alle panelen weg, het canvas vult het scherm; Esc herstelt.
+  await page.keyboard.press("f");
+  await expect(page.getByRole("tab", { name: "Omgeving" })).toHaveCount(0);
+  await expect(page.getByPlaceholder(/Zoek materiaal/)).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tab", { name: "Omgeving" })).toBeVisible();
+  await page.keyboard.press("]");
+  await expect(page.getByRole("tab", { name: "Omgeving" })).toHaveCount(0);
+  await page.keyboard.press("]");
+});
+
+test("filterchips: geen zichtbare scrollbalk; fade alleen als er meer is; het wiel scrolt horizontaal", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await openEditor(page);
+  const chips = page.getByTestId("sport-chips");
+  await expect(chips).toBeVisible();
+  const scrollbar = await chips.evaluate((el) => ({ hidden: getComputedStyle(el).scrollbarWidth === "none", overflow: el.scrollWidth > el.clientWidth }));
+  expect(scrollbar.hidden).toBe(true);
+  if (scrollbar.overflow) {
+    expect(await chips.evaluate((el) => getComputedStyle(el).maskImage)).toContain("linear-gradient");
+    await chips.hover();
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(300);
+    expect(await chips.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  }
+});
+
+test("bovenbalk: Opslaan is de primaire knop; undo/redo zijn 44 px; Veld afzetten staat alleen in de werkbalk", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await openEditor(page);
+  const undo = await page.getByRole("button", { name: "Ongedaan maken" }).boundingBox();
+  expect(undo!.width).toBeGreaterThanOrEqual(43.5);
+  expect(undo!.height).toBeGreaterThanOrEqual(43.5);
+  const header = page.locator("div.border-b").first();
+  await expect(header.getByRole("button", { name: /^Veld afzetten/ })).toHaveCount(0);
+  const primary = await page.getByRole("button", { name: "Opslaan" }).evaluate((el) => getComputedStyle(el).backgroundColor);
+  const secondary = await page.getByRole("button", { name: /Mijn plattegronden/ }).evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(primary).not.toBe(secondary);
+});
+
+test("vloermarkeringen: alleen wat in de deelzaal past is te kiezen (3 volleybalvelden niet), met reden; een oude plattegrond met een ongeldige combinatie toont een waarschuwing en Herstel", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  const errors: string[] = [];
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  // Oude plattegrond: gymzaal 24 × 14 m waarin de lijnen "Volleybal (3 dwarsvelden)" aanstaan (bestaat niet in de werkelijkheid).
+  await page.addInitScript(() => {
+    if (window.sessionStorage.getItem("seeded")) return;
+    window.sessionStorage.setItem("seeded", "1");
+    window.localStorage.setItem(
+      "gymwiki.floorplan3d.draft.nieuw",
+      JSON.stringify({
+        savedAt: Date.now(),
+        naam: "Oude plattegrond",
+        room: { width_m: 24, length_m: 14, environment: { type: "gymzaal", layout: "standaard", hidden: ["Muur_Voor", "Muur_Rechts"] } },
+        items: [{ id: "x1", slug: "turnbank_test", x: 0, y: 0, z: 0, rot_y_deg: 0 }],
+        coneFields: [],
+      }),
+    );
+  });
+  await openEditor(page);
+  await page.getByRole("button", { name: "Herstellen", exact: true }).click();
+  await page.getByRole("tab", { name: "Omgeving" }).click();
+  await page.getByTestId("sectie-kop-vloermarkeringen").click();
+  await expect(page.getByTestId("zaal-hint")).toContainText("Deze zaal past:");
+  // De ongeldige combinatie blijft zoals hij is, met waarschuwing; Herstel zet hem uit (één undo-stap).
+  await expect(page.getByTestId("markering-waarschuwing")).toContainText("Volleybal (3 dwarsvelden)");
+  await expect(page.getByTestId("markering-volleybal-dwars")).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("markering-herstel").click();
+  await expect(page.getByTestId("markering-waarschuwing")).toHaveCount(0);
+  // Nu uit én niet meer aan te zetten: gedimd met reden.
+  const dwars = page.getByTestId("markering-volleybal-dwars");
+  await expect(dwars).toBeDisabled();
+  await expect(page.getByTestId("markering-redenen")).toContainText("Past niet in 24 × 14 m");
+  // Wat wel past blijft te kiezen.
+  await expect(page.getByTestId("markering-volleybal")).toBeEnabled();
+  await expect(page.getByTestId("markering-badminton-dwars")).toBeEnabled();
+  expect(errors.filter((e) => !/favicon|WebGL|swiftshader|GPU stall|Failed to load resource/i.test(e))).toEqual([]);
 });
