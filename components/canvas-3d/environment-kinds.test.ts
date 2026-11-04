@@ -11,7 +11,7 @@ import {
   roomForEnvironment,
   upgradeEnvironment,
 } from "@/components/canvas-3d/environment-kinds";
-import { ALWAYS_HIDDEN_NODES, GYM_LAYOUTS, createGymEnvironment, emptyHallHidden, environmentModelUrl, fixtureParts, isPartOn, setFixturesOn, setPartOn, standardHallHidden, wandrekParts } from "@/components/canvas-3d/environments";
+import { ALWAYS_HIDDEN_NODES, GYM_LAYOUTS, createGymEnvironment, environmentModelUrl, fixtureParts, isPartOn, setPartOn, wandrekParts } from "@/components/canvas-3d/environments";
 
 test("alle vier de soorten staan in de keuzelijst, gymzaal eerst", () => {
   assert.deepEqual(
@@ -177,7 +177,7 @@ test("de standaard baskets in de gymzaal zijn weg te halen en terug te zetten (n
   assert.deepEqual(setPartOn(off, baskets, true), []);
 });
 
-test("vaste onderdelen: standaard alles aan, schakelaar per onderdeel/positie, alles weg, lege zaal en standaardzaal herstellen", () => {
+test("vaste onderdelen: standaard alles aan, schakelaar per onderdeel/positie, oude plattegronden tonen alles", () => {
   const layout = GYM_LAYOUTS.standaard;
   const standard = createGymEnvironment("standaard").hidden;
   for (const part of fixtureParts(layout)) assert.equal(isPartOn(part, standard), true, `${part.id} staat standaard aan`);
@@ -187,15 +187,8 @@ test("vaste onderdelen: standaard alles aan, schakelaar per onderdeel/positie, a
   assert.equal(isPartOn(een, zonderEen), false);
   assert.equal(isPartOn(twee, zonderEen), true);
   assert.equal(isPartOn(layout.wandrekken, zonderEen), false, "de groep telt als uit zodra één wandrek weg is");
-  // Alles weg: alle vaste onderdelen uit, muren en lijnen ongemoeid.
-  const alles = setFixturesOn(standard, layout, false);
-  for (const part of fixtureParts(layout)) assert.equal(isPartOn(part, alles), false);
-  assert.deepEqual(alles.filter((node) => !fixtureParts(layout).some((part) => part.nodes.includes(node))).sort(), [...standard].sort());
-  // Lege zaal: ook de vloerlijnen uit.
-  const leeg = emptyHallHidden(standard, layout);
-  for (const part of layout.lijnen) assert.equal(isPartOn(part, leeg), false);
-  // Standaardzaal herstellen = precies de standaard (ook vanuit een lege zaal).
-  assert.deepEqual([...standardHallHidden("standaard")].sort(), [...standard].sort());
+  // Terugzetten geeft precies de standaard.
+  assert.deepEqual([...setPartOn(zonderEen, een, true)].sort(), [...standard].sort());
   // Oude plattegronden (hidden-lijst zonder deze nodes) tonen de vaste onderdelen gewoon.
   for (const id of ["standaard", "2x2", "4x1"] as const) for (const part of fixtureParts(GYM_LAYOUTS[id])) assert.equal(isPartOn(part, createGymEnvironment(id).hidden), true);
 });

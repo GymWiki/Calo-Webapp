@@ -9,12 +9,9 @@ import { cn } from "@/lib/utils";
 import {
   GYM_LAYOUT_ORDER,
   GYM_LAYOUTS,
-  emptyHallHidden,
   isPartOn,
-  setFixturesOn,
   setPartOn,
   setPartsOn,
-  standardHallHidden,
   wandrekParts,
   type EnvironmentPart,
   type GymLayout,
@@ -347,17 +344,6 @@ export function GymEnvironmentPanel({
 
       <div className="space-y-3">
         <SectionTitle>Vaste onderdelen</SectionTitle>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" data-testid="vaste-onderdelen-acties">
-          <Button type="button" size="sm" variant="outline" className="min-h-11" data-testid="onderdelen-alles-weg" onClick={() => onHiddenChange(setFixturesOn(hidden, layout, false))}>
-            Alles weghalen
-          </Button>
-          <Button type="button" size="sm" variant="outline" className="min-h-11" data-testid="onderdelen-standaard" onClick={() => onHiddenChange(standardHallHidden(layout.id))}>
-            Standaardzaal herstellen
-          </Button>
-          <Button type="button" size="sm" variant="outline" className="min-h-11" data-testid="onderdelen-leeg" onClick={() => onHiddenChange(emptyHallHidden(hidden, layout))}>
-            Lege zaal
-          </Button>
-        </div>
         <p className="text-xs text-muted-foreground">Wandrekken, baskets en vaste bankjes. Items die erop of ertegenaan staan blijven gewoon staan.</p>
         <ToggleRow
           label="Wandrekken"

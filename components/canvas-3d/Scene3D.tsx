@@ -4,7 +4,7 @@ import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
 import { Line, PerformanceMonitor } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
-import { CameraRig, type CameraMode } from "@/components/canvas-3d/CameraRig";
+import { CameraRig } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
 import { FloorplanContent } from "@/components/canvas-3d/FloorplanContent";
 import { RotationGizmo } from "@/components/canvas-3d/RotationGizmo";
@@ -78,7 +78,6 @@ export function Scene3D({
   selectedId,
   groupIds,
   isDragging,
-  cameraMode,
   onItemPointerDown,
   fields,
   draftField,
@@ -98,7 +97,6 @@ export function Scene3D({
   onPerformanceChange,
   onViewCenter,
   cameraResetKey = 0,
-  zoomRequest,
   bottomInsetPx = 0,
   onResetCamera,
   touchUi = false,
@@ -142,7 +140,6 @@ export function Scene3D({
   /** Meervoudige selectie: alle geselecteerde ids (zonder: alleen `selectedId`). */
   groupIds?: ReadonlySet<string>;
   isDragging: boolean;
-  cameraMode: CameraMode;
   onItemPointerDown: (id: string, event: ThreeEvent<PointerEvent>) => void;
   fields: ConeField[];
   /** Veld dat op dit moment getekend wordt (live preview). */
@@ -167,10 +164,9 @@ export function Scene3D({
   /** Het punt op de vloer waar de camera naar kijkt (voor plaatsen in het midden van het beeld). */
   onViewCenter?: (center: { x: number; z: number }) => void;
   cameraResetKey?: number;
-  zoomRequest?: { factor: number; nonce: number };
   /** Hoogte (px) van een sheet onderin: het beeld schuift mee omhoog. */
   bottomInsetPx?: number;
-  /** Dubbeltik op een leeg stuk (touch) = camera terug naar de beginstand. */
+  /** Dubbelklik of dubbeltik op een leeg stuk = camera terug naar de beginstand. */
   onResetCamera?: () => void;
   touchUi?: boolean;
   onRotateHandleDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
@@ -182,8 +178,8 @@ export function Scene3D({
 
   function handleMissed(event: MouseEvent) {
     onBackgroundClick();
-    // Dubbeltik (alleen touch; op desktop verandert er niets) op de lege vloer: camera resetten.
-    if (!onResetCamera || lastPointerTypeRef.current !== "touch") return;
+    // Dubbelklik of dubbeltik op de lege vloer: camera resetten.
+    if (!onResetCamera) return;
     const tap = { time: performance.now(), x: event.clientX, y: event.clientY };
     if (isDoubleTap(lastTapRef.current, tap)) {
       lastTapRef.current = null;
@@ -210,7 +206,7 @@ export function Scene3D({
       {onPerformanceChange && <PerformanceMonitor factor={1} bounds={() => [28, 50]} onChange={({ factor }) => onPerformanceChange(factor)} />}
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
-      <CameraRig mode={cameraMode} room={room} controlsEnabled={!isDragging} drawMode={drawMode} resetKey={cameraResetKey} onViewCenter={onViewCenter} zoomRequest={zoomRequest} bottomInsetPx={bottomInsetPx} />
+      <CameraRig room={room} controlsEnabled={!isDragging} drawMode={drawMode} resetKey={cameraResetKey} onViewCenter={onViewCenter} bottomInsetPx={bottomInsetPx} />
       {/* Onzichtbaar sleepvlak — ruim boven kamerformaat zodat de
           raycast tijdens het slepen vrijwel altijd raak is, ook als de
           cursor net buiten de kamer komt. */}

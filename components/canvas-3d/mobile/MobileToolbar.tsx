@@ -1,6 +1,6 @@
 "use client";
 
-import { Cable, Camera, Cone, LayoutGrid, SlidersHorizontal, Home, type LucideIcon } from "lucide-react";
+import { Cable, Cone, LayoutGrid, SlidersHorizontal, Home, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { MobilePanel } from "@/components/canvas-3d/mobile/mobile-logic";
@@ -29,8 +29,6 @@ export function MobileToolbar({
   onToggleDraw,
   ropeMode = false,
   onToggleRope,
-  cameraMenuOpen,
-  onToggleCameraMenu,
   compact,
 }: {
   panel: MobilePanel;
@@ -41,8 +39,6 @@ export function MobileToolbar({
   /** "Touw spannen" aan/uit. */
   ropeMode?: boolean;
   onToggleRope?: () => void;
-  cameraMenuOpen: boolean;
-  onToggleCameraMenu: () => void;
   /** Alleen iconen (weinig schermhoogte). */
   compact: boolean;
 }) {
@@ -52,7 +48,6 @@ export function MobileToolbar({
     { id: "omgeving", label: "Kamer", icon: Home, active: panel === "kamer", onClick: () => onPanel(panel === "kamer" ? null : "kamer") },
     { id: "veld", label: "Veld", icon: Cone, active: drawMode, onClick: onToggleDraw },
     ...(onToggleRope ? [{ id: "touw", label: "Touw spannen", short: "Touw", icon: Cable, active: ropeMode, onClick: onToggleRope }] : []),
-    { id: "camera", label: "Camera", icon: Camera, active: cameraMenuOpen, onClick: onToggleCameraMenu },
   ];
 
   return (
