@@ -29,29 +29,40 @@ export function BottomSheet({
   /** Meldt de hoogte (px) van het sheet (0 bij sluiten): de camera schuift het beeld mee omhoog. */
   onInset?: (px: number) => void;
 }) {
-  const [snap, setSnap] = useState<SheetSnap>("half");
+  // Materiaal/Item/Kamer openen over het hele canvasgebied (meer zien); de rotatie-drawer (peek) blijft compact.
+  const [snap, setSnap] = useState<SheetSnap>(peek ? "half" : "full");
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; dy: number; pointerId: number } | null>(null);
 
   useEffect(() => {
     const element = sheetRef.current;
     if (!element || !onInset || peek || typeof ResizeObserver === "undefined") return;
+    // Alleen een half sheet schuift het beeld omhoog; een sheet over het hele gebied heeft daar niets aan.
+    if (snap !== "half") {
+      onInset(0);
+      return;
+    }
     const observer = new ResizeObserver(() => onInset(element.getBoundingClientRect().height));
     observer.observe(element);
     return () => {
       observer.disconnect();
       onInset(0);
     };
-  }, [onInset, peek]);
+  }, [onInset, peek, snap]);
 
+  // Eénmalig bij openen (NIET opnieuw bij elke render): anders steelt het sheet de focus van het zoekveld en klapt het toetsenbord meteen weer in.
   useEffect(() => {
     sheetRef.current?.focus({ preventScroll: true });
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, []);
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if ((event.target as HTMLElement).closest("button")) return;

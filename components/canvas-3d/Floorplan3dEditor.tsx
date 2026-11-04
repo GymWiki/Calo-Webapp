@@ -12,6 +12,7 @@ import {
   Cone,
   Copy,
   Loader2,
+  LocateFixed,
   Lock,
   LockOpen,
   Redo2,
@@ -72,7 +73,6 @@ import { useRopeDrag } from "@/components/canvas-3d/useRopeDrag";
 import { formatLength, freeEndHeight, insideRoom, rotateRopeAboutMid, withFreeHeight, worldEnds } from "@/components/canvas-3d/rope-drag";
 import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
 import type { MaterialModel } from "@/types/materialModel";
-import { type CameraMode } from "@/components/canvas-3d/CameraRig";
 import { ConeFieldOverview, ConeFieldPanel } from "@/components/canvas-3d/ConeFieldPanel";
 import { FloorplanThumbnailCapture } from "@/components/canvas-3d/FloorplanThumbnailCapture";
 import { useUnsavedChangesGuard } from "@/components/canvas-3d/useUnsavedChangesGuard";
@@ -122,7 +122,6 @@ import {
   type RotationAxis,
 } from "@/components/canvas-3d/rotation-controls";
 import { BottomSheet } from "@/components/canvas-3d/mobile/BottomSheet";
-import { CameraMenu } from "@/components/canvas-3d/mobile/CameraMenu";
 import { GestureOnboarding, hasSeenOnboarding } from "@/components/canvas-3d/mobile/GestureOnboarding";
 import { MobileToolbar } from "@/components/canvas-3d/mobile/MobileToolbar";
 import { AdminBadge } from "@/components/canvas-3d/AdminBadge";
@@ -136,6 +135,7 @@ import { SidePanel } from "@/components/canvas-3d/mobile/SidePanel";
 import {
   angleFromCenterDeg,
   draftStorageKey,
+  isDoubleTap,
   resolveQuality,
   shouldOfferDraft,
   snapRotationDeg,
@@ -299,7 +299,6 @@ export function Floorplan3dEditor({
   const [drawMode, setDrawMode] = useState(false);
   const [draft, setDraft] = useState<{ a: Vec2; c: Vec2; phase: "dragging" | "waiting" } | null>(null);
   const [fieldDragActive, setFieldDragActive] = useState(false);
-  const [cameraMode, setCameraMode] = useState<CameraMode>("free");
   const [debugGuides, setDebugGuides] = useState<SnapGuide[]>([]);
   const [snapGrid, setSnapGrid] = useState<SnapGridSize>(0.1);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
@@ -309,10 +308,8 @@ export function Floorplan3dEditor({
   const shortViewport = useShortViewport();
   const { settings, update: updateSettings } = useEditorSettings();
   const [autoFactor, setAutoFactor] = useState(1);
-  const [cameraMenuOpen, setCameraMenuOpen] = useState(false);
   const [cameraResetKey, setCameraResetKey] = useState(0);
   const [sheetInsetPx, setSheetInsetPx] = useState(0);
-  const [zoomRequest, setZoomRequest] = useState<{ factor: number; nonce: number }>({ factor: 1, nonce: 0 });
   const [onboarding, setOnboarding] = useState(() => window.matchMedia("(pointer: coarse)").matches && !hasSeenOnboarding());
   const [rotatingId, setRotatingId] = useState<string | null>(null);
   // Rotatie over alle assen: snapping, wereld/lokale assen en de 3D-ringen (desktop).
@@ -364,6 +361,7 @@ export function Floorplan3dEditor({
   const itemEditRef = useRef<number | null>(null);
   // Klik op de lege vloer (pointerdown + loslaten zonder te slepen) = selectie opheffen.
   const backgroundDownRef = useRef<{ x: number; y: number } | null>(null);
+  const lastBackgroundTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tijdelijke offscreen render voor de statische preview (zie FloorplanThumbnailCapture).
@@ -1124,7 +1122,17 @@ export function Floorplan3dEditor({
     backgroundDownRef.current = null;
     if (backgroundDown && !drawMode) {
       const moved = Math.hypot(event.nativeEvent.clientX - backgroundDown.x, event.nativeEvent.clientY - backgroundDown.y);
-      if (moved < 5) setSelectedId(null);
+      if (moved < 5) {
+        setSelectedId(null);
+        // Dubbelklik of dubbeltik op de lege vloer: camera terug naar de beginstand.
+        const tap = { time: event.nativeEvent.timeStamp, x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+        if (isDoubleTap(lastBackgroundTapRef.current, tap)) {
+          lastBackgroundTapRef.current = null;
+          resetCamera();
+        } else {
+          lastBackgroundTapRef.current = tap;
+        }
+      }
     }
     if (drawMode) {
       if (draft?.phase === "dragging") {
@@ -2168,21 +2176,6 @@ export function Floorplan3dEditor({
         </div>
       </div>
 
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Camera</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          <Button type="button" size="sm" variant={cameraMode === "angled" ? "default" : "outline"} onClick={() => setCameraMode("angled")}>
-            Standaard
-          </Button>
-          <Button type="button" size="sm" variant={cameraMode === "top" ? "default" : "outline"} onClick={() => setCameraMode("top")}>
-            Bovenaanzicht
-          </Button>
-          <Button type="button" size="sm" variant={cameraMode === "free" ? "default" : "outline"} onClick={() => setCameraMode("free")}>
-            Vrij draaien
-          </Button>
-        </div>
-      </div>
-
       {fieldOverview}
     </div>
   );
@@ -2235,7 +2228,6 @@ export function Floorplan3dEditor({
       groupIds={isMultiSelection ? groupIdSet : undefined}
       isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDrag.active}
       gizmo={gizmoProps}
-      cameraMode={cameraMode}
       onItemPointerDown={(id, event) => (ropeMode ? ropeDrag.beginNew(id, [event.point.x, event.point.y, event.point.z], event) : handleItemPointerDown(id))}
       ropes={ropes}
       hiddenRopeId={dragView?.hiddenRopeId ?? null}
@@ -2273,7 +2265,6 @@ export function Floorplan3dEditor({
       onPerformanceChange={settings.quality === "auto" ? setAutoFactor : undefined}
       onViewCenter={handleViewCenter}
       cameraResetKey={cameraResetKey}
-      zoomRequest={zoomRequest}
       bottomInsetPx={sheetInsetPx}
       onResetCamera={resetCamera}
       touchUi={coarsePointer}
@@ -2485,16 +2476,6 @@ export function Floorplan3dEditor({
           {anchorToggle}
           {fieldHud}
           {ropeHud}
-          {cameraMenuOpen && (
-            <CameraMenu
-              mode={cameraMode}
-              onMode={(mode) => {
-                setCameraMode(mode);
-                resetCamera();
-              }}
-              onReset={resetCamera}
-            />
-          )}
           {hasSelection && !drawMode && !(layout === "phone" && activePanel) && (
             <SelectionBar
               title={selectionTitle}
@@ -2522,12 +2503,21 @@ export function Floorplan3dEditor({
             </SidePanel>
           )}
           {onboarding && <GestureOnboarding onClose={() => setOnboarding(false)} />}
+          <button
+            type="button"
+            aria-label="Camera herstellen"
+            title="Camera herstellen (ook: dubbeltik op een leeg stuk)"
+            data-testid="camera-herstellen"
+            onClick={resetCamera}
+            className="absolute top-2 right-2 z-20 flex size-11 items-center justify-center rounded-xl border bg-card/95 shadow-md backdrop-blur-sm hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95"
+          >
+            <LocateFixed className="size-5" aria-hidden="true" />
+          </button>
         </div>
 
         <MobileToolbar
           panel={activePanel}
           onPanel={(panel) => {
-            setCameraMenuOpen(false);
             setMobilePanel(panel);
           }}
           hasSelection={hasSelection}
@@ -2535,8 +2525,6 @@ export function Floorplan3dEditor({
           onToggleDraw={() => (drawMode ? stopDrawing() : startDrawing())}
           ropeMode={ropeMode}
           onToggleRope={() => (ropeMode ? stopRopeMode() : startRopeMode())}
-          cameraMenuOpen={cameraMenuOpen}
-          onToggleCameraMenu={() => setCameraMenuOpen((open) => !open)}
           compact={shortViewport}
         />
 
@@ -2668,10 +2656,7 @@ export function Floorplan3dEditor({
               position={uiPrefs.prefs.toolbar}
               onPosition={(toolbar) => uiPrefs.update((previous) => ({ ...previous, toolbar }))}
               onResetLayout={uiPrefs.reset}
-              cameraMode={cameraMode}
-              onCameraMode={setCameraMode}
               onResetCamera={resetCamera}
-              onZoom={(factor) => setZoomRequest((previous) => ({ factor, nonce: previous.nonce + 1 }))}
               tool={drawMode ? "veld" : ropeMode ? "touw" : "selecteren"}
               onTool={(tool) => {
                 if (tool === "selecteren") {

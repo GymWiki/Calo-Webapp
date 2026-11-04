@@ -123,23 +123,23 @@ for (const vp of VIEWPORTS) {
 }
 
 for (const vp of VIEWPORTS.filter((v) => v.width < 768)) {
-  test(`werkbalken ${vp.id}: zes knoppen, geen overlap, ≥ 44 px; sheet openen en sluiten verschuift niets`, async ({ browser }, testInfo) => {
+  test(`werkbalken ${vp.id}: vijf knoppen, geen overlap, ≥ 44 px; sheet openen en sluiten verschuift niets`, async ({ browser }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "eigen contexten per viewport");
     const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
     const page = await context.newPage();
     await open(page);
     const bar = page.getByTestId("mobiele-werkbalk");
     const buttons = bar.getByRole("button");
-    expect(await buttons.count()).toBe(6);
+    expect(await buttons.count()).toBe(5);
     const boxes = [];
-    for (let i = 0; i < 6; i++) boxes.push((await buttons.nth(i).boundingBox())!);
+    for (let i = 0; i < 5; i++) boxes.push((await buttons.nth(i).boundingBox())!);
     for (const box of boxes) {
       expect(box.width).toBeGreaterThanOrEqual(43.5);
       expect(box.height).toBeGreaterThanOrEqual(43.5);
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 0.5);
     }
-    for (let i = 1; i < 6; i++) expect(boxes[i].x).toBeGreaterThanOrEqual(boxes[i - 1].x + boxes[i - 1].width - 0.5);
+    for (let i = 1; i < 5; i++) expect(boxes[i].x).toBeGreaterThanOrEqual(boxes[i - 1].x + boxes[i - 1].width - 0.5);
     // Ongedaan/Opnieuw staan in de bovenbalk.
     await expect(page.getByTestId("toolbar-undo")).toBeVisible();
     await expect(page.getByTestId("toolbar-redo")).toBeVisible();

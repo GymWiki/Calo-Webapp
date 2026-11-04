@@ -210,21 +210,6 @@ export function wandrekParts(layout: GymLayout): EnvironmentPart[] {
   return layout.wandrekken.nodes.map((node, index) => ({ id: `wandrek-${index + 1}`, label: `Wandrek ${index + 1}`, nodes: [node] }));
 }
 
-/** "Alles weghalen" / "Standaardzaal": alle vaste onderdelen uit of aan; muren, gordijnen en lijnen blijven zoals ze zijn. */
-export function setFixturesOn(hidden: string[], layout: GymLayout, on: boolean): string[] {
-  return setPartsOn(hidden, fixtureParts(layout), on);
-}
-
-/** "Lege zaal": alle vaste onderdelen uit en de vloerlijnen uit; alleen vloer en de gekozen muren/gordijnen blijven. */
-export function emptyHallHidden(hidden: string[], layout: GymLayout): string[] {
-  return setPartsOn(setFixturesOn(hidden, layout, false), layout.lijnen, false);
-}
-
-/** "Standaardzaal herstellen": precies de standaardzaal (muren achter/links, lijnen volgens standaard, alle vaste onderdelen aan). */
-export function standardHallHidden(layoutId: GymLayoutId): string[] {
-  return createGymEnvironment(layoutId).hidden;
-}
-
 // --- Aan/uit-logica (puur) ------------------------------------------------
 
 /** Staat dit onderdeel aan? Pas als álle nodes zichtbaar zijn. */

@@ -64,3 +64,6 @@ Bovenbalk-statuslabel ("Opgeslagen/Niet opgeslagen"), titel direct bewerkbaar op
 ## Beslissingen voor jou
 * ~~Standaardpositie werkbalk~~ — besloten: standaard onder, verplaatsbaar (boven/verborgen) en onthouden.
 * ~~Gereedschap en zoom in de werkbalk~~ — besloten en gebouwd: Selecteren, Veld, Touw, uit-/inzoomen staan nu in de werkbalk (de linkerzijbalk houdt Veld en Touw ook; zelfde state).
+
+## Bijgewerkt (UI opschonen)
+De camera in de editor is altijd "vrij": de camerastanden (Standaard/Boven/Vrij), de zoomknoppen, het cameramenu en de Camera-tab van de mobiele onderwerkbalk zijn verwijderd; de werkbalk is één rij iconen (zie `docs/editor-ui-opschonen/`). Verwijzingen hierboven naar `cameraMode`, camerastanden of zoomknoppen in de werkbalk zijn daarmee vervallen.

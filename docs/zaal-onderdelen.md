@@ -13,11 +13,11 @@ plattegrond zonder deze nodes in `hidden` toont alles (= standaardzaal).
 | Basketbalbaskets | `Basketbal_Installatie_Links/Rechts` | ja | alleen losse zaal |
 | Vaste bankjes | `Turnbank_1`, `Turnbank_2` | ja (nieuw) | alleen losse zaal |
 | Muren / gordijnen | `Muur_*`, `Scheidingswand_*` | ja (bestond) | |
-| Sportlijnen | `Lijnen_*` | ja (bestond) | "Lege zaal" zet ze ook uit |
+| Sportlijnen | `Lijnen_*` | ja (bestond) | |
 | Plafondspanten, ringen/klimtouwen | `Plafond_Constructie_Spanten`, `Turnringen_Klimtouwen` | altijd verborgen | |
 | Ramen, deuren, spiegels, scoreboard/klok, tribune, ballenvanger, vaste doelen, lichtbakken | – | **niet in het zaalmodel** | bestaan niet als node; zouden in Blender als `opt_<groep>__<variant>` moeten worden toegevoegd |
 
-Knoppen "Alles weghalen", "Standaardzaal herstellen" en "Lege zaal" staan boven in de groep (één undo-stap per klik).
+In het Kamer-paneel staan onder "Vaste onderdelen" alleen een uitlegregel en de switches per onderdeel (één undo-stap per wijziging). De eerdere knoppen "Alles weghalen", "Standaardzaal herstellen" en "Lege zaal" zijn verwijderd.
 
 ## Open punten (niet gedaan)
 * **Achterwand achter een weggehaald wandrek:** niet visueel gecontroleerd (de GLB's komen uit Supabase Storage; de testomgeving heeft ze niet). Controleer in
