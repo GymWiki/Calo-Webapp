@@ -11,6 +11,7 @@ import {
   Cable,
   Cone,
   Copy,
+  Layers,
   Loader2,
   LocateFixed,
   Lock,
@@ -299,11 +300,12 @@ export function Floorplan3dEditor({
     toggle: (id, defaultOpen) => uiPrefs.update((previous) => ({ ...previous, sections: { ...previous.sections, [id]: !(previous.sections[id] ?? defaultOpen) } })),
   };
   const modifierRef = useRef(false);
-  /** Alt ingedrukt tijdens het slepen: snappen en botsing tijdelijk uit. */
+  /** Alt ingedrukt tijdens het slepen: stapelen tijdelijk omgekeerd en snappen uit. */
   const altRef = useRef(false);
-  /** Schakelaar "Botsing": aan = waarschuwen bij overlap, uit = negeren. */
-  const [collisionOn, setCollisionOn] = useState(true);
-  /** Items met een botsingswaarschuwing tijdens het slepen (outline). */
+  /** Schakelaar "Stapelen" (per gebruiker bewaard): aan = een object komt boven op het object eronder, uit = vrij op de vloer, ook in andere objecten. */
+  const stackingOn = uiPrefs.prefs.stacking;
+  const toggleStacking = () => uiPrefs.update((previous) => ({ ...previous, stacking: !previous.stacking }));
+  /** Items die buiten de zaal steken tijdens het slepen (outline). */
   const [warnIds, setWarnIds] = useState<ReadonlySet<string>>(() => new Set());
   /** Laatste preview-resultaat van de sleepbeweging: precies dit wordt bij loslaten vastgelegd (geen tweede berekening). */
   const lastPlacementRef = useRef<{ id: string; placement: ReturnType<typeof resolvePlacement> } | null>(null);
@@ -1040,23 +1042,12 @@ export function Floorplan3dEditor({
     setItems((prev) => prev.map((candidate) => (candidate.id === item.id ? { ...candidate, rot_y_deg: target, x: origin.x, z: origin.z } : candidate)));
   }
 
-  /** Zachte botsingswaarschuwing tijdens het slepen: outline + korte melding; de plaatsing blijft zoals hij is. */
+  /** Zachte melding tijdens het slepen: alleen als een item buiten de zaal uitsteekt (overlap met andere objecten geeft geen melding meer). */
   function showPlacementWarnings(id: string, placement: ReturnType<typeof resolvePlacement>) {
-    const ids = new Set<string>();
-    const messages: string[] = [];
-    for (const warning of placement.warnings) {
-      if (warning.kind === "overlap") {
-        ids.add(id);
-        ids.add(warning.withId);
-        const name = models.find((model) => model.slug === warning.withSlug)?.naam ?? warning.withSlug;
-        if (!messages.includes(`Overlapt met ${name}`)) messages.push(`Overlapt met ${name}`);
-      } else {
-        ids.add(id);
-        messages.push("Past niet in de zaal: het item steekt buiten de zaal uit");
-      }
-    }
+    const outside = placement.warnings.some((warning) => warning.kind === "outside");
+    const ids = new Set<string>(outside ? [id] : []);
     setWarnIds((previous) => (previous.size === ids.size && [...ids].every((value) => previous.has(value)) ? previous : ids));
-    if (messages.length > 0) toast.warning(messages.join(" · "), { id: "botsing-waarschuwing", duration: 4000 });
+    if (outside) toast.warning("Past niet in de zaal: het item steekt buiten de zaal uit", { id: "botsing-waarschuwing", duration: 4000 });
     else toast.dismiss("botsing-waarschuwing");
   }
 
@@ -1091,7 +1082,8 @@ export function Floorplan3dEditor({
       room,
       grid: snapGrid,
       lookup,
-      collisions: collisionOn && !altRef.current,
+      // Alt draait stapelen tijdelijk om en zet snappen uit.
+      stacking: altRef.current ? !stackingOn : stackingOn,
       snap: !altRef.current,
     });
     lastPlacementRef.current = { id: draggingId, placement };
@@ -1335,7 +1327,14 @@ export function Floorplan3dEditor({
     pushHistory();
     const removedItemIds = new Set(removableItems.map((item) => item.id));
     const removedFieldIds = new Set(groupFields.map((field) => field.id));
-    if (removedItemIds.size > 0) setItems((prev) => prev.filter((item) => !removedItemIds.has(item.id)));
+    // Items die op een verwijderd item rustten vallen naar de volgende ondergrond of de vloer (zichtbaar gemeld, terug te halen met ongedaan maken).
+    let fallen = 0;
+    if (removedItemIds.size > 0) {
+      const remaining = items.filter((item) => !removedItemIds.has(item.id));
+      const settled = recomputeStackedYs(remaining, lookup);
+      fallen = settled.filter((item, index) => Math.abs(item.y - remaining[index].y) > 0.005).length;
+      setItems(settled);
+    }
     if (removedFieldIds.size > 0) setConeFields((prev) => prev.filter((field) => !removedFieldIds.has(field.id)));
     // Touwen die aan een verwijderd item hangen verdwijnen mee (terug te halen met ongedaan maken).
     if (removedItemIds.size > 0) setRopes((prev) => removeRopesOfItems(prev, removedItemIds));
@@ -1345,6 +1344,7 @@ export function Floorplan3dEditor({
     const removed = removedItemIds.size + removedFieldIds.size;
     const message = removed > 1 ? `${removed} objecten verwijderd` : removedFieldIds.size === 1 ? "Veld verwijderd" : "Item verwijderd";
     toast(message, { action: undoAction, duration: 6000 });
+    if (fallen > 0) toast.info(`${fallen} ${fallen === 1 ? "object valt" : "objecten vallen"} naar beneden`, { duration: 5000 });
   }
 
   function toggleLockSelected() {
@@ -1535,6 +1535,31 @@ export function Floorplan3dEditor({
     }
     if (clipboardRef.current) pasteObjects(clipboardRef.current);
     else toast.info("Er staat niets in het klembord.");
+  }
+
+  /** "Op ondergrond zetten": brengt het geselecteerde item op de hoogte van de ondergrond onder zijn voetafdruk (of de vloer); één undo-stap. */
+  function settleSelectedOnSupport() {
+    if (!selectedItem || selectedItem.locked) return;
+    const resting = new Set(findItemsResting(selectedItem.id, items, lookup));
+    const placement = resolvePlacement({
+      pointer: { x: selectedItem.x, z: selectedItem.z },
+      dragged: draggedFields(selectedItem),
+      others: items.filter((item) => item.id !== selectedItem.id && !resting.has(item.id)),
+      room,
+      grid: 0,
+      lookup,
+      stacking: true,
+      snap: false,
+    });
+    if (Math.abs(placement.y - selectedItem.y) < 0.005) {
+      toast.info("Dit item staat al op zijn ondergrond");
+      return;
+    }
+    pushHistory();
+    const dy = placement.y - selectedItem.y;
+    setItems((prev) => prev.map((item) => (item.id === selectedItem.id ? { ...item, y: placement.y } : resting.has(item.id) ? { ...item, y: item.y + dy } : item)));
+    scheduleAutosave();
+    toast(placement.stackedOn.length > 0 ? "Item op zijn ondergrond gezet" : "Item op de vloer gezet", { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 5000 });
   }
 
   function duplicateSelected() {
@@ -2068,6 +2093,9 @@ export function Floorplan3dEditor({
           <Button type="button" variant={selectedItem.locked ? "default" : "outline"} className="w-full" aria-pressed={Boolean(selectedItem.locked)} onClick={toggleLockSelected}>
             {selectedItem.locked ? <LockOpen className="size-4" /> : <Lock className="size-4" />} {selectedItem.locked ? "Ontgrendelen" : "Vergrendelen"}
           </Button>
+          <Button type="button" variant="outline" className="w-full" data-testid="op-ondergrond-zetten" title="Brengt dit item op de hoogte van de ondergrond onder zijn voetafdruk (of de vloer)" disabled={Boolean(selectedItem.locked)} onClick={settleSelectedOnSupport}>
+            <Layers className="size-4" /> Op ondergrond zetten
+          </Button>
           {clipboardButtons}
           <Button type="button" variant="outline" className="w-full" title="Dupliceren (Ctrl+D)" onClick={duplicateSelected}>
             <Copy className="size-4" /> Dupliceren (Ctrl+D)
@@ -2185,16 +2213,9 @@ export function Floorplan3dEditor({
         </PanelSection>
       )}
 
-      {/* Botsing en raster staan op desktop in de werkbalk; telefoon en tablet hebben hier hun enige plek. */}
+      {/* Het raster staat op desktop in de werkbalk; telefoon en tablet hebben hier hun enige plek. */}
       {layout !== "desktop" && (
         <>
-        <div>
-          <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Botsing</p>
-          <Button type="button" size="sm" className="min-h-11 w-full" variant={collisionOn ? "default" : "outline"} aria-pressed={collisionOn} data-testid="knop-botsing-instelling" onClick={() => setCollisionOn((value) => !value)}>
-            {collisionOn ? "Botsing: waarschuwen" : "Botsing: negeren"}
-          </Button>
-        </div>
-
         <div>
           <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Raster</p>
           <div className="grid grid-cols-3 gap-1.5">
@@ -2543,6 +2564,17 @@ export function Floorplan3dEditor({
           {onboarding && <GestureOnboarding onClose={() => setOnboarding(false)} />}
           <button
             type="button"
+            aria-label={stackingOn ? "Stapelen: aan (objecten komen boven op elkaar te staan)" : "Stapelen: uit (objecten kunnen in elkaar staan)"}
+            title={stackingOn ? "Stapelen: aan. Tik om uit te zetten" : "Stapelen: uit. Tik om aan te zetten"}
+            aria-pressed={stackingOn}
+            data-testid="stapelen-schakelaar"
+            onClick={toggleStacking}
+            className={cn("absolute top-2 left-2 z-20 flex size-11 items-center justify-center rounded-xl border shadow-md backdrop-blur-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95", stackingOn ? "bg-primary/10 text-primary ring-1 ring-primary/30" : "bg-card/95 text-muted-foreground opacity-80")}
+          >
+            <Layers className="size-5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
             aria-label="Camera herstellen"
             title="Camera herstellen (ook: dubbeltik op een leeg stuk)"
             data-testid="camera-herstellen"
@@ -2602,8 +2634,8 @@ export function Floorplan3dEditor({
               }}
               snapGrid={snapGrid}
               onSnapGrid={setSnapGrid}
-              collisionOn={collisionOn}
-              onToggleCollision={() => setCollisionOn((value) => !value)}
+              stackingOn={stackingOn}
+              onToggleStacking={toggleStacking}
             />
   );
 

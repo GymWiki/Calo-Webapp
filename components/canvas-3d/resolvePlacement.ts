@@ -16,13 +16,11 @@ import {
   pointInPolygons,
   polygonsAabb,
   polygonsArea,
-  polygonsOverlap,
   polygonsOverlapArea,
   polygonsAt,
   polygonsOverlapDepth,
   rangeFor,
   shapeOfDims,
-  shapesCollide,
   supportOffsetOf,
   type DimsLookup,
   type Point2D,
@@ -30,7 +28,7 @@ import {
 } from "@/components/canvas-3d/floorplan3d-geometry";
 import { footprintCenter, isElevated } from "@/components/canvas-3d/collision-shape";
 import { isTilted, itemIsTilted, rotationOf } from "@/components/canvas-3d/orientation";
-import { layerOf, overlapWarns, staysAtOwnHeight, type CollisionLayer } from "@/lib/constants/collisionRules";
+import { canRestOn, layerOf, staysAtOwnHeight, type CollisionLayer } from "@/lib/constants/collisionRules";
 import {
   EPS_M,
   OVERLAP_IGNORE_M,
@@ -40,10 +38,8 @@ import {
 
 export type PlacementMode = "stack" | "edge" | "grid" | "none";
 
-/** Zachte waarschuwing bij een plaatsing: de plaatsing zelf blijft zoals de docent hem neerzet. */
-export type PlacementWarning =
-  | { kind: "overlap"; withSlug: string; withId: string }
-  | { kind: "outside" };
+/** Zachte waarschuwing bij een plaatsing: de plaatsing zelf blijft zoals de docent hem neerzet. Overlap met andere objecten geeft geen waarschuwing meer. */
+export type PlacementWarning = { kind: "outside" };
 
 /** Eén snaplijn voor de debug-weergave: een rand op `at` (langs `axis`),
  * getekend van `from` tot `to` op de andere as. `targetSlug` is null voor een muur. */
@@ -64,10 +60,7 @@ export type PlacementResult = {
   stackedOn: string[];
   /** Waar naartoe gesnapt is: slug van het item, of null voor een muur. */
   edgeTargets: (string | null)[];
-  /** Er is een overlap die volgens de botsingsregels een waarschuwing verdient (lib/constants/collisionRules.ts).
-   * Alleen een waarschuwing: de positie wordt NOOIT aangepast. */
-  blocked: boolean;
-  /** Alle waarschuwingen (overlap per item, of: het item past niet in de zaal). */
+  /** Waarschuwingen: het item past niet in de zaal. De positie wordt NOOIT aangepast. */
   warnings: PlacementWarning[];
   /** Laag van het gesleepte item (botsingsregels). */
   layer: CollisionLayer;
@@ -87,8 +80,8 @@ export type PlacementInput = {
   lookup: DimsLookup;
   /** @deprecated Geen effect meer: preview en commit zijn dezelfde berekening en een plek wordt nooit pas bij loslaten aangepast. */
   final?: boolean;
-  /** Waarschuwen bij overlap (standaard aan). Uit = botsing negeren (schakelaar of Alt tijdens het slepen). */
-  collisions?: boolean;
+  /** Stapelen (standaard aan): een item komt op de bovenkant van het object eronder te rusten. Uit = vrij op de vloer, ook in of door andere objecten. */
+  stacking?: boolean;
   /** Snappen aan raster en randen (standaard aan). Uit = vrij plaatsen (Alt tijdens het slepen). */
   snap?: boolean;
 };
@@ -170,7 +163,7 @@ function effectiveAngle(rotDeg: number, yawDeg: number): number {
 export function resolvePlacement(input: PlacementInput): PlacementResult {
   const { pointer, dragged, others, room, lookup } = input;
   const snapOn = input.snap !== false;
-  const warnOn = input.collisions !== false;
+  const stackingOn = input.stacking !== false;
   const grid: SnapGridSize = snapOn ? input.grid : 0;
   const dims = dimsOf({ slug: dragged.slug, size: dragged.size } as Floorplan3dItem, lookup);
   const shape = shapeOfDims(dims);
@@ -183,7 +176,7 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
   // item rust met zijn laagste punt op de vloer en stapelt niet.
   const collides = shape.kind !== "none";
   const layer = layerOf(dragged.slug, isElevated(shape));
-  const canStack = collides && !isElevated(shape) && !tilted && !staysAtOwnHeight(dragged.slug, layer);
+  const canStack = stackingOn && collides && !isElevated(shape) && !tilted && !staysAtOwnHeight(dragged.slug, layer);
   const draggedRight = !tilted && isRightAngle(effectiveAngle(rot, shape.yaw_deg));
 
   const rawPolygons = polygonsAt(shape, pointer.x, pointer.z, rot3);
@@ -201,15 +194,16 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
 
       const otherArea = polygonsArea(otherPolygons);
       if (otherArea <= 0 || rawArea <= 0) continue;
-      const ratio = polygonsOverlapArea(rawPolygons, otherPolygons) / Math.min(rawArea, otherArea);
-      const stacks = ratio > STACK_OVERLAP_MIN || pointInPolygons(rawCenter, otherPolygons);
-      if (!stacks) continue; // Randoverlap: wordt hieronder naast-elkaar opgelost.
+      // Draagt het object eronder? Zwaartepunt erop, of minstens 30% van de voetafdruk van het gesleepte item steunt op de ondergrond.
+      const ratio = polygonsOverlapArea(rawPolygons, otherPolygons) / rawArea;
+      const supported = ratio >= STACK_OVERLAP_MIN || pointInPolygons(rawCenter, otherPolygons);
+      if (!supported) continue; // Randoverlap: valt naar een lagere ondergrond of de vloer.
 
-      // Hangend materiaal boven de vloer is geen ondergrond én geen obstakel voor de vloer.
-      if (isElevated(shapeOfDims(dimsOf(other, lookup)))) continue;
-      // Klein materiaal (bal, pion, hoepel) ligt op bijna alles; de rest alleen op stapelbare items.
-      // Een niet-stapelbaar item eronder is geen blokkade: de overlap krijgt hieronder hooguit een waarschuwing.
-      if (dimsOf(other, lookup).stackable || (layer === "klein" && layerOf(other.slug) !== "klein" && layerOf(other.slug) !== "vloer")) stackBases.push(other);
+      // Hangend materiaal boven de vloer is geen ondergrond.
+      const otherShape = shapeOfDims(dimsOf(other, lookup));
+      if (isElevated(otherShape) || otherShape.kind === "none") continue;
+      // Ondergrond volgens de lagen (toestellen en matten); de stackable-vlag uit de database is hier niet beslissend.
+      if (canRestOn(layer, layerOf(other.slug, false))) stackBases.push(other);
     }
   }
 
@@ -280,26 +274,6 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
   const guides = [xCorrection, zCorrection].flatMap((c) => (c ? [c.guide] : []));
   const edgeTargets = [xCorrection, zCorrection].flatMap((c) => (c ? [c.targetSlug] : []));
 
-  // --- 4. Overlap: alleen een waarschuwing, nooit een verplaatsing. -------
-  const finalPolygons = polygonsAt(shape, x, z, rot3);
-  const collidesWith = (other: Floorplan3dItem) =>
-    tilted || itemIsTilted(other)
-      ? shapesCollide(
-          { shape, pos: [x, y, z], rot: rot3 },
-          { shape: shapeOfDims(dimsOf(other, lookup)), pos: [other.x, other.y, other.z], rot: rotationOf(other) },
-        )
-      : polygonsOverlap(finalPolygons, itemPolygons(other, lookup));
-  if (collides && warnOn) {
-    for (const other of others) {
-      if (!sameHeight(other) || stackBases.includes(other)) continue;
-      const otherShape = shapeOfDims(dimsOf(other, lookup));
-      if (otherShape.kind === "none") continue;
-      if (!overlapWarns(layer, layerOf(other.slug, isElevated(otherShape)))) continue;
-      if (collidesWith(other)) warnings.push({ kind: "overlap", withSlug: other.slug, withId: other.id });
-    }
-  }
-  const blocked = warnings.some((warning) => warning.kind === "overlap");
-
   const parts: string[] = [];
   if (stacking) parts.push(`stack op ${[...new Set(stackBases.map((b) => b.slug))].join(", ")}`);
   for (const target of new Set(edgeTargets)) parts.push(`rand-snap naar ${target ?? "muur"}`);
@@ -320,7 +294,6 @@ export function resolvePlacement(input: PlacementInput): PlacementResult {
     mode,
     stackedOn: stacking ? [...new Set(stackBases.map((base) => base.slug))] : [],
     edgeTargets,
-    blocked,
     warnings,
     layer,
     guides,

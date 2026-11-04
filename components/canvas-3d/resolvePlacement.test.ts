@@ -80,14 +80,12 @@ test("overlap kleiner dan 2 cm wordt genegeerd", () => {
   const a = item("a", "mat", 0, 0);
   const result = place({ x: 2.99, z: 0 }, [a], { grid: 0 });
   near(result.y, 0);
-  assert.equal(result.blocked, false);
 });
 
 test("mat op een niet-stapelbaar item: blijft op de vloer, geen waarschuwing (matten liggen onder alles) en nooit verplaatst", () => {
   const blok = item("n", "blok", 0, 0);
   const dragging = place({ x: 0.1, z: 0.1 }, [blok]);
   assert.equal(dragging.stackedOn.length, 0);
-  assert.equal(dragging.blocked, false);
   const dropped = place({ x: 0.1, z: 0.1 }, [blok], { final: true });
   assert.deepEqual([dropped.x, dropped.z, dropped.y], [dragging.x, dragging.z, dragging.y], "loslaten = exact de preview");
   near(dropped.y, 0);
@@ -153,70 +151,81 @@ test("laden: gestapelde en naast elkaar liggende matten houden hun hoogte", () =
   assert.deepEqual(beside.map((i) => i.y), [0, 0]);
 });
 
-// ---- Botsingsregels (lib/constants/collisionRules.ts) -------------------------------------------
+// ---- Stapelen (lib/constants/collisionRules.ts) ---------------------------------------------------
 const NET: ItemDims = { length_m: 10.5, width_m: 0.012, height_m: 1.8, base_m: 0.8, stackable: false };
 const OPSTELLING: ItemDims = { length_m: 10.85, width_m: 0.16, height_m: 3.04, offset_x: -0.09, stackable: false };
+// stackable: false volgens de database — de lagen-regels bepalen toch dat een bank of kast een ondergrond is.
 const BANK: ItemDims = { length_m: 3, width_m: 0.4, height_m: 0.5, stackable: false };
 const KAST: ItemDims = { length_m: 1.4, width_m: 0.8, height_m: 1.1, stackable: false };
-const BAL: ItemDims = { length_m: 0.24, width_m: 0.24, height_m: 0.24, stackable: true };
+const BAL: ItemDims = { length_m: 0.24, width_m: 0.24, height_m: 0.24, stackable: false };
 const LEERLING: ItemDims = { length_m: 0.5, width_m: 0.4, height_m: 1.4, stackable: false };
-Object.assign(MODELS, { volleybalnet_test: NET, volleybal_veldopstelling_compleet_dames: OPSTELLING, bank: BANK, kast: KAST, bal: BAL, leerling_test: LEERLING });
+const PALEN: ItemDims = { length_m: 2.81, width_m: 0.9, height_m: 2.55, stackable: false };
+Object.assign(MODELS, { volleybalnet_test: NET, volleybal_veldopstelling_compleet_dames: OPSTELLING, bank: BANK, kast: KAST, bal: BAL, leerling_test: LEERLING, volleybalpalen_mobiel_set: PALEN });
 
 const withRoom = (pointer: { x: number; z: number }, slug: string, others: Floorplan3dItem[], extra: Partial<Parameters<typeof resolvePlacement>[0]> = {}) =>
   resolvePlacement({ pointer, dragged: { slug, rot_y_deg: 0 }, others, room, grid: 0, lookup, ...extra });
 
-test("volleybalnet over een bank: toegestaan, op eigen hoogte, geen waarschuwing", () => {
+test("bal op een bank komt op de bovenkant van de bank te liggen (ook als de database de bank niet-stapelbaar noemt)", () => {
   const bank = item("b", "bank", 0, 0);
-  const result = withRoom({ x: 0, z: 0 }, "volleybalnet_test", [bank]);
-  assert.equal(result.blocked, false);
-  assert.deepEqual(result.warnings, []);
-  assert.equal(result.layer, "overspannend");
-  near(result.y, 0, "het net wordt niet op de bank getild");
-});
-
-test("complete volleybalopstelling over een bank of kast: geen waarschuwing, niet verplaatst, loslaten = preview", () => {
-  const others = [item("b", "bank", 1, 0), item("k", "kast", -2, 0)];
-  const preview = withRoom({ x: 0, z: 0.1 }, "volleybal_veldopstelling_compleet_dames", others);
-  const commit = withRoom({ x: preview.x, z: preview.z }, "volleybal_veldopstelling_compleet_dames", others, { final: true });
-  assert.equal(preview.blocked, false);
-  assert.deepEqual([commit.x, commit.y, commit.z], [preview.x, preview.y, preview.z]);
-  near(preview.y, 0);
-});
-
-test("bank door een andere bank: waarschuwing met de naam, geen verplaatsing", () => {
-  const bank = item("b", "bank", 0, 0);
-  const result = withRoom({ x: 0.5, z: 0.1 }, "bank", [bank]);
-  assert.equal(result.blocked, true);
-  assert.deepEqual(result.warnings, [{ kind: "overlap", withSlug: "bank", withId: "b" }]);
-  near(result.x, 0.5);
-  near(result.z, 0.1);
-});
-
-test("botsing uit (schakelaar/Alt): geen waarschuwing; snap uit: geen raster", () => {
-  const bank = item("b", "bank", 0, 0);
-  assert.equal(withRoom({ x: 0.5, z: 0.1 }, "bank", [bank], { collisions: false }).warnings.length, 0);
-  const free = withRoom({ x: 3.13, z: 1.07 }, "bank", [], { grid: 0.5, snap: false });
-  near(free.x, 3.13);
-  near(free.z, 1.07);
-});
-
-test("bal op een bank: ligt bovenop (juiste hoogte), ook al is de bank niet stapelbaar; mat onder een bank: geen waarschuwing", () => {
-  const bank = item("b", "bank", 0, 0);
-  const bal = withRoom({ x: 0.2, z: 0 }, "bal", [bank]);
+  const bal = withRoom({ x: 0.3, z: 0 }, "bal", [bank]);
   assert.equal(bal.mode, "stack");
   near(bal.y, 0.5);
-  const mat = withRoom({ x: 0.2, z: 0 }, "mat", [bank]);
-  assert.equal(mat.blocked, false);
-  near(mat.y, 0);
+  assert.deepEqual(bal.stackedOn, ["bank"]);
 });
 
-test("leerling naast een bank en over een kast: alleen bij een toestel een waarschuwing, nooit verplaatst", () => {
+test("pion/bal op een kast, leerling op een bank, palen op een bank: allemaal bovenop", () => {
+  const kast = item("k", "kast", 0, 0);
+  near(withRoom({ x: 0, z: 0 }, "bal", [kast]).y, 1.1);
   const bank = item("b", "bank", 0, 0);
-  const next = withRoom({ x: 0, z: 1.5 }, "leerling_test", [bank]);
-  assert.equal(next.blocked, false);
-  const over = withRoom({ x: 0, z: 0.05 }, "leerling_test", [bank], { snap: false });
-  assert.equal(over.blocked, true);
-  near(over.z, 0.05);
+  near(withRoom({ x: 0, z: 0 }, "leerling_test", [bank]).y, 0.5);
+  near(withRoom({ x: 0, z: 0 }, "volleybalpalen_mobiel_set", [bank]).y, 0.5);
+});
+
+test("mat onder een bank kan (bank rust op de mat); een mat over een bank blijft op de vloer", () => {
+  const mat = item("m", "mat", 0, 0);
+  const bankOpMat = withRoom({ x: 0, z: 0 }, "bank", [mat]);
+  near(bankOpMat.y, 0.3);
+  const bank = item("b", "bank", 0, 0);
+  const matOverBank = withRoom({ x: 0, z: 0 }, "mat", [bank]);
+  near(matOverBank.y, 0);
+  assert.equal(matOverBank.stackedOn.length, 0);
+});
+
+test("deels over de rand: steunt minstens 30% van de voetafdruk, dan rust het erop; minder, dan valt het naar de vloer", () => {
+  const bank = item("b", "bank", 0, 0);
+  // kast (0,8 m diep) voor 31% op de bank: rust op de bank
+  near(withRoom({ x: 0, z: 0.35 }, "kast", [bank], { snap: false }).y, 0.5);
+  // voor 19%: valt naar de vloer
+  near(withRoom({ x: 0, z: 0.45 }, "kast", [bank], { snap: false }).y, 0);
+});
+
+test("meerdere lagen: bal op kast op bank", () => {
+  const bank = item("b", "bank", 0, 0);
+  const kast = item("k", "kast", 0, 0, 0, 0.5);
+  near(withRoom({ x: 0, z: 0 }, "bal", [bank, kast]).y, 1.6);
+});
+
+test("netten en complete netopstellingen worden niet opgetild: eigen hoogte, ook boven een bank", () => {
+  const bank = item("b", "bank", 0, 0);
+  near(withRoom({ x: 0, z: 0 }, "volleybalnet_test", [bank]).y, 0);
+  near(withRoom({ x: 0, z: 0.1 }, "volleybal_veldopstelling_compleet_dames", [bank], { snap: false }).y, 0);
+});
+
+test("stapelen uit: dezelfde bal staat op de vloer, in de bank, zonder waarschuwing", () => {
+  const bank = item("b", "bank", 0, 0);
+  const bal = withRoom({ x: 0.3, z: 0 }, "bal", [bank], { stacking: false });
+  assert.equal(bal.mode === "stack", false);
+  near(bal.y, 0);
+  assert.deepEqual(bal.warnings, []);
+  assert.equal(bal.stackedOn.length, 0);
+});
+
+test("preview = commit en deterministisch: dezelfde invoer geeft dezelfde uitvoer, loslaten verandert niets", () => {
+  const others = [item("b", "bank", 0, 0)];
+  const preview = withRoom({ x: 0.3, z: 0.1 }, "bal", others);
+  const commit = withRoom({ x: preview.x, z: preview.z }, "bal", others, { final: true });
+  assert.deepEqual([commit.x, commit.y, commit.z], [preview.x, preview.y, preview.z]);
+  assert.deepEqual(withRoom({ x: 0.3, z: 0.1 }, "bal", others), preview);
 });
 
 test("item breder dan de zaal wordt niet naar binnen geduwd maar krijgt een waarschuwing", () => {
@@ -226,7 +235,8 @@ test("item breder dan de zaal wordt niet naar binnen geduwd maar krijgt een waar
   near(result.x, 0.7);
 });
 
-test("deterministisch: dezelfde invoer geeft dezelfde uitvoer", () => {
-  const others = [item("b", "bank", 0, 0)];
-  assert.deepEqual(withRoom({ x: 0.3, z: 0.2 }, "bank", others), withRoom({ x: 0.3, z: 0.2 }, "bank", others));
+test("snap uit: geen raster", () => {
+  const free = withRoom({ x: 3.13, z: 1.07 }, "bank", [], { grid: 0.5, snap: false });
+  near(free.x, 3.13);
+  near(free.z, 1.07);
 });

@@ -220,10 +220,6 @@ function PlanToggles({
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{children}</p>;
-}
-
 function ToggleRow({
   label,
   checked,

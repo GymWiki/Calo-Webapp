@@ -10,7 +10,8 @@ const BANK = /Turnbank test toevoegen/;
 
 async function add(page: Page, category: RegExp, item: RegExp) {
   if (isDesktop(page)) {
-    await page.getByRole("button", { name: category }).first().click();
+    // Een geopende categorie klapt bij nogmaals klikken dicht: alleen openen als het item nog niet zichtbaar is.
+    if (!(await page.getByRole("button", { name: item }).isVisible().catch(() => false))) await page.getByRole("button", { name: category }).first().click();
     await page.getByRole("button", { name: item }).click();
   } else {
     await placeFromLibrary(page, category, item);
@@ -59,11 +60,23 @@ test("volleybalnet over een bank plaatsen en slepen: blijft staan waar je loslaa
   expect(errors.filter((e) => !/favicon|WebGL|swiftshader|GPU stall|Failed to load resource/i.test(e))).toEqual([]);
 });
 
-test("schakelaar Botsing: staat standaard aan en is te bedienen", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "knop in de werkbalk (desktop); op telefoon in het instellingenpaneel");
+test("schakelaar Stapelen: staat standaard aan en is te bedienen (desktop: werkbalk)", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "knop in de werkbalk (desktop); op telefoon een zwevende knop op het canvas");
   await openEditor(page);
-  const knop = page.getByTestId("werkbalk-botsing");
+  const knop = page.getByTestId("werkbalk-stapelen");
   await expect(knop).toHaveAttribute("aria-pressed", "true");
   await knop.click();
+  await expect(knop).toHaveAttribute("aria-pressed", "false");
+});
+
+test("telefoon: de zwevende Stapelen-knop staat zichtbaar op het canvas (≥ 44 px) en wisselt", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "desktop" || testInfo.project.name === "ipad", "telefoon");
+  await openEditor(page);
+  const knop = page.getByTestId("stapelen-schakelaar");
+  const box = (await knop.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(43.5);
+  expect(box.height).toBeGreaterThanOrEqual(43.5);
+  await expect(knop).toHaveAttribute("aria-pressed", "true");
+  await knop.tap();
   await expect(knop).toHaveAttribute("aria-pressed", "false");
 });

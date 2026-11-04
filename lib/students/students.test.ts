@@ -233,7 +233,8 @@ describe("zittende leerling op een bank", () => {
   const BANK = { length_m: 3.6, width_m: 0.27, height_m: 0.32, stackable: true };
   const benchLookup: DimsLookup = (slug) => (slug === "turnbank" ? BANK : lookup(slug));
   const bank = { id: "b", slug: "turnbank", x: 0, y: 0, z: 0, rot_y_deg: 0 };
-  const zitter = (size?: "klein" | "middel" | "groot") => ({ id: "s", slug: studentSlug("zittend"), x: 0, y: 0, z: 0, rot_y_deg: 0, ...(size ? { size } : {}) });
+  // y = 0,2: een opgeslagen hoogte boven de vloer (het item stond ergens op); bij het laden wordt die opnieuw op de ondergrond gerekend.
+  const zitter = (size?: "klein" | "middel" | "groot") => ({ id: "s", slug: studentSlug("zittend"), x: 0, y: 0.2, z: 0, rot_y_deg: 0, ...(size ? { size } : {}) });
 
   it("de pose zittend heeft een zitvlak, staande poses niet; het zitvlak schaalt mee met de grootte", () => {
     assert.ok((poseOfSlug(studentSlug("zittend"))?.seat_m ?? 0) > 0.3);

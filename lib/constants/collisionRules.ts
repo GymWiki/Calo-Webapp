@@ -45,11 +45,16 @@ export const COLLISION_OVERRIDES: Record<string, CollisionRuleOverride> = {
 // Volgorde telt: de eerste die past wint.
 const SLUG_RULES: { test: RegExp; layer: CollisionLayer }[] = [
   { test: /(^|_)(leerling|leerkracht|docent|persoon|student)(_|$)/, layer: "persoon" },
-  { test: /(^|_)(net|nets|bodemnet|scheidingsnet|touw|touwen|lint|linten|koord|slinger|elastiek)(_|$)/, layer: "overspannend" },
-  { test: /(^|_)(mat|matten|valmat|landingsmat|lijn|lijnen|tape|markering)(_|$)/, layer: "vloer" },
-  { test: /(^|_)(pion|pionnen|bal|ballen|hoepel|hoepels|hesje|hesjes|kegel|kegels|stok|stokken|tennisbal|shuttle)(_|$)|bal$/, layer: "klein" },
-  { test: /(^|_)(paal|palen|doel|doelen|standaard|basket|korfbalpaal|netpaal)(_|$)/, layer: "staand" },
-  { test: /(^|_)(wandrek|wandrekken|ribstoel)(_|$)/, layer: "decor" },
+  // Hangend/overspannend: netten (ook klimnetten), touwen, linten, ringen en touwladders.
+  { test: /(^|_)(net|nets|bodemnet|scheidingsnet|touw|touwen|lint|linten|koord|slinger|elastiek|touwladder|zwaairingen|ringenstel)(_|$)|klimnet|klimtouw|hangend|net(_|$)|veldopstelling/, layer: "overspannend" },
+  // Vaste wandonderdelen.
+  { test: /(^|_)(wandrek|wandrekken|ribstoel|muur)(_|$)|basketbal_muur|rekstok_wand/, layer: "decor" },
+  // Matten en vloermarkeringen (blijven op de vloer).
+  { test: /(^|_)(mat|matten|valmat|landingsmat|judomat|judomatten|turnmat|fitnessmat|yogamat|lijn|lijnen|tape|markering|vloermarkering)(_|$)|(^|_)(dikke_mat|judomat)/, layer: "vloer" },
+  // Klein materiaal: ballen (alles op "-bal"), pionnen, dopjes, hoepels, hesjes, rackets, sticks, knuppels, vlaggen en dergelijk.
+  { test: /ball?(_|$)|football|racket|stick|paddle|(^|_)(ballen|pion|pionnen|dopje|dopjes|hoepel|hoepels|hesje|hesjes|partijhesjes|kegel|kegels|stok|stokken|shuttle|racket|rackets|stick|sticks|knuppel|honkbalknuppel|bat|batje|cricketbat|puck|ring|vlag|vlaggen|fluitje|stopwatch|handfluit|megafoon|klembord|boule|butje|skippybal|kettlebell|dumbbell|schijf|barbell|powerbag|medicijnbal|springtouw|slalompalen|stopwatch|zandlopers)(_|$)|vlaggen|bat(_|$)|batje|hoekvlag|korfbalmand/, layer: "klein" },
+  // Staand materiaal: doelen, palen, torens, standaards.
+  { test: /doel|(^|_)(paal|palen|standaard|basket|korfbalpaal|netpaal|toren|basketbaltoren)(_|$)|palen_|korfbalpaal|basketbaltoren/, layer: "staand" },
 ];
 
 /** Laag van een asset: eerst de override, dan de naamregels, anders "toestel". Een item boven de vloer (hangend) is altijd overspannend. */
@@ -67,15 +72,18 @@ export function staysAtOwnHeight(slug: string, layer: CollisionLayer): boolean {
 }
 
 /**
- * Matrix: geeft overlap tussen `dragged` en `other` een waarschuwing?
- * true = waarschuw; false = mag gewoon (netten over alles, matten onder alles, klein materiaal op alles).
+ * Stapelen: kan een item van deze laag andere items dragen (als ondergrond dienen)? Banken, kasten, bokken, trampolines en andere
+ * toestellen en matten wel; ballen, pionnen, palen, netten, touwen, personen en vaste wandonderdelen niet. De `stackable`-vlag uit de
+ * database wint hier niet van: die stond voor veel toestellen (springbok, evenwichtsbalk, trampoline) op "false" waardoor alles erin zakte.
  */
-export function overlapWarns(dragged: CollisionLayer, other: CollisionLayer): boolean {
-  if (dragged === "overspannend" || other === "overspannend") return false;
-  if (dragged === "vloer" || other === "vloer") return false;
-  if (dragged === "klein" || other === "klein") return false;
-  // Een persoon naast alles; alleen met een andere persoon of een toestel is het een echte overlap.
-  if (dragged === "persoon" || other === "persoon") return dragged === other || other === "toestel" || dragged === "toestel";
-  // Toestel/staand/decor onderling: fysiek onmogelijk om door elkaar te staan.
-  return true;
+export function supportsOthers(layer: CollisionLayer): boolean {
+  return layer === "toestel" || layer === "vloer";
+}
+
+/** Mag een item van laag `dragged` op een ondergrond van laag `base` rusten? Overspannend materiaal houdt altijd zijn eigen hoogte. */
+export function canRestOn(dragged: CollisionLayer, base: CollisionLayer): boolean {
+  if (dragged === "overspannend" || dragged === "decor") return false;
+  // Matten en andere vloeritems blijven op de vloer (mat op mat mag, mat op een bank niet); alles anders stapelt op toestellen en matten.
+  if (dragged === "vloer") return base === "vloer";
+  return supportsOthers(base);
 }

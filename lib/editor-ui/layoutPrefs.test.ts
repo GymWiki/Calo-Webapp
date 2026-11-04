@@ -8,7 +8,7 @@ test("lege, kapotte of vreemde opslag valt veilig terug op de standaard", () => 
 });
 
 test("roundtrip en onbekende waarden", () => {
-  const prefs: EditorUiPrefs = { version: UI_PREFS_VERSION, toolbar: "top", sections: { omgeving: false, muren: true }, panels: { left: true, right: false, focus: false }, flags: { canvasToolbar: false } };
+  const prefs: EditorUiPrefs = { version: UI_PREFS_VERSION, toolbar: "top", stacking: false, sections: { omgeving: false, muren: true }, panels: { left: true, right: false, focus: false }, flags: { canvasToolbar: false } };
   assert.deepEqual(parseUiPrefs(serializeUiPrefs(prefs)), prefs);
   assert.equal(parseUiPrefs('{"version":1,"toolbar":"zweven","flags":{"canvasToolbar":"ja"}}').toolbar, "bottom");
   assert.equal(parseUiPrefs('{"version":1,"toolbar":"top","flags":{"canvasToolbar":"ja"}}').flags.canvasToolbar, true);
@@ -26,4 +26,11 @@ test("paneelsecties en -staat: onbekende of ongeldige waarden vallen terug op de
   const old = parseUiPrefs('{"version":1,"toolbar":"top","flags":{"canvasToolbar":true}}');
   assert.deepEqual(old.sections, {});
   assert.equal(old.toolbar, "top");
+});
+
+test("stapelen staat standaard aan, ook bij oude opslag (zonder het veld) en vreemde waarden", () => {
+  assert.equal(DEFAULT_UI_PREFS.stacking, true);
+  assert.equal(parseUiPrefs('{"version":1,"toolbar":"top","flags":{"canvasToolbar":true},"collision":"negeren"}').stacking, true);
+  assert.equal(parseUiPrefs('{"version":1,"stacking":"uit"}').stacking, true);
+  assert.equal(parseUiPrefs('{"version":1,"stacking":false}').stacking, false);
 });

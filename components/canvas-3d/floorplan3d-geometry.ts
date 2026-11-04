@@ -10,6 +10,7 @@ import type { MaterialModel } from "@/types/materialModel";
 import { isStudentSlug, poseOfSlug, studentScale } from "@/lib/students/catalog";
 import type { Floorplan3dItem, Floorplan3dRoom } from "@/types/floorplan3d";
 import { EPS_M, OVERLAP_IGNORE_M } from "@/components/canvas-3d/placement-config";
+import { canRestOn, layerOf } from "@/lib/constants/collisionRules";
 import { COLLISION_OVERRIDES } from "@/components/canvas-3d/collision-overrides";
 import { COLLISION_PROFILES } from "@/components/canvas-3d/collision-profiles.generated";
 import {
@@ -521,10 +522,20 @@ export function recomputeStackedYs(items: Floorplan3dItem[], lookup: DimsLookup)
       continue;
     }
 
+    // Een item dat op de vloer staat (opgeslagen y = vloer) blijft daar: zo laadt een plattegrond waarin iets bewust in een ander object
+    // staat (Stapelen uit) ongewijzigd. Alleen items die al hoger stonden worden opnieuw op hun ondergrond gerekend (en vallen bij het
+    // wegvallen van die ondergrond naar beneden).
+    if (item.y <= lift + 0.005) {
+      placed.push({ ...item, y: lift });
+      continue;
+    }
     const polygons = itemPolygons(item, lookup);
+    const ownLayer = layerOf(item.slug, false);
     let y = 0;
     for (const base of placed) {
-      if (!dimsOf(base, lookup).stackable || itemIsTilted(base)) continue;
+      if (itemIsTilted(base) || !canRestOn(ownLayer, layerOf(base.slug, false))) continue;
+      const baseShape = shapeOfDims(dimsOf(base, lookup));
+      if (isElevated(baseShape) || baseShape.kind === "none") continue;
       if (!polygonsOverlap(polygons, itemPolygons(base, lookup))) continue;
       // Onderkant van dit item op de bovenkant van de basis.
       y = Math.max(y, itemVerticalRange(base, lookup)[1] - supportOffsetOf(dimsOf(item, lookup)));

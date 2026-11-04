@@ -38,7 +38,7 @@ async function diffRatio(page: Page, a: Buffer, b: Buffer): Promise<number> {
   );
 }
 
-const ALWAYS_IDS = ["werkbalk-selecteren", "werkbalk-veld", "werkbalk-touw", "werkbalk-raster", "werkbalk-raster-stap", "werkbalk-botsing", "werkbalk-camera-reset"];
+const ALWAYS_IDS = ["werkbalk-selecteren", "werkbalk-veld", "werkbalk-touw", "werkbalk-raster", "werkbalk-raster-stap", "werkbalk-stapelen", "werkbalk-camera-reset"];
 const SETTINGS_IDS = ["werkbalk-verbergen", "werkbalk-positie", "werkbalk-reset-indeling"];
 
 for (const size of [
@@ -88,7 +88,8 @@ for (const size of [
     for (const id of ["werkbalk-camera-standaard", "werkbalk-camera-boven", "werkbalk-camera-vrij", "werkbalk-zoom-in", "werkbalk-zoom-uit", "knop-touw", "knop-botsing"]) await expect(page.getByTestId(id)).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Veld afzetten/ })).toHaveCount(1);
     await expect(page.getByRole("button", { name: /^Touw/ })).toHaveCount(1);
-    await expect(page.getByRole("button", { name: /^Botsing/ })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /^Stapelen/ })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /Botsing/ })).toHaveCount(0);
   });
 }
 
@@ -129,12 +130,17 @@ test("desktop: raster (aan/uit en stap in één regel), botsing en gereedschappe
   await page.locator("canvas").first().click({ position: { x: 40, y: 40 } });
   await expect(menu).toHaveCount(0);
 
-  const botsing = page.getByTestId("werkbalk-botsing");
-  await botsing.click();
-  await expect(botsing).toHaveAttribute("aria-pressed", "false");
-  await expect(botsing).toHaveAttribute("aria-label", /Botsing: negeren/);
-  await botsing.click();
-  await expect(botsing).toHaveAttribute("aria-label", /Botsing: waarschuwen/);
+  // Stapelen: standaard aan; één klik zet het uit; de keuze wordt per gebruiker onthouden (ook na herladen).
+  const stapelen = page.getByTestId("werkbalk-stapelen");
+  await expect(stapelen).toHaveAttribute("aria-pressed", "true");
+  await expect(stapelen).toHaveAttribute("aria-label", /Stapelen: aan \(objecten komen boven op elkaar te staan\)/);
+  await stapelen.click();
+  await expect(stapelen).toHaveAttribute("aria-pressed", "false");
+  await expect(stapelen).toHaveAttribute("aria-label", /Stapelen: uit \(objecten kunnen in elkaar staan\)/);
+  await page.reload({ waitUntil: "load" });
+  await expect(page.getByTestId("werkbalk-stapelen")).toHaveAttribute("aria-pressed", "false");
+  await page.getByTestId("werkbalk-stapelen").click();
+  await expect(page.getByTestId("werkbalk-stapelen")).toHaveAttribute("aria-pressed", "true");
 
   const selecteren = page.getByTestId("werkbalk-selecteren");
   await expect(selecteren).toHaveAttribute("aria-pressed", "true");

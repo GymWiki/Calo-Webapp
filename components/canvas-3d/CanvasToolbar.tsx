@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Cable, ChevronUp, Cone, Eye, EyeOff, Grid3x3, ListRestart, LocateFixed, MoreHorizontal, MousePointer2, PanelBottomClose, PanelTopClose, ShieldAlert, ShieldOff } from "lucide-react";
+import { Cable, ChevronUp, Cone, Eye, EyeOff, Grid3x3, ListRestart, LocateFixed, MoreHorizontal, MousePointer2, PanelBottomClose, PanelTopClose, Layers } from "lucide-react";
 
 import type { SnapGridSize } from "@/components/canvas-3d/floorplan3d-geometry";
 import { type ToolbarPosition } from "@/lib/editor-ui/layoutPrefs";
@@ -18,7 +18,7 @@ const stepLabel = (size: SnapGridSize) => GRID_OPTIONS.find((option) => option.s
 
 /**
  * Vaste werkbalk over de volle breedte van het canvasgebied (desktop en tablet landscape), onder of boven het canvas (het canvas
- * eindigt erboven, dus de zaal verdwijnt er nooit achter). Drie groepen: links de gereedschappen, midden de schakelaars (Raster, Botsing),
+ * eindigt erboven, dus de zaal verdwijnt er nooit achter). Drie groepen: links de gereedschappen, midden de schakelaars (Raster, Stapelen),
  * rechts de overige knoppen en Camera herstellen. Labels verschijnen bij ≥ 1100 px werkbalkbreedte (container query), anders alleen
  * icoon met tooltip; onder 640 px verhuizen de werkbalkinstellingen naar "Meer". Kleur: oranje alleen voor het actieve gereedschap;
  * schakelaars zijn subtiel (aan = lichte rand en stip, uit = gedimd).
@@ -32,8 +32,8 @@ export function CanvasToolbar({
   onTool,
   snapGrid,
   onSnapGrid,
-  collisionOn,
-  onToggleCollision,
+  stackingOn,
+  onToggleStacking,
 }: {
   position: Exclude<ToolbarPosition, "hidden">;
   onPosition: (position: ToolbarPosition) => void;
@@ -43,8 +43,8 @@ export function CanvasToolbar({
   onTool: (tool: "selecteren" | "veld" | "touw") => void;
   snapGrid: SnapGridSize;
   onSnapGrid: (size: SnapGridSize) => void;
-  collisionOn: boolean;
-  onToggleCollision: () => void;
+  stackingOn: boolean;
+  onToggleStacking: () => void;
 }) {
   const [gridMenu, setGridMenu] = useState(false);
   const [moreMenu, setMoreMenu] = useState(false);
@@ -182,18 +182,18 @@ export function CanvasToolbar({
             )}
           </div>
           <Btn
-            label="Botsing"
+            label="Stapelen"
             tip={
-              collisionOn
-                ? "Botsing: waarschuwen. Je krijgt een melding bij overlap; klik om te negeren. Alt tijdens het slepen zet botsing en snappen tijdelijk uit"
-                : "Botsing: negeren (geen meldingen bij overlap). Klik om te waarschuwen"
+              stackingOn
+                ? "Stapelen: aan (objecten komen boven op elkaar te staan). Klik om uit te zetten. Houd Alt ingedrukt tijdens het slepen om tijdelijk het omgekeerde te doen"
+                : "Stapelen: uit (objecten kunnen in elkaar staan). Klik om aan te zetten"
             }
-            testid="werkbalk-botsing"
+            testid="werkbalk-stapelen"
             tone="switch"
-            on={collisionOn}
-            onClick={onToggleCollision}
+            on={stackingOn}
+            onClick={onToggleStacking}
           >
-            {collisionOn ? <ShieldAlert className="size-5" aria-hidden="true" /> : <ShieldOff className="size-5" aria-hidden="true" />}
+            <Layers className="size-5" aria-hidden="true" />
           </Btn>
           <Separator />
         </div>

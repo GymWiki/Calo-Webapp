@@ -11,6 +11,8 @@ export type EditorUiPrefs = {
   version: typeof UI_PREFS_VERSION;
   /** Waar de zwevende canvaswerkbalk staat (desktop). */
   toolbar: ToolbarPosition;
+  /** Stapelen bij het neerzetten (standaard aan); per gebruiker, niet in de plattegrond. */
+  stacking: boolean;
   /** Open/dicht per paneelsectie (id → open); ontbrekend = de standaard van de sectie. */
   sections: Record<string, boolean>;
   /** Zijpanelen ingeklapt (desktop) en focusmodus (alle panelen verborgen). */
@@ -22,6 +24,7 @@ export type EditorUiPrefs = {
 export const DEFAULT_UI_PREFS: EditorUiPrefs = {
   version: UI_PREFS_VERSION,
   toolbar: "bottom",
+  stacking: true,
   sections: {},
   panels: { left: false, right: false, focus: false },
   flags: { canvasToolbar: true },
@@ -38,7 +41,9 @@ export function parseUiPrefs(raw: string | null | undefined): EditorUiPrefs {
     const sections: Record<string, boolean> = {};
     if (value.sections && typeof value.sections === "object") for (const [key, open] of Object.entries(value.sections)) if (typeof open === "boolean") sections[key] = open;
     const flag = (name: "left" | "right" | "focus") => (typeof value.panels?.[name] === "boolean" ? (value.panels[name] as boolean) : false);
-    return { version: UI_PREFS_VERSION, toolbar, sections, panels: { left: flag("left"), right: flag("right"), focus: flag("focus") }, flags: { canvasToolbar } };
+    // Oude waarden (botsing waarschuwen/negeren) bestaan niet meer: stapelen staat altijd standaard aan.
+    const stacking = typeof value.stacking === "boolean" ? value.stacking : true;
+    return { version: UI_PREFS_VERSION, toolbar, stacking, sections, panels: { left: flag("left"), right: flag("right"), focus: flag("focus") }, flags: { canvasToolbar } };
   } catch {
     return DEFAULT_UI_PREFS;
   }
