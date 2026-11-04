@@ -16,7 +16,7 @@ import {
   Lock,
   LockOpen,
   Redo2,
-  RotateCcw, ShieldAlert,
+  RotateCcw,
   RotateCw,
   Save,
   ClipboardPaste,
@@ -2152,29 +2152,34 @@ export function Floorplan3dEditor({
         </div>
       )}
 
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Botsing</p>
-        <Button type="button" size="sm" className="min-h-11 w-full" variant={collisionOn ? "default" : "outline"} aria-pressed={collisionOn} data-testid="knop-botsing-instelling" onClick={() => setCollisionOn((value) => !value)}>
-          {collisionOn ? "Botsing: waarschuwen" : "Botsing: negeren"}
-        </Button>
-      </div>
-
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Raster</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          {([0, 0.1, 0.5] as SnapGridSize[]).map((size) => (
-            <Button
-              key={size}
-              type="button"
-              size="sm"
-              variant={snapGrid === size ? "default" : "outline"}
-              onClick={() => setSnapGrid(size)}
-            >
-              {size === 0 ? "Uit" : `${size} m`}
-            </Button>
-          ))}
+      {/* Botsing en raster staan op desktop in de werkbalk; telefoon en tablet hebben hier hun enige plek. */}
+      {layout !== "desktop" && (
+        <>
+        <div>
+          <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Botsing</p>
+          <Button type="button" size="sm" className="min-h-11 w-full" variant={collisionOn ? "default" : "outline"} aria-pressed={collisionOn} data-testid="knop-botsing-instelling" onClick={() => setCollisionOn((value) => !value)}>
+            {collisionOn ? "Botsing: waarschuwen" : "Botsing: negeren"}
+          </Button>
         </div>
-      </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Raster</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {([0, 0.1, 0.5] as SnapGridSize[]).map((size) => (
+              <Button
+                key={size}
+                type="button"
+                size="sm"
+                variant={snapGrid === size ? "default" : "outline"}
+                onClick={() => setSnapGrid(size)}
+              >
+                {size === 0 ? "Uit" : `${String(size).replace(".", ",")}\u00a0m`}
+              </Button>
+            ))}
+          </div>
+        </div>
+        </>
+      )}
 
       {fieldOverview}
     </div>
@@ -2573,17 +2578,6 @@ export function Floorplan3dEditor({
         </span>
         {adminInfo && <AdminBadge info={adminInfo} onRestored={() => window.location.reload()} />}
         <div className="ml-auto flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant={drawMode ? "default" : "outline"}
-            size="sm"
-            aria-pressed={drawMode}
-            onClick={() => (drawMode ? stopDrawing() : startDrawing())}
-            title="Veld afzetten met pionnen of dopjes"
-          >
-            <Cone className="size-4" />
-            <span className="hidden sm:inline">Veld afzetten</span>
-          </Button>
           <Button type="button" variant="ghost" size="icon" disabled={!history.canUndo} onClick={handleUndo} title="Ongedaan maken (Ctrl+Z)">
             <Undo2 className="size-4" />
           </Button>
@@ -2615,37 +2609,6 @@ export function Floorplan3dEditor({
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block xl:w-72">
-          <Button
-            type="button"
-            variant={drawMode ? "default" : "outline"}
-            className="mb-2 w-full"
-            aria-pressed={drawMode}
-            onClick={() => (drawMode ? stopDrawing() : startDrawing())}
-          >
-            <Cone className="size-4" /> Veld afzetten
-          </Button>
-          <Button
-            type="button"
-            variant={ropeMode ? "default" : "outline"}
-            className="mb-3 w-full"
-            aria-pressed={ropeMode}
-            data-testid="knop-touw"
-            title="Een rood touw spannen tussen twee objecten"
-            onClick={() => (ropeMode ? stopRopeMode() : startRopeMode())}
-          >
-            <Cable className="size-4" /> Touw spannen
-          </Button>
-          <Button
-            type="button"
-            variant={collisionOn ? "default" : "outline"}
-            className="mb-3 w-full"
-            aria-pressed={collisionOn}
-            data-testid="knop-botsing"
-            title="Waarschuwen als objecten overlappen. Houd Alt ingedrukt tijdens het slepen om botsing en snappen tijdelijk uit te zetten."
-            onClick={() => setCollisionOn((value) => !value)}
-          >
-            <ShieldAlert className="size-4" /> Botsing: {collisionOn ? "waarschuwen" : "negeren"}
-          </Button>
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>
 
