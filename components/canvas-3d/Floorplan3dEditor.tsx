@@ -135,6 +135,7 @@ import { SidePanel } from "@/components/canvas-3d/mobile/SidePanel";
 import {
   angleFromCenterDeg,
   draftStorageKey,
+  isDoubleTap,
   resolveQuality,
   shouldOfferDraft,
   snapRotationDeg,
@@ -360,6 +361,7 @@ export function Floorplan3dEditor({
   const itemEditRef = useRef<number | null>(null);
   // Klik op de lege vloer (pointerdown + loslaten zonder te slepen) = selectie opheffen.
   const backgroundDownRef = useRef<{ x: number; y: number } | null>(null);
+  const lastBackgroundTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tijdelijke offscreen render voor de statische preview (zie FloorplanThumbnailCapture).
@@ -1120,7 +1122,17 @@ export function Floorplan3dEditor({
     backgroundDownRef.current = null;
     if (backgroundDown && !drawMode) {
       const moved = Math.hypot(event.nativeEvent.clientX - backgroundDown.x, event.nativeEvent.clientY - backgroundDown.y);
-      if (moved < 5) setSelectedId(null);
+      if (moved < 5) {
+        setSelectedId(null);
+        // Dubbelklik of dubbeltik op de lege vloer: camera terug naar de beginstand.
+        const tap = { time: performance.now(), x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+        if (isDoubleTap(lastBackgroundTapRef.current, tap)) {
+          lastBackgroundTapRef.current = null;
+          resetCamera();
+        } else {
+          lastBackgroundTapRef.current = tap;
+        }
+      }
     }
     if (drawMode) {
       if (draft?.phase === "dragging") {

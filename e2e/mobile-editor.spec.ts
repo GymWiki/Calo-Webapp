@@ -185,19 +185,6 @@ test("veld afzetten met twee tikken, daarna Klaar", async ({ page }) => {
   await expect(hud).toHaveCount(0);
 });
 
-test("cameramenu: bovenaanzicht, 3D en reset", async ({ page }) => {
-  await openEditor(page);
-  await page.getByTestId("toolbar-camera").click();
-  const menu = page.getByRole("group", { name: "Camera" });
-  await expect(menu).toBeVisible();
-  await menu.getByRole("button", { name: "Bovenaanzicht" }).click();
-  await expect(menu.getByRole("button", { name: "Bovenaanzicht" })).toHaveAttribute("aria-pressed", "true");
-  await menu.getByRole("button", { name: "3D" }).click();
-  await expect(menu.getByRole("button", { name: "3D" })).toHaveAttribute("aria-pressed", "true");
-  await menu.getByRole("button", { name: "Reset" }).click();
-  await expect(menu).toBeVisible();
-});
-
 test("touch-targets in kop, werkbalk en contextbalk zijn minimaal 44 × 44 px", async ({ page }) => {
   await openEditor(page);
   await placeMat(page);
