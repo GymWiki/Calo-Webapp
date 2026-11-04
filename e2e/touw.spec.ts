@@ -31,7 +31,7 @@ async function placeTwoMats(page: Page) {
 }
 
 async function startRope(page: Page) {
-  await (isDesktop(page) ? page.getByTestId("knop-touw") : page.getByTestId("toolbar-touw")).click();
+  await (isDesktop(page) ? page.getByTestId("werkbalk-touw") : page.getByTestId("toolbar-touw")).click();
   await expect(page.getByTestId("touw-hint")).toBeVisible();
 }
 

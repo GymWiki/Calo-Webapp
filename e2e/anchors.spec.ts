@@ -58,7 +58,7 @@ test("een touw tussen twee palen zit aan de paal (anchor), waar je ook sleept, e
 
   await openEditor(page);
   const { left, middle } = await placeTwoPoles(page);
-  await (isDesktop(page) ? page.getByTestId("knop-touw") : page.getByTestId("toolbar-touw")).click();
+  await (isDesktop(page) ? page.getByTestId("werkbalk-touw") : page.getByTestId("toolbar-touw")).click();
   // Sleep van een willekeurig punt op de ene paal naar een ander willekeurig punt op de andere (niet het midden/bovenkant).
   await drag(page, { x: left.x - 22, y: left.y + 14 }, { x: middle.x + 18, y: middle.y - 10 });
   const draft = await readDraft(page, (d) => (d.ropes?.length ?? 0) === 1);
@@ -92,7 +92,7 @@ test("kopiëren en plakken, ongedaan maken en opnieuw: de anchors blijven bewaar
   test.skip(testInfo.project.name !== "desktop", "toetsenbord: desktop volstaat");
   await openEditor(page);
   const { left, middle } = await placeTwoPoles(page);
-  await page.getByTestId("knop-touw").click();
+  await page.getByTestId("werkbalk-touw").click();
   await drag(page, left, middle);
   const draft = await readDraft(page, (d) => (d.ropes?.length ?? 0) === 1);
   await page.keyboard.press("Escape");

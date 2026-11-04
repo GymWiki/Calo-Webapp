@@ -49,7 +49,7 @@ import { buildShareLink, encodeFloorplan } from "@/lib/guest/share-codec";
 import { DEFAULT_VIEW, type ViewState } from "@/components/plattegrond/viewer-camera";
 import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
-import { CanvasToolbar } from "@/components/canvas-3d/CanvasToolbar";
+import { CanvasToolbar, ToolbarShowButton } from "@/components/canvas-3d/CanvasToolbar";
 import { useEditorUiPrefs } from "@/lib/editor-ui/useEditorUiPrefs";
 import { Input } from "@/components/ui/input";
 import {
@@ -2549,6 +2549,31 @@ export function Floorplan3dEditor({
     );
   }
 
+  const desktopToolbar = isDesktop && uiPrefs.prefs.flags.canvasToolbar;
+  const toolbarEl = (
+    <CanvasToolbar
+              position={uiPrefs.prefs.toolbar === "top" ? "top" : "bottom"}
+              onPosition={(toolbar) => uiPrefs.update((previous) => ({ ...previous, toolbar }))}
+              onResetLayout={uiPrefs.reset}
+              onResetCamera={resetCamera}
+              tool={drawMode ? "veld" : ropeMode ? "touw" : "selecteren"}
+              onTool={(tool) => {
+                if (tool === "selecteren") {
+                  if (drawMode) stopDrawing();
+                  if (ropeMode) stopRopeMode();
+                } else if (tool === "veld") {
+                  if (drawMode) stopDrawing();
+                  else startDrawing();
+                } else if (ropeMode) stopRopeMode();
+                else startRopeMode();
+              }}
+              snapGrid={snapGrid}
+              onSnapGrid={setSnapGrid}
+              collisionOn={collisionOn}
+              onToggleCollision={() => setCollisionOn((value) => !value)}
+            />
+  );
+
   return (
     <div className="relative flex h-[100dvh] flex-col overscroll-none" {...plattegrondJson.dragProps}>
       {plattegrondJson.elements}
@@ -2612,37 +2637,18 @@ export function Floorplan3dEditor({
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>
 
-        <div className="relative min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col">
+          {desktopToolbar && uiPrefs.prefs.toolbar === "top" && toolbarEl}
+          <div className="relative min-h-0 flex-1">
           {scene}
-          {isDesktop && uiPrefs.prefs.flags.canvasToolbar && (
-            <CanvasToolbar
-              position={uiPrefs.prefs.toolbar}
-              onPosition={(toolbar) => uiPrefs.update((previous) => ({ ...previous, toolbar }))}
-              onResetLayout={uiPrefs.reset}
-              onResetCamera={resetCamera}
-              tool={drawMode ? "veld" : ropeMode ? "touw" : "selecteren"}
-              onTool={(tool) => {
-                if (tool === "selecteren") {
-                  if (drawMode) stopDrawing();
-                  if (ropeMode) stopRopeMode();
-                } else if (tool === "veld") {
-                  if (drawMode) stopDrawing();
-                  else startDrawing();
-                } else if (ropeMode) stopRopeMode();
-                else startRopeMode();
-              }}
-              snapGrid={snapGrid}
-              onSnapGrid={setSnapGrid}
-              collisionOn={collisionOn}
-              onToggleCollision={() => setCollisionOn((value) => !value)}
-            />
-          )}
+          {desktopToolbar && uiPrefs.prefs.toolbar === "hidden" && <ToolbarShowButton onClick={() => uiPrefs.update((previous) => ({ ...previous, toolbar: "bottom" }))} />}
           {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
 
           {drawChip}
           {ropeChip}
           {anchorToggle}
-
+          </div>
+          {desktopToolbar && uiPrefs.prefs.toolbar === "bottom" && toolbarEl}
         </div>
 
         <aside ref={sidePanelRef} className="hidden w-72 shrink-0 overflow-y-auto border-l bg-card p-3 lg:block xl:w-80">

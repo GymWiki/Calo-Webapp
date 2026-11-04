@@ -43,7 +43,7 @@ async function drag(page: Page, from: { x: number; y: number }, to: { x: number;
 async function ropeSelected(page: Page) {
   await openEditor(page);
   const { left, middle } = await placeTwoMats(page);
-  await (isDesktop(page) ? page.getByTestId("knop-touw") : page.getByTestId("toolbar-touw")).click();
+  await (isDesktop(page) ? page.getByTestId("werkbalk-touw") : page.getByTestId("toolbar-touw")).click();
   await drag(page, left, middle);
   const draft = await readDraft(page, (d) => (d.ropes?.length ?? 0) === 1);
   await (isDesktop(page) ? page.keyboard.press("Escape") : page.getByTestId("toolbar-touw").click());

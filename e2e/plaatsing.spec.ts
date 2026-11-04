@@ -60,9 +60,9 @@ test("volleybalnet over een bank plaatsen en slepen: blijft staan waar je loslaa
 });
 
 test("schakelaar Botsing: staat standaard aan en is te bedienen", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "knop in de zijbalk (desktop); op telefoon in het instellingenpaneel");
+  test.skip(testInfo.project.name !== "desktop", "knop in de werkbalk (desktop); op telefoon in het instellingenpaneel");
   await openEditor(page);
-  const knop = page.getByTestId("knop-botsing");
+  const knop = page.getByTestId("werkbalk-botsing");
   await expect(knop).toHaveAttribute("aria-pressed", "true");
   await knop.click();
   await expect(knop).toHaveAttribute("aria-pressed", "false");
