@@ -44,7 +44,7 @@ export function PlattegrondJsonMenu({ onAction }: { onAction: (action: JsonActio
         aria-label="JSON: downloaden, kopiëren of openen"
         title="Plattegrond als JSON"
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border bg-background px-3 text-sm font-medium hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95"
+        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95"
       >
         <FileJson className="size-4" aria-hidden="true" />
         <span className="hidden md:inline">JSON</span>

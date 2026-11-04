@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 import { cn } from "@/lib/utils";
 import { sportLabel } from "@/lib/constants/libraryTaxonomy";
 import type { SportCount } from "@/lib/library/search";
@@ -20,15 +22,43 @@ export function SportFilter({
   selected: string[];
   onChange: (selected: string[]) => void;
 }) {
+  // Geen zichtbare scrollbalk: een zachte fade toont alleen aan de kant waar nog meer chips zijn; het wiel scrolt horizontaal.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState({ left: false, right: false });
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const update = () => setFade({ left: row.scrollLeft > 2, right: row.scrollLeft + row.clientWidth < row.scrollWidth - 2 });
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || row.scrollWidth <= row.clientWidth) return;
+      event.preventDefault();
+      row.scrollLeft += event.deltaY;
+    };
+    update();
+    row.addEventListener("scroll", update, { passive: true });
+    row.addEventListener("wheel", onWheel, { passive: false });
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    observer?.observe(row);
+    return () => {
+      row.removeEventListener("scroll", update);
+      row.removeEventListener("wheel", onWheel);
+      observer?.disconnect();
+    };
+  }, [sports.length, selected.length]);
+  const mask = `linear-gradient(to right, ${fade.left ? "transparent 0, #000 20px" : "#000 0"}, ${fade.right ? "#000 calc(100% - 28px), transparent 100%" : "#000 100%"})`;
+
   function toggle(id: string) {
     onChange(selected.includes(id) ? selected.filter((entry) => entry !== id) : [...selected, id]);
   }
 
   return (
     <div
+      ref={rowRef}
       role="group"
       aria-label="Filter op sport"
-      className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]"
+      data-testid="sport-chips"
+      style={{ maskImage: mask, WebkitMaskImage: mask }}
+      className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <Chip active={selected.length === 0} onClick={() => onChange([])}>
         Alle <Count>{total}</Count>

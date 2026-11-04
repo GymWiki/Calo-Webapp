@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { ALWAYS_OPEN, PanelSection, type PanelSections } from "@/components/canvas-3d/PanelSection";
 import { cn } from "@/lib/utils";
 import {
   GYM_LAYOUT_ORDER,
@@ -106,7 +107,7 @@ function PlanToggles({
   return (
     <svg
       viewBox={`${-w / 2 - pad} ${-l / 2 - pad} ${w + pad * 2} ${l + pad * 2}`}
-      className="mx-auto max-h-72 w-full touch-manipulation select-none"
+      className="mx-auto max-h-44 w-full touch-manipulation select-none"
       role="group"
       aria-label="Plattegrond van de zaal: kies welke muren en gordijnen er staan"
     >
@@ -252,10 +253,13 @@ export function GymEnvironmentPanel({
   environment,
   onLayoutChange,
   onHiddenChange,
+  sections = ALWAYS_OPEN,
 }: {
   environment: Floorplan3dEnvironment;
   onLayoutChange: (layout: GymLayoutId) => void;
   onHiddenChange: (hidden: string[]) => void;
+  /** Open/dicht-staat van Indeling, Muren en Vaste onderdelen (weggelaten = alles open). */
+  sections?: PanelSections;
 }) {
   const layout = GYM_LAYOUTS[environment.layout as GymLayoutId] ?? GYM_LAYOUTS.standaard;
   const { hidden } = environment;
@@ -265,8 +269,7 @@ export function GymEnvironmentPanel({
 
   return (
     <div className="space-y-5">
-      <div>
-        <SectionTitle>Indeling</SectionTitle>
+      <PanelSection id="indeling" title="Indeling" defaultOpen sections={sections}>
         <div className="grid grid-cols-3 gap-2">
           {GYM_LAYOUT_ORDER.map((id) => {
             const option = GYM_LAYOUTS[id];
@@ -296,10 +299,9 @@ export function GymEnvironmentPanel({
             );
           })}
         </div>
-      </div>
+      </PanelSection>
 
-      <div>
-        <SectionTitle>Muren{layout.curtains.length > 0 ? " en gordijnen" : ""}</SectionTitle>
+      <PanelSection id="muren" title={`Muren${layout.curtains.length > 0 ? " en gordijnen" : ""}`} sections={sections}>
         <p className="mb-2 text-xs text-muted-foreground">
           Tik op een muur
           {layout.curtains.length > 0 ? " of gordijn" : ""} in de plattegrond om hem weg te halen of terug te zetten.
@@ -340,10 +342,10 @@ export function GymEnvironmentPanel({
             </Button>
           )}
         </div>
-      </div>
+      </PanelSection>
 
-      <div className="space-y-3">
-        <SectionTitle>Vaste onderdelen</SectionTitle>
+      <PanelSection id="vaste-onderdelen" title="Vaste onderdelen" sections={sections}>
+       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">Wandrekken, baskets en vaste bankjes. Items die erop of ertegenaan staan blijven gewoon staan.</p>
         <ToggleRow
           label="Wandrekken"
@@ -399,7 +401,8 @@ export function GymEnvironmentPanel({
             })}
           </div>
         </div>
-      </div>
+       </div>
+      </PanelSection>
     </div>
   );
 }

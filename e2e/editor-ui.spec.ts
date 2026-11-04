@@ -225,6 +225,11 @@ test("Kamer-paneel: Vaste onderdelen toont alleen de uitleg en de switches; een 
   await page.getByRole("button", { name: /^Toestellen/ }).first().click();
   await page.getByRole("button", { name: /Turnbank test toevoegen/ }).click();
   await expect(page.getByRole("button", { name: /Alles weghalen|Standaardzaal herstellen|Lege zaal/ })).toHaveCount(0);
+  // Accordeon: standaard dicht; openen toont de uitleg en de switches.
+  const kop = page.getByTestId("sectie-kop-vaste-onderdelen");
+  await expect(kop).toHaveAttribute("aria-expanded", "false");
+  await kop.click();
+  await expect(kop).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText(/Wandrekken, baskets en vaste bankjes/)).toBeVisible();
   const hiddenNodes = () => page.evaluate(() => (JSON.parse(window.localStorage.getItem("gymwiki.floorplan3d.draft.nieuw") ?? "{}").room?.environment?.hidden ?? []) as string[]);
   const wandrekken = page.getByRole("switch", { name: "Wandrekken" });
@@ -289,4 +294,87 @@ test("telefoon: de selectiebalk past in beeld en alle knoppen zijn minstens 44 p
   }
   await inViewport(page, page.getByRole("button", { name: "Opslaan" }));
   await inViewport(page, page.getByRole("button", { name: "Ongedaan maken" }));
+});
+
+test("rechterpaneel: accordeons (Omgeving en Indeling standaard open) onthouden hun staat; tabs blijven vast; tab volgt de selectie", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await openEditor(page);
+  await expect(page.getByTestId("sectie-kop-omgeving")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("sectie-kop-indeling")).toHaveAttribute("aria-expanded", "true");
+  for (const id of ["weergave", "kijkrichting", "muren", "vaste-onderdelen"]) await expect(page.getByTestId(`sectie-kop-${id}`)).toHaveAttribute("aria-expanded", "false");
+  // De tabs staan vast bovenaan het paneel, ook als de inhoud scrolt.
+  const tabsBefore = await page.getByRole("tab", { name: "Omgeving" }).boundingBox();
+  await page.getByTestId("sectie-kop-muren").click();
+  await page.getByTestId("sectie-kop-vaste-onderdelen").click();
+  await page.getByTestId("sectie-kop-vaste-onderdelen").scrollIntoViewIfNeeded();
+  const tabsAfter = await page.getByRole("tab", { name: "Omgeving" }).boundingBox();
+  expect(tabsAfter!.y).toBe(tabsBefore!.y);
+  // Staat blijft na herladen.
+  await page.reload({ waitUntil: "load" });
+  await expect(page.getByTestId("sectie-kop-muren")).toHaveAttribute("aria-expanded", "true");
+  await page.getByTestId("sectie-kop-omgeving").click();
+  await expect(page.getByTestId("sectie-kop-omgeving")).toHaveAttribute("aria-expanded", "false");
+
+  // Tab volgt de selectie: een item plaatsen schakelt naar Item; deselecteren terug naar Omgeving.
+  await page.getByRole("button", { name: /^Toestellen/ }).first().click();
+  await page.getByRole("button", { name: /Turnbank test toevoegen/ }).click();
+  await expect(page.getByRole("tab", { name: "Item" })).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Escape");
+  await page.locator("canvas").first().click({ position: { x: 30, y: 30 } });
+  await expect(page.getByRole("tab", { name: "Omgeving" })).toHaveAttribute("aria-selected", "true");
+});
+
+test("panelen: links en rechts inklapbaar, focusmodus (F) verbergt alles; keuze blijft na herladen", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await openEditor(page);
+  const left = page.getByPlaceholder(/Zoek materiaal/);
+  await expect(left).toBeVisible();
+  const before = await page.locator("canvas").first().boundingBox();
+  await page.getByTestId("paneel-links").click();
+  await expect(left).toHaveCount(0);
+  await expect.poll(async () => (await page.locator("canvas").first().boundingBox())!.width).toBeGreaterThan(before!.width + 200);
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator("canvas").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("paneel-links")).toBeVisible();
+  await expect(page.getByPlaceholder(/Zoek materiaal/)).toHaveCount(0); // onthouden
+  await page.keyboard.press("[");
+  await expect(page.getByPlaceholder(/Zoek materiaal/)).toBeVisible();
+  // Focusmodus: alle panelen weg, het canvas vult het scherm; Esc herstelt.
+  await page.keyboard.press("f");
+  await expect(page.getByRole("tab", { name: "Omgeving" })).toHaveCount(0);
+  await expect(page.getByPlaceholder(/Zoek materiaal/)).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tab", { name: "Omgeving" })).toBeVisible();
+  await page.keyboard.press("]");
+  await expect(page.getByRole("tab", { name: "Omgeving" })).toHaveCount(0);
+  await page.keyboard.press("]");
+});
+
+test("filterchips: geen zichtbare scrollbalk; fade alleen als er meer is; het wiel scrolt horizontaal", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await openEditor(page);
+  const chips = page.getByTestId("sport-chips");
+  await expect(chips).toBeVisible();
+  const scrollbar = await chips.evaluate((el) => ({ hidden: getComputedStyle(el).scrollbarWidth === "none", overflow: el.scrollWidth > el.clientWidth }));
+  expect(scrollbar.hidden).toBe(true);
+  if (scrollbar.overflow) {
+    expect(await chips.evaluate((el) => getComputedStyle(el).maskImage)).toContain("linear-gradient");
+    await chips.hover();
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(300);
+    expect(await chips.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  }
+});
+
+test("bovenbalk: Opslaan is de primaire knop; undo/redo zijn 44 px; Veld afzetten staat alleen in de werkbalk", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop");
+  await openEditor(page);
+  const undo = await page.getByRole("button", { name: "Ongedaan maken" }).boundingBox();
+  expect(undo!.width).toBeGreaterThanOrEqual(43.5);
+  expect(undo!.height).toBeGreaterThanOrEqual(43.5);
+  const header = page.locator("div.border-b").first();
+  await expect(header.getByRole("button", { name: /^Veld afzetten/ })).toHaveCount(0);
+  const primary = await page.getByRole("button", { name: "Opslaan" }).evaluate((el) => getComputedStyle(el).backgroundColor);
+  const secondary = await page.getByRole("button", { name: /Mijn plattegronden/ }).evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(primary).not.toBe(secondary);
 });

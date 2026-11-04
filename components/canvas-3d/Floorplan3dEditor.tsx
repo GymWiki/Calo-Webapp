@@ -19,6 +19,12 @@ import {
   RotateCcw,
   RotateCw,
   Save,
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   ClipboardPaste,
   Scissors,
   Trash2,
@@ -50,6 +56,7 @@ import { DEFAULT_VIEW, type ViewState } from "@/components/plattegrond/viewer-ca
 import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
 import { CanvasToolbar, ToolbarShowButton } from "@/components/canvas-3d/CanvasToolbar";
+import { PanelSection, type PanelSections } from "@/components/canvas-3d/PanelSection";
 import { useEditorUiPrefs } from "@/lib/editor-ui/useEditorUiPrefs";
 import { Input } from "@/components/ui/input";
 import {
@@ -280,6 +287,17 @@ export function Floorplan3dEditor({
   const floorPointRef = useRef<{ x: number; z: number } | null>(null);
   const overCanvasRef = useRef(false);
   const uiPrefs = useEditorUiPrefs();
+  const panelsState = uiPrefs.prefs.panels;
+  const leftHidden = panelsState.left || panelsState.focus;
+  const rightHidden = panelsState.right || panelsState.focus;
+  const setPanels = uiPrefs.update;
+  /** Tabblad rechts: zonder selectie "Omgeving", tenzij de gebruiker zelf een tab heeft vastgezet. */
+  const [tabPinned, setTabPinned] = useState(false);
+  /** Accordeons in het Kamer-paneel: open/dicht wordt onthouden. */
+  const panelSections: PanelSections = {
+    isOpen: (id, defaultOpen) => uiPrefs.prefs.sections[id] ?? defaultOpen,
+    toggle: (id, defaultOpen) => uiPrefs.update((previous) => ({ ...previous, sections: { ...previous.sections, [id]: !(previous.sections[id] ?? defaultOpen) } })),
+  };
   const modifierRef = useRef(false);
   /** Alt ingedrukt tijdens het slepen: snappen en botsing tijdelijk uit. */
   const altRef = useRef(false);
@@ -1689,6 +1707,22 @@ export function Floorplan3dEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selectedItem, selectedField, selectedRope, items, coneFields, ropes, room, drawMode, ropeMode, draft, snapDeg, group, snapGrid, hasClipboard]);
 
+  // Paneel-sneltoetsen (desktop): [ = linkerpaneel, ] = rechterpaneel, F = focusmodus (alle panelen weg), Esc verlaat de focusmodus.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
+      const toggle = (change: Partial<typeof panelsState>) => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, ...change } }));
+      if (event.key === "[") toggle({ left: !panelsState.left });
+      else if (event.key === "]") toggle({ right: !panelsState.right });
+      else if (event.key.toLowerCase() === "f" && !event.shiftKey) toggle({ focus: !panelsState.focus });
+      else if (event.key === "Escape" && panelsState.focus) toggle({ focus: false });
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setPanels, panelsState]);
+
   // Klembord-events van de browser, en de aanwijzer: boven het canvas? Shift/Ctrl/Cmd ingedrukt bij een klik?
   useEffect(() => {
     clipboardActionsRef.current = { pasteText: pasteFromText };
@@ -2058,37 +2092,33 @@ export function Floorplan3dEditor({
 
   const roomPanel = (
     <div className="space-y-5">
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Weergave bij de activiteit</p>
+      <PanelSection id="weergave" title="Weergave bij de activiteit" sections={panelSections} info="Zo ziet een docent de plattegrond op de activiteitpagina. Automatisch: vlakke indelingen (veld afzetten, circuit) van boven, opstellingen met netten, doelen of leerlingen schuin.">
         <div role="group" aria-label="Weergave bij de activiteit" className="grid grid-cols-3 gap-1.5">
           {([
             ["auto", "Automatisch"],
             ["3d", "3D"],
             ["top", "Boven"],
           ] as const).map(([id, label]) => (
-            <Button key={id} type="button" size="sm" variant={(room.view ?? "auto") === id ? "default" : "outline"} aria-pressed={(room.view ?? "auto") === id} data-testid={`weergave-${id}`} onClick={() => setRoomView(id)}>
+            <Button key={id} type="button" size="sm" className="px-1.5 text-xs" variant={(room.view ?? "auto") === id ? "default" : "outline"} aria-pressed={(room.view ?? "auto") === id} data-testid={`weergave-${id}`} onClick={() => setRoomView(id)}>
               {label}
             </Button>
           ))}
         </div>
-        <p className="mt-3 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Kijkrichting</p>
+      </PanelSection>
+      <PanelSection id="kijkrichting" title="Kijkrichting" sections={panelSections} info="Vanuit welke hoek de docent de plattegrond standaard ziet. Automatisch kiest de kant met de meeste inhoud.">
         <div role="group" aria-label="Kijkrichting bij de activiteit" className="grid grid-cols-3 gap-1.5">
           {([
             [null, "Automatisch"],
             [-40, "Linksvoor"],
             [40, "Rechtsvoor"],
           ] as const).map(([value, label]) => (
-            <Button key={label} type="button" size="sm" variant={(room.view_azimuth_deg ?? null) === value ? "default" : "outline"} aria-pressed={(room.view_azimuth_deg ?? null) === value} data-testid={`kijkrichting-${value ?? "auto"}`} onClick={() => setRoomAzimuth(value)}>
+            <Button key={label} type="button" size="sm" className="px-1.5 text-xs" variant={(room.view_azimuth_deg ?? null) === value ? "default" : "outline"} aria-pressed={(room.view_azimuth_deg ?? null) === value} data-testid={`kijkrichting-${value ?? "auto"}`} onClick={() => setRoomAzimuth(value)}>
               {label}
             </Button>
           ))}
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Zo ziet een docent de plattegrond op de activiteitpagina. Automatisch: vlakke indelingen (veld afzetten, circuit) van boven, opstellingen met netten, doelen of leerlingen schuin.
-        </p>
-      </div>
-      <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Omgeving</p>
+      </PanelSection>
+      <PanelSection id="omgeving" title="Omgeving" defaultOpen sections={panelSections}>
         <div className="grid grid-cols-2 gap-1.5">
           {ENVIRONMENT_KIND_ORDER.map(({ id, label }) => {
             const active = room.environment?.type === id;
@@ -2113,13 +2143,14 @@ export function Floorplan3dEditor({
             Lege ruimte
           </Button>
         </div>
-      </div>
+      </PanelSection>
 
       {room.environment?.type === "gymzaal" ? (
         <GymEnvironmentPanel
           environment={room.environment}
           onLayoutChange={applyGymLayout}
           onHiddenChange={setEnvironmentHidden}
+          sections={panelSections}
         />
       ) : room.environment ? (
         <EnvironmentPanel
@@ -2128,6 +2159,7 @@ export function Floorplan3dEditor({
           onHiddenChange={setEnvironmentHidden}
         />
       ) : (
+        <PanelSection id="afmetingen" title="Afmetingen" defaultOpen sections={panelSections}>
         <div className="grid grid-cols-2 gap-3">
           <label className="space-y-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Breedte (m)
@@ -2150,6 +2182,7 @@ export function Floorplan3dEditor({
             />
           </label>
         </div>
+        </PanelSection>
       )}
 
       {/* Botsing en raster staan op desktop in de werkbalk; telefoon en tablet hebben hier hun enige plek. */}
@@ -2603,11 +2636,22 @@ export function Floorplan3dEditor({
         </span>
         {adminInfo && <AdminBadge info={adminInfo} onRestored={() => window.location.reload()} />}
         <div className="ml-auto flex items-center gap-1.5">
-          <Button type="button" variant="ghost" size="icon" disabled={!history.canUndo} onClick={handleUndo} title="Ongedaan maken (Ctrl+Z)">
-            <Undo2 className="size-4" />
+          <div className="hidden items-center gap-0.5 lg:flex" role="group" aria-label="Panelen">
+            <Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={!leftHidden} data-testid="paneel-links" title="Linkerpaneel verbergen of tonen ([)" aria-label="Linkerpaneel verbergen of tonen" onClick={() => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, left: !previous.panels.left, focus: false } }))}>
+              {leftHidden ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={!rightHidden} data-testid="paneel-rechts" title="Rechterpaneel verbergen of tonen (])" aria-label="Rechterpaneel verbergen of tonen" onClick={() => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, right: !previous.panels.right, focus: false } }))}>
+              {rightHidden ? <PanelRightOpen className="size-5" /> : <PanelRightClose className="size-5" />}
+            </Button>
+            <Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={panelsState.focus} data-testid="focusmodus" title="Focusmodus: alle panelen verbergen voor een schoon canvas (F, Esc om te verlaten)" aria-label="Focusmodus" onClick={() => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, focus: !previous.panels.focus } }))}>
+              {panelsState.focus ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
+            </Button>
+          </div>
+          <Button type="button" variant="ghost" size="icon" className="size-11" aria-label="Ongedaan maken" disabled={!history.canUndo} onClick={handleUndo} title="Ongedaan maken (Ctrl+Z)">
+            <Undo2 className="size-5" />
           </Button>
-          <Button type="button" variant="ghost" size="icon" disabled={!history.canRedo} onClick={handleRedo} title="Opnieuw (Ctrl+Shift+Z)">
-            <Redo2 className="size-4" />
+          <Button type="button" variant="ghost" size="icon" className="size-11" aria-label="Opnieuw" disabled={!history.canRedo} onClick={handleRedo} title="Opnieuw (Ctrl+Shift+Z)">
+            <Redo2 className="size-5" />
           </Button>
           <PlattegrondJsonMenu onAction={plattegrondJson.run} />
           {guest ? (
@@ -2620,7 +2664,7 @@ export function Floorplan3dEditor({
             </>
           ) : (
             <>
-              <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setMobilePanel("lijst")}>
+              <Button type="button" variant="ghost" size="sm" className="hidden text-muted-foreground sm:inline-flex" onClick={() => setMobilePanel("lijst")}>
                 Mijn plattegronden
               </Button>
               <Button type="button" size="sm" onClick={() => void handleSaveNow()} disabled={saveStatus === "saving"}>
@@ -2633,14 +2677,19 @@ export function Floorplan3dEditor({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block xl:w-72">
+        {!leftHidden && <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block xl:w-72">
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
-        </aside>
+        </aside>}
 
         <div className="flex min-w-0 flex-1 flex-col">
           {desktopToolbar && uiPrefs.prefs.toolbar === "top" && toolbarEl}
           <div className="relative min-h-0 flex-1">
           {scene}
+          {panelsState.focus && (
+            <button type="button" aria-label="Focusmodus verlaten" title="Focusmodus verlaten (Esc)" data-testid="focusmodus-verlaten" onClick={() => setPanels((previous) => ({ ...previous, panels: { ...previous.panels, focus: false } }))} className="absolute top-3 left-3 z-10 flex size-11 items-center justify-center rounded-xl border bg-card shadow-md hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
+              <Minimize2 className="size-5" aria-hidden="true" />
+            </button>
+          )}
           {desktopToolbar && uiPrefs.prefs.toolbar === "hidden" && <ToolbarShowButton onClick={() => uiPrefs.update((previous) => ({ ...previous, toolbar: "bottom" }))} />}
           {guest && upsellVisible && <GuestUpsellBanner onDismiss={() => setUpsellVisible(false)} />}
 
@@ -2651,20 +2700,29 @@ export function Floorplan3dEditor({
           {desktopToolbar && uiPrefs.prefs.toolbar === "bottom" && toolbarEl}
         </div>
 
-        <aside ref={sidePanelRef} className="hidden w-72 shrink-0 overflow-y-auto border-l bg-card p-3 lg:block xl:w-80">
-          <Tabs value={sideTab} onValueChange={(value) => setSideTab(value as "item" | "omgeving")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="item">Item</TabsTrigger>
-              <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
-            </TabsList>
-            <TabsContent value="item" className="pt-3">
-              {itemPanel}
-            </TabsContent>
-            <TabsContent value="omgeving" className="pt-3">
-              {roomPanel}
-            </TabsContent>
-          </Tabs>
-        </aside>
+        {!rightHidden && (
+          <aside ref={sidePanelRef} className="hidden w-72 shrink-0 flex-col overflow-hidden border-l bg-card lg:flex xl:w-80">
+            <Tabs
+              value={tabPinned ? sideTab : hasSelection ? "item" : "omgeving"}
+              onValueChange={(value) => {
+                setSideTab(value as "item" | "omgeving");
+                setTabPinned(true);
+              }}
+              className="min-h-0 flex-1 gap-0"
+            >
+              <TabsList className="mx-3 mt-3 grid shrink-0 grid-cols-2">
+                <TabsTrigger value="item">Item</TabsTrigger>
+                <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
+              </TabsList>
+              <TabsContent value="item" className="min-h-0 flex-1 overflow-y-auto p-3">
+                {itemPanel}
+              </TabsContent>
+              <TabsContent value="omgeving" className="min-h-0 flex-1 overflow-y-auto p-3">
+                {roomPanel}
+              </TabsContent>
+            </Tabs>
+          </aside>
+        )}
       </div>
 
       {thumbnailJob && (
