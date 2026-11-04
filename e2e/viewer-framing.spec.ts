@@ -129,10 +129,12 @@ test("aanraken: tikken activeert, één vinger draait, tik buiten de viewer deac
   expect(errors).toEqual([]);
 });
 
-test("room.view = top zet de viewer standaard op bovenaanzicht", async ({ page }, testInfo) => {
+test("een opgeslagen room.view = top wordt genegeerd: de viewer start altijd schuin", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "één keer volstaat");
   const { viewer } = await open(page, "scenario=volleybal&view=top");
-  await expect(viewer).toHaveAttribute("data-framing-mode", "top");
+  await expect(viewer).toHaveAttribute("data-framing-mode", "3d");
+  const azimuth = Number(await viewer.getAttribute("data-view-azimuth"));
+  expect([40, 320]).toContain(azimuth);
 });
 
 test("lege plattegrond: valt terug op de hele zaal zonder fouten", async ({ page }, testInfo) => {

@@ -1261,18 +1261,6 @@ export function Floorplan3dEditor({
     scheduleAutosave();
   }
 
-  /** Weergave van de viewer bij de activiteit: automatisch (standaard), schuin 3D of bovenaanzicht. */
-  function setRoomView(view: "auto" | "3d" | "top") {
-    if ((room.view ?? "auto") === view) return;
-    pushHistory();
-    setRoom((prev) => {
-      const { view: _previous, ...rest } = prev;
-      void _previous;
-      return view === "auto" ? rest : { ...rest, view };
-    });
-    scheduleAutosave();
-  }
-
   /** Kijkrichting van de viewer bij de activiteit: automatisch (±40°, kant op basis van de inhoud), vast links of vast rechts. */
   function setRoomAzimuth(azimuth: number | null) {
     if ((room.view_azimuth_deg ?? null) === azimuth) return;
@@ -2120,20 +2108,7 @@ export function Floorplan3dEditor({
 
   const roomPanel = (
     <div className="space-y-5">
-      <PanelSection id="weergave" title="Weergave bij de activiteit" sections={panelSections} info="Zo ziet een docent de plattegrond op de activiteitpagina. Automatisch: vlakke indelingen (veld afzetten, circuit) van boven, opstellingen met netten, doelen of leerlingen schuin.">
-        <div role="group" aria-label="Weergave bij de activiteit" className="grid grid-cols-3 gap-1.5">
-          {([
-            ["auto", "Automatisch"],
-            ["3d", "3D"],
-            ["top", "Boven"],
-          ] as const).map(([id, label]) => (
-            <Button key={id} type="button" size="sm" className="px-1.5 text-xs" variant={(room.view ?? "auto") === id ? "default" : "outline"} aria-pressed={(room.view ?? "auto") === id} data-testid={`weergave-${id}`} onClick={() => setRoomView(id)}>
-              {label}
-            </Button>
-          ))}
-        </div>
-      </PanelSection>
-      <PanelSection id="kijkrichting" title="Kijkrichting" sections={panelSections} info="Vanuit welke hoek de docent de plattegrond standaard ziet. Automatisch kiest de kant met de meeste inhoud.">
+      <PanelSection id="kijkrichting" title="Kijkrichting" sections={panelSections} info="De weergave is altijd schuin (diagonaal, op twee assen). Hier kies je aan welke kant van de diagonaal de camera staat; automatisch kiest de kant met de meeste inhoud.">
         <div role="group" aria-label="Kijkrichting bij de activiteit" className="grid grid-cols-3 gap-1.5">
           {([
             [null, "Automatisch"],

@@ -180,13 +180,13 @@ function ViewerBody({
   const fields = resolved.data.coneFields;
 
   // Zoom op de inhoud: de begin-stand (en wat "Reset" herstelt) komt uit wat er echt staat, niet uit de hele zaal.
-  // `room.view` ("auto" | "3d" | "top") is per plattegrond in te stellen in de editor.
+  // De weergave is altijd schuin (diagonaal); een opgeslagen `room.view` uit oudere plattegronden wordt genegeerd (alleen `room.view_azimuth_deg` bepaalt de kant).
   const lookup = useMemo(() => dimsLookupFromModels(resolved.models), [resolved.models]);
   // Hoogtes opnieuw uit de stapeling berekenen, net als de editor bij het openen: een opgeslagen `y` wordt nooit blind vertrouwd
   // (bv. een zittende leerling op een bank rust met zijn zitvlak, niet met zijn voeten, op de bank).
   const items = useMemo(() => recomputeStackedYs(resolved.data.items, lookup), [resolved.data.items, lookup]);
   const initialView = useMemo(
-    () => initialViewFor({ items, fields, room, lookup, aspect: 1.7, mode: room.view }),
+    () => initialViewFor({ items, fields, room, lookup, aspect: 1.7 }),
     [items, fields, room, lookup],
   );
   const [{ view, instant }, setViewState] = useState<{ view: ViewState; instant: boolean }>(() => ({ view: initialView, instant: false }));

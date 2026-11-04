@@ -230,6 +230,7 @@ test("Kamer-paneel: Vaste onderdelen toont alleen de uitleg en de switches; een 
   // Een kladversie wordt pas aangeboden als er iets staat: plaats eerst een item.
   await page.getByRole("button", { name: /^Toestellen/ }).first().click();
   await page.getByRole("button", { name: /Turnbank test toevoegen/ }).click();
+  await page.getByRole("tab", { name: "Omgeving" }).click(); // het paneel volgt de selectie; kies Omgeving zelf
   await expect(page.getByRole("button", { name: /Alles weghalen|Standaardzaal herstellen|Lege zaal/ })).toHaveCount(0);
   // Accordeon: standaard dicht; openen toont de uitleg en de switches.
   const kop = page.getByTestId("sectie-kop-vaste-onderdelen");
@@ -307,7 +308,10 @@ test("rechterpaneel: accordeons (Omgeving en Indeling standaard open) onthouden 
   await openEditor(page);
   await expect(page.getByTestId("sectie-kop-omgeving")).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByTestId("sectie-kop-indeling")).toHaveAttribute("aria-expanded", "true");
-  for (const id of ["weergave", "kijkrichting", "muren", "vaste-onderdelen"]) await expect(page.getByTestId(`sectie-kop-${id}`)).toHaveAttribute("aria-expanded", "false");
+  // "Weergave bij de activiteit" bestaat niet meer; alleen de kijkrichting (kant van de diagonaal).
+  await expect(page.getByText("Weergave bij de activiteit")).toHaveCount(0);
+  await expect(page.getByTestId("weergave-top")).toHaveCount(0);
+  for (const id of ["kijkrichting", "muren", "vaste-onderdelen"]) await expect(page.getByTestId(`sectie-kop-${id}`)).toHaveAttribute("aria-expanded", "false");
   // De tabs staan vast bovenaan het paneel, ook als de inhoud scrolt.
   const tabsBefore = await page.getByRole("tab", { name: "Omgeving" }).boundingBox();
   await page.getByTestId("sectie-kop-muren").click();

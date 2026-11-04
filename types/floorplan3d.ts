@@ -50,7 +50,7 @@ export const floorplan3dRoomSchema = z.object({
   width_m: z.number().positive(),
   length_m: z.number().positive(),
   environment: floorplan3dEnvironmentSchema.optional(),
-  /** Weergave van de alleen-lezen viewer bij de activiteit: "auto" (standaard, weggelaten) kiest zelf, "3d" schuin, "top" bovenaanzicht. */
+  /** VERVALLEN (genegeerd): de weergave is altijd schuin. Het veld blijft bestaan zodat oude plattegronden en JSON-import/export werken. Oude omschrijving: weergave van de alleen-lezen viewer bij de activiteit: "auto" (standaard, weggelaten) kiest zelf, "3d" schuin, "top" bovenaanzicht. */
   view: z.enum(["auto", "3d", "top"]).optional(),
   /** Eigen kijkrichting (azimut, graden) van de viewer bij de activiteit; weggelaten = automatisch (±40°, kant gekozen op basis van de inhoud). */
   view_azimuth_deg: z.number().min(-180).max(180).optional(),
