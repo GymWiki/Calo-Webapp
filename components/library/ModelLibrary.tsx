@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PanelLayout } from "@/components/ui/panel-layout";
 import { ModelItem } from "@/components/library/ModelItem";
+import { buildFamilyCards, resolvePlacementModel, type LibraryCardModel } from "@/lib/library/families";
+import { readLastMaten } from "@/lib/library/familyPrefs";
 import { SportFilter } from "@/components/library/SportFilter";
 import { LIBRARY_ICONS } from "@/components/library/library-icons";
 import { RECENT_LIMIT, useLibraryPrefs, type LibraryView } from "@/components/library/useLibraryPrefs";
@@ -16,7 +18,7 @@ import { filterItems, groupByCategory, isPerson, sportCounts, type CategoryGroup
 import { cn } from "@/lib/utils";
 import type { MaterialModel } from "@/types/materialModel";
 
-type OnSelect = (model: MaterialModel) => void;
+type OnSelect = (model: LibraryCardModel) => void;
 
 function ItemGrid({
   models,
@@ -25,7 +27,7 @@ function ItemGrid({
   onSelect,
   onToggleFavorite,
 }: {
-  models: MaterialModel[];
+  models: LibraryCardModel[];
   view: LibraryView;
   favorites: Set<string>;
   onSelect: OnSelect;
@@ -197,7 +199,8 @@ export function ModelLibrary({
   }, [query, sports, mode]);
 
   const favorites = useMemo(() => new Set(prefs.favorites), [prefs.favorites]);
-  const materials = useMemo(() => models.filter((model) => !isPerson(model)), [models]);
+  // Families (bijv. alle turnkastmaten) zijn één kaart; zoeken op een maatnaam vindt de familie.
+  const { cards: materials, memberToCard } = useMemo(() => buildFamilyCards(models.filter((model) => !isPerson(model))), [models]);
   const persons = useMemo(() => (SHOW_PERSONS_IN_LIBRARY ? libraryPersonModels(models) : []), [models]);
 
   const isFiltering = query.trim().length > 0 || sports.length > 0;
@@ -205,7 +208,12 @@ export function ModelLibrary({
   const counts = useMemo(() => sportCounts(materials, query), [materials, query]);
   const groups = useMemo(() => groupByCategory(filtered), [filtered]);
 
-  const bySlug = useMemo(() => new Map(filtered.map((model) => [model.slug, model])), [filtered]);
+  const bySlug = useMemo(() => {
+    const map = new Map<string, LibraryCardModel>(filtered.map((model) => [model.slug, model]));
+    // Een eerder geplaatste maat (recent, favoriet) verwijst naar de kaart van zijn familie.
+    for (const [member, cardSlug] of memberToCard) if (!map.has(member) && map.has(cardSlug)) map.set(member, map.get(cardSlug)!);
+    return map;
+  }, [filtered, memberToCard]);
   const recentModels = useMemo(
     () => prefs.recent.map((slug) => bySlug.get(slug)).filter((model): model is MaterialModel => Boolean(model)).slice(0, RECENT_LIMIT),
     [prefs.recent, bySlug],
@@ -220,9 +228,10 @@ export function ModelLibrary({
   const setOpen = (id: string, open: boolean) =>
     setManualOpen((current) => ({ ...current, [bucket]: { ...current[bucket], [id]: open } }));
 
-  function handleSelect(model: MaterialModel) {
+  function handleSelect(model: LibraryCardModel) {
     prefs.pushRecent(model.slug);
-    onSelect(model);
+    // Familiekaart: plaats de laatst gebruikte maat van die familie (anders de standaardmaat); de maat wissel je daarna in het itempaneel.
+    onSelect(resolvePlacementModel(model, models, readLastMaten()));
   }
 
   function clearFilters() {

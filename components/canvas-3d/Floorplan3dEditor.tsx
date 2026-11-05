@@ -33,6 +33,10 @@ import {
 } from "lucide-react";
 import { toast } from "@/components/canvas-3d/mobile/editor-toast";
 import { StudentPanel, type StudentPatch } from "@/components/students/StudentPanel";
+import { MaatPanel } from "@/components/library/MaatPanel";
+import { slugForMaat } from "@/lib/library/families";
+import { familyOfSlug } from "@/lib/constants/itemFamilies";
+import { rememberMaat } from "@/lib/library/familyPrefs";
 import { isStudentSlug, upgradeStudentItem } from "@/lib/students/catalog";
 import {
   buildClipboard,
@@ -119,7 +123,7 @@ import { MyFloorplans3dList } from "@/components/canvas-3d/MyFloorplans3dList";
 import { Scene3D } from "@/components/canvas-3d/Scene3D";
 import { footprintCenter, isElevated, originForCenter } from "@/components/canvas-3d/collision-shape";
 import { normalizeItemRotation, orientationFor, type ResolvedOrientation } from "@/components/canvas-3d/asset-orientation";
-import { itemIsTilted, localToWorld, rotationOf, type Rotation3 } from "@/components/canvas-3d/orientation";
+import { isOutsideRoom, itemIsTilted, localToWorld, rotationOf, type Rotation3 } from "@/components/canvas-3d/orientation";
 import { RotationPanel } from "@/components/canvas-3d/RotationPanel";
 import {
   DEFAULT_SNAP_DEG,
@@ -696,8 +700,8 @@ export function Floorplan3dEditor({
     };
     setItems((prev) => (itemIsTilted(newItem) ? recomputeStackedYs([...prev, newItem], lookup) : [...prev, newItem]));
     setSelectedId(newItem.id);
-    if (isStudentSlug(model.slug)) {
-      // Een leerling kies je eerst en plaats je; pose, kleur en grootte stel je daarna in het itempaneel in.
+    if (isStudentSlug(model.slug) || familyOfSlug(model.slug)) {
+      // Een leerling of materiaal-familie kies je eerst en plaats je; pose, kleur, grootte of maat stel je daarna in het itempaneel in.
       setSideTab("item");
       if (layout !== "desktop") setMobilePanel("item");
     } else if (settings.closeLibraryAfterPlace) setMobilePanel(null);
@@ -1590,6 +1594,37 @@ export function Floorplan3dEditor({
     scheduleAutosave();
   }
 
+  /**
+   * Maat van het geselecteerde item (of van alle geselecteerde items van dezelfde familie) wisselen: de slug wordt die van de gekozen maat.
+   * Positie, rotatie, kleur en vergrendeling blijven; de onderkant blijft op de vloer of ondergrond (de pivot is onderkant-midden) en wat erbovenop
+   * staat gaat mee omhoog of omlaag (`recomputeStackedYs`). Eén undo-stap. Past de nieuwe maat niet in de zaal, dan volgt een zachte waarschuwing.
+   */
+  function editSelectedMaat(maatId: string) {
+    const base = selectedItem ? familyOfSlug(selectedItem.slug) : null;
+    if (!selectedItem || !base) return;
+    const targets = groupItems.filter((item) => familyOfSlug(item.slug)?.family.id === base.family.id && !item.locked);
+    if (targets.length === 0) {
+      toast.info("Dit item is vergrendeld.");
+      return;
+    }
+    const changes = new Map(targets.flatMap((item) => {
+      const slug = slugForMaat(item.slug, maatId);
+      return slug && slug !== item.slug ? [[item.id, slug] as const] : [];
+    }));
+    if (changes.size === 0) return;
+    pushHistory();
+    itemEditRef.current = null;
+    rememberMaat(base.family.id, maatId);
+    const next = recomputeStackedYs(
+      items.map((item) => (changes.has(item.id) ? { ...item, slug: changes.get(item.id)! } : item)),
+      lookup,
+    );
+    setItems(next);
+    scheduleAutosave();
+    const outside = next.some((item) => changes.has(item.id) && isOutsideRoom(shapeOfDims(dimsOf(item, lookup)), [item.x, item.y, item.z], rotationOf(item), room));
+    if (outside) toast.warning("Deze maat past niet helemaal binnen de zaal. Verplaats het item als dat nodig is.");
+  }
+
   function applyHistorySnapshot(snapshot: Floorplan3dSnapshot) {
     setRoom(snapshot.room);
     setItems(snapshot.items);
@@ -2011,10 +2046,18 @@ export function Floorplan3dEditor({
     </div>
   );
 
+  // Maat voor de hele selectie: alleen als álle geselecteerde objecten items van dezelfde familie zijn.
+  const sharedMaatSlug = (() => {
+    if (groupFields.length > 0 || groupItems.length < 2) return null;
+    const families = new Set(groupItems.map((item) => familyOfSlug(item.slug)?.family.id ?? "-"));
+    return families.size === 1 && !families.has("-") ? groupItems[0].slug : null;
+  })();
+
   const groupPanel = (
     <div className="space-y-3" data-testid="groep-paneel">
       <p className="text-sm font-medium">{selectionCount} objecten geselecteerd</p>
       <p className="text-xs text-muted-foreground">Sleep één van de objecten om de hele selectie te verplaatsen. Shift/Ctrl/Cmd+klik voegt toe of haalt weg.</p>
+      {sharedMaatSlug && <MaatPanel slug={sharedMaatSlug} models={models} disabled={false} count={groupItems.length} onChange={editSelectedMaat} />}
       {clipboardButtons}
       <Button type="button" variant="outline" className="w-full" title="Dupliceren (Ctrl+D)" onClick={duplicateSelected}>
         <Copy className="size-4" /> Dupliceren (Ctrl+D)
@@ -2075,6 +2118,7 @@ export function Floorplan3dEditor({
       {selectedItem ? (
         <>
           <p className="text-sm font-medium">{modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item"}</p>
+          <MaatPanel slug={selectedItem.slug} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedMaat} />
           {isStudentSlug(selectedItem.slug) && (
             <StudentPanel item={selectedItem} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedStudent} />
           )}

@@ -7,6 +7,7 @@ import { Box, Star } from "lucide-react";
 import { PREVIEW_OUTLINE_FILTER } from "@/components/library/preview-outline";
 import { cn } from "@/lib/utils";
 import type { MaterialModel } from "@/types/materialModel";
+import type { LibraryCardModel } from "@/lib/library/families";
 import type { LibraryView } from "@/components/library/useLibraryPrefs";
 
 /** Preview-vlak: de PNG's hebben een transparante achtergrond, dus altijd op
@@ -81,13 +82,16 @@ export function ModelItem({
   onSelect,
   onToggleFavorite,
 }: {
-  model: MaterialModel;
+  model: LibraryCardModel;
   view: LibraryView;
   favorite: boolean;
-  onSelect: (model: MaterialModel) => void;
+  onSelect: (model: LibraryCardModel) => void;
   onToggleFavorite: (slug: string) => void;
 }) {
   const compact = view === "list";
+  const maten = model.maten ?? 0;
+  // Familie: kort overzicht van de maten bij hover (title) en een label met het aantal maten.
+  const tooltip = maten > 1 && model.maatLabels ? `${model.naam} — ${maten} maten: ${model.maatLabels.join(", ")}` : model.naam;
 
   return (
     // scroll-mt: bij toetsenbord- of schermlezer-focus scrolt de browser het item niet onder de sticky zoekbalk en categoriekop.
@@ -95,8 +99,9 @@ export function ModelItem({
       <button
         type="button"
         onClick={() => onSelect(model)}
-        title={model.naam}
+        title={tooltip}
         aria-label={`${model.naam} toevoegen aan de plattegrond`}
+        data-familie={model.familyId}
         className={cn(
           "min-w-0 rounded-lg border bg-background text-left transition-colors duration-150 ease-brand hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95",
           compact ? "flex flex-1 items-center gap-2 p-1" : "flex w-full flex-col gap-1.5 p-1.5",
@@ -110,6 +115,11 @@ export function ModelItem({
           )}
         >
           {model.naam}
+          {maten > 1 && (
+            <span data-testid="maten-label" className="mt-0.5 block text-[10px] font-normal text-muted-foreground">
+              {maten} maten
+            </span>
+          )}
         </span>
       </button>
       <FavoriteStar
