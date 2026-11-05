@@ -32,7 +32,7 @@ export function ContactShadows({ items, lookup }: { items: readonly Floorplan3dI
         const cx = item.x + shape.offset_x * Math.cos(yaw) + shape.offset_z * Math.sin(yaw);
         const cz = item.z - shape.offset_x * Math.sin(yaw) + shape.offset_z * Math.cos(yaw);
         return (
-          <mesh key={item.id} geometry={geometry} material={material} position={[cx, item.y + 0.012, cz]} rotation={[0, yaw + THREE.MathUtils.degToRad(shape.yaw_deg), 0]} scale={[radiusX, 1, radiusZ]} raycast={() => {}} renderOrder={1} />
+          <mesh key={item.id} name="contactschaduw" geometry={geometry} material={material} position={[cx, item.y + 0.012, cz]} rotation={[0, yaw + THREE.MathUtils.degToRad(shape.yaw_deg), 0]} scale={[radiusX, 1, radiusZ]} raycast={() => {}} renderOrder={1} />
         );
       })}
     </group>
