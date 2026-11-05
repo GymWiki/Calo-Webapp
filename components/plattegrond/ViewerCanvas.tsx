@@ -1,5 +1,6 @@
 "use client";
 
+import { SceneAudit } from "@/components/canvas-3d/SceneAudit";
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useProgress } from "@react-three/drei";
@@ -146,6 +147,7 @@ export default function ViewerCanvas({
       // Het gebied is puur een weergave: geen focus/selectie via de canvas zelf.
       tabIndex={-1}
     >
+      <SceneAudit />
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
       <ViewerCameraRig room={room} view={view} instant={instant} content={content} />
@@ -157,7 +159,6 @@ export default function ViewerCanvas({
         modelBySlug={modelBySlug}
         lookup={lookup}
         hideEnvironmentNodes={hiddenWalls}
-        contactShadows
         interactive={false}
         onItemHover={onItemHover}
       />

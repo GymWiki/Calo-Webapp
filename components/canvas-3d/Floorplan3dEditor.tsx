@@ -33,6 +33,10 @@ import {
 } from "lucide-react";
 import { toast } from "@/components/canvas-3d/mobile/editor-toast";
 import { StudentPanel, type StudentPatch } from "@/components/students/StudentPanel";
+import { MaatPanel } from "@/components/library/MaatPanel";
+import { slugForMaat } from "@/lib/library/families";
+import { familyOfSlug } from "@/lib/constants/itemFamilies";
+import { rememberMaat } from "@/lib/library/familyPrefs";
 import { isStudentSlug, upgradeStudentItem } from "@/lib/students/catalog";
 import {
   buildClipboard,
@@ -58,6 +62,7 @@ import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
 import { CanvasToolbar, ToolbarShowButton } from "@/components/canvas-3d/CanvasToolbar";
 import { PanelSection, type PanelSections } from "@/components/canvas-3d/PanelSection";
+import { PanelLayout } from "@/components/ui/panel-layout";
 import { useEditorUiPrefs } from "@/lib/editor-ui/useEditorUiPrefs";
 import { Input } from "@/components/ui/input";
 import {
@@ -118,7 +123,7 @@ import { MyFloorplans3dList } from "@/components/canvas-3d/MyFloorplans3dList";
 import { Scene3D } from "@/components/canvas-3d/Scene3D";
 import { footprintCenter, isElevated, originForCenter } from "@/components/canvas-3d/collision-shape";
 import { normalizeItemRotation, orientationFor, type ResolvedOrientation } from "@/components/canvas-3d/asset-orientation";
-import { itemIsTilted, localToWorld, rotationOf, type Rotation3 } from "@/components/canvas-3d/orientation";
+import { isOutsideRoom, itemIsTilted, localToWorld, rotationOf, type Rotation3 } from "@/components/canvas-3d/orientation";
 import { RotationPanel } from "@/components/canvas-3d/RotationPanel";
 import {
   DEFAULT_SNAP_DEG,
@@ -695,8 +700,8 @@ export function Floorplan3dEditor({
     };
     setItems((prev) => (itemIsTilted(newItem) ? recomputeStackedYs([...prev, newItem], lookup) : [...prev, newItem]));
     setSelectedId(newItem.id);
-    if (isStudentSlug(model.slug)) {
-      // Een leerling kies je eerst en plaats je; pose, kleur en grootte stel je daarna in het itempaneel in.
+    if (isStudentSlug(model.slug) || familyOfSlug(model.slug)) {
+      // Een leerling of materiaal-familie kies je eerst en plaats je; pose, kleur, grootte of maat stel je daarna in het itempaneel in.
       setSideTab("item");
       if (layout !== "desktop") setMobilePanel("item");
     } else if (settings.closeLibraryAfterPlace) setMobilePanel(null);
@@ -1589,6 +1594,37 @@ export function Floorplan3dEditor({
     scheduleAutosave();
   }
 
+  /**
+   * Maat van het geselecteerde item (of van alle geselecteerde items van dezelfde familie) wisselen: de slug wordt die van de gekozen maat.
+   * Positie, rotatie, kleur en vergrendeling blijven; de onderkant blijft op de vloer of ondergrond (de pivot is onderkant-midden) en wat erbovenop
+   * staat gaat mee omhoog of omlaag (`recomputeStackedYs`). Eén undo-stap. Past de nieuwe maat niet in de zaal, dan volgt een zachte waarschuwing.
+   */
+  function editSelectedMaat(maatId: string) {
+    const base = selectedItem ? familyOfSlug(selectedItem.slug) : null;
+    if (!selectedItem || !base) return;
+    const targets = groupItems.filter((item) => familyOfSlug(item.slug)?.family.id === base.family.id && !item.locked);
+    if (targets.length === 0) {
+      toast.info("Dit item is vergrendeld.");
+      return;
+    }
+    const changes = new Map(targets.flatMap((item) => {
+      const slug = slugForMaat(item.slug, maatId);
+      return slug && slug !== item.slug ? [[item.id, slug] as const] : [];
+    }));
+    if (changes.size === 0) return;
+    pushHistory();
+    itemEditRef.current = null;
+    rememberMaat(base.family.id, maatId);
+    const next = recomputeStackedYs(
+      items.map((item) => (changes.has(item.id) ? { ...item, slug: changes.get(item.id)! } : item)),
+      lookup,
+    );
+    setItems(next);
+    scheduleAutosave();
+    const outside = next.some((item) => changes.has(item.id) && isOutsideRoom(shapeOfDims(dimsOf(item, lookup)), [item.x, item.y, item.z], rotationOf(item), room));
+    if (outside) toast.warning("Deze maat past niet helemaal binnen de zaal. Verplaats het item als dat nodig is.");
+  }
+
   function applyHistorySnapshot(snapshot: Floorplan3dSnapshot) {
     setRoom(snapshot.room);
     setItems(snapshot.items);
@@ -2010,10 +2046,18 @@ export function Floorplan3dEditor({
     </div>
   );
 
+  // Maat voor de hele selectie: alleen als álle geselecteerde objecten items van dezelfde familie zijn.
+  const sharedMaatSlug = (() => {
+    if (groupFields.length > 0 || groupItems.length < 2) return null;
+    const families = new Set(groupItems.map((item) => familyOfSlug(item.slug)?.family.id ?? "-"));
+    return families.size === 1 && !families.has("-") ? groupItems[0].slug : null;
+  })();
+
   const groupPanel = (
     <div className="space-y-3" data-testid="groep-paneel">
       <p className="text-sm font-medium">{selectionCount} objecten geselecteerd</p>
       <p className="text-xs text-muted-foreground">Sleep één van de objecten om de hele selectie te verplaatsen. Shift/Ctrl/Cmd+klik voegt toe of haalt weg.</p>
+      {sharedMaatSlug && <MaatPanel slug={sharedMaatSlug} models={models} disabled={false} count={groupItems.length} onChange={editSelectedMaat} />}
       {clipboardButtons}
       <Button type="button" variant="outline" className="w-full" title="Dupliceren (Ctrl+D)" onClick={duplicateSelected}>
         <Copy className="size-4" /> Dupliceren (Ctrl+D)
@@ -2074,6 +2118,7 @@ export function Floorplan3dEditor({
       {selectedItem ? (
         <>
           <p className="text-sm font-medium">{modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item"}</p>
+          <MaatPanel slug={selectedItem.slug} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedMaat} />
           {isStudentSlug(selectedItem.slug) && (
             <StudentPanel item={selectedItem} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedStudent} />
           )}
@@ -2527,12 +2572,12 @@ export function Floorplan3dEditor({
             />
           )}
           {layout === "phone" && activePanel && (
-            <BottomSheet key={activePanel} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} peek={activePanel === "rotatie"} onInset={setSheetInsetPx}>
+            <BottomSheet key={activePanel} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} peek={activePanel === "rotatie"} onInset={setSheetInsetPx} flush={activePanel === "materiaal"}>
               {panelContent(activePanel)}
             </BottomSheet>
           )}
           {layout === "tablet" && activePanel && (
-            <SidePanel side={activePanel === "materiaal" ? "left" : "right"} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)}>
+            <SidePanel side={activePanel === "materiaal" ? "left" : "right"} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} flush={activePanel === "materiaal"}>
               {panelContent(activePanel)}
             </SidePanel>
           )}
@@ -2684,7 +2729,7 @@ export function Floorplan3dEditor({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!leftHidden && <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block xl:w-72">
+        {!leftHidden && <aside className="hidden w-64 shrink-0 flex-col overflow-hidden border-r bg-card px-3 pt-3 lg:flex xl:w-72" data-testid="bibliotheek-paneel">
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>}
 
@@ -2717,16 +2762,18 @@ export function Floorplan3dEditor({
               }}
               className="min-h-0 flex-1 gap-0"
             >
-              <TabsList className="mx-3 mt-3 grid shrink-0 grid-cols-2">
-                <TabsTrigger value="item">Item</TabsTrigger>
-                <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
-              </TabsList>
-              <TabsContent value="item" className="min-h-0 flex-1 overflow-y-auto p-3">
-                {itemPanel}
-              </TabsContent>
-              <TabsContent value="omgeving" className="min-h-0 flex-1 overflow-y-auto p-3">
-                {roomPanel}
-              </TabsContent>
+              <PanelLayout
+                header={
+                  <TabsList className="mx-3 mt-3 mb-2 grid grid-cols-2">
+                    <TabsTrigger value="item">Item</TabsTrigger>
+                    <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
+                  </TabsList>
+                }
+                bodyClassName="p-3"
+              >
+                <TabsContent value="item">{itemPanel}</TabsContent>
+                <TabsContent value="omgeving">{roomPanel}</TabsContent>
+              </PanelLayout>
             </Tabs>
           </aside>
         )}

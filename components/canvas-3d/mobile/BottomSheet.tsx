@@ -20,6 +20,7 @@ export function BottomSheet({
   children,
   peek = false,
   onInset,
+  flush = false,
 }: {
   title: string;
   onClose: () => void;
@@ -28,6 +29,8 @@ export function BottomSheet({
   peek?: boolean;
   /** Meldt de hoogte (px) van het sheet (0 bij sluiten): de camera schuift het beeld mee omhoog. */
   onInset?: (px: number) => void;
+  /** De inhoud beheert zijn eigen scrollen (kop vast, lijst scrolt): het sheet zelf scrolt dan niet. */
+  flush?: boolean;
 }) {
   // Materiaal/Item/Kamer openen over het hele canvasgebied (meer zien); de rotatie-drawer (peek) blijft compact.
   const [snap, setSnap] = useState<SheetSnap>(peek ? "half" : "full");
@@ -135,7 +138,7 @@ export function BottomSheet({
             </button>
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
+        <div className={cn("min-h-0 flex-1 px-4 pb-4", flush ? "flex flex-col overflow-hidden" : "overflow-y-auto overscroll-contain")}>{children}</div>
       </div>
     </div>
   );

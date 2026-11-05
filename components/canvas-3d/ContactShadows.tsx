@@ -10,7 +10,7 @@ import type { Floorplan3dItem } from "@/types/floorplan3d";
 const MIN_RADIUS_M = 0.18;
 
 /**
- * Zachte, ronde schaduwvlek onder elk item op de vloer (alleen in de alleen-lezen viewer en de thumbnails). Goedkoop: één gedeelde
+ * Zachte, ronde schaduwvlek onder elk item op de vloer (alleen nog in de thumbnail-renderer; de editor en de viewer tonen geen schaduwen). Goedkoop: één gedeelde
  * geometrie en materiaal, geen extra render-pass. Hangend materiaal (netten, ringen) en items zonder voetafdruk krijgen geen vlek.
  */
 export function ContactShadows({ items, lookup }: { items: readonly Floorplan3dItem[]; lookup: DimsLookup }) {
@@ -32,7 +32,7 @@ export function ContactShadows({ items, lookup }: { items: readonly Floorplan3dI
         const cx = item.x + shape.offset_x * Math.cos(yaw) + shape.offset_z * Math.sin(yaw);
         const cz = item.z - shape.offset_x * Math.sin(yaw) + shape.offset_z * Math.cos(yaw);
         return (
-          <mesh key={item.id} geometry={geometry} material={material} position={[cx, item.y + 0.012, cz]} rotation={[0, yaw + THREE.MathUtils.degToRad(shape.yaw_deg), 0]} scale={[radiusX, 1, radiusZ]} raycast={() => {}} renderOrder={1} />
+          <mesh key={item.id} name="contactschaduw" geometry={geometry} material={material} position={[cx, item.y + 0.012, cz]} rotation={[0, yaw + THREE.MathUtils.degToRad(shape.yaw_deg), 0]} scale={[radiusX, 1, radiusZ]} raycast={() => {}} renderOrder={1} />
         );
       })}
     </group>

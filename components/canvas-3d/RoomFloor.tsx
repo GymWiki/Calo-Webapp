@@ -19,7 +19,7 @@ export function RoomFloor({ room }: { room: Floorplan3dRoom }) {
 
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow={false}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[room.width_m, room.length_m]} />
         <meshStandardMaterial color="#f1f5f9" />
       </mesh>

@@ -58,6 +58,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+import { matchAssetIgnore } from "./lib/assetIgnore.ts";
 import { validateTaxonomy } from "../lib/constants/libraryTaxonomy.ts";
 import { classifyModel } from "../lib/library/classify.ts";
 import { NodeIO, getBounds } from "@gltf-transform/core";
@@ -148,6 +150,12 @@ async function discoverItems(): Promise<DiscoveredItem[]> {
     const slug = path.basename(entry.name, ext);
     if (!SLUG_PATTERN.test(slug)) {
       console.warn(`Overgeslagen: "${entry.name}" — slug "${slug}" mag alleen a-z, 0-9 en _ bevatten.`);
+      continue;
+    }
+
+    const ignored = matchAssetIgnore(slug);
+    if (ignored) {
+      console.warn(`Genegeerd (${ignored.rule.id}): "${entry.name}" — ${ignored.why}. ${ignored.rule.reason}`);
       continue;
     }
 

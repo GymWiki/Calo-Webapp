@@ -47,6 +47,14 @@ export const E2E_MODELS: MaterialModel[] = [
   model("korfbalpaal_compleet_250", "Paal met korf (anchor-test)", "doelen_netten", null, ["korfbal"], [5, 4, 2.5], "#eab308"),
   // Zelfde slug als het echte asset (botsingsregels en vorm komen van de slug): net met palen, 10,85 m breed.
   model("volleybal_veldopstelling_compleet_dames", "Volleybalopstelling (test)", "doelen_netten", null, ["volleybal"], [10.85, 0.16, 3.04], "#0ea5e9"),
+  // Zelfde slugs als de echte assets (families: lib/constants/itemFamilies.ts) met de echte maten; de kaart en het maatmenu hangen van de slug af.
+  model("turnkast_2_delig", "Turnkast 2 delig", "toestellen", "kasten", ["turnen"], [1.42, 0.616, 0.515], "#a16207"),
+  model("turnkast_4_delig", "Turnkast 4 delig", "toestellen", "kasten", ["turnen"], [1.421, 0.781, 0.935], "#a16207"),
+  model("turnkast_6_delig_1_recht", "Turnkast 6 delig", "toestellen", "kasten", ["turnen"], [1.55, 0.864, 1.355], "#a16207"),
+  model("basketbal_maat_5", "Basketbal maat 5", "ballen", "basketbal", ["basketbal"], [0.22, 0.22, 0.22], "#ea580c"),
+  model("basketbal_maat_7", "Basketbal maat 7", "ballen", "basketbal", ["basketbal"], [0.239, 0.239, 0.239], "#c2410c"),
+  model("dodgeball_vinyl_blauw", "Dodgeball vinyl blauw", "ballen", "trefbal", ["trefbal"], [0.178, 0.178, 0.178], "#2563eb"),
+  model("dodgeball_vinyl_rood", "Dodgeball vinyl rood", "ballen", "trefbal", ["trefbal"], [0.178, 0.178, 0.178], "#dc2626"),
   model("pion_test", "Pion test", "klein_materiaal", "afzetten", ["algemeen"], [0.3, 0.3, 0.3], "#f97316"),
   model("kettlebell_test", "Kettlebell test", "fitness", null, ["fitness"], [0.25, 0.2, 0.3], "#0891b2"),
   model("ballenkar_test", "Ballenkar test", "opslag_karren", null, ["algemeen"], [1, 0.7, 1], "#64748b"),
