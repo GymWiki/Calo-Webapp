@@ -91,7 +91,8 @@ export function ModelItem({
   const compact = view === "list";
   const maten = model.maten ?? 0;
   // Familie: kort overzicht van de maten bij hover (title) en een label met het aantal maten.
-  const tooltip = maten > 1 && model.maatLabels ? `${model.naam} — ${maten} maten: ${model.maatLabels.join(", ")}` : model.naam;
+  const eenheid = model.kleurFamilie ? "kleuren" : "maten";
+  const tooltip = maten > 1 && model.maatLabels ? `${model.naam} — ${maten} ${eenheid}: ${model.maatLabels.join(", ")}` : model.naam;
 
   return (
     // scroll-mt: bij toetsenbord- of schermlezer-focus scrolt de browser het item niet onder de sticky zoekbalk en categoriekop.
@@ -117,7 +118,7 @@ export function ModelItem({
           {model.naam}
           {maten > 1 && (
             <span data-testid="maten-label" className="mt-0.5 block text-[10px] font-normal text-muted-foreground">
-              {maten} maten
+              {maten} {eenheid}
             </span>
           )}
         </span>

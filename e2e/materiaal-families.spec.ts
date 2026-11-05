@@ -70,14 +70,12 @@ test("turnkast: maat wisselen met plus en min; positie en rotatie blijven; één
   expect(reloaded.items[0].slug).toBe(isDesktop(page) ? "turnkast_4_delig" : "turnkast_2_delig");
 });
 
-test("bal (segmentkeuze): maat wisselen en een maat zonder model staat gedimd met 'Model volgt'", async ({ page }, testInfo) => {
+test("bal (segmentkeuze): maat wisselen; een maat zonder model (maat 6) wordt niet getoond", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "ipad", "desktop en telefoon volstaan");
   await openEditor(page);
   await placeFamily(page, "basketbal", /^Basketbal toevoegen/);
   await readDraft(page, (d) => d.items.length === 1 && d.items[0].slug === "basketbal_maat_5");
-  const six = page.getByTestId("maat-maat_6");
-  await expect(six).toBeDisabled();
-  await expect(six).toContainText("Model volgt");
+  await expect(page.getByTestId("maat-maat_6")).toHaveCount(0);
   await page.getByTestId("maat-maat_7").click();
   await readDraft(page, (d) => d.items[0].slug === "basketbal_maat_7");
   await expect(page.getByTestId("maat-afmetingen")).toContainText("0,24 × 0,24 × 0,24");
@@ -102,4 +100,19 @@ test("meerdere items van dezelfde familie: de maat geldt voor allemaal", async (
   await expect(page.getByTestId("groep-paneel")).toBeVisible();
   await page.getByTestId("maat-maat_7").click();
   await readDraft(page, (d) => d.items.length === 2 && d.items.every((item) => item.slug === "basketbal_maat_7"));
+});
+
+test("kleurfamilie: dodgeball in blauw of rood kiezen (kleurbolletjes), de kaart zegt '2 kleuren'", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "ipad", "desktop en telefoon volstaan");
+  await openEditor(page);
+  await openLibrary(page);
+  await page.getByRole("searchbox").fill("trefbal");
+  const kaart = page.getByRole("button", { name: /^Dodgeball \(vinyl\) toevoegen/ });
+  await expect(kaart.locator("..").getByTestId("maten-label")).toHaveText("2 kleuren");
+  await kaart.click();
+  await expect(page.getByTestId("maat-paneel")).toBeVisible();
+  await readDraft(page, (d) => d.items.length === 1 && d.items[0].slug === "dodgeball_vinyl_blauw");
+  await page.getByTestId("maat-rood").click();
+  await readDraft(page, (d) => d.items[0].slug === "dodgeball_vinyl_rood");
+  await expect(page.getByTestId("maat-huidig")).toHaveText("Rood");
 });

@@ -13,7 +13,7 @@ const meters = (value: number) => value.toFixed(2).replace(".", ",");
 
 /**
  * Itempaneel-sectie "Maat" voor een materiaal-familie: segmentknoppen (≤ 5 maten), een lijst (meer maten) of een stepper (opeenvolgende delen,
- * bijv. kastdelen). Maten zonder model staan gedimd met "Model volgt". Toont de afmetingen van de gekozen maat. Wissel je de maat, dan
+ * bijv. kastdelen) of kleurbolletjes (families waar de keuze een kleur is). Maten zonder model worden niet getoond. Toont de afmetingen van de gekozen maat. Wissel je de maat, dan
  * blijft het item op zijn plek (zie `editSelectedMaat` in de editor).
  */
 export function MaatPanel({
@@ -33,7 +33,7 @@ export function MaatPanel({
   const menu = maatOptions(slug, models);
   if (!menu) return null;
   const { family, options } = menu;
-  const available = options.filter((option) => option.model);
+  const available = options;
   const current = options.find((option) => option.current);
   const currentModel = current?.model ?? null;
   const index = available.findIndex((option) => option.current);
@@ -67,12 +67,30 @@ export function MaatPanel({
           data-testid="maat-lijst"
         >
           {options.map((option) => (
-            <option key={option.maat.id} value={option.maat.id} disabled={!option.model}>
+            <option key={option.maat.id} value={option.maat.id}>
               {option.maat.label}
-              {option.model ? "" : " — model volgt"}
             </option>
           ))}
         </select>
+      ) : family.weergave === "kleur" ? (
+        <div role="group" aria-label={family.maatTitel} className="flex flex-wrap items-center gap-2">
+          {options.map((option) => (
+            <button
+              key={option.maat.id}
+              type="button"
+              aria-pressed={option.current}
+              aria-label={option.maat.label}
+              title={option.maat.label}
+              disabled={disabled}
+              data-testid={`maat-${option.maat.id}`}
+              onClick={() => onChange(option.maat.id)}
+              className={cn("flex size-9 items-center justify-center rounded-full border-2 pointer-coarse:size-11", option.current ? "border-primary ring-2 ring-primary/30" : "border-border")}
+            >
+              <span className="size-6 rounded-full border border-black/10 pointer-coarse:size-8" style={{ backgroundColor: option.maat.kleur }} aria-hidden="true" />
+            </button>
+          ))}
+          <span className="text-xs text-muted-foreground" data-testid="maat-huidig">{current?.maat.label}</span>
+        </div>
       ) : (
         <div role="group" aria-label={family.maatTitel} className="flex flex-wrap gap-1.5">
           {options.map((option) => (
@@ -80,18 +98,13 @@ export function MaatPanel({
               key={option.maat.id}
               type="button"
               aria-pressed={option.current}
-              disabled={disabled || !option.model}
-              title={option.model ? option.maat.label : `${option.maat.label}: model volgt`}
+              disabled={disabled}
+              title={option.maat.label}
               data-testid={`maat-${option.maat.id}`}
               onClick={() => onChange(option.maat.id)}
-              className={cn(
-                "flex-1 rounded-md border px-2.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40",
-                TAP,
-                option.current && "border-primary bg-primary/10 text-primary",
-              )}
+              className={cn("flex-1 rounded-md border px-2.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40", TAP, option.current && "border-primary bg-primary/10 text-primary")}
             >
               {option.maat.label}
-              {!option.model && <span className="block text-[10px] font-normal">Model volgt</span>}
             </button>
           ))}
         </div>

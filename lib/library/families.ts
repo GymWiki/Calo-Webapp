@@ -5,7 +5,7 @@ import { defaultMaat, familyById, familyOfSlug, ITEM_FAMILIES, type FamilyMaat, 
 import type { MaterialModel } from "@/types/materialModel";
 
 /** Bibliotheekkaart: een gewoon model, met voor een familie de naam, het aantal maten en de zoektermen van alle maten. */
-export type LibraryCardModel = MaterialModel & { familyId?: string; maten?: number; maatLabels?: string[] };
+export type LibraryCardModel = MaterialModel & { familyId?: string; maten?: number; maatLabels?: string[]; kleurFamilie?: boolean };
 
 function uniq<T>(values: T[]): T[] {
   return Array.from(new Set(values));
@@ -40,10 +40,16 @@ export function buildFamilyCards(models: MaterialModel[]): { cards: LibraryCardM
       familyId: family.id,
       maten: present.length,
       maatLabels: present.map((entry) => entry.maat.label),
+      kleurFamilie: family.weergave === "kleur",
     };
     for (const entry of present) {
       memberToCard.set(entry.model.slug, base.slug);
       replaced.set(entry.model.slug, entry.model.slug === base.slug ? card : null);
+      // Dubbele modellen van deze maat verdwijnen uit de bibliotheek (ze blijven geldig in plattegronden).
+      for (const alias of entry.maat.aliassen ?? []) {
+        memberToCard.set(alias, base.slug);
+        replaced.set(alias, null);
+      }
     }
   }
 
@@ -68,15 +74,18 @@ export function resolvePlacementModel(card: LibraryCardModel, models: MaterialMo
   return model ?? card;
 }
 
-export type MaatOption = { maat: FamilyMaat; model: MaterialModel | null; current: boolean };
+export type MaatOption = { maat: FamilyMaat; model: MaterialModel; current: boolean };
 
-/** Maatmenu voor een geplaatst item; null als het item niet bij een (bruikbare) familie hoort. Maten zonder model staan er gedimd bij. */
+/** Maatmenu voor een geplaatst item; null als het item niet bij een (bruikbare) familie hoort. Maten zonder model worden niet getoond. */
 export function maatOptions(slug: string, models: MaterialModel[]): { family: ItemFamily; options: MaatOption[] } | null {
   const alias = familyOfSlug(slug);
   if (!alias) return null;
   const bySlug = new Map(models.map((model) => [model.slug, model]));
-  const options = alias.family.maten.map((maat) => ({ maat, model: maat.slug ? (bySlug.get(maat.slug) ?? null) : null, current: maat.slug === slug }));
-  if (options.filter((option) => option.model).length < 2) return null;
+  const options = alias.family.maten.flatMap((maat): MaatOption[] => {
+    const model = maat.slug ? bySlug.get(maat.slug) : undefined;
+    return model ? [{ maat, model, current: maat === alias.maat }] : [];
+  });
+  if (options.length < 2) return null;
   return { family: alias.family, options };
 }
 

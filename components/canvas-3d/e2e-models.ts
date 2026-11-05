@@ -53,6 +53,8 @@ export const E2E_MODELS: MaterialModel[] = [
   model("turnkast_6_delig_1_recht", "Turnkast 6 delig", "toestellen", "kasten", ["turnen"], [1.55, 0.864, 1.355], "#a16207"),
   model("basketbal_maat_5", "Basketbal maat 5", "ballen", "basketbal", ["basketbal"], [0.22, 0.22, 0.22], "#ea580c"),
   model("basketbal_maat_7", "Basketbal maat 7", "ballen", "basketbal", ["basketbal"], [0.239, 0.239, 0.239], "#c2410c"),
+  model("dodgeball_vinyl_blauw", "Dodgeball vinyl blauw", "ballen", "trefbal", ["trefbal"], [0.178, 0.178, 0.178], "#2563eb"),
+  model("dodgeball_vinyl_rood", "Dodgeball vinyl rood", "ballen", "trefbal", ["trefbal"], [0.178, 0.178, 0.178], "#dc2626"),
   model("pion_test", "Pion test", "klein_materiaal", "afzetten", ["algemeen"], [0.3, 0.3, 0.3], "#f97316"),
   model("kettlebell_test", "Kettlebell test", "fitness", null, ["fitness"], [0.25, 0.2, 0.3], "#0891b2"),
   model("ballenkar_test", "Ballenkar test", "opslag_karren", null, ["algemeen"], [1, 0.7, 1], "#64748b"),

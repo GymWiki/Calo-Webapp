@@ -5,7 +5,10 @@
 // exact hetzelfde. De alias-tabel (slug → familie + maat) is hier afgeleid uit `maten[].slug`; er is geen datamigratie.
 // Maatwissel = de slug van het geplaatste item vervangen door die van de gekozen maat (net als de pose van een leerling).
 //
-// `slug: null` = maat die officieel bestaat maar nog geen model heeft: toont in het maatmenu gedimd met "Model volgt".
+// `slug: null` = maat die nog geen model heeft: wordt niet getoond (geen gedimde knop) tot het model er is.
+// `aliassen` = extra slugs die dezelfde maat zijn (bijv. een dubbel model): de bibliotheek verbergt ze, maar bestaande plattegronden
+// met die slug laden ongewijzigd en tonen de maat als gewone maat van de familie.
+// Weergave "kleur": de keuze is een kleur (bolletjes), niet een afmeting; elke kleur is een eigen model.
 // Bronnen: zie docs/maten-families.md (met URL en datum, en wat ONBEKEND is).
 
 export type FamilyMaat = {
@@ -14,6 +17,10 @@ export type FamilyMaat = {
   label: string;
   /** Slug van het model voor deze maat, of null als het model nog ontbreekt. */
   slug: string | null;
+  /** Dubbele slugs die als deze maat tellen (verborgen in de bibliotheek, geldig in plattegronden). */
+  aliassen?: readonly string[];
+  /** Kleur (hex) voor weergave "kleur". */
+  kleur?: string;
   /** Extra zoektermen (de familiekaart vindt alle maten). */
   zoektermen?: readonly string[];
 };
@@ -24,8 +31,8 @@ export type ItemFamily = {
   naam: string;
   /** Maat-id die als eerste wordt geplaatst. */
   standaard: string;
-  /** "segment" (≤ 5 maten), "lijst" (meer maten) of "stepper" (plus/min, voor opeenvolgende delen). */
-  weergave: "segment" | "lijst" | "stepper";
+  /** "segment" (≤ 5 maten), "lijst" (meer maten), "stepper" (plus/min, voor opeenvolgende delen) of "kleur" (kleurbolletjes). */
+  weergave: "segment" | "lijst" | "stepper" | "kleur";
   /** Label boven de keuze, bv. "Maat" of "Kastdelen". */
   maatTitel: string;
   maten: readonly FamilyMaat[];
@@ -55,7 +62,7 @@ export const ITEM_FAMILIES: readonly ItemFamily[] = [
       { id: "delen_2", label: "2 delen", slug: "turnkast_2_delig", zoektermen: ["2 delig", "2 delen"] },
       { id: "delen_3", label: "3 delen", slug: "turnkast_3_delig", zoektermen: ["3 delig", "3 delen"] },
       { id: "delen_4", label: "4 delen", slug: "turnkast_4_delig", zoektermen: ["4 delig", "4 delen"] },
-      { id: "delen_5", label: "5 delen", slug: "turnkast_5_delig", zoektermen: ["5 delig", "5 delen"] },
+      { id: "delen_5", label: "5 delen", slug: "turnkast_5_delig", aliassen: ["turnkast_140x83x114"], zoektermen: ["5 delig", "5 delen"] },
       { id: "delen_6", label: "6 delen", slug: "turnkast_6_delig_1_recht", zoektermen: ["6 delig", "6 delen"] },
       { id: "delen_7", label: "7 delen", slug: "turnkast_7_delig_2_recht", zoektermen: ["7 delig", "7 delen"] },
     ],
@@ -150,6 +157,28 @@ export const ITEM_FAMILIES: readonly ItemFamily[] = [
     ],
   },
   {
+    id: "dodgeball",
+    naam: "Dodgeball (vinyl)",
+    standaard: "blauw",
+    weergave: "kleur",
+    maatTitel: "Kleur",
+    maten: [
+      { id: "blauw", label: "Blauw", kleur: "#2563eb", slug: "dodgeball_vinyl_blauw", zoektermen: ["trefbal", "blauwe"] },
+      { id: "rood", label: "Rood", kleur: "#dc2626", slug: "dodgeball_vinyl_rood", zoektermen: ["trefbal", "rode"] },
+    ],
+  },
+  {
+    id: "foambal_olifantenhuid",
+    naam: "Foambal olifantenhuid",
+    standaard: "geel",
+    weergave: "kleur",
+    maatTitel: "Kleur",
+    maten: [
+      { id: "geel", label: "Geel", kleur: "#facc15", slug: "foambal_olifantenhuid_geel", zoektermen: ["gele", "foambal"] },
+      { id: "rood", label: "Rood", kleur: "#dc2626", slug: "foambal_olifantenhuid_rood", zoektermen: ["rode", "foambal"] },
+    ],
+  },
+  {
     id: "airtrack",
     naam: "Airtrack",
     standaard: "6m",
@@ -175,7 +204,9 @@ export const ITEM_FAMILIES: readonly ItemFamily[] = [
 
 // Alias-tabel: bestaand item-id (slug) → familie + maat. Afgeleid, dus nooit uit de pas met `ITEM_FAMILIES`.
 const ALIASES: ReadonlyMap<string, { family: ItemFamily; maat: FamilyMaat }> = new Map(
-  ITEM_FAMILIES.flatMap((family) => family.maten.flatMap((maat) => (maat.slug ? [[maat.slug, { family, maat }] as const] : []))),
+  ITEM_FAMILIES.flatMap((family) =>
+    family.maten.flatMap((maat) => [...(maat.slug ? [maat.slug] : []), ...(maat.aliassen ?? [])].map((slug) => [slug, { family, maat }] as const)),
+  ),
 );
 
 export function familyOfSlug(slug: string): { family: ItemFamily; maat: FamilyMaat } | null {
