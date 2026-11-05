@@ -1,5 +1,6 @@
 "use client";
 
+import { SceneAudit } from "@/components/canvas-3d/SceneAudit";
 import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
 import { Line, PerformanceMonitor } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
@@ -204,6 +205,7 @@ export function Scene3D({
       onPointerMissed={handleMissed}
     >
       {onPerformanceChange && <PerformanceMonitor factor={1} bounds={() => [28, 50]} onChange={({ factor }) => onPerformanceChange(factor)} />}
+      <SceneAudit />
       <ambientLight intensity={0.75} />
       <directionalLight position={[10, 20, 10]} intensity={0.9} />
       <CameraRig room={room} controlsEnabled={!isDragging} drawMode={drawMode} resetKey={cameraResetKey} onViewCenter={onViewCenter} bottomInsetPx={bottomInsetPx} />

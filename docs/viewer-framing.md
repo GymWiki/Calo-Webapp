@@ -8,7 +8,7 @@ De alleen-lezen viewer op de activiteitpagina (`PlattegrondViewer`) kadert niet 
 - **3D = camera 40° boven de horizon** (polar 50°); de kijkrichting is 45° tenzij een rechtere hoek de inhoud merkbaar (≥ 8%) beter laat passen.
 - **Weergave per plattegrond** (`room.view`: `auto` | `3d` | `top`, in de editor onder *Omgeving → Weergave bij de activiteit*; geen databasewijziging, het zit in de plattegrond-JSON). **Auto**: een vlakke indeling (alleen afgezette velden, of alle items ≤ 0,9 m hoog: matten, lage toestellen) staat van boven; opstellingen met netten, doelen, kasten of leerlingen staan schuin.
 - **Muren**: de wanden die tussen camera en inhoud staan worden weggelaten (`wallsToHide`), de achterwanden blijven. Geen plafond.
-- **Helderheid**: zachte, ronde contactschaduw onder items en leerlingen (`ContactShadows`, één gedeelde geometrie, geen extra render-pass); leerlingen in teamkleuren via de shirtkleur.
+- **Helderheid**: geen schaduwen in de viewer en de editor (de contactschaduw bestaat alleen nog in de thumbnail-renderer); leerlingen in teamkleuren via de shirtkleur.
 - **Container**: vaste hoogte, 320 px (mobiel) en 480 px (desktop), tegen layout shift. Veel items? Alles wordt ingekaderd.
 - **Thumbnails** (bibliotheekkaarten, OG-image) gebruiken dezelfde kadrering (`FloorplanThumbnailCapture`).
 

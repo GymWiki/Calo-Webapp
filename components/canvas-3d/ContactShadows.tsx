@@ -10,7 +10,7 @@ import type { Floorplan3dItem } from "@/types/floorplan3d";
 const MIN_RADIUS_M = 0.18;
 
 /**
- * Zachte, ronde schaduwvlek onder elk item op de vloer (alleen in de alleen-lezen viewer en de thumbnails). Goedkoop: één gedeelde
+ * Zachte, ronde schaduwvlek onder elk item op de vloer (alleen nog in de thumbnail-renderer; de editor en de viewer tonen geen schaduwen). Goedkoop: één gedeelde
  * geometrie en materiaal, geen extra render-pass. Hangend materiaal (netten, ringen) en items zonder voetafdruk krijgen geen vlek.
  */
 export function ContactShadows({ items, lookup }: { items: readonly Floorplan3dItem[]; lookup: DimsLookup }) {
