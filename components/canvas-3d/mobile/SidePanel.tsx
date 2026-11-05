@@ -15,11 +15,14 @@ export function SidePanel({
   title,
   onClose,
   children,
+  flush = false,
 }: {
   side: "left" | "right";
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  /** De inhoud beheert zijn eigen scrollen (kop vast, lijst scrolt): het paneel zelf scrolt dan niet. */
+  flush?: boolean;
 }) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -49,7 +52,7 @@ export function SidePanel({
           <X className="size-5" aria-hidden="true" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
+      <div className={cn("min-h-0 flex-1 px-3 pb-[max(1rem,env(safe-area-inset-bottom))]", flush ? "flex flex-col overflow-hidden" : "overflow-y-auto overscroll-contain")}>{children}</div>
     </aside>
   );
 }

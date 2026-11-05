@@ -58,6 +58,7 @@ import { summarizeFloorplan } from "@/components/canvas-3d/floorplan-summary";
 import { Button } from "@/components/ui/button";
 import { CanvasToolbar, ToolbarShowButton } from "@/components/canvas-3d/CanvasToolbar";
 import { PanelSection, type PanelSections } from "@/components/canvas-3d/PanelSection";
+import { PanelLayout } from "@/components/ui/panel-layout";
 import { useEditorUiPrefs } from "@/lib/editor-ui/useEditorUiPrefs";
 import { Input } from "@/components/ui/input";
 import {
@@ -2527,12 +2528,12 @@ export function Floorplan3dEditor({
             />
           )}
           {layout === "phone" && activePanel && (
-            <BottomSheet key={activePanel} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} peek={activePanel === "rotatie"} onInset={setSheetInsetPx}>
+            <BottomSheet key={activePanel} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} peek={activePanel === "rotatie"} onInset={setSheetInsetPx} flush={activePanel === "materiaal"}>
               {panelContent(activePanel)}
             </BottomSheet>
           )}
           {layout === "tablet" && activePanel && (
-            <SidePanel side={activePanel === "materiaal" ? "left" : "right"} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)}>
+            <SidePanel side={activePanel === "materiaal" ? "left" : "right"} title={panelTitle[activePanel]} onClose={() => setMobilePanel(null)} flush={activePanel === "materiaal"}>
               {panelContent(activePanel)}
             </SidePanel>
           )}
@@ -2684,7 +2685,7 @@ export function Floorplan3dEditor({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!leftHidden && <aside className="hidden w-64 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block xl:w-72">
+        {!leftHidden && <aside className="hidden w-64 shrink-0 flex-col overflow-hidden border-r bg-card px-3 pt-3 lg:flex xl:w-72" data-testid="bibliotheek-paneel">
           <MaterialModelPicker3D models={models} syncFavorites={!guest} onSelect={handleAddModel} />
         </aside>}
 
@@ -2717,16 +2718,18 @@ export function Floorplan3dEditor({
               }}
               className="min-h-0 flex-1 gap-0"
             >
-              <TabsList className="mx-3 mt-3 grid shrink-0 grid-cols-2">
-                <TabsTrigger value="item">Item</TabsTrigger>
-                <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
-              </TabsList>
-              <TabsContent value="item" className="min-h-0 flex-1 overflow-y-auto p-3">
-                {itemPanel}
-              </TabsContent>
-              <TabsContent value="omgeving" className="min-h-0 flex-1 overflow-y-auto p-3">
-                {roomPanel}
-              </TabsContent>
+              <PanelLayout
+                header={
+                  <TabsList className="mx-3 mt-3 mb-2 grid grid-cols-2">
+                    <TabsTrigger value="item">Item</TabsTrigger>
+                    <TabsTrigger value="omgeving">Omgeving</TabsTrigger>
+                  </TabsList>
+                }
+                bodyClassName="p-3"
+              >
+                <TabsContent value="item">{itemPanel}</TabsContent>
+                <TabsContent value="omgeving">{roomPanel}</TabsContent>
+              </PanelLayout>
             </Tabs>
           </aside>
         )}
