@@ -14,7 +14,11 @@ async function openLibrary(page: Page) {
 }
 
 async function openAllCategories(page: Page) {
-  for (const heading of await page.locator('[data-testid^="categorie-kop-"] button[aria-expanded="false"]').all()) await heading.click();
+  const closed = page.locator('[data-testid^="categorie-kop-"] button[aria-expanded="false"]');
+  for (let guard = 0; guard < 20 && (await closed.count()) > 0; guard++) {
+    await closed.first().click();
+    await page.waitForTimeout(150);
+  }
 }
 
 const box = async (locator: Locator) => (await locator.boundingBox())!;
@@ -58,10 +62,11 @@ for (const size of [
     // Niets van de lijst loopt boven of door de kop: de lijst begint onder de kop, en bij het scrollen blijven de koppen binnen de lijst.
     const body = await box(list);
     expect(body.y).toBeGreaterThanOrEqual(after.kop.y + after.kop.height - 1);
-    for (const head of await page.locator('[data-testid^="categorie-kop-"]').all()) {
-      const rect = await box(head);
-      const intersects = rect.y + rect.height > body.y && rect.y < body.y + body.height;
-      if (intersects) expect(rect.y, "categoriekop begint niet boven de lijst").toBeGreaterThanOrEqual(body.y - 1);
+    // Boven de lijst ligt alleen de kop: op de plek van de zoekbalk en de chips ligt nooit een stuk van een categorie.
+    for (const key of ["search", "chips", "tabs"] as const) {
+      const rect = after[key];
+      const owner = await page.evaluate(([cx, cy]) => document.elementFromPoint(cx, cy)?.closest('[data-testid="paneel-lijst"]') !== null, [rect.x + rect.width / 2, rect.y + rect.height / 2]);
+      expect(owner, `${key} wordt niet door de lijst afgedekt`).toBe(false);
     }
     // De kop heeft na scrollen een onderrand/schaduw.
     expect(await page.getByTestId("paneel-kop").first().evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe("none");
@@ -131,4 +136,19 @@ test("telefoon: in het bibliotheeksheet blijft de kop staan en scrolt alleen de 
   // Het sheet zelf scrolt niet.
   const dialog = page.getByRole("dialog");
   expect(await dialog.evaluate((el) => Array.from(el.querySelectorAll<HTMLElement>("*")).filter((node) => node.dataset.testid !== "paneel-lijst" && node.scrollHeight > node.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(node).overflowY)).length)).toBe(0);
+});
+
+test("screenshots (voor/na) en hoogte van de kop", async ({ page }, testInfo) => {
+  const shot = process.env.SHOT ?? "na";
+  if (isDesktop(page) || testInfo.project.name === "desktop") await page.setViewportSize({ width: 1366, height: 768 });
+  await openLibrary(page);
+  await openAllCategories(page);
+  const list = page.getByTestId("paneel-lijst").first();
+  const kop = page.getByTestId("bibliotheek-kop");
+  if ((await kop.count()) > 0) console.log("KOPHOOGTE", testInfo.project.name, Math.round((await box(kop)).height));
+  await page.screenshot({ path: `docs/bibliotheek-paneel/${testInfo.project.name}-open-${shot}.png` });
+  const scroller = (await list.count()) > 0 ? list : page.locator('aside.overflow-y-auto, [role="dialog"] .overflow-y-auto').first();
+  await scroller.evaluate((el) => (el.scrollTop = Math.round(el.scrollHeight * 0.45)));
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `docs/bibliotheek-paneel/${testInfo.project.name}-gescrold-${shot}.png` });
 });
