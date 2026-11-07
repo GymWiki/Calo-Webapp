@@ -437,6 +437,16 @@
       "categorie": "zelfverdediging",
       "file": "leerling_judo_zittend.glb",
       "sort": 42
+    },
+    {
+      "id": "bal_schieten",
+      "label": "Bal schieten",
+      "sporten": [
+        "voetbal"
+      ],
+      "file": "leerling_bal_schieten.glb",
+      "sort": 43,
+      "categorie": "spel"
     }
   ]
 }

@@ -7,6 +7,8 @@ import {
   OTHER_ENVIRONMENTS,
   createEnvironment,
   defaultLayoutId,
+  layoutsOfKind,
+  surroundingParts,
   resolveEnvironment,
   roomForEnvironment,
   upgradeEnvironment,
@@ -191,4 +193,25 @@ test("vaste onderdelen: standaard alles aan, schakelaar per onderdeel/positie, o
   assert.deepEqual([...setPartOn(zonderEen, een, true)].sort(), [...standard].sort());
   // Oude plattegronden (hidden-lijst zonder deze nodes) tonen de vaste onderdelen gewoon.
   for (const id of ["standaard", "2x2", "4x1"] as const) for (const part of fixtureParts(GYM_LAYOUTS[id])) assert.equal(isPartOn(part, createGymEnvironment(id).hidden), true);
+});
+
+test("atletiekbaan heeft een schoolbaan-indeling (sprint, verspringen, kogelstoten) met het gras als bruikbaar vlak", () => {
+  assert.deepEqual(roomForEnvironment({ type: "atletiekbaan", layout: "school" }), { width_m: 82, length_m: 28 });
+  const school = layoutsOfKind("atletiekbaan").find((layout) => layout.id === "school");
+  assert.ok(school);
+  const onderdelen = school.groups.find((group) => group.id === "onderdelen");
+  assert.deepEqual(onderdelen?.parts.map((entry) => entry.id), ["sprintbaan", "verspringen", "kogelstoten"]);
+  for (const entry of onderdelen?.parts ?? []) assert.ok(entry.nodes.length > 0, `${entry.id} heeft nodes in de GLB`);
+});
+
+test("elke omgeving (behalve het zwembad) heeft 'Omgeving rondom' met bestaande nodes", () => {
+  for (const kind of ["sportveld", "atletiekbaan"] as const) {
+    for (const layout of layoutsOfKind(kind)) {
+      const group = layout.groups.find((entry) => entry.id === "omgeving");
+      assert.ok(group && group.parts.length === 5, `${kind}/${layout.id}: vijf onderdelen`);
+      for (const entry of group.parts) assert.ok(entry.nodes.every((node) => (ENVIRONMENT_NODES[layout.glb] ?? []).includes(node)), `${layout.glb}: ${entry.id}`);
+    }
+  }
+  for (const layout of layoutsOfKind("zwembad")) assert.equal(layout.groups.some((group) => group.id === "omgeving"), false, "zwembad is niet aangeraakt");
+  for (const glb of ["gymzaal_standaard", "gymzaal_complex_2x2", "gymzaal_complex_4x1"]) assert.equal(surroundingParts(glb).length, 5, glb);
 });

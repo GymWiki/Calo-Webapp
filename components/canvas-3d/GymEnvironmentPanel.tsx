@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ALWAYS_OPEN, PanelSection, type PanelSections } from "@/components/canvas-3d/PanelSection";
+import { surroundingParts } from "@/components/canvas-3d/environment-kinds";
 import { COURT_MARKINGS_BY_ID } from "@/lib/constants/courtMarkings";
 import { hallHint, misfitReason } from "@/lib/plattegrond/courtFit";
 import { cn } from "@/lib/utils";
@@ -388,6 +389,16 @@ export function GymEnvironmentPanel({
         )}
        </div>
       </PanelSection>
+
+      {surroundingParts(layout.glb).length > 0 && (
+        <PanelSection id="omgeving-rondom" title="Omgeving rondom" sections={sections} info="De buitenomgeving rond de zaal (bestrating, bomen, hagen, meubilair). Alleen uiterlijk; de zaal zelf verandert niet.">
+          <div className="space-y-3">
+            {surroundingParts(layout.glb).map((part) => (
+              <ToggleRow key={part.id} label={part.label} checked={isPartOn(part, hidden)} onCheckedChange={(on) => onHiddenChange(setPartOn(hidden, part, on))} />
+            ))}
+          </div>
+        </PanelSection>
+      )}
 
       <PanelSection id="vloermarkeringen" title="Vloermarkeringen" sections={sections} info="Per sport de officiële maat; alleen wat in de deelzaal past is te kiezen. Verschillende sporten mogen over elkaar (andere kleuren), twee velden van dezelfde sport niet.">
         <div className="space-y-3" data-testid="vloermarkeringen">
