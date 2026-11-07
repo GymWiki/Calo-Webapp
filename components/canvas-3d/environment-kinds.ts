@@ -55,6 +55,24 @@ function part(
   return { id, label, nodes: nodesWithPrefix(glb, ...prefixes), ...options };
 }
 
+/**
+ * De omgeving rondom het terrein of de zaal (bestrating, bomen en struiken, grasovergang, hagen, meubilair): losse nodes `Omgeving_*` in
+ * elke GLB, buiten het bruikbare vlak. Aan/uit via dezelfde `environment.hidden`-lijst; standaard aan.
+ */
+export function surroundingParts(glb: string): EnvironmentPart[] {
+  return [
+    part(glb, "omgeving-bestrating", "Bestrating", ["Omgeving_Bestrating"]),
+    part(glb, "omgeving-bomen", "Bomen en struiken", ["Omgeving_Bomen_Struiken"]),
+    part(glb, "omgeving-gras", "Gras rondom", ["Omgeving_Gras_Overgang"]),
+    part(glb, "omgeving-hagen", "Hagen", ["Omgeving_Hagen"]),
+    part(glb, "omgeving-meubilair", "Buitenmeubilair", ["Omgeving_Meubilair"]),
+  ].filter((entry) => entry.nodes.length > 0);
+}
+
+function surroundingGroup(glb: string): EnvironmentGroup {
+  return { id: "omgeving", label: "Omgeving rondom", parts: surroundingParts(glb) };
+}
+
 const COMPASS = [
   { id: "noord", label: "noord" },
   { id: "oost", label: "oost" },
@@ -97,6 +115,7 @@ function sportveld(config: {
         label: "Kantplanken",
         parts: [part(glb, "kantplanken", "Kantplanken", ["Kantplank_"])],
       },
+      surroundingGroup(glb),
     ],
   };
 }
@@ -216,6 +235,7 @@ const ZWEMBAD_LAYOUTS: EnvironmentLayout[] = [
 // --- Atletiekbaan ------------------------------------------------------------
 
 const ATLETIEK_GLB = "atletiekbaan_compleet";
+const ATLETIEK_SCHOOL_GLB = "atletiekbaan_school_sprint_verspringen";
 const ATLETIEK_LAYOUTS: EnvironmentLayout[] = [
   {
     id: "compleet",
@@ -245,6 +265,28 @@ const ATLETIEK_LAYOUTS: EnvironmentLayout[] = [
           part(ATLETIEK_GLB, "bordesrand", "Bordesrand", ["Binnen_Bordesrand"]),
         ],
       },
+      surroundingGroup(ATLETIEK_GLB),
+    ],
+  },
+  {
+    id: "school",
+    label: "Schoolbaan",
+    description: "Sprintbaan van 4 banen met verspringbak en kogelstootring",
+    // Bruikbaar vlak = het grasterrein (Terrein_Gras, 82 × 28 m); de omgeving rondom ligt daarbuiten.
+    width_m: 82,
+    length_m: 28,
+    glb: ATLETIEK_SCHOOL_GLB,
+    groups: [
+      {
+        id: "onderdelen",
+        label: "Onderdelen",
+        parts: [
+          part(ATLETIEK_SCHOOL_GLB, "sprintbaan", "Sprintbaan (4 banen)", ["Sprintbaan_"]),
+          part(ATLETIEK_SCHOOL_GLB, "verspringen", "Verspringen", ["Verspringbak_", "Verspringen_"]),
+          part(ATLETIEK_SCHOOL_GLB, "kogelstoten", "Kogelstoten", ["Kogelstoot"]),
+        ],
+      },
+      surroundingGroup(ATLETIEK_SCHOOL_GLB),
     ],
   },
 ];

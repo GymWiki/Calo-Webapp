@@ -342,5 +342,13 @@
     "tris": 6000,
     "bytes": 111928,
     "version": "03674a28"
+  },
+  "bal_schieten": {
+    "length_m": 0.636,
+    "width_m": 0.453,
+    "height_m": 1.49,
+    "tris": 6000,
+    "bytes": 104428,
+    "version": "aa54c705"
   }
 }
