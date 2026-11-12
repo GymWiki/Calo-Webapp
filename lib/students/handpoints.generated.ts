@@ -7,313 +7,301 @@ export type HandPointsEntry = { links: [number, number, number] | null; rechts: 
 export const HAND_POINTS: Record<string, HandPointsEntry> = {
   "standaard": {
     "links": [
-      0.21,
-      0.725,
-      0.116
+      0.168,
+      0.403,
+      -0.035
     ],
     "rechts": [
-      -0.246,
-      0.728,
-      0.007
+      -0.123,
+      0.404,
+      -0.118
     ],
     "confidence": "hoog"
   },
   "hardlopen": {
     "links": [
-      0.27,
-      0.906,
-      0.007
+      0.295,
+      0.968,
+      -0.039
     ],
     "rechts": [
-      -0.324,
-      1.04,
-      0.098
+      -0.326,
+      1.025,
+      0.135
     ],
     "confidence": "hoog"
   },
   "juichen": {
     "links": [
-      -0.054,
-      1.529,
+      -0.088,
+      1.61,
       -0.002
     ],
     "rechts": [
-      -0.206,
-      2.117,
-      -0.058
+      -0.224,
+      2.11,
+      -0.054
     ],
     "confidence": "hoog"
   },
   "zittend": {
     "links": [
-      0.077,
-      0.309,
-      0.216
+      0.082,
+      0.308,
+      0.215
     ],
     "rechts": [
       -0.26,
-      0.326,
-      0.024
+      0.325,
+      0.021
     ],
     "confidence": "hoog"
   },
   "basketbal_dribbelen": {
     "links": [
-      0.318,
-      0.521,
-      0.282
+      0.346,
+      0.518,
+      0.258
     ],
     "rechts": [
-      -0.491,
-      0.86,
-      0.083
+      -0.496,
+      0.871,
+      0.055
     ],
     "confidence": "hoog"
   },
   "volleybal_onderhands": {
     "links": [
-      0.296,
-      0.317,
-      0.016
-    ],
-    "rechts": [
-      -0.167,
+      -0.158,
       0.742,
-      0.347
+      0.352
     ],
-    "confidence": "hoog"
+    "rechts": null,
+    "confidence": "laag"
   },
   "volleybal_bovenhands": {
     "links": [
-      0.255,
-      1.349,
-      0.04
+      0.232,
+      1.671,
+      0.073
     ],
     "rechts": [
-      0.05,
-      1.382,
-      0.003
+      0.074,
+      1.472,
+      0.016
     ],
     "confidence": "hoog"
   },
   "pickleball_klaar": {
     "links": [
-      0.314,
-      0.346,
-      0.038
+      -0.083,
+      0.677,
+      0.235
     ],
-    "rechts": [
-      -0.067,
-      0.679,
-      0.236
-    ],
-    "confidence": "hoog"
+    "rechts": null,
+    "confidence": "laag"
   },
   "pickleball_slaan": {
     "links": [
-      0.573,
-      0.993,
-      -0.487
+      0.564,
+      1,
+      -0.501
     ],
     "rechts": [
-      -0.15,
-      0.782,
-      0.413
+      -0.148,
+      0.774,
+      0.409
     ],
     "confidence": "hoog"
   },
   "hockey": {
     "links": [
-      0.042,
-      0.41,
-      0.203
+      0.103,
+      0.431,
+      0.14
     ],
     "rechts": [
-      -0.241,
-      0.278,
-      0.435
+      -0.246,
+      0.277,
+      0.43
     ],
     "confidence": "hoog"
   },
   "hockey_sprint": {
     "links": [
-      0.162,
-      0.884,
-      0.197
+      0.343,
+      1.183,
+      0.04
     ],
     "rechts": [
-      -0.253,
-      0.607,
-      0.365
+      -0.255,
+      0.602,
+      0.357
     ],
     "confidence": "hoog"
   },
   "floorball": {
     "links": [
-      0.288,
-      1.086,
-      -0.089
+      0.302,
+      1.044,
+      -0.096
     ],
     "rechts": [
-      -0.096,
-      0.473,
-      0.238
+      0.12,
+      0.358,
+      0.028
     ],
     "confidence": "hoog"
   },
   "floorball_sprint": {
     "links": [
-      0.138,
-      0.687,
-      0.202
+      0.102,
+      0.392,
+      0.147
     ],
     "rechts": [
-      -0.124,
-      0.872,
-      0.128
+      -0.261,
+      1.035,
+      0.039
     ],
     "confidence": "hoog"
   },
   "honkbal_slaan": {
     "links": [
-      0.305,
-      0.336,
-      0.112
+      -0.333,
+      1.197,
+      -0.085
     ],
-    "rechts": [
-      -0.257,
-      1.207,
-      -0.242
-    ],
-    "confidence": "hoog"
+    "rechts": null,
+    "confidence": "laag"
   },
   "honkbal_vangen": {
     "links": [
-      -0.007,
-      1.384,
-      0.001
+      0.029,
+      1.43,
+      0.067
     ],
     "rechts": [
       -0.252,
-      1.011,
-      0.425
+      1.006,
+      0.423
     ],
     "confidence": "hoog"
   },
   "trefbal_gooien": {
     "links": [
-      0.269,
-      1.163,
-      0.717
+      0.27,
+      1.164,
+      0.716
     ],
     "rechts": [
-      -0.48,
-      1.19,
-      -0.355
+      -0.446,
+      1.152,
+      -0.389
     ],
     "confidence": "hoog"
   },
   "handbal": {
     "links": [
-      0.683,
-      1.078,
-      0.382
+      0.69,
+      1.084,
+      0.374
     ],
     "rechts": [
-      0.119,
-      1.603,
-      0.111
+      0.143,
+      1.585,
+      0.105
     ],
     "confidence": "hoog"
   },
   "korfbal": {
     "links": [
-      0.172,
-      1.072,
-      0.203
+      0.123,
+      1.059,
+      0.228
     ],
     "rechts": [
-      -0.373,
-      1.108,
-      0.182
+      -0.279,
+      1.037,
+      -0.108
     ],
     "confidence": "hoog"
   },
   "basketbal_schot": {
     "links": [
-      -0.057,
-      1.416,
-      -0.067
+      -0.072,
+      1.464,
+      -0.058
     ],
     "rechts": [
-      -0.278,
-      1.382,
-      0.143
+      -0.209,
+      1.61,
+      0.081
     ],
     "confidence": "hoog"
   },
   "tafeltennis": {
     "links": [
-      0.34,
-      1.082,
-      -0.074
+      0.256,
+      0.89,
+      0.13
     ],
     "rechts": [
-      -0.398,
-      0.922,
-      0.107
+      -0.412,
+      0.919,
+      0.073
     ],
     "confidence": "hoog"
   },
   "football_rennen": {
     "links": [
-      0.328,
-      0.921,
-      -0.379
+      0.335,
+      0.923,
+      -0.383
     ],
     "rechts": [
-      0.071,
-      0.946,
-      0.296
+      -0.17,
+      1.151,
+      0.311
     ],
     "confidence": "hoog"
   },
   "football_passen": {
     "links": [
-      0.769,
-      1.442,
-      0.054
+      0.77,
+      1.439,
+      0.052
     ],
     "rechts": [
-      0.131,
-      1.503,
-      0.013
+      0.135,
+      1.499,
+      0.012
     ],
     "confidence": "hoog"
   },
   "rugby_tackle": {
     "links": [
-      0.281,
-      0.804,
-      0.221
+      0.162,
+      1.174,
+      0.187
     ],
     "rechts": [
-      0.122,
-      1.102,
-      0.137
+      0.118,
+      0.59,
+      0.168
     ],
-    "confidence": "hoog"
+    "confidence": "laag"
   },
   "tikspel": {
     "links": [
-      0.567,
-      0.794,
-      0.228
+      0.575,
+      0.808,
+      0.2
     ],
     "rechts": [
-      -0.65,
-      0.28,
-      -0.049
+      -0.635,
+      0.273,
+      -0.064
     ],
     "confidence": "hoog"
   },
@@ -332,35 +320,35 @@ export const HAND_POINTS: Record<string, HandPointsEntry> = {
   },
   "honkbal_pitchen": {
     "links": [
-      0.325,
-      0.35,
-      -0.1
+      0.452,
+      1.239,
+      -0.118
     ],
     "rechts": [
-      0.027,
-      1.365,
-      -0.018
+      0.019,
+      1.408,
+      -0.011
     ],
     "confidence": "hoog"
   },
   "startblokken": {
     "links": [
-      0.1,
-      0.318,
-      -0.388
+      0.368,
+      0.008,
+      0.5
     ],
     "rechts": [
-      -0.118,
-      0.325,
-      -0.051
+      -0.388,
+      0.01,
+      0.489
     ],
     "confidence": "hoog"
   },
   "hoogspringen": {
     "links": [
-      -0.012,
-      0.813,
-      0.837
+      -0.015,
+      0.819,
+      0.836
     ],
     "rechts": [
       -0.434,
@@ -371,66 +359,66 @@ export const HAND_POINTS: Record<string, HandPointsEntry> = {
   },
   "discuswerpen": {
     "links": [
-      0.594,
-      1.146,
-      0.53
+      0.598,
+      1.151,
+      0.526
     ],
     "rechts": [
-      -0.572,
-      0.892,
-      -0.34
+      -0.562,
+      0.899,
+      -0.362
     ],
     "confidence": "hoog"
   },
   "kogelstoten": {
     "links": [
       0.73,
-      1.472,
-      0.355
+      1.473,
+      0.354
     ],
     "rechts": [
-      -0.417,
-      1.124,
-      0.142
+      -0.418,
+      1.129,
+      0.141
     ],
     "confidence": "hoog"
   },
   "speerwerpen": {
     "links": [
-      -0.069,
-      1.482,
-      -0.065
+      -0.131,
+      1.456,
+      -0.03
     ],
     "rechts": [
-      -0.624,
-      1.263,
-      -0.214
+      -0.621,
+      1.256,
+      -0.224
     ],
     "confidence": "hoog"
   },
   "speer_klaarstand": {
     "links": [
-      0.099,
-      0.917,
-      0.181
+      0.129,
+      0.919,
+      0.182
     ],
     "rechts": [
-      -0.382,
-      1.116,
-      0.054
+      -0.385,
+      1.109,
+      0.015
     ],
     "confidence": "hoog"
   },
   "fietsband": {
     "links": [
-      0.057,
-      1.498,
-      0.057
+      0.007,
+      1.473,
+      0.058
     ],
     "rechts": [
-      -0.441,
-      0.948,
-      -0.029
+      -0.429,
+      0.953,
+      -0.07
     ],
     "confidence": "hoog"
   },
@@ -438,112 +426,99 @@ export const HAND_POINTS: Record<string, HandPointsEntry> = {
     "links": [
       0.771,
       1.287,
-      -0.007
+      -0.008
     ],
     "rechts": [
       -0.871,
-      1.287,
-      -0.003
+      1.288,
+      0
     ],
     "confidence": "hoog"
   },
   "handstand": {
     "links": [
-      0.123,
-      1.291,
-      0.031
-    ],
-    "rechts": [
-      0.039,
-      0.361,
-      0.104
-    ],
-    "confidence": "laag"
-  },
-  "salto": {
-    "links": [
-      -0.047,
-      0.466,
-      -0.172
+      0.167,
+      1.498,
+      -0.046
     ],
     "rechts": null,
     "confidence": "laag"
   },
-  "landen": {
+  "salto": {
     "links": [
-      0.743,
-      1.356,
-      0.167
+      -0.098,
+      0.536,
+      -0.223
     ],
     "rechts": [
-      -0.748,
-      1.355,
-      0.165
+      -0.291,
+      0.178,
+      -0.069
+    ],
+    "confidence": "hoog"
+  },
+  "landen": {
+    "links": [
+      0.748,
+      1.349,
+      0.156
+    ],
+    "rechts": [
+      -0.749,
+      1.353,
+      0.162
     ],
     "confidence": "hoog"
   },
   "judo": {
     "links": [
-      0.191,
-      0.985,
-      0.225
+      0.059,
+      0.992,
+      0.397
     ],
     "rechts": [
-      -0.22,
-      1.02,
-      0.133
+      -0.201,
+      1.051,
+      0.228
     ],
     "confidence": "hoog"
   },
   "judo_worp": {
     "links": [
-      0.454,
-      1.303,
-      0.389
+      0.47,
+      1.281,
+      0.38
     ],
     "rechts": [
-      -0.313,
-      1.063,
-      0.155
+      -0.255,
+      1.075,
+      0.233
     ],
     "confidence": "hoog"
   },
   "judo_partij": {
     "links": [
-      -0.207,
-      0.945,
+      -0.203,
+      0.934,
       0.36
     ],
     "rechts": [
-      -0.239,
-      1.382,
-      0.113
+      -0.284,
+      1.351,
+      0.056
     ],
     "confidence": "laag"
   },
-  "judo_zittend": {
-    "links": [
-      0.225,
-      0.309,
-      0.084
-    ],
-    "rechts": [
-      -0.215,
-      0.293,
-      0.102
-    ],
-    "confidence": "hoog"
-  },
   "bal_schieten": {
     "links": [
-      0.406,
-      0.868,
-      0.4
+      0.41,
+      0.87,
+      0.397
     ],
     "rechts": [
-      -0.747,
-      1.01,
-      -0.267
+      -0.743,
+      1.008,
+      -0.277
     ],
     "confidence": "hoog"
   }

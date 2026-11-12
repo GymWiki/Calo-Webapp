@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { canvasCenter, openEditor, readDraft, type DraftItem } from "./helpers";
+import { canvasCenter, openEditor, readDraft, touchDrag, type DraftItem } from "./helpers";
 
 // Tillen: rechtermuisknop op een object verandert de HOOGTE (lift_m); links schuift over de vloer; rechts op leeg canvas pant de camera.
 const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1024;
@@ -73,4 +73,20 @@ test("links slepen schuift over de vloer; rechtermuisknop op een leeg deel van h
   await page.mouse.up({ button: "right" });
   await page.waitForTimeout(700);
   expect((await readDraft(page)).items[0]).toMatchObject({ x: moved.items[0].x, z: moved.items[0].z, y: moved.items[0].y });
+});
+
+test("telefoon: knop Tillen, daarna met één vinger omhoog slepen verandert de hoogte (zonder rechtermuisknop)", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "desktop" || testInfo.project.name === "ipad", "telefoon");
+  await openEditor(page);
+  await page.getByTestId("toolbar-bibliotheek").click();
+  await page.getByRole("button", { name: /^Matten/ }).first().click();
+  await page.getByRole("button", { name: /Testmat groot toevoegen/ }).click();
+  await readDraft(page, (d) => d.items.length === 1);
+  const { x, y } = await canvasCenter(page);
+  await page.getByRole("button", { name: "Tillen (hoogte aanpassen)" }).click();
+  await expect(page.getByRole("button", { name: "Tillen stoppen" })).toBeVisible();
+  await touchDrag(page, { x, y }, { x, y: y - 120 }, 12);
+  const lifted = await readDraft(page, (d) => ((d.items[0] as DraftItem & { lift_m?: number }).lift_m ?? 0) > 0.2);
+  expect((lifted.items[0] as DraftItem & { lift_m?: number }).lift_m).toBeGreaterThan(0.2);
+  await expect(page.getByTestId("tilhoogte")).toHaveCount(0);
 });

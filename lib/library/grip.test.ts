@@ -21,3 +21,9 @@ test("sticks en rackets: pakbaar, greep bij het uiteinde van de lengteas; een ov
   assert.equal(override.bron, "config");
   assert.ok(override.reden.length > 5);
 });
+
+test("een staand racket of staande stick wordt onderaan (het handvat) vastgepakt", () => {
+  const upright = gripOf({ slug: "veldhockeystick", categorie: "klein_materiaal", subgroep: "sticks_rackets", length_m: 0.1, width_m: 0.05, height_m: 0.95 });
+  assert.equal(upright.pakbaar, true);
+  assert.deepEqual(upright.grip, [0, 0.15, 0]);
+});

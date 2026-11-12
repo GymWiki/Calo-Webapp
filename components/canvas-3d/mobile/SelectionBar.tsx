@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPaste, Copy, CopyPlus, Lock, LockOpen, Move3d, RotateCcw, RotateCw, Trash2, X } from "lucide-react";
+import { ArrowUpDown, ClipboardPaste, Copy, CopyPlus, Lock, LockOpen, Move3d, RotateCcw, RotateCw, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,8 @@ export function SelectionBar({
   canLock,
   onRotate,
   onOpenRotation,
+  onToggleLift,
+  lifting,
   onDuplicate,
   onCopy,
   onPaste,
@@ -32,6 +34,9 @@ export function SelectionBar({
   onRotate: (deltaDeg: number) => void;
   /** Opent de rotatie-drawer (kantelen, rechtop zetten); alleen voor items, niet voor velden. */
   onOpenRotation?: () => void;
+  /** Tillen (hoogte): met één vinger omhoog en omlaag slepen op het geselecteerde item. Alleen voor items. */
+  onToggleLift?: () => void;
+  lifting?: boolean;
   onDuplicate: () => void;
   /** Kopiëren naar het klembord, en plakken (alleen als er iets op het klembord staat). */
   onCopy?: () => void;
@@ -70,6 +75,12 @@ export function SelectionBar({
             <BarButton label="Rotatie en kantelen" disabled={locked} onClick={onOpenRotation}>
               <Move3d className="size-5" aria-hidden="true" />
               <span className={compact ? "sr-only" : undefined}>Rotatie</span>
+            </BarButton>
+          )}
+          {onToggleLift && (
+            <BarButton label={lifting ? "Tillen stoppen" : "Tillen (hoogte aanpassen)"} disabled={locked} pressed={lifting} onClick={onToggleLift}>
+              <ArrowUpDown className="size-5" aria-hidden="true" />
+              <span className={compact ? "sr-only" : undefined}>Tillen</span>
             </BarButton>
           )}
           {onCopy && (

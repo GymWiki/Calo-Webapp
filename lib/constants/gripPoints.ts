@@ -29,8 +29,12 @@ export function gripOf(model: GripModel): GripInfo {
   const isStick = model.subgroep === "sticks_rackets" || STICK_PATTERN.test(model.slug);
   let base: GripInfo;
   if (isBall) base = { pakbaar: true, grip: ballCenter, bron: "afgeleid", reden: "Bal: het midden." };
-  else if (isStick && model.length_m <= 1.6) {
-    base = { pakbaar: true, grip: [-model.length_m / 2 + HANDLE_FROM_END_M, model.height_m / 2, 0], bron: "afgeleid", reden: "Stick of racket: bij het uiteinde van de lengteas (handvat)." };
+  else if (isStick && Math.max(model.length_m, model.height_m) <= 1.6) {
+    // Staand model (de lange as is Y, zoals de meeste rackets en sticks in de catalogus): het handvat zit onderaan. Liggend model: aan het uiteinde van X.
+    const upright = model.height_m >= model.length_m;
+    base = upright
+      ? { pakbaar: true, grip: [0, Math.min(HANDLE_FROM_END_M + 0.03, model.height_m / 2), 0], bron: "afgeleid", reden: "Stick of racket (staand model): het handvat onderaan." }
+      : { pakbaar: true, grip: [-model.length_m / 2 + HANDLE_FROM_END_M, model.height_m / 2, 0], bron: "afgeleid", reden: "Stick of racket (liggend model): bij het uiteinde van de lengteas (handvat)." };
   } else base = { pakbaar: false, grip: ballCenter, bron: "afgeleid", reden: "Geen zinnig greeppunt (te groot of geen handmateriaal)." };
   if (!override) return base;
   return { pakbaar: override.pakbaar ?? base.pakbaar, grip: override.grip ?? base.grip, bron: "config", reden: override.reden };

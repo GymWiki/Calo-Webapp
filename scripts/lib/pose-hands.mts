@@ -9,7 +9,7 @@ import { MeshoptDecoder } from "meshoptimizer";
 import sharp from "sharp";
 
 export type Vec3 = [number, number, number];
-export type HandPoints = { links: Vec3 | null; rechts: Vec3 | null; confidence: "hoog" | "laag" | "geen"; notes: string[] };
+export type HandPoints = { links: Vec3 | null; rechts: Vec3 | null; confidence: "hoog" | "laag" | "geen"; notes: string[]; debug?: { pos: Float32Array; skin: Uint8Array } };
 
 type Mesh = { pos: Float32Array; uv: Float32Array; index: Uint32Array };
 
@@ -74,7 +74,7 @@ function isSkin(r: number, g: number, b: number): boolean {
   return h >= 8 && h <= 38 && s >= 0.28 && s <= 0.8 && v >= 0.45;
 }
 
-export async function deriveHandPoints(path: string): Promise<HandPoints> {
+export async function deriveHandPoints(path: string, withDebug = false): Promise<HandPoints> {
   const { mesh, texture } = await readMesh(path);
   const notes: string[] = [];
   if (!texture) return { links: null, rechts: null, confidence: "geen", notes: ["geen kleurtexture"] };
@@ -150,25 +150,30 @@ export async function deriveHandPoints(path: string): Promise<HandPoints> {
   // Hoofd = het stuk met het hoogste punt. Benen = stukken die tot bij de voeten reiken. De rest zijn armen/handen.
   const head = parts.reduce((best, part) => (part.max[1] > best.max[1] ? part : best), parts[0]);
   const rest = parts.filter((part) => part !== head);
-  const legs = rest.filter((part) => part.min[1] < bottom + 0.12 * height && part.max[1] < bottom + 0.6 * height);
-  const arms = rest.filter((part) => !legs.includes(part) && part.verts.length >= 60);
-  if (arms.length === 0) return { links: null, rechts: null, confidence: "geen", notes: [`geen armstuk gevonden (${parts.length} huidstukken)`] };
-
-  // Schouderpunt: het punt van het armstuk dat het dichtst bij het midden van het lichaam (as door het hoofd) en boven de heup ligt; hand = verste punt.
-  const axis: Vec3 = [head.center[0], 0, head.center[2]];
-  const handOf = (part: Comp): Vec3 => {
-    let shoulder = part.verts[0];
-    let best = 1e9;
-    for (const v of part.verts) {
-      const d = Math.hypot(mesh.pos[v * 3] - axis[0], mesh.pos[v * 3 + 2] - axis[2]) + 0.5 * Math.abs(mesh.pos[v * 3 + 1] - (bottom + 0.78 * height));
-      if (d < best) {
-        best = d;
-        shoulder = v;
+  // Benen en dijen (ook opgetild bij rennen of zitten) liggen onder de heupen; een arm begint bij een mouw niet meer dan ±34 % van de lichaamslengte onder het hoofd.
+  const arms = rest.filter((part) => part.max[1] > head.center[1] - 0.34 * height && part.verts.length >= 60);
+  // Handen zijn vaak een los stukje (pols- of vingernaad): kleine stukken die niet bij de voeten zitten en dicht bij een arm liggen, horen bij die arm.
+  for (const small of rest.filter((part) => !arms.includes(part) && part.verts.length >= 8 && part.min[1] > bottom + 0.15 * height)) {
+    let nearest: Comp | null = null;
+    let nearestDistance = 0.3;
+    for (const arm of arms) {
+      const d = Math.hypot(arm.center[0] - small.center[0], arm.center[1] - small.center[1], arm.center[2] - small.center[2]);
+      const reach = Math.min(...arm.verts.slice(0, 400).map((v) => Math.hypot(mesh.pos[v * 3] - small.center[0], mesh.pos[v * 3 + 1] - small.center[1], mesh.pos[v * 3 + 2] - small.center[2])));
+      if (Math.min(d, reach) < nearestDistance) {
+        nearestDistance = Math.min(d, reach);
+        nearest = arm;
       }
     }
-    const s: Vec3 = [mesh.pos[shoulder * 3], mesh.pos[shoulder * 3 + 1], mesh.pos[shoulder * 3 + 2]];
+    if (nearest) nearest.verts.push(...small.verts);
+  }
+  if (arms.length === 0) return { links: null, rechts: null, confidence: "geen", notes: [`geen armstuk gevonden (${parts.length} huidstukken)`] };
+
+  // Handpunt = het uiterste punt van het armstuk, gemeten vanaf de borst (onder het hoofd, op ±72 % van de lengte): een hand is het deel van de arm
+  // dat het verst van het lichaam zit. Gemiddelde van de verste 12 % van de hoekpunten (stabieler dan één uiterste punt).
+  const chest: Vec3 = [head.center[0], bottom + 0.72 * height, head.center[2]];
+  const handOf = (part: Comp): Vec3 => {
     const far = part.verts
-      .map((v) => ({ v, d: Math.hypot(mesh.pos[v * 3] - s[0], mesh.pos[v * 3 + 1] - s[1], mesh.pos[v * 3 + 2] - s[2]) }))
+      .map((v) => ({ v, d: Math.hypot(mesh.pos[v * 3] - chest[0], mesh.pos[v * 3 + 1] - chest[1], mesh.pos[v * 3 + 2] - chest[2]) }))
       .sort((a, b) => b.d - a.d)
       .slice(0, Math.max(8, Math.round(part.verts.length * 0.12)));
     const sum: Vec3 = [0, 0, 0];
@@ -192,5 +197,5 @@ export async function deriveHandPoints(path: string): Promise<HandPoints> {
     notes.push("handen liggen op dezelfde zijwaartse positie: links/rechts is een gok");
   }
   if (arms.length > 2) notes.push(`${arms.length} armachtige huidstukken; de 2 grootste gebruikt`);
-  return { links, rechts, confidence, notes };
+  return { links, rechts, confidence, notes, ...(withDebug ? { debug: { pos: mesh.pos, skin } } : {}) };
 }

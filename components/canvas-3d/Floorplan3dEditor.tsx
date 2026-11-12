@@ -378,6 +378,9 @@ export function Floorplan3dEditor({
   const dragStartItemRef = useRef<Floorplan3dItem | null>(null);
   // Tillen (rechtermuisknop op een object, of de knop "Tillen" op een telefoon): hoogte van het geselecteerde item aanpassen.
   const [liftGuide, setLiftGuide] = useState<LiftGuideData | null>(null);
+  /** Mobiel: de knop "Tillen" staat aan; een vinger op het geselecteerde item tilt het in plaats van het over de vloer te schuiven. */
+  const [liftModeId, setLiftModeId] = useState<string | null>(null);
+  const liftMode = liftModeId !== null && liftModeId === selectedId;
   const liftRef = useRef<{
     id: string;
     startClientY: number;
@@ -2580,6 +2583,7 @@ export function Floorplan3dEditor({
         if (ropeMode) return ropeDrag.beginNew(id, [event.point.x, event.point.y, event.point.z], event);
         // Rechtermuisknop op een object = tillen (hoogte); de linkermuisknop of een vinger schuift het over de vloer.
         if (event.nativeEvent.pointerType === "mouse" && event.nativeEvent.button === 2) return beginLift(id, event);
+        if (liftMode && event.nativeEvent.pointerType !== "mouse") return beginLift(id, event);
         return handleItemPointerDown(id);
       }}
       ropes={ropes}
@@ -2837,6 +2841,8 @@ export function Floorplan3dEditor({
               canLock={Boolean(selectedItem)}
               onRotate={rotateSelected}
               onOpenRotation={selectedItem ? () => setMobilePanel("rotatie") : undefined}
+              onToggleLift={selectedItem ? () => setLiftModeId(liftMode ? null : selectedItem.id) : undefined}
+              lifting={liftMode}
               onDuplicate={duplicateSelected}
               onCopy={() => copySelection(false)}
               onPaste={hasClipboard ? () => clipboardRef.current && pasteObjects(clipboardRef.current) : undefined}

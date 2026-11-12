@@ -7,6 +7,8 @@
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { mkdir } from "node:fs/promises";
+import { plotPose } from "./lib/hand-plot.mts";
 import { deriveHandPoints, type HandPoints } from "./lib/pose-hands.mts";
 
 const args = Object.fromEntries(process.argv.slice(2).map((arg) => { const [k, ...v] = arg.replace(/^--/, "").split("="); return [k, v.join("=") || "true"]; }));
@@ -21,7 +23,12 @@ for (const pose of poses) {
     console.warn(`overgeslagen: ${pose.id}.glb ontbreekt in ${dir}`);
     continue;
   }
-  results[pose.id] = await deriveHandPoints(path.join(dir, `${pose.id}.glb`));
+  results[pose.id] = await deriveHandPoints(path.join(dir, `${pose.id}.glb`), Boolean(args.plots));
+  if (args.plots) {
+    await mkdir("docs/grip-audit", { recursive: true });
+    await plotPose(results[pose.id], `docs/grip-audit/${pose.id}.png`, pose.id);
+    delete results[pose.id].debug;
+  }
   const r = results[pose.id];
   console.log(`${pose.id.padEnd(24)} ${r.confidence.padEnd(5)} L ${r.links ? r.links.join(", ") : "-"}  R ${r.rechts ? r.rechts.join(", ") : "-"}  ${r.notes.join("; ")}`);
 }
