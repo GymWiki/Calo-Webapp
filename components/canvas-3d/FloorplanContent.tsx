@@ -11,6 +11,7 @@ import { RopeMesh } from "@/components/canvas-3d/RopeMesh";
 import { ropeEndpoints } from "@/components/canvas-3d/rope";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
 import { ContactShadows } from "@/components/canvas-3d/ContactShadows";
+import { LiftGuide, type LiftGuideData } from "@/components/canvas-3d/LiftGuide";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom, Rope } from "@/types/floorplan3d";
 import type { Vec3 } from "@/components/canvas-3d/orientation";
 import type { MaterialModel } from "@/types/materialModel";
@@ -39,6 +40,7 @@ export function FloorplanContent({
   hideEnvironmentNodes,
   contactShadows = false,
   interactive = false,
+  liftGuide = null,
   onItemPointerDown,
   onSelect,
   onFieldPointerDown,
@@ -104,6 +106,8 @@ export function FloorplanContent({
   groupIds?: ReadonlySet<string>;
   /** false = alleen-lezen (viewer) of tijdens "Veld afzetten" in de editor. */
   interactive?: boolean;
+  /** Tijdens het tillen: hulplijn, cirkel op de vloer en hoogtelabel. */
+  liftGuide?: LiftGuideData | null;
   onItemPointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onSelect?: (id: string) => void;
   onFieldPointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
@@ -156,6 +160,7 @@ export function FloorplanContent({
         />
       ))}
       {contactShadows && lookup && <ContactShadows items={items} lookup={lookup} />}
+      {liftGuide && <LiftGuide guide={liftGuide} />}
       {lookup &&
         ropes.map((rope) => {
           if (rope.id === hiddenRopeId) return null;

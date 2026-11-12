@@ -1,6 +1,7 @@
 "use client";
 
 import { SceneAudit } from "@/components/canvas-3d/SceneAudit";
+import type { LiftGuideData } from "@/components/canvas-3d/LiftGuide";
 import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
 import { Line, PerformanceMonitor } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
@@ -80,6 +81,7 @@ export function Scene3D({
   groupIds,
   isDragging,
   onItemPointerDown,
+  liftGuide,
   fields,
   draftField,
   drawMode,
@@ -142,6 +144,8 @@ export function Scene3D({
   groupIds?: ReadonlySet<string>;
   isDragging: boolean;
   onItemPointerDown: (id: string, event: ThreeEvent<PointerEvent>) => void;
+  /** Tijdens het tillen: hulplijn, cirkel en hoogtelabel. */
+  liftGuide?: LiftGuideData | null;
   fields: ConeField[];
   /** Veld dat op dit moment getekend wordt (live preview). */
   draftField: ConeField | null;
@@ -233,6 +237,7 @@ export function Scene3D({
         groupIds={groupIds}
         interactive={!drawMode}
         onItemPointerDown={onItemPointerDown}
+        liftGuide={liftGuide}
         onSelect={onSelect}
         onFieldPointerDown={onFieldPointerDown}
         onFieldHandlePointerDown={onFieldHandlePointerDown}

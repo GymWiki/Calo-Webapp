@@ -251,7 +251,21 @@ export function RotationPanel({
               <ArrowDownToLine className="size-4 rotate-180" aria-hidden="true" /> Hoogte boven de vloer
             </p>
             <NumberStepper label="Hoogte" unit="m" value={lift ?? 0} step={0.1} min={0} max={10} onChange={(meters) => onLift(meters)} />
+            <button
+              type="button"
+              disabled={locked}
+              data-testid="terug-naar-vloer"
+              onClick={() => onLift(null)}
+              className={cn(btn, "w-full justify-center")}
+            >
+              <ArrowDownToLine className="size-4" aria-hidden="true" /> Terug naar vloer of ondergrond
+            </button>
           </div>
+        )}
+        {!drawer && (
+          <p className="text-xs text-muted-foreground" data-testid="til-hint">
+            Tillen: houd de <strong>rechtermuisknop</strong> ingedrukt op het object en sleep omhoog of omlaag (Shift = vrij). Of gebruik <kbd className="rounded border px-1">E</kbd> (hoger) en <kbd className="rounded border px-1">Q</kbd> (lager): 5 cm, met Shift 25 cm.
+          </p>
         )}
       </div>
     </section>

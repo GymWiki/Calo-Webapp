@@ -159,6 +159,8 @@ import { useCoarsePointer, useEditorLayout, useShortViewport } from "@/component
 import { useEditorSettings } from "@/components/canvas-3d/mobile/useEditorSettings";
 import { releaseAllModels, releaseModel } from "@/components/canvas-3d/model-cache";
 import { haptic } from "@/lib/haptics";
+import { formatHeight, liftHeight, liftSnapPoints, maxLiftHeight, screenDeltaToWorldHeight } from "@/components/canvas-3d/lift";
+import type { LiftGuideData } from "@/components/canvas-3d/LiftGuide";
 import {
   clampItemsToRoom,
   dimsLookupFromModels,
@@ -371,6 +373,19 @@ export function Floorplan3dEditor({
   const history = useFloorplan3dHistory();
   const dragStartSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
   const dragStartItemRef = useRef<Floorplan3dItem | null>(null);
+  // Tillen (rechtermuisknop op een object, of de knop "Tillen" op een telefoon): hoogte van het geselecteerde item aanpassen.
+  const [liftGuide, setLiftGuide] = useState<LiftGuideData | null>(null);
+  const liftRef = useRef<{
+    id: string;
+    startClientY: number;
+    startHeight: number;
+    restHeight: number;
+    maxHeight: number;
+    cam: { fovDeg: number; distance: number; pitchRad: number; viewportHeightPx: number };
+    startItems: Floorplan3dItem[];
+    changed: boolean;
+    cleanup: () => void;
+  } | null>(null);
   const dragRestingIdsRef = useRef<Set<string>>(new Set());
   const dragGroupFieldsRef = useRef<Map<string, { x: number; z: number }>>(new Map());
   const sidePanelRef = useRef<HTMLElement>(null);
@@ -1000,6 +1015,116 @@ export function Floorplan3dEditor({
     setSelectedId(id);
     scheduleAutosave();
     toast(`Touw gedupliceerd (${formatLength(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]))})`, { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 6000 });
+  }
+
+  /** Zet de hoogte van het laagste punt: op of onder de ondergrond = geen "Vrij in hoogte" meer (het item rust weer op vloer of ondergrond). */
+  function withLiftHeight(item: Floorplan3dItem, height: number, restHeight: number): Floorplan3dItem {
+    const next = { ...item };
+    if (height <= restHeight + 0.004) delete next.lift_m;
+    else next.lift_m = height;
+    return next;
+  }
+
+  /** Hoogte waarop het item rust zonder "Vrij in hoogte": vloer, of de bovenkant van zijn ondergrond. */
+  function restHeightOf(item: Floorplan3dItem, all: Floorplan3dItem[]): number {
+    const { lift_m: _lift, ...withoutLift } = item;
+    void _lift;
+    return recomputeStackedYs(all.map((candidate) => (candidate.id === item.id ? withoutLift : candidate)), lookup).find((candidate) => candidate.id === item.id)?.y ?? 0;
+  }
+
+  /** Rechtermuisknop op een object: de hoogte aanpassen (verticaal slepen) in plaats van over de vloer te schuiven. */
+  function beginLift(id: string, event: ThreeEvent<PointerEvent>) {
+    const item = items.find((candidate) => candidate.id === id);
+    if (!item) return;
+    setSelectedId(id);
+    if (item.locked) {
+      toast.info("Dit item is vergrendeld.");
+      return;
+    }
+    liftRef.current?.cleanup();
+    const camera = event.camera as unknown as { position: { x: number; y: number; z: number }; fov?: number };
+    const dims = dimsOf(item, lookup);
+    const rest = restHeightOf(item, items);
+    const at = { x: item.x, z: item.z };
+    const center = { x: item.x, y: item.y + dims.height_m / 2, z: item.z };
+    const distance = Math.hypot(camera.position.x - center.x, camera.position.y - center.y, camera.position.z - center.z);
+    const canvas = event.nativeEvent.target as HTMLElement | null;
+    const roomHeight = room.environment?.type === "gymzaal" ? 6 : 10;
+    const state = {
+      id,
+      startClientY: event.nativeEvent.clientY,
+      startHeight: item.lift_m ?? rest,
+      restHeight: rest,
+      maxHeight: maxLiftHeight(roomHeight, dims.height_m),
+      cam: {
+        fovDeg: camera.fov ?? 50,
+        distance,
+        pitchRad: Math.asin(Math.min(1, Math.max(-1, (camera.position.y - center.y) / Math.max(distance, 1e-6)))),
+        viewportHeightPx: canvas?.clientHeight || window.innerHeight,
+      },
+      startItems: items,
+      changed: false,
+      cleanup: () => undefined,
+    };
+
+    function move(moveEvent: PointerEvent) {
+      const lift = liftRef.current;
+      if (!lift) return;
+      const dyPx = lift.startClientY - moveEvent.clientY;
+      if (!lift.changed && Math.abs(dyPx) < 3) return;
+      if (!lift.changed) {
+        lift.changed = true;
+        pushHistory();
+      }
+      const result = liftHeight({
+        startHeight: lift.startHeight,
+        deltaM: screenDeltaToWorldHeight({ dyPx, ...lift.cam }),
+        min: lift.restHeight,
+        max: lift.maxHeight,
+        gridStepM: snapGrid >= 0.25 ? 0.1 : 0.05,
+        snapPoints: liftSnapPoints({ restHeight: lift.restHeight }),
+        free: moveEvent.shiftKey,
+      });
+      setItems((prev) => recomputeStackedYs(prev.map((candidate) => (candidate.id === lift.id ? withLiftHeight(candidate, result.height, lift.restHeight) : candidate)), lookup));
+      setLiftGuide({ x: at.x, y: result.height, z: at.z, label: formatHeight(result.height), snapped: result.snappedTo });
+    }
+    function end() {
+      const lift = liftRef.current;
+      lift?.cleanup();
+      if (lift?.changed) {
+        haptic(10);
+        scheduleAutosave();
+      }
+    }
+    function key(keyEvent: KeyboardEvent) {
+      if (keyEvent.key !== "Escape") return;
+      const lift = liftRef.current;
+      if (lift?.changed) setItems(lift.startItems);
+      if (lift) lift.changed = false;
+      lift?.cleanup();
+    }
+    state.cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("keydown", key);
+      liftRef.current = null;
+      setLiftGuide(null);
+    };
+    liftRef.current = state;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("keydown", key);
+    setLiftGuide({ x: at.x, y: state.startHeight, z: at.z, label: formatHeight(state.startHeight) });
+  }
+
+  /** Q/E, de Hoogte-regelaar en de stepper: hoogte van het geselecteerde item met `deltaM` veranderen (één undo-stap per aanraking, binnen 1 s gebundeld). */
+  function nudgeSelectedHeight(deltaM: number) {
+    if (!selectedItem) return;
+    const rest = restHeightOf(selectedItem, items);
+    const height = Math.max(rest, Math.round(((selectedItem.lift_m ?? rest) + deltaM) * 100) / 100);
+    editSelectedOrientation({ lift: height <= rest + 0.004 ? null : height }, true);
   }
 
   function handleItemPointerDown(id: string) {
@@ -1741,6 +1866,10 @@ export function Floorplan3dEditor({
         event.preventDefault();
         if (selectedItem) stepSelectedAxis("y", direction * step);
         else rotateSelected(direction * ROTATION_STEP_SMALL_DEG);
+      } else if ((key === "q" || key === "e") && selectedItem) {
+        // Q = lager, E = hoger (5 cm; Shift = 25 cm). Zelfde functie als de Hoogte-regelaar.
+        event.preventDefault();
+        nudgeSelectedHeight((key === "e" ? 1 : -1) * (event.shiftKey ? 0.25 : 0.05));
       } else if (key === "t" && selectedItem) {
         // T = kantelen voor/achter (X), G = kantelen zijwaarts (Z); Shift keert om.
         event.preventDefault();
@@ -1755,6 +1884,15 @@ export function Floorplan3dEditor({
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selectedItem, selectedField, selectedRope, items, coneFields, ropes, room, drawMode, ropeMode, draft, snapDeg, group, snapGrid, hasClipboard]);
+
+  // Geen browsermenu bij de rechtermuisknop op het canvas (tillen en camera pannen); in invoervelden en panelen blijft het menu gewoon werken.
+  useEffect(() => {
+    function onContextMenu(event: MouseEvent) {
+      if (event.target instanceof HTMLCanvasElement) event.preventDefault();
+    }
+    document.addEventListener("contextmenu", onContextMenu);
+    return () => document.removeEventListener("contextmenu", onContextMenu);
+  }, []);
 
   // Paneel-sneltoetsen (desktop): [ = linkerpaneel, ] = rechterpaneel, F = focusmodus (alle panelen weg), Esc verlaat de focusmodus.
   useEffect(() => {
@@ -2305,9 +2443,15 @@ export function Floorplan3dEditor({
       modelBySlug={modelBySlug}
       selectedId={selectedId}
       groupIds={isMultiSelection ? groupIdSet : undefined}
-      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDrag.active}
+      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDrag.active || liftGuide !== null}
+      liftGuide={liftGuide}
       gizmo={gizmoProps}
-      onItemPointerDown={(id, event) => (ropeMode ? ropeDrag.beginNew(id, [event.point.x, event.point.y, event.point.z], event) : handleItemPointerDown(id))}
+      onItemPointerDown={(id, event) => {
+        if (ropeMode) return ropeDrag.beginNew(id, [event.point.x, event.point.y, event.point.z], event);
+        // Rechtermuisknop op een object = tillen (hoogte); de linkermuisknop of een vinger schuift het over de vloer.
+        if (event.nativeEvent.pointerType === "mouse" && event.nativeEvent.button === 2) return beginLift(id, event);
+        return handleItemPointerDown(id);
+      }}
       ropes={ropes}
       hiddenRopeId={dragView?.hiddenRopeId ?? null}
       ropeDraft={dragView?.preview ?? null}
