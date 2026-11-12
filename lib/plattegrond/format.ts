@@ -25,7 +25,7 @@ export const roundNumber = (value: number): number => Math.round(value * factor)
 const KEY_ORDER = [
   "format", "version", "exportedAt", "title", "scene", "room", "items", "coneFields", "ropes",
   "a", "b", "item", "local",
-  "id", "slug", "type", "x", "y", "z", "rot_y_deg", "rot_x_deg", "rot_z_deg", "lift_m", "locked", "size",
+  "id", "slug", "type", "x", "y", "z", "rot_y_deg", "rot_x_deg", "rot_z_deg", "lift_m", "houdt_vast", "locked", "size",
   "width_m", "length_m", "interval_m", "distribution", "marker", "color", "corner_color",
   "environment", "layout", "hidden", "view",
 ];
