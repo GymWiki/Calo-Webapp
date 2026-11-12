@@ -2,7 +2,7 @@
 
 import type { AnchorView } from "@/components/canvas-3d/AnchorMarkers";
 import { anchorsForSlug } from "@/components/canvas-3d/anchors";
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { ConeFieldMesh } from "@/components/canvas-3d/ConeFieldMesh";
 import { EnvironmentModel } from "@/components/canvas-3d/EnvironmentModel";
@@ -11,6 +11,11 @@ import { RopeMesh } from "@/components/canvas-3d/RopeMesh";
 import { ropeEndpoints } from "@/components/canvas-3d/rope";
 import { RoomFloor } from "@/components/canvas-3d/RoomFloor";
 import { ContactShadows } from "@/components/canvas-3d/ContactShadows";
+import { GripMarkers, LiftGuide, type LiftGuideData } from "@/components/canvas-3d/LiftGuide";
+import { gripOf } from "@/lib/constants/gripPoints";
+import { handWorld, HANDS } from "@/lib/students/hands";
+import { isStudentSlug } from "@/lib/students/catalog";
+import { applyHolds, gripWorld } from "@/components/canvas-3d/holds";
 import type { ConeField, Floorplan3dItem, Floorplan3dRoom, Rope } from "@/types/floorplan3d";
 import type { Vec3 } from "@/components/canvas-3d/orientation";
 import type { MaterialModel } from "@/types/materialModel";
@@ -29,7 +34,7 @@ import { isOutsideRoom, itemIsTilted, rotationOf } from "@/components/canvas-3d/
  */
 export function FloorplanContent({
   room,
-  items,
+  items: storedItems,
   fields,
   modelBySlug,
   lookup,
@@ -39,6 +44,7 @@ export function FloorplanContent({
   hideEnvironmentNodes,
   contactShadows = false,
   interactive = false,
+  liftGuide = null,
   onItemPointerDown,
   onSelect,
   onFieldPointerDown,
@@ -104,6 +110,8 @@ export function FloorplanContent({
   groupIds?: ReadonlySet<string>;
   /** false = alleen-lezen (viewer) of tijdens "Veld afzetten" in de editor. */
   interactive?: boolean;
+  /** Tijdens het tillen: hulplijn, cirkel op de vloer en hoogtelabel. */
+  liftGuide?: LiftGuideData | null;
   onItemPointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
   onSelect?: (id: string) => void;
   onFieldPointerDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
@@ -114,6 +122,19 @@ export function FloorplanContent({
   touchUi?: boolean;
   onRotateHandleDown?: (id: string, event: ThreeEvent<PointerEvent>) => void;
 }) {
+  // Vastgehouden materiaal staat altijd op de actuele plek van de hand (ook in de alleen-lezen viewer, thumbnails en oude opgeslagen coördinaten).
+  const items = useMemo(
+    () =>
+      lookup && storedItems.some((item) => item.houdt_vast)
+        ? applyHolds(storedItems, (item) => {
+            const dims = dimsOf(item, lookup);
+            const model = modelBySlug(item.slug);
+            const info = gripOf({ slug: item.slug, categorie: model?.categorie, subgroep: model?.subgroep, length_m: dims.length_m, width_m: dims.width_m, height_m: dims.height_m });
+            return { pakbaar: info.pakbaar, grip: info.grip };
+          }).items
+        : storedItems,
+    [storedItems, lookup, modelBySlug],
+  );
   return (
     <>
       {room.environment ? (
@@ -156,6 +177,23 @@ export function FloorplanContent({
         />
       ))}
       {contactShadows && lookup && <ContactShadows items={items} lookup={lookup} />}
+      {liftGuide && <LiftGuide guide={liftGuide} />}
+      {showAllAnchors && lookup && (
+        <GripMarkers
+          points={items.flatMap((item): { id: string; pos: [number, number, number]; label: string; kind: "hand" | "greep" }[] => {
+            if (isStudentSlug(item.slug)) {
+              return HANDS.flatMap((hand) => {
+                const pos = handWorld(item, hand);
+                return pos ? [{ id: `${item.id}-${hand}`, pos, label: `hand ${hand}`, kind: "hand" as const }] : [];
+              });
+            }
+            const dims = dimsOf(item, lookup);
+            const model = modelBySlug(item.slug);
+            const grip = gripOf({ slug: item.slug, categorie: model?.categorie, subgroep: model?.subgroep, length_m: dims.length_m, width_m: dims.width_m, height_m: dims.height_m });
+            return grip.pakbaar ? [{ id: `${item.id}-greep`, pos: gripWorld(item, grip.grip), label: "greep", kind: "greep" as const }] : [];
+          })}
+        />
+      )}
       {lookup &&
         ropes.map((rope) => {
           if (rope.id === hiddenRopeId) return null;

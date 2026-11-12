@@ -35,7 +35,8 @@
     "app:android": "npm run app:sync && cap open android",
     "mobile:sync": "cap sync",
     "mobile:ios": "cap open ios",
-    "mobile:android": "cap open android"
+    "mobile:android": "cap open android",
+    "audit:grip": "node --experimental-strip-types scripts/audit-grip.mts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

@@ -3,7 +3,7 @@
 // Zonder DOM/React, dus ook bruikbaar vanuit het CLI-script (scripts/import-plattegrond.mts).
 
 import { ropesWithItems } from "@/lib/plattegrond/ropes";
-import { upgradeStudentItems } from "@/lib/students/catalog";
+import { isStudentSlug, upgradeStudentItems } from "@/lib/students/catalog";
 import type { ZodIssue } from "zod";
 
 import { FORMAT_NAME, FORMAT_VERSION } from "@/lib/plattegrond/format";
@@ -15,7 +15,7 @@ const MAX_ISSUES = 20;
 export type Issue = { path: string; message: string };
 
 export type ImportWarning = {
-  code: "onbekend-item" | "touw-weggelaten" | "buiten-zaal" | "dubbel-id" | "zonder-envelope" | "gemigreerd";
+  code: "onbekend-item" | "koppeling-weggelaten" | "touw-weggelaten" | "buiten-zaal" | "dubbel-id" | "zonder-envelope" | "gemigreerd";
   message: string;
 };
 
@@ -180,6 +180,28 @@ export function parsePlattegrondJson(text: string, options: ParseOptions = {}): 
       const total = unknownItems.reduce((sum, u) => sum + u.count, 0);
       warnings.push({ code: "onbekend-item", message: `${total} ${total === 1 ? "item is" : "items zijn"} weggelaten omdat ${unknownItems.length === 1 ? "het materiaal" : "de materialen"} niet in de bibliotheek ${unknownItems.length === 1 ? "staat" : "staan"}: ${unknownItems.map((u) => u.slug).join(", ")}.` });
     }
+  }
+
+  // Koppelingen "houdt_vast": het object moet door een bestaande leerling worden vastgehouden en elke hand houdt maar één object. Een koppeling die
+  // niet klopt vervalt (het object blijft op zijn plek staan), met een waarschuwing.
+  {
+    const students = new Set(items.filter((item) => isStudentSlug(item.slug)).map((item) => item.id));
+    const taken = new Set<string>();
+    let dropped = 0;
+    items = items.map((item) => {
+      const hold = item.houdt_vast;
+      if (!hold) return item;
+      const key = `${hold.leerling}:${hold.hand}`;
+      if (!students.has(hold.leerling) || item.id === hold.leerling || taken.has(key)) {
+        dropped += 1;
+        const { houdt_vast: _gone, ...rest } = item;
+        void _gone;
+        return rest;
+      }
+      taken.add(key);
+      return item;
+    });
+    if (dropped > 0) warnings.push({ code: "koppeling-weggelaten", message: `${dropped} ${dropped === 1 ? "koppeling" : "koppelingen"} (materiaal in de hand van een leerling) ${dropped === 1 ? "is" : "zijn"} weggelaten: de leerling bestaat niet of de hand is al bezet.` });
   }
 
   // Buiten de zaal: alleen melden; de editor schuift ze terug met zijn eigen botsingslogica.

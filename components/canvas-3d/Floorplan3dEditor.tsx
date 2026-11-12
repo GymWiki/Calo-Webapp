@@ -159,6 +159,11 @@ import { useCoarsePointer, useEditorLayout, useShortViewport } from "@/component
 import { useEditorSettings } from "@/components/canvas-3d/mobile/useEditorSettings";
 import { releaseAllModels, releaseModel } from "@/components/canvas-3d/model-cache";
 import { haptic } from "@/lib/haptics";
+import { formatHeight, liftHeight, liftSnapPoints, maxLiftHeight, screenDeltaToWorldHeight } from "@/components/canvas-3d/lift";
+import type { LiftGuideData } from "@/components/canvas-3d/LiftGuide";
+import { applyHolds, gripWorld, holdPlacement, nearestHand, occupiedHands, type GripFor } from "@/components/canvas-3d/holds";
+import { gripOf } from "@/lib/constants/gripPoints";
+import { HAND_LABEL } from "@/lib/students/hands";
 import {
   clampItemsToRoom,
   dimsLookupFromModels,
@@ -371,6 +376,24 @@ export function Floorplan3dEditor({
   const history = useFloorplan3dHistory();
   const dragStartSnapshotRef = useRef<Floorplan3dSnapshot | null>(null);
   const dragStartItemRef = useRef<Floorplan3dItem | null>(null);
+  // Tillen (rechtermuisknop op een object, of de knop "Tillen" op een telefoon): hoogte van het geselecteerde item aanpassen.
+  const [liftGuide, setLiftGuide] = useState<LiftGuideData | null>(null);
+  /** Mobiel: de knop "Tillen" staat aan; een vinger op het geselecteerde item tilt het in plaats van het over de vloer te schuiven. */
+  const [liftModeId, setLiftModeId] = useState<string | null>(null);
+  const liftMode = liftModeId !== null && liftModeId === selectedId;
+  const liftRef = useRef<{
+    id: string;
+    startClientY: number;
+    startHeight: number;
+    restHeight: number;
+    maxHeight: number;
+    cam: { fovDeg: number; distance: number; pitchRad: number; viewportHeightPx: number };
+    startItems: Floorplan3dItem[];
+    changed: boolean;
+    cleanup: () => void;
+  } | null>(null);
+  // Altijd de actuele items, voor gebeurtenissen buiten React (tilbeweging, loslaten).
+  const itemsRef = useRef<Floorplan3dItem[]>([]);
   const dragRestingIdsRef = useRef<Set<string>>(new Set());
   const dragGroupFieldsRef = useRef<Map<string, { x: number; z: number }>>(new Map());
   const sidePanelRef = useRef<HTMLElement>(null);
@@ -1002,9 +1025,207 @@ export function Floorplan3dEditor({
     toast(`Touw gedupliceerd (${formatLength(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]))})`, { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 6000 });
   }
 
+  /** Greeppunt en pakbaarheid van een item, uit lib/constants/gripPoints.ts (categorie en afmetingen uit de catalogus). */
+  const gripFor: GripFor = (item) => {
+    const model = modelBySlug(item.slug);
+    const dims = dimsOf(item, lookup);
+    const info = gripOf({ slug: item.slug, categorie: model?.categorie, subgroep: model?.subgroep, length_m: dims.length_m, width_m: dims.width_m, height_m: dims.height_m });
+    return { pakbaar: info.pakbaar, grip: info.grip };
+  };
+  const gripForRef = useRef(gripFor);
+  useEffect(() => {
+    gripForRef.current = gripFor;
+    itemsRef.current = items;
+  });
+
+  // Vastgehouden objecten volgen hun leerling: positie en draaiing worden uit de actuele handpositie berekend (elke verplaatsing, draaiing, schaalwissel
+  // of posewissel van de leerling). Een koppeling die niet meer klopt (leerling verwijderd, hand weg) vervalt; het object blijft dan staan.
+  useEffect(() => {
+    const result = applyHolds(items, gripForRef.current);
+    if (result.items === items) return;
+    setItems(result.items);
+    scheduleAutosave();
+    if (result.released.some((entry) => entry.reason === "leerling-weg")) toast.info("Het object blijft staan: de leerling die het vasthield is weg.", { id: "hand-los" });
+    else if (result.released.some((entry) => entry.reason === "hand-bezet")) toast.info("Hand bezet: het tweede object is losgelaten.", { id: "hand-los" });
+  }, [items]);
+
+  /** Het object in een hand klikken als zijn greeppunt dichtbij een handpunt is (niet bij Shift). Een bezette hand: melden, niets vervangen. */
+  function attachIfNear(id: string) {
+    const all = itemsRef.current;
+    const item = all.find((candidate) => candidate.id === id);
+    if (!item || item.houdt_vast) return;
+    const grip = gripForRef.current(item);
+    if (!grip?.pakbaar) return;
+    const snap = nearestHand(item, grip.grip, all);
+    if (!snap) return;
+    if (snap.occupiedBy) {
+      toast.warning("Hand bezet: laat eerst het andere object los.", { id: "hand-bezet" });
+      return;
+    }
+    const student = all.find((candidate) => candidate.id === snap.studentId);
+    const placement = student ? holdPlacement(student, snap.hand, grip.grip) : null;
+    if (!placement) return;
+    setItems((prev) => prev.map((candidate) => (candidate.id === id ? { ...candidate, ...placement, houdt_vast: { leerling: snap.studentId, hand: snap.hand } } : candidate)));
+    haptic(14);
+    scheduleAutosave();
+    toast.success(`${modelBySlug(item.slug)?.naam ?? "Object"} in de ${HAND_LABEL[snap.hand]}`, { id: "hand-vast", duration: 3000 });
+  }
+
+  /** Loslaten: de koppeling weg, het object blijft op zijn plek en hoogte staan (één undo-stap). */
+  function releaseHeld(id: string) {
+    const item = items.find((candidate) => candidate.id === id);
+    if (!item?.houdt_vast) return;
+    pushHistory();
+    setItems((prev) => prev.map((candidate) => {
+      if (candidate.id !== id) return candidate;
+      const { houdt_vast: _gone, ...rest } = candidate;
+      void _gone;
+      return rest;
+    }));
+    scheduleAutosave();
+    toast.success("Losgelaten", { id: "hand-vast", duration: 2000 });
+  }
+
+  /** Zet de hoogte van het laagste punt: op of onder de ondergrond = geen "Vrij in hoogte" meer (het item rust weer op vloer of ondergrond). */
+  function withLiftHeight(item: Floorplan3dItem, height: number, restHeight: number): Floorplan3dItem {
+    const next = { ...item };
+    if (height <= restHeight + 0.004) delete next.lift_m;
+    else next.lift_m = height;
+    return next;
+  }
+
+  /** Hoogte waarop het item rust zonder "Vrij in hoogte": vloer, of de bovenkant van zijn ondergrond. */
+  function restHeightOf(item: Floorplan3dItem, all: Floorplan3dItem[]): number {
+    const { lift_m: _lift, ...withoutLift } = item;
+    void _lift;
+    return recomputeStackedYs(all.map((candidate) => (candidate.id === item.id ? withoutLift : candidate)), lookup).find((candidate) => candidate.id === item.id)?.y ?? 0;
+  }
+
+  /** Rechtermuisknop op een object: de hoogte aanpassen (verticaal slepen) in plaats van over de vloer te schuiven. */
+  function beginLift(id: string, event: ThreeEvent<PointerEvent>) {
+    const item = items.find((candidate) => candidate.id === id);
+    if (!item) return;
+    setSelectedId(id);
+    if (item.locked) {
+      toast.info("Dit item is vergrendeld.");
+      return;
+    }
+    liftRef.current?.cleanup();
+    const camera = event.camera as unknown as { position: { x: number; y: number; z: number }; fov?: number };
+    const dims = dimsOf(item, lookup);
+    const rest = restHeightOf(item, items);
+    const at = { x: item.x, z: item.z };
+    const center = { x: item.x, y: item.y + dims.height_m / 2, z: item.z };
+    const distance = Math.hypot(camera.position.x - center.x, camera.position.y - center.y, camera.position.z - center.z);
+    const canvas = event.nativeEvent.target as HTMLElement | null;
+    const roomHeight = room.environment?.type === "gymzaal" ? 6 : 10;
+    const state = {
+      id,
+      startClientY: event.nativeEvent.clientY,
+      startHeight: item.lift_m ?? rest,
+      restHeight: rest,
+      maxHeight: maxLiftHeight(roomHeight, dims.height_m),
+      cam: {
+        fovDeg: camera.fov ?? 50,
+        distance,
+        pitchRad: Math.asin(Math.min(1, Math.max(-1, (camera.position.y - center.y) / Math.max(distance, 1e-6)))),
+        viewportHeightPx: canvas?.clientHeight || window.innerHeight,
+      },
+      startItems: items,
+      changed: false,
+      cleanup: () => undefined,
+    };
+
+    function move(moveEvent: PointerEvent) {
+      const lift = liftRef.current;
+      if (!lift) return;
+      const dyPx = lift.startClientY - moveEvent.clientY;
+      if (!lift.changed && Math.abs(dyPx) < 3) return;
+      if (!lift.changed) {
+        lift.changed = true;
+        pushHistory();
+      }
+      const result = liftHeight({
+        startHeight: lift.startHeight,
+        deltaM: screenDeltaToWorldHeight({ dyPx, ...lift.cam }),
+        min: lift.restHeight,
+        max: lift.maxHeight,
+        gridStepM: snapGrid >= 0.25 ? 0.1 : 0.05,
+        snapPoints: liftSnapPoints({ restHeight: lift.restHeight }),
+        free: moveEvent.shiftKey,
+      });
+      setItems((prev) =>
+        recomputeStackedYs(
+          prev.map((candidate) => {
+            if (candidate.id !== lift.id) return candidate;
+            // Een vastgehouden object met de rechtermuisknop wegtrekken: de koppeling komt los.
+            const { houdt_vast: _gone, ...rest } = withLiftHeight(candidate, result.height, lift.restHeight);
+            void _gone;
+            return rest;
+          }),
+          lookup,
+        ),
+      );
+      // Subtiele highlight van de hand waar het greeppunt bij loslaten aan vastklikt (niet met Shift).
+      let hand: LiftGuideData["hand"] = null;
+      const current = itemsRef.current.find((candidate) => candidate.id === lift.id);
+      const grip = current ? gripForRef.current(current) : null;
+      if (current && grip?.pakbaar && !moveEvent.shiftKey) {
+        const snap = nearestHand({ ...current, y: result.height, houdt_vast: undefined }, grip.grip, itemsRef.current);
+        if (snap) hand = { pos: snap.point, busy: snap.occupiedBy !== null };
+      }
+      setLiftGuide({ x: at.x, y: result.height, z: at.z, label: formatHeight(result.height), snapped: result.snappedTo, hand });
+    }
+    function end(endEvent?: PointerEvent) {
+      const lift = liftRef.current;
+      lift?.cleanup();
+      if (lift?.changed) {
+        haptic(10);
+        scheduleAutosave();
+        // Na het loslaten (met de bijgewerkte items) aan een hand vastklikken als het greeppunt dichtbij een handpunt is.
+        if (!(endEvent as PointerEvent | undefined)?.shiftKey) window.setTimeout(() => attachIfNear(lift.id), 0);
+      }
+    }
+    function key(keyEvent: KeyboardEvent) {
+      if (keyEvent.key !== "Escape") return;
+      const lift = liftRef.current;
+      if (lift?.changed) setItems(lift.startItems);
+      if (lift) lift.changed = false;
+      lift?.cleanup();
+    }
+    state.cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("keydown", key);
+      liftRef.current = null;
+      setLiftGuide(null);
+    };
+    liftRef.current = state;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("keydown", key);
+    setLiftGuide({ x: at.x, y: state.startHeight, z: at.z, label: formatHeight(state.startHeight) });
+  }
+
+  /** Q/E, de Hoogte-regelaar en de stepper: hoogte van het geselecteerde item met `deltaM` veranderen (één undo-stap per aanraking, binnen 1 s gebundeld). */
+  function nudgeSelectedHeight(deltaM: number) {
+    if (!selectedItem) return;
+    const rest = restHeightOf(selectedItem, items);
+    const height = Math.max(rest, Math.round(((selectedItem.lift_m ?? rest) + deltaM) * 100) / 100);
+    editSelectedOrientation({ lift: height <= rest + 0.004 ? null : height }, true);
+  }
+
   function handleItemPointerDown(id: string) {
     // Shift/Ctrl/Cmd+klik is alleen selecteren, geen slepen.
     if (modifierRef.current) return;
+    // Een vastgehouden object schuift niet los van zijn leerling: rechtermuisknop (tillen) of Loslaten.
+    if (items.find((candidate) => candidate.id === id)?.houdt_vast) {
+      setSelectedId(id);
+      toast.info("Dit object wordt vastgehouden. Trek het met de rechtermuisknop los of kies Loslaten.", { id: "hand-vast" });
+      return;
+    }
     dragStartSnapshotRef.current = { room, items, coneFields, ropes };
     dragStartItemRef.current = items.find((item) => item.id === id) ?? null;
     // Items die op het gesleepte item rusten reizen mee: ze tellen niet als
@@ -1173,6 +1394,8 @@ export function Floorplan3dEditor({
     setWarnIds(new Set());
     lastSnappedRef.current = false;
     haptic(10);
+    // Een opgetild object dat je over de vloer schuift klikt bij loslaten ook aan een hand vast.
+    if (!event.nativeEvent.shiftKey) window.setTimeout(() => attachIfNear(id), 0);
 
     const startItem = dragStartItemRef.current;
     const startSnapshot = dragStartSnapshotRef.current;
@@ -1741,6 +1964,10 @@ export function Floorplan3dEditor({
         event.preventDefault();
         if (selectedItem) stepSelectedAxis("y", direction * step);
         else rotateSelected(direction * ROTATION_STEP_SMALL_DEG);
+      } else if ((key === "q" || key === "e") && selectedItem) {
+        // Q = lager, E = hoger (5 cm; Shift = 25 cm). Zelfde functie als de Hoogte-regelaar.
+        event.preventDefault();
+        nudgeSelectedHeight((key === "e" ? 1 : -1) * (event.shiftKey ? 0.25 : 0.05));
       } else if (key === "t" && selectedItem) {
         // T = kantelen voor/achter (X), G = kantelen zijwaarts (Z); Shift keert om.
         event.preventDefault();
@@ -1755,6 +1982,15 @@ export function Floorplan3dEditor({
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, selectedItem, selectedField, selectedRope, items, coneFields, ropes, room, drawMode, ropeMode, draft, snapDeg, group, snapGrid, hasClipboard]);
+
+  // Geen browsermenu bij de rechtermuisknop op het canvas (tillen en camera pannen); in invoervelden en panelen blijft het menu gewoon werken.
+  useEffect(() => {
+    function onContextMenu(event: MouseEvent) {
+      if (event.target instanceof HTMLCanvasElement) event.preventDefault();
+    }
+    document.addEventListener("contextmenu", onContextMenu);
+    return () => document.removeEventListener("contextmenu", onContextMenu);
+  }, []);
 
   // Paneel-sneltoetsen (desktop): [ = linkerpaneel, ] = rechterpaneel, F = focusmodus (alle panelen weg), Esc verlaat de focusmodus.
   useEffect(() => {
@@ -2118,6 +2354,41 @@ export function Floorplan3dEditor({
       {selectedItem ? (
         <>
           <p className="text-sm font-medium">{modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item"}</p>
+          {(() => {
+            // Wie houdt wat vast: bij een vastgehouden object de leerling en hand + Loslaten; bij een leerling een tekstuele lijst.
+            const studentLabel = (studentId: string) => `Leerling ${items.filter((candidate) => isStudentSlug(candidate.slug)).findIndex((candidate) => candidate.id === studentId) + 1}`;
+            if (selectedItem.houdt_vast) {
+              return (
+                <div className="space-y-2 rounded-lg border bg-muted/40 p-2" data-testid="vastgehouden-paneel">
+                  <p className="text-sm">Vastgehouden door {studentLabel(selectedItem.houdt_vast.leerling)}, {HAND_LABEL[selectedItem.houdt_vast.hand]}</p>
+                  <Button type="button" variant="outline" size="sm" className="w-full" data-testid="loslaten" disabled={Boolean(selectedItem.locked)} onClick={() => releaseHeld(selectedItem.id)}>
+                    Loslaten
+                  </Button>
+                </div>
+              );
+            }
+            if (isStudentSlug(selectedItem.slug)) {
+              const holds = [...occupiedHands(items, selectedItem.id)];
+              return (
+                <div className="space-y-1" data-testid="wie-houdt-wat">
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Houdt vast</p>
+                  {holds.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Niets. Til materiaal met de rechtermuisknop bij een hand om het vast te geven.</p>
+                  ) : (
+                    <ul className="space-y-1 text-sm">
+                      {holds.map(([hand, itemId]) => (
+                        <li key={hand} className="flex items-center justify-between gap-2">
+                          <span>{modelBySlug(items.find((candidate) => candidate.id === itemId)?.slug ?? "")?.naam ?? "Object"} ({HAND_LABEL[hand]})</span>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => releaseHeld(itemId)}>Loslaten</Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            }
+            return null;
+          })()}
           <MaatPanel slug={selectedItem.slug} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedMaat} />
           {isStudentSlug(selectedItem.slug) && (
             <StudentPanel item={selectedItem} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedStudent} />
@@ -2305,9 +2576,16 @@ export function Floorplan3dEditor({
       modelBySlug={modelBySlug}
       selectedId={selectedId}
       groupIds={isMultiSelection ? groupIdSet : undefined}
-      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDrag.active}
+      isDragging={draggingId !== null || fieldDragActive || rotatingId !== null || gizmoActive || ropeDrag.active || liftGuide !== null}
+      liftGuide={liftGuide}
       gizmo={gizmoProps}
-      onItemPointerDown={(id, event) => (ropeMode ? ropeDrag.beginNew(id, [event.point.x, event.point.y, event.point.z], event) : handleItemPointerDown(id))}
+      onItemPointerDown={(id, event) => {
+        if (ropeMode) return ropeDrag.beginNew(id, [event.point.x, event.point.y, event.point.z], event);
+        // Rechtermuisknop op een object = tillen (hoogte); de linkermuisknop of een vinger schuift het over de vloer.
+        if (event.nativeEvent.pointerType === "mouse" && event.nativeEvent.button === 2) return beginLift(id, event);
+        if (liftMode && event.nativeEvent.pointerType !== "mouse") return beginLift(id, event);
+        return handleItemPointerDown(id);
+      }}
       ropes={ropes}
       hiddenRopeId={dragView?.hiddenRopeId ?? null}
       ropeDraft={dragView?.preview ?? null}
@@ -2563,6 +2841,8 @@ export function Floorplan3dEditor({
               canLock={Boolean(selectedItem)}
               onRotate={rotateSelected}
               onOpenRotation={selectedItem ? () => setMobilePanel("rotatie") : undefined}
+              onToggleLift={selectedItem ? () => setLiftModeId(liftMode ? null : selectedItem.id) : undefined}
+              lifting={liftMode}
               onDuplicate={duplicateSelected}
               onCopy={() => copySelection(false)}
               onPaste={hasClipboard ? () => clipboardRef.current && pasteObjects(clipboardRef.current) : undefined}
