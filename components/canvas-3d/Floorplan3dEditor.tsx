@@ -161,6 +161,9 @@ import { releaseAllModels, releaseModel } from "@/components/canvas-3d/model-cac
 import { haptic } from "@/lib/haptics";
 import { formatHeight, liftHeight, liftSnapPoints, maxLiftHeight, screenDeltaToWorldHeight } from "@/components/canvas-3d/lift";
 import type { LiftGuideData } from "@/components/canvas-3d/LiftGuide";
+import { applyHolds, gripWorld, holdPlacement, nearestHand, occupiedHands, type GripFor } from "@/components/canvas-3d/holds";
+import { gripOf } from "@/lib/constants/gripPoints";
+import { HAND_LABEL } from "@/lib/students/hands";
 import {
   clampItemsToRoom,
   dimsLookupFromModels,
@@ -386,6 +389,8 @@ export function Floorplan3dEditor({
     changed: boolean;
     cleanup: () => void;
   } | null>(null);
+  // Altijd de actuele items, voor gebeurtenissen buiten React (tilbeweging, loslaten).
+  const itemsRef = useRef<Floorplan3dItem[]>([]);
   const dragRestingIdsRef = useRef<Set<string>>(new Set());
   const dragGroupFieldsRef = useRef<Map<string, { x: number; z: number }>>(new Map());
   const sidePanelRef = useRef<HTMLElement>(null);
@@ -1017,6 +1022,67 @@ export function Floorplan3dEditor({
     toast(`Touw gedupliceerd (${formatLength(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]))})`, { action: { label: "Ongedaan maken", onClick: () => handleUndoRef.current() }, duration: 6000 });
   }
 
+  /** Greeppunt en pakbaarheid van een item, uit lib/constants/gripPoints.ts (categorie en afmetingen uit de catalogus). */
+  const gripFor: GripFor = (item) => {
+    const model = modelBySlug(item.slug);
+    const dims = dimsOf(item, lookup);
+    const info = gripOf({ slug: item.slug, categorie: model?.categorie, subgroep: model?.subgroep, length_m: dims.length_m, width_m: dims.width_m, height_m: dims.height_m });
+    return { pakbaar: info.pakbaar, grip: info.grip };
+  };
+  const gripForRef = useRef(gripFor);
+  useEffect(() => {
+    gripForRef.current = gripFor;
+    itemsRef.current = items;
+  });
+
+  // Vastgehouden objecten volgen hun leerling: positie en draaiing worden uit de actuele handpositie berekend (elke verplaatsing, draaiing, schaalwissel
+  // of posewissel van de leerling). Een koppeling die niet meer klopt (leerling verwijderd, hand weg) vervalt; het object blijft dan staan.
+  useEffect(() => {
+    const result = applyHolds(items, gripForRef.current);
+    if (result.items === items) return;
+    setItems(result.items);
+    scheduleAutosave();
+    if (result.released.some((entry) => entry.reason === "leerling-weg")) toast.info("Het object blijft staan: de leerling die het vasthield is weg.", { id: "hand-los" });
+    else if (result.released.some((entry) => entry.reason === "hand-bezet")) toast.info("Hand bezet: het tweede object is losgelaten.", { id: "hand-los" });
+  }, [items]);
+
+  /** Het object in een hand klikken als zijn greeppunt dichtbij een handpunt is (niet bij Shift). Een bezette hand: melden, niets vervangen. */
+  function attachIfNear(id: string) {
+    const all = itemsRef.current;
+    const item = all.find((candidate) => candidate.id === id);
+    if (!item || item.houdt_vast) return;
+    const grip = gripForRef.current(item);
+    if (!grip?.pakbaar) return;
+    const snap = nearestHand(item, grip.grip, all);
+    if (!snap) return;
+    if (snap.occupiedBy) {
+      toast.warning("Hand bezet: laat eerst het andere object los.", { id: "hand-bezet" });
+      return;
+    }
+    const student = all.find((candidate) => candidate.id === snap.studentId);
+    const placement = student ? holdPlacement(student, snap.hand, grip.grip) : null;
+    if (!placement) return;
+    setItems((prev) => prev.map((candidate) => (candidate.id === id ? { ...candidate, ...placement, houdt_vast: { leerling: snap.studentId, hand: snap.hand } } : candidate)));
+    haptic(14);
+    scheduleAutosave();
+    toast.success(`${modelBySlug(item.slug)?.naam ?? "Object"} in de ${HAND_LABEL[snap.hand]}`, { id: "hand-vast", duration: 3000 });
+  }
+
+  /** Loslaten: de koppeling weg, het object blijft op zijn plek en hoogte staan (één undo-stap). */
+  function releaseHeld(id: string) {
+    const item = items.find((candidate) => candidate.id === id);
+    if (!item?.houdt_vast) return;
+    pushHistory();
+    setItems((prev) => prev.map((candidate) => {
+      if (candidate.id !== id) return candidate;
+      const { houdt_vast: _gone, ...rest } = candidate;
+      void _gone;
+      return rest;
+    }));
+    scheduleAutosave();
+    toast.success("Losgelaten", { id: "hand-vast", duration: 2000 });
+  }
+
   /** Zet de hoogte van het laagste punt: op of onder de ondergrond = geen "Vrij in hoogte" meer (het item rust weer op vloer of ondergrond). */
   function withLiftHeight(item: Floorplan3dItem, height: number, restHeight: number): Floorplan3dItem {
     const next = { ...item };
@@ -1085,15 +1151,36 @@ export function Floorplan3dEditor({
         snapPoints: liftSnapPoints({ restHeight: lift.restHeight }),
         free: moveEvent.shiftKey,
       });
-      setItems((prev) => recomputeStackedYs(prev.map((candidate) => (candidate.id === lift.id ? withLiftHeight(candidate, result.height, lift.restHeight) : candidate)), lookup));
-      setLiftGuide({ x: at.x, y: result.height, z: at.z, label: formatHeight(result.height), snapped: result.snappedTo });
+      setItems((prev) =>
+        recomputeStackedYs(
+          prev.map((candidate) => {
+            if (candidate.id !== lift.id) return candidate;
+            // Een vastgehouden object met de rechtermuisknop wegtrekken: de koppeling komt los.
+            const { houdt_vast: _gone, ...rest } = withLiftHeight(candidate, result.height, lift.restHeight);
+            void _gone;
+            return rest;
+          }),
+          lookup,
+        ),
+      );
+      // Subtiele highlight van de hand waar het greeppunt bij loslaten aan vastklikt (niet met Shift).
+      let hand: LiftGuideData["hand"] = null;
+      const current = itemsRef.current.find((candidate) => candidate.id === lift.id);
+      const grip = current ? gripForRef.current(current) : null;
+      if (current && grip?.pakbaar && !moveEvent.shiftKey) {
+        const snap = nearestHand({ ...current, y: result.height, houdt_vast: undefined }, grip.grip, itemsRef.current);
+        if (snap) hand = { pos: snap.point, busy: snap.occupiedBy !== null };
+      }
+      setLiftGuide({ x: at.x, y: result.height, z: at.z, label: formatHeight(result.height), snapped: result.snappedTo, hand });
     }
-    function end() {
+    function end(endEvent?: PointerEvent) {
       const lift = liftRef.current;
       lift?.cleanup();
       if (lift?.changed) {
         haptic(10);
         scheduleAutosave();
+        // Na het loslaten (met de bijgewerkte items) aan een hand vastklikken als het greeppunt dichtbij een handpunt is.
+        if (!(endEvent as PointerEvent | undefined)?.shiftKey) window.setTimeout(() => attachIfNear(lift.id), 0);
       }
     }
     function key(keyEvent: KeyboardEvent) {
@@ -1130,6 +1217,12 @@ export function Floorplan3dEditor({
   function handleItemPointerDown(id: string) {
     // Shift/Ctrl/Cmd+klik is alleen selecteren, geen slepen.
     if (modifierRef.current) return;
+    // Een vastgehouden object schuift niet los van zijn leerling: rechtermuisknop (tillen) of Loslaten.
+    if (items.find((candidate) => candidate.id === id)?.houdt_vast) {
+      setSelectedId(id);
+      toast.info("Dit object wordt vastgehouden. Trek het met de rechtermuisknop los of kies Loslaten.", { id: "hand-vast" });
+      return;
+    }
     dragStartSnapshotRef.current = { room, items, coneFields, ropes };
     dragStartItemRef.current = items.find((item) => item.id === id) ?? null;
     // Items die op het gesleepte item rusten reizen mee: ze tellen niet als
@@ -1298,6 +1391,8 @@ export function Floorplan3dEditor({
     setWarnIds(new Set());
     lastSnappedRef.current = false;
     haptic(10);
+    // Een opgetild object dat je over de vloer schuift klikt bij loslaten ook aan een hand vast.
+    if (!event.nativeEvent.shiftKey) window.setTimeout(() => attachIfNear(id), 0);
 
     const startItem = dragStartItemRef.current;
     const startSnapshot = dragStartSnapshotRef.current;
@@ -2256,6 +2351,41 @@ export function Floorplan3dEditor({
       {selectedItem ? (
         <>
           <p className="text-sm font-medium">{modelBySlug(selectedItem.slug)?.naam ?? "Onbekend item"}</p>
+          {(() => {
+            // Wie houdt wat vast: bij een vastgehouden object de leerling en hand + Loslaten; bij een leerling een tekstuele lijst.
+            const studentLabel = (studentId: string) => `Leerling ${items.filter((candidate) => isStudentSlug(candidate.slug)).findIndex((candidate) => candidate.id === studentId) + 1}`;
+            if (selectedItem.houdt_vast) {
+              return (
+                <div className="space-y-2 rounded-lg border bg-muted/40 p-2" data-testid="vastgehouden-paneel">
+                  <p className="text-sm">Vastgehouden door {studentLabel(selectedItem.houdt_vast.leerling)}, {HAND_LABEL[selectedItem.houdt_vast.hand]}</p>
+                  <Button type="button" variant="outline" size="sm" className="w-full" data-testid="loslaten" disabled={Boolean(selectedItem.locked)} onClick={() => releaseHeld(selectedItem.id)}>
+                    Loslaten
+                  </Button>
+                </div>
+              );
+            }
+            if (isStudentSlug(selectedItem.slug)) {
+              const holds = [...occupiedHands(items, selectedItem.id)];
+              return (
+                <div className="space-y-1" data-testid="wie-houdt-wat">
+                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Houdt vast</p>
+                  {holds.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Niets. Til materiaal met de rechtermuisknop bij een hand om het vast te geven.</p>
+                  ) : (
+                    <ul className="space-y-1 text-sm">
+                      {holds.map(([hand, itemId]) => (
+                        <li key={hand} className="flex items-center justify-between gap-2">
+                          <span>{modelBySlug(items.find((candidate) => candidate.id === itemId)?.slug ?? "")?.naam ?? "Object"} ({HAND_LABEL[hand]})</span>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => releaseHeld(itemId)}>Loslaten</Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            }
+            return null;
+          })()}
           <MaatPanel slug={selectedItem.slug} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedMaat} />
           {isStudentSlug(selectedItem.slug) && (
             <StudentPanel item={selectedItem} models={models} disabled={Boolean(selectedItem.locked)} onChange={editSelectedStudent} />
